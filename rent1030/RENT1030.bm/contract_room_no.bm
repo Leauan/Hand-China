@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" baseTable="hls_room_info" alias="hi">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            SELECT * FROM (
+                SELECT hci.h_contract_number contract_no,
+                   hri.room_abbr room_abbr,
+                   hri.room_type room_type,
+                   hri.landlord_name landlord_name,
+                   nvl(sum(hfd.apportion_rental), 0) -
+                   nvl((select hvt.credit_item_rent
+                          from hls_verification_tab hvt
+                         where hvt.source_object = hfd.staff_no
+                           and hvt.receipt_no = hrf.receipt_no),
+                       0) apportion_rental,
+                   nvl(sum(hfd.apportion_water), 0) -
+                   nvl((select hvt.credit_item_water
+                          from hls_verification_tab hvt
+                         where hvt.source_object = hfd.staff_no
+                           and hvt.receipt_no = hrf.receipt_no),
+                       0) apportion_water,
+                   nvl(sum(hfd.apportion_electric), 0) -
+                   nvl((select hvt.credit_item_electric
+                          from hls_verification_tab hvt
+                         where hvt.source_object = hfd.staff_no
+                           and hvt.receipt_no = hrf.receipt_no),
+                       0) apportion_electric,
+                   nvl(sum(hfd.apportion_network), 0) -
+                   nvl((select hvt.credit_item_network
+                          from hls_verification_tab hvt
+                         where hvt.source_object = hfd.staff_no
+                           and hvt.receipt_no = hrf.receipt_no),
+                       0) apportion_network,
+                   nvl(sum(hfd.apportion_cable), 0) -
+                   nvl((select hvt.credit_item_cable
+                          from hls_verification_tab hvt
+                         where hvt.source_object = hfd.staff_no
+                           and hvt.receipt_no = hrf.receipt_no),
+                       0) apportion_cable,
+                   hfd.staff_no staff_no,
+                   hrf.receipt_no receipt_no,
+                   hrf.receipt_sources receipt_sources,
+                   hrf.message message
+              FROM hls_hsm              hh,
+                   hls_room_info        hri,
+                   hls_contract_info    hci,
+                   hls_rent_receipt_fee hrf,
+                   hls_fee_detail       hfd
+             WHERE hri.room_id = hci.room_id
+               AND hci.h_contract_number = hh.contract_no
+               AND hh.staff_no = hrf.receipt_objects
+               AND hrf.receipt_objects = hfd.staff_no
+               AND hfd.staff_no = ${@staff_no}
+               AND hrf.receipt_no = ${@receipt_no}
+             GROUP BY hci.h_contract_number,
+                      hri.room_abbr,
+                      hri.landlord_name,
+                      hri.room_type,
+                      hfd.staff_no,
+                      hrf.receipt_no,
+                      hrf.receipt_sources,
+                      hrf.message)
+            #WHERE_CLAUSE#
+           	]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="contract_no" databaseType="VARCHAR2" datatype="java.lang.String" displayWidth="250" forDisplay="true" forQuery="false" physicalName="H_CONTRACT_NUMBER" prompt="合同编号"/>
+        <bm:field name="room_abbr" databaseType="VARCHAR2" datatype="java.lang.String" displayWidth="250" forDisplay="false" forQuery="true" physicalName="ROOM_ABBR" prompt="房屋简称"/>
+        <bm:field name="room_type" databaseType="VARCHAR2" datatype="java.lang.String" displayWidth="150" forDisplay="false" forQuery="true" physicalName="ROOM_TYPE" prompt="房屋类型"/>
+        <bm:field name="landlord_name" databaseType="VARCHAR2" datatype="java.lang.String" displayWidth="150" forDisplay="false" forQuery="true" physicalName="LANDLORD_NAME" prompt="房东姓名"/>
+        <bm:field name="apportion_rental" datatype="java.lang.String"/>
+        <bm:field name="apportion_water" datatype="java.lang.String"/>
+        <bm:field name="apportion_electric" datatype="java.lang.String"/>
+        <bm:field name="apportion_network" datatype="java.lang.String"/>
+        <bm:field name="apportion_cable" datatype="java.lang.String"/>
+        <bm:field name="staff_no" datatype="java.lang.String"/>
+        <bm:field name="receipt_no" datatype="java.lang.String"/>
+        <bm:field name="receipt_sources" datatype="java.lang.String"/>
+        <bm:field name="message" datatype="java.lang.String"/>
+
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field field="room_abbr" queryExpression="hi.room_abbr like &apos;%&apos; || ${@room_abbr} || &apos;%&apos;"/>
+        <bm:query-field field="landlord_name" queryOperator="="/>
+        <bm:query-field field="room_type" queryOperator="="/>
+    </bm:query-fields>
+</bm:model>
