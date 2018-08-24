@@ -467,7 +467,7 @@ create or replace package body hls_rent_pkg is
     v_receipt_id  number := hls_rent_receipt_fee_s.nextval;
     v_receipt_no  varchar2(30);
     v_contract_no varchar2(30); --根据员工编号查找合同编号
-    v_count       number;
+    /*v_count       number;*/
   begin
     select 'SKXZ' || to_char(sysdate, 'YYYYmmdd') ||
            trim(to_char((1000 + hls_rent_receipt_fee_s1.nextval)))
@@ -660,7 +660,6 @@ create or replace package body hls_rent_pkg is
                                          p_fee_last_date  in date) is
     v_every_date     date := p_fee_first_date;
     v_fee_detail_id  number;
-    v_starff_no      varchar2(30);
     v_count          number;
     v_room_price     number;
     v_water_price    number;
@@ -681,10 +680,10 @@ create or replace package body hls_rent_pkg is
         from hls_rent_fee_info hfi;
   begin
     for i_cursor in fee_cursor loop
-      if (i_cursor.fee_items != null or i_cursor.fee_items != '') and
-         (i_cursor.fee_objects != null or i_cursor.fee_items != '') then
-        if i_cursor.fee_items = p_fee_items and
-           i_cursor.fee_objects = p_room_id then
+      if (i_cursor.fee_items is not null and
+         i_cursor.fee_objects is not null ) then
+        if (i_cursor.fee_items = p_fee_items and
+           i_cursor.fee_objects = p_room_id) then
           v_fee_period := v_fee_period + 1;
         end if;
       end if;
@@ -801,7 +800,7 @@ create or replace package body hls_rent_pkg is
                                        p_verification_cable    number,
                                        p_receipt_sources       varchar2,
                                        p_message               varchar2) is
-    cursor verification_cursor is
+    /*cursor verification_cursor is
       select hpv.creditor_project creditor_project,
              hpv.source_type      source_type,
              hpv.receipt_no       receipt_no,
@@ -809,7 +808,7 @@ create or replace package body hls_rent_pkg is
              hpv.verification_fee verification_fee
         from hls_payment_verification hpv
        where hpv.contract_no = p_contract_no;
-    v_update_insert   varchar2(30) := 'insert';
+    v_update_insert   varchar2(30) := 'insert';*/
     v_verification_no varchar2(30);
     v_number_contract number;
     v_number_staff    number;
