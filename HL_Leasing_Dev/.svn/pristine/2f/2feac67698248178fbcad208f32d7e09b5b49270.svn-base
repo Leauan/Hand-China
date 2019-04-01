@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-6-17 下午03:45:23  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="hls.HLS500.hls_fin_calc_header_id" rootPath="calc_header_id_path"/>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootpath="sys_defaultvalue"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="hls_fin_calc_quotation_header_link_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calc_quotation_header.screen"/>
+        <a:link id="hls_fin_doc_quotation_link_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_doc_quotation.svc"/>
+        <style><![CDATA[
+    		.hide_dom {
+    			display:none
+    		}
+    	]]></style>
+        <script><![CDATA[
+            var hls_quotation_record = {};
+            
+            function hls_quotation_calculator() {
+                if ($('hls_quotation_result_ds').validate()) {
+                    Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+                    $('hls_quotation_calculator_id').disable();
+                    var record = $('hls_quotation_result_ds').getCurrentRecord(),
+                        document_record = $('${/parameter/@basic_ds}').getAt(0),
+                        calc_session_id = '${/model/calc_header_id_path/record/@header_id}';
+                    record.set('_status', 'insert');
+                    record.set('business_type', document_record.get('business_type'));
+                    record.set('document_category', '${/parameter/@document_category}');
+                    record.set('document_id', '${/parameter/@document_id}');
+                    record.set('enabled_flag', 'Y');
+                    record.set('calc_session_id', calc_session_id);
+                    record.set('from_doc_table', 'PRJ_QUOTATION');
+                    record.set('to_doc_table', 'HLS_FIN_CALCULATOR_HD');
+                    record.set('to_doc_pk', calc_session_id);
+                    var params = record.data;
+                    Aurora.request({
+                        url: $('hls_fin_doc_quotation_link_id').getUrl(),
+                        para: params,
+                        success: function(res) {
+                            $('hls_quotation_calculator_id').enable();
+                            Aurora.Masker.unmask(Ext.getBody());
+                            $('hls_quotation_result_ds').query();
+                            new Aurora.Window({
+                                id: 'hls_fin_calc_quotation_header_link_winid',
+                                params: {
+                                    price_list: record.get('price_list'),
+                                    currency: record.get('currency'),
+                                    document_id: '${/parameter/@document_id}',
+                                    document_category: '${/parameter/@document_category}',
+                                    maintain_type: '${/parameter/@maintain_type}',
+                                    calc_session_id: calc_session_id,
+                                    dsId: 'hls_quotation_result_ds',
+                                    winId: 'hls_fin_calc_quotation_header_link_winid',
+                                    global_flag: 'Y',
+                                    id_num: 0
+                                },
+                                url: $('hls_fin_calc_quotation_header_link_id').getUrl(),
+                                title: '${l:HLS.FIN_CALCULATOR}',
+                                fullScreen: true,
+                                draggable: true
+                            });
+                        },
+                        failure: function() {
+                            $('hls_quotation_calculator_id').enable();
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            $('hls_quotation_calculator_id').enable();
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                }
+            }
+            
+            function hls_quotationAdd() {
+                $('hls_quotation_grid_id').showEditorByRecord($('hls_quotation_result_ds').create());
+            }
+            
+            function hls_quotationClear() {
+                $('hls_quotation_grid_id').clear();
+            }
+            
+            $A.onReady(function() {
+                var className = 'hide_dom';
+                var obj = Ext.get('hls_quotationInfo');
+                obj.addClass(className);
+                if ('${/parameter/@document_category}' == 'CHANCE') {
+                    // $('hls_quotation_grid_id').hideColumn('contract_seq');
+                    // $('contract_seq_id').hide();
+                }
+            });
+            
+            function onadd_hls_quotationds(ds, record, index) {
+                var document_record = $('${/parameter/@basic_ds}').getAt(0);
+                var price_list = document_record.get('price_list'),
+                    price_list_name = document_record.get('price_list_desc'),
+                    currency = document_record.get('currency'),
+                    currency_name=document_record.get('currency_name');
+                record.set('price_list',price_list);
+                record.set('price_list_name',price_list_name);
+                record.set('currency',currency);
+                record.set('currency_name',currency_name);
+                record.set('caculate_date','${/model/sys_defaultvalue/record/@now_time}');
+                if ('${/parameter/@document_category}' == 'CHANCE') {
+                    var major_record = $('hls_quotation_caculate_type_ds').find('code_value', 'MAJOR');
+                    record.set('contract_seq', 1);
+                    record.set('caculate_type', 'MAJOR');
+                    record.set('caculate_type_name', major_record.get('code_value_name'));
+                    record.getField('caculate_type').setReadOnly(true);
+                    record.getField('caculate_type_name').setReadOnly(true);
+                    record.getField('contract_seq').setReadOnly(true);
+                }
+                var className = 'hide_dom';
+                var obj = Ext.get('hls_quotationInfo');
+                obj.removeClass(className);
+            }
+            
+            function quotationds_contract_seq(record, name) {
+                return 'grid_quotationds_numberfield_id';
+            }
+            
+            function onremove_hls_quotationds(ds, record, index) {
+                var className = 'hide_dom',
+                    records = ds.getAll(),
+                    obj = Ext.get('hls_quotationInfo');
+                if (records.length == 0) {
+                    obj.addClass(className);
+                }
+            }
+            
+            function onselect_hls_quotationds(ds) {
+                var className = 'hide_dom';
+                var obj = Ext.get('hls_quotationInfo');
+                var record = ds.getSelected()[0];
+                if (record.get('quotation_id')) {
+                    obj.addClass(className);
+                } else {
+                    obj.removeClass(className);
+                }
+            }
+            
+            function calc_session_seedetail_readonly(value, record, name) {
+                if (record.get('calc_session_id')) {
+                    hls_quotation_record[record.id + '---' + name] = record;
+                    return '<a href="javascript:open_readonly_window(\'' + record.id + '\',\'' + name + '\');">' + '${l:PRJ501.PRJ_QUERY}' + '</a>';
+                }
+            }
+            
+            function calc_session_seedetail_update(value, record, name) {
+                if (record.get('calc_session_id') && '${/parameter/@maintain_type}' != 'READONLY') {
+                    hls_quotation_record[record.id + '---' + name] = record;
+                    return '<a href="javascript:open_update_window(\'' + record.id + '\',\'' + name + '\');">' + '${l:PRJ501.PRJ_UPDATE}' + '</a>';
+                }
+            }
+            
+            function open_update_window(id, name) {
+                var record = hls_quotation_record[id + '---' + name];
+                new Aurora.Window({
+                    id: 'hls_fin_calc_quotation_header_update_link_id',
+                    params: {
+                        calc_session_id: record.get('calc_session_id'),
+                        quotation_id: record.get('quotation_id'),
+                        document_id: record.get('document_id'),
+                        document_category: record.get('document_category'),
+                        maintain_type: 'UPDATE',
+                        dsId: 'hls_quotation_result_ds',
+                        winId: 'hls_fin_calc_quotation_header_update_link_id',
+                        global_flag: 'Y',
+                        id_num: 0
+                    },
+                    url: $('hls_fin_calc_quotation_header_link_id').getUrl(),
+                    title: '${l:HLS.FIN_CALCULATOR}',
+                    fullScreen: true,
+                    draggable: true
+                });
+            }
+            
+            function open_readonly_window(id, name) {
+                var record = hls_quotation_record[id + '---' + name];
+                new Aurora.Window({
+                    id: 'hls_fin_calc_quotation_header_readonlt_link_id',
+                    params: {
+                        calc_session_id: record.get('calc_session_id'),
+                        winId: 'hls_fin_calc_quotation_header_readonlt_link_id',
+                        maintain_type: 'READONLY'
+                    },
+                    url: $('hls_fin_calc_quotation_header_link_id').getUrl(),
+                    title: '${l:HLS.FIN_CALCULATOR}',
+                    fullScreen: true,
+                    draggable: true
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="hls_quotation_currencyds" loadData="true" model="basic.gld_currency_v_lov"/>
+            <a:dataSet id="hls_quotation_caculate_type_ds" lookupCode="PRJ501_CACULATE_TYPE"/>
+            <a:dataSet id="hls_quotation_form_ds" autoCreate="true"/>
+            <a:dataSet id="hls_quotation_result_ds" autoQuery="true" bindName="hls_quotation" bindTarget="${/parameter/@basic_ds}" fetchAll="true" model="prj.PRJ501.prj_quotation_v" queryUrl="${/request/@context_path}/autocrud/prj.PRJ501.prj_quotation_v/query?document_id=${/parameter/@document_id}&amp;document_category=${/parameter/@document_category}" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="document_id"/>
+                    <a:field name="caculate_type_name" displayField="code_value_name" options="hls_quotation_caculate_type_ds" required="true" returnField="caculate_type" valueField="code_value"/>
+                    <a:field name="currency_name" displayField="currency_name" options="hls_quotation_currencyds" required="true" returnField="currency" valueField="currency_code"/>
+                    <a:field name="price_list_name" lovGridHeight="350" lovHeight="500" lovService="hls.HLS050.hls_price_list_for_lov" lovWidth="500" required="true" title="HLS.PRICE_LIST">
+                        <a:mapping>
+                            <a:map from="price_list" to="price_list"/>
+                            <a:map from="description" to="price_list_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="price_list"/>
+                    <a:field name="calc_session_id"/>
+                    <a:field name="caculate_date" required="true"/>
+                    <a:field name="contract_seq" required="true"/>
+                    <a:field name="project_no"/>
+                    <a:field name="bp_name"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="onadd_hls_quotationds"/>
+                    <a:event name="remove" handler="onremove_hls_quotationds"/>
+                    <a:event name="select" handler="onselect_hls_quotationds"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:grid id="hls_quotation_grid_id" bindTarget="hls_quotation_result_ds" height="200" marginWidth="60" navBar="true">
+                <a:columns>
+                    <a:column name="caculate_type_name" align="center"/>
+                    <a:column name="document_no" align="center"/>
+                    <a:column name="caculate_date" align="center" renderer="Aurora.formatDate"/>
+                    <a:column name="contract_seq" align="center" editorFunction="quotationds_contract_seq"/>
+                    <a:column name="version" align="center"/>
+                    <a:column name="version_type" align="center"/>
+                    <a:column name="bp_name" align="center"/>
+                    <a:column name="calc_session_query" align="center" prompt="PRJ501.PRJ_QUERY" renderer="calc_session_seedetail_readonly"/>
+                    <a:column name="calc_session_update" align="center" prompt="PRJ501.PRJ_UPDATE" renderer="calc_session_seedetail_update"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="grid_quotationds_numberfield_id" allowFormat="false" allowpad="false"/>
+                </a:editors>
+            </a:grid>
+            <a:hBox>
+                <a:button click="hls_quotationAdd" text="HLS.NEW"/>
+                <a:button click="hls_quotationClear" text="HLS.CLEAR"/>
+            </a:hBox>
+            <div id="hls_quotationInfo">
+                <a:form id="hls_quotation_form_id" bindTarget="hls_quotation_result_ds" column="3" title="HLS.QUOTATION_INFORMATION">
+                    <a:comboBox name="caculate_type_name" bindTarget="hls_quotation_result_ds"/>
+                    <a:numberField name="contract_seq" allowFormat="false" allowpad="false" bindTarget="hls_quotation_result_ds"/>
+                    <a:datePicker name="caculate_date" bindTarget="hls_quotation_result_ds"/>
+                    <a:lov name="price_list_name" bindTarget="hls_quotation_result_ds"/>
+                    <a:comboBox name="currency_name" bindTarget="hls_quotation_result_ds"/>
+                    <a:button id="hls_quotation_calculator_id" click="hls_quotation_calculator" style="margin-left:15px" text="HLS.QUOTATION"/>
+                </a:form>
+            </div>
+        </a:screenBody>
+    </a:view>
+</a:screen>

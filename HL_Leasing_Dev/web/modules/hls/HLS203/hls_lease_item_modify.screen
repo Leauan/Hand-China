@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-10-25 下午02:37:05  
+    $Revision: 1.0  
+    $Purpose: 租赁物维护
+-->
+<a:screen xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:view>
+        <a:link id="sys_service_welcome_link" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="hls_bp_master_dynamic_update_link_id" url="${/request/@context_path}/modules/hls/HLS213/hls_bp_master_dynamic_update.screen"/>
+        <a:link id="hls_bp_master_get_layout_code_link_id" model="hls.HLS213.hls_bp_master_get_layout_code" modelaction="update"/>
+        <a:link id="hls203_lease_item_list_link" url="${/request/@context_path}/modules/hls/HLS203/hls_lease_item_detail.screen"/>
+        <script><![CDATA[
+            function hls_hls203_query() {
+                $('hls_lease_item_result_ds').query();
+            }
+            
+            function hls_hls203_reset() {
+                $('hls_lease_item_query_ds').reset();
+            }
+            
+            function hls_hls203_next() {
+                history.go(1);
+            }
+            
+            function hls_hls203_back() {
+                history.go(-1);
+            }
+            
+            function hls_hls203_quit() {
+                location.href = $('sys_service_welcome_link').getUrl();
+                parent.shMenu('show');
+            }
+            
+            function hls_hls203_modify(){
+                var current_record=$('hls_lease_item_result_ds').getCurrentRecord();
+                var param=current_record.data;
+                set_layout_parameters(param);
+            }
+            
+            function hls203_modify_renderer(value,record,name){
+                var lease_item_id=record.get('lease_item_id');
+                if(!Ext.isEmpty(lease_item_id)&&!Ext.isEmpty(value)){
+                    return '<a href="javascript:open_window('+record.id+')">'+value+'</a>';
+                }
+            }
+            
+            function open_window(record_id){
+                var current_record=$('hls_lease_item_result_ds').findById(record_id);
+                var param=current_record.data;
+                set_layout_parameters(param);
+            }
+            
+            //传参，动态生成页面
+            function set_layout_parameters(param){
+                param['function_code'] = 'HLS203';
+                param['function_usage'] = 'MODIFY';
+                param['url_title'] = '${l:HLS201.HLS_LEASE_ITEM_MODIFY}'; 
+                param['master_type']='LEASE_ITEM';
+                param['master_id'] = param['lease_item_id'];
+                param['company_id']='${/session/@company_id}';
+                hls_doc_get_layout_code('hls_bp_master_get_layout_code_link_id',param,'hls_bp_master_dynamic_update_link_id','hls_lease_item_result_ds');
+            
+            }
+            
+            function hls203_lease_item_list_renderer(value,record,name){
+                if (record.get('lease_item_id')) {
+                    var url = $('hls203_lease_item_list_link').getUrl() + '?lease_item_id=' + record.get('lease_item_id')+'&li_list_type='+record.get('li_list_type');
+                    return '<a href="javascript:openWindow_detail(\'' + url + '\');">' + '${l:PROMPT.DETAIL}' + '</a>';
+                }
+            }
+             function openWindow_detail(url){
+                new Aurora.Window({
+                    url: url,
+                    params:{
+                        winId:'hls_lease_item_detail_winId'
+                    },
+                    title: '${l:HLS201.HLS_LEASE_ITEM_LIST}',
+                    id: 'hls_lease_item_detail_winId',
+                    width: 900,
+                    height: 480
+                });
+             }
+
+
+        ]]></script>
+        <a:screen-include screen="modules/hls/HLS213/hls_bp_master_get_layout_code.screen"/>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?master_type=LEASE_ITEM&amp;function_code=HLS203"/>
+        <a:dataSets>
+            <a:dataSet id="hls_lease_item_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="lease_item_code" lovGridHeight="350" lovHeight="500" lovService="basic.hls_lease_item_v_for_lov" lovWidth="500" prompt="HLS.LEASE_ITEM_CODE" title="HLS.LEASE_ITEM">
+                        <a:mapping>
+                            <a:map from="lease_item_id" to="lease_item_id"/>
+                            <a:map from="lease_item_code" to="lease_item_code"/>
+                            <a:map from="full_name" to="lease_item_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="project_number" lovHeight="500" lovService="prj.PRJ501.prj_project_for_lov" lovWidth="500" prompt="HLS.PROJECT_NUMBER" title="HLS.PROJECT_NUMBER">
+                        <a:mapping>
+                            <a:map from="project_id" to="project_id"/>
+                            <a:map from="project_number" to="project_number"/>
+                            <a:map from="project_name" to="project_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_number" lovHeight="550" lovService="basic.con_contract_for_lov" lovWidth="500" prompt="HLS.CONTRACT_NUMBER" title="HLS.CONTRACT_NUMBER">
+                        <a:mapping>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="contract_name" to="contract_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="short_name"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="hls_lease_item_result_ds" autoPageSize="true" autoQuery="true" model="hls.HLS203.hls_lease_item" queryDataSet="hls_lease_item_query_ds" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="enabled_flag_company" checkedValue="Y" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="query" handler="aut_authority_list_validate_query"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="hls_hls203_back" text="HLS.BACK"/>
+                <a:gridButton click="hls_hls203_next" text="HLS.FORWARD"/>
+                <a:gridButton click="hls_hls203_quit" text="HLS.EXIT"/>
+                <a:gridButton click="hls_hls203_query" text="HLS.QUERY"/>
+                <a:gridButton click="hls_hls203_modify" text="HLS.MODIFY"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="120" title="HLS_LEASE_ITEM.LEASE_ITEM_QUERY">
+                <a:lov name="lease_item_code" bindTarget="hls_lease_item_query_ds" prompt="HLS.LEASE_ITEM_CODE">
+                    <a:events>
+                        <a:event name="enterdown" handler="hls_hls203_query"/>
+                        <a:event name="focus" handler="on_std_focus"/>
+                    </a:events>
+                </a:lov>
+                <a:textField name="lease_item_name" bindTarget="hls_lease_item_query_ds" prompt="HLS_LEASE_ITEM.FULL_NAME"/>
+                <a:lov name="project_number" bindTarget="hls_lease_item_query_ds" prompt="HLS.PROJECT_NUMBER">
+                    <a:events>
+                        <a:event name="focus" handler="function(object){on_std_focus(object,&apos;PROJECT&apos;)}"/>
+                    </a:events>
+                </a:lov>
+                <a:textField name="project_name" bindTarget="hls_lease_item_query_ds" prompt="HLS.PROJECT_NAME"/>
+                <a:lov name="contract_number" bindTarget="hls_lease_item_query_ds" prompt="HLS.CONTRACT_NUMBER">
+                    <a:events>
+                        <a:event name="focus" handler="function(object){on_std_focus(object,&apos;CONTRACT&apos;)}"/>
+                    </a:events>
+                </a:lov>
+                <a:textField name="contract_name" bindTarget="hls_lease_item_query_ds" prompt="HLS.CONTRACT_NAME"/>
+            </a:form>
+            <a:grid id="hls_lease_item_grid_ds" bindTarget="hls_lease_item_result_ds" marginHeight="170" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="lease_item_code" renderer="hls203_modify_renderer"/>
+                    <a:column name="short_name" width="150"/>
+                    <a:column name="full_name" width="200"/>
+                    <!-- <a:column name="pattern" align="center"/> -->
+                    <a:column name="vender_id_n" width="200"/>
+                    <a:column name="specification" prompt="HLS.PATTERN_CODE"/>
+                    <a:column name="manufacturer_name"/>
+                    <a:column name="enabled_flag_company" align="center" width="50"/>
+                    <a:column name="lease_item_id" align="center" prompt="HLS201.HLS_LEASE_ITEM_LIST" renderer="hls203_lease_item_list_renderer"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

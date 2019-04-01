@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-10-3 上午10:23:10  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="currency_path"/>
+        <a:model-query fetchAll="true" model="gld.gld_exchangerate_type_lov" rootPath="exchangerate_type_path"/>
+        <a:model-query fetchAll="true" model="csh.CSH511.csh_transaction_default_exchange_rate_type" rootPath="default_exchange_rate_type_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_sign_execute_link_id" model="cont.CON502.con_contract_sign_execute" modelaction="update"/>
+        <a:link id="get_exchange_rate_link_id" model="basic.hls_get_exchange_rate" modelaction="update"/>
+        <a:link id="sys_service_welcome_link" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="con_contract_sign_link_id" url="${/request/@context_path}/modules/cont/CON502/con_contract_sign.screen"/>
+        <script><![CDATA[
+            var ajax_flag = 'N';
+            
+            function con503_con_contract_sign_quit() {
+                location.href = $('sys_service_welcome_link').getUrl();
+                parent.shMenu('show');
+            }
+            
+            function on_con_contract_sign_sure() {
+                lock_list_sign_window();
+                var current_ds = $('con_contract_sign_ds');
+                if (current_ds.validate()) {
+                    var current_record = current_ds.getCurrentRecord();
+                    var confirm_win = Aurora.showConfirm('${l:PROMPT}', '${l:HLS.CONTRACT_NUMBER}:' + current_record.get('contract_number') + ',${l:CON500.CONTRACT_SIGN_CONFIRM}', function() {
+                        ajax_flag = 'Y';
+                        Aurora.request({
+                            url: $('con_contract_sign_execute_link_id').getUrl(),
+                            para: current_record.data,
+                            success: function(res) {
+                                parent.Aurora.SideBar.enable = true;
+                                parent.Aurora.SideBar.show({
+                                    msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                    duration: 2000
+                                });
+                                window.location.href = $('con_contract_sign_link_id').getUrl();
+                            },
+                            error: function(res) {
+                                unlock_list_sign_window();
+                            },
+                            faliure: function() {
+                                unlock_list_sign_window();
+                            },
+                            scope: this
+                        });
+                    }, function(res) {
+                        unlock_list_sign_window();
+                    });
+                    confirm_win.on('close', function() {
+                        if (ajax_flag == 'N') {
+                            unlock_list_sign_window();
+                        }
+                    });
+                } else {
+                    unlock_list_sign_window();
+                }
+            }
+            
+            function lock_list_sign_window() {
+                Aurora.Masker.mask(document.documentElement, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_list_sign_window() {
+                Aurora.Masker.unmask(document.documentElement);
+            }
+            
+            function on_con_contract_sign_update(ds, record, name, value, oldvalue) {
+                if (name == 'rate_method_code' || name == 'signing_date') {
+                    if (record.get('currency') != '${/model/default_exchange_rate_type_path/record/@functional_currency_code}') {
+                        var rate_method_code = record.get('rate_method_code');
+                        record.set('exchange_rate_quotation', '');
+                        record.set('exchange_rate', '');
+                        if (rate_method_code == 'PERIOD' || rate_method_code == 'DAILY' || rate_method_code == 'FIXED') {
+                            record.getField('exchange_rate').setReadOnly(true);
+                            record.set('exchange_rate', '');
+                            getExchangeRate({
+                                fromCur: '${/model/default_exchange_rate_type_path/record/@functional_currency_code}',
+                                toCur: record.get('currency'),
+                                exchangeRateType: record.get('exchange_rate_type'),
+                                exchangeDate: record.get('signing_date')
+                            });
+                        } else {
+                            record.getField('exchange_rate').setReadOnly(false);
+                            record.set('exchange_rate', '');
+                        }
+                    }
+                } else if (name == 'currency') {
+                    record.set('rate_method_code', '');
+                    record.set('exchange_rate_quotation', '');
+                    record.set('exchange_rate_type', '');
+                    record.set('exchange_rate_type_display', '');
+                    if (!Ext.isEmpty(value)) {
+                        if (value == '${/model/default_exchange_rate_type_path/record/@functional_currency_code}') {
+                            record.getField('exchange_rate_type_display').setRequired(false);
+                            record.getField('exchange_rate_type_display').setReadOnly(true);
+                            record.set('exchange_rate', 1);
+                        } else {
+                            record.set('exchange_rate', '');
+                            record.getField('exchange_rate_type_display').setRequired(true);
+                            record.getField('exchange_rate_type_display').setReadOnly(false);
+                        }
+                    }
+                }
+            }
+            
+            function getExchangeRate(param) {
+                Aurora.request({
+                    url: $('get_exchange_rate_link_id').getUrl(),
+                    para: {
+                        from_currency: param.fromCur,
+                        to_currency: param.toCur,
+                        exchange_date: param.exchangeDate,
+                        exchange_rate_type: param.exchangeRateType
+                    },
+                    success: setRateAndQuotation,
+                    scope: this
+                });
+            }
+            
+            function setRateAndQuotation(res) {
+                var record = $('con_contract_inception_ds').getAt(0);
+                if (Ext.isDefined(res.result.exchange_rate)) {
+                    record.set('exchange_rate', res.result.exchange_rate);
+                }
+                if (Ext.isDefined(res.result.exchange_rate_quotation)) {
+                    record.set('exchange_rate_quotation', res.result.exchange_rate_quotation);
+                } else {
+                    record.set('exchange_rate_quotation', 'DIRECT QUOTATION');
+                }
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=CONTRACT&amp;function_code=CON502"/>
+        <a:dataSets>
+            <a:dataSet id="currency_ds">
+                <a:datas dataSource="/model/currency_path"/>
+            </a:dataSet>
+            <a:dataSet id="exchangerate_type_ds">
+                <a:datas dataSource="/model/exchangerate_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="con_contract_sign_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="contract_number" lovGridHeight="350" lovHeight="530" lovService="basic.con_contract_for_lov?sign_flag=Y&amp;not_master_contract_flag=Y" lovWidth="550" required="true" title="HLS.CONTRACT">
+                        <a:mapping>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="contract_name" to="contract_name"/>
+                            <a:map from="currency" to="currency"/>
+                            <a:map from="currency_desc" to="currency_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_name" readOnly="true"/>
+                    <a:field name="currency_desc" displayField="currency_name" options="currency_ds" readOnly="true" returnField="currency" valueField="currency_code"/>
+                    <a:field name="currency"/>
+                    <a:field name="signing_date" required="true"/>
+                    <a:field name="exchange_rate_type_display" displayField="type_name" options="exchangerate_type_ds" readOnly="true" returnField="exchange_rate_type" valueField="type_code">
+                        <a:mapping>
+                            <a:map from="type_code" to="exchange_rate_type"/>
+                            <a:map from="rate_method_code" to="rate_method_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="exchange_rate_type"/>
+                    <a:field name="rate_method_code"/>
+                    <a:field name="exchange_rate" readOnly="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_con_contract_sign_update"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="con503_con_contract_sign_quit" text="HLS.EXIT"/>
+                <a:gridButton click="on_con_contract_sign_sure" text="HLS.CONTRACT_SIGN"/>
+            </a:screenTopToolbar>
+            <a:form column="2" labelWidth="120" marginWidth="800" title="HLS.CONTRACT_SIGN">
+                <a:lov name="contract_number" bindTarget="con_contract_sign_ds" prompt="HLS.CONTRACT_NUMBER">
+                    <a:events>
+                        <a:event name="focus" handler="function(object){on_std_focus(object,&apos;CONTRACT&apos;)}"/>
+                    </a:events>
+                </a:lov>
+                <a:textField name="contract_name" bindTarget="con_contract_sign_ds" prompt="HLS.CONTRACT_NAME"/>
+                <a:datePicker name="signing_date" bindTarget="con_contract_sign_ds" prompt="HLS.SIGNING_DATE"/>
+                <a:comboBox name="currency_desc" bindTarget="con_contract_sign_ds" prompt="HLS.CURRENCY"/>
+                <a:comboBox name="exchange_rate_type_display" bindTarget="con_contract_sign_ds" prompt="HLS.EXCHANGE_RATE_TYPE_DESC"/>
+                <a:numberField name="exchange_rate" allowNegative="false" bindTarget="con_contract_sign_ds" decimalPrecision="-1" prompt="HLS.EXCHANGE_RATE"/>
+            </a:form>
+        </a:screenBody>
+    </a:view>
+</a:screen>

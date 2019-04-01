@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-7-3 下午07:21:28  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[select t.tree_code,
+       t.tree_desc,
+       t.tree_seq,
+       t.layout_code,
+       t.parent_tree_code,
+       t.expand_flag,
+       t.enabled_flag,
+       (case
+         when (select min(lt.tree_seq)
+                 from hls_doc_layout_tree lt
+                where lt.layout_code = t.layout_code
+                  and (lt.parent_tree_code = t.parent_tree_code or t.parent_tree_code is null)
+                  and lt.enabled_flag = 'Y') = t.tree_seq then
+          'Y'
+         else
+          'N'
+       end) first_tree_flag
+  from hls_doc_layout_tree t
+ where t.enabled_flag = 'Y'
+ and t.layout_code=${@layout_code}
+ and exists (select 1
+          from hls_doc_layout_tab d
+         where d.tree_code = t.tree_code
+           and d.layout_code = t.layout_code
+           and d.enabled_flag = 'Y')
+ start with (t.tree_code = ${@tree_code} and t.layout_code=${@layout_code})
+connect by (t.parent_tree_code = prior t.tree_code and t.layout_code=${@layout_code})
+order by t.tree_seq
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="tree_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="TREE_CODE" required="true"/>
+        <bm:field name="tree_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="TREE_DESC" required="true"/>
+        <bm:field name="tree_seq" databaseType="NUMBER" datatype="java.lang.Long" physicalName="TREE_SEQ"/>
+        <bm:field name="layout_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="LAYOUT_CODE" required="true"/>
+        <bm:field name="parent_tree_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PARENT_TREE_CODE"/>
+        <bm:field name="expand_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="EXPAND_FLAG"/>
+        <bm:field name="enabled_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="ENABLED_FLAG"/>
+        <bm:field name="first_tree_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="FIRST_TREE_FLAG"/>
+    </bm:fields>
+</bm:model>

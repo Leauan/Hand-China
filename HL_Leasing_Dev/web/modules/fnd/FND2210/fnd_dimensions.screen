@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:view>
+        <a:link id="sys_service_welcome_link" url="${/request/@context_path}/welcome.screen"/>
+        <div/>
+        <script><![CDATA[
+            
+            function queryFndDimensions(){
+                $('fnd_dimension_result_ds').query();
+            }
+            
+            function resetFndDimensions(){
+                $('fnd_dimension_query_ds').reset();
+            }
+            
+            function sequenceValidator(record, name ,value){
+                var dimensionSequence=record.get('dimension_sequence');
+                if (record.isNew){
+                    if (!(dimensionSequence>=2 && dimensionSequence<=10)){
+                        Aurora.showErrorMessage( '${l:PROMPT.ERROR}', '${l:USER_DEFINED_DIMENSIONS_ERROR}');
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            function enableValidator(record ,name,value){
+                if (name=='enabled_flag' || name=='system_level'|| name=='company_level'){
+                    var enableFlag=record.get('enabled_flag');
+                    var systemLevel=record.get('system_level');
+                    var companyLevel=record.get('company_level');
+                    if (enableFlag=="Y" && systemLevel=="N" && companyLevel=="N"){
+                        Aurora.showErrorMessage( '${l:PROMPT.ERROR}', '${l:ENABLED_DIMENSION_ERROR}');
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            function dimensionSquenceEdit(record , name){
+                var dimensionSequence=record.get('dimension_sequence');
+                if (!record.isNew && ( dimensionSequence>=11 && dimensionSequence<=15)){
+                    return '';
+                }
+                return 'dimension_sequence_tf';
+            }
+            
+            function dimensionCodeEdit(record , name){
+                if (!record.isNew){
+                    return '';
+                }
+                return 'dimension_code_tf_upper';
+            }
+            function dimensionSequenceEdit(record , name){
+                if (!record.isNew){
+                    return '';
+                }
+                return 'dimension_sequence_tf';
+            }
+            function descriptionEdit(record, name){
+                var dimensionSequence=record.get('dimension_sequence');
+                if (!record.isNew && ( dimensionSequence>=11 && dimensionSequence<=15)){
+                    return '';
+                }
+                return 'description_tf';
+            }
+            
+            function sysLevelEdit(record, name){
+                var dimensionSequence=record.get('dimension_sequence');
+                if (!record.isNew && ( dimensionSequence>=11 && dimensionSequence<=15)){
+                    return '';
+                }
+                return 'system_level_cb';
+            }
+
+            
+            
+            function enbFlagFunction(record,name){
+                var dimensionSequence=record.get('dimension_sequence');
+                if (!record.isNew && ( dimensionSequence>=11 && dimensionSequence<=15)){
+                    return '';
+                }
+                return 'enabled_flag_cb';
+            }
+            
+            function updateFunction(dataSet,record,name,value,oldValue){
+                if(!record.isNew){                  
+                    if(name == 'company_level' && value != oldValue){
+                        if(record.get('value_exist_flag') != '0'){
+                            record.data['company_level'] = oldValue;
+                            Aurora.showInfoMessage('${l:PROMPT}','${l:DIMENSION_VALUE_EXIST_WARNING}',null,250,100);
+                        }
+                    }
+                    if(name == 'system_level' && value != oldValue){
+                        if(record.get('value_exist_flag') != '0'){
+                            record.data['system_level'] = oldValue;
+                            Aurora.showInfoMessage('${l:PROMPT}','${l:DIMENSION_VALUE_EXIST_WARNING}',null,250,100);
+                        }
+                    }
+                }
+            }
+            
+            function saveDimensions(){
+                var records=$('fnd_dimension_result_ds').getAll();
+                for(var i=0;i<records.length;i++){
+                    var record=records[i];
+                    var enableFlag=record.get('enabled_flag');
+                    var systemLevel=record.get('system_level');
+                    var companyLevel=record.get('company_level');
+                    if (enableFlag=="Y" && systemLevel=="N" && companyLevel=="N"){
+                        Aurora.showErrorMessage( '${l:PROMPT.ERROR}', '${l:ENABLED_DIMENSION_ERROR}');
+                        return false;
+                    }
+                }
+                $('fnd_dimension_result_ds').submit();
+            }
+            
+            
+                    	function fnd_2210_grid_add(){
+                $('fnd_dimensions_grid').showEditorByRecord($('fnd_dimension_result_ds').create());
+            }
+            function fnd_2210_grid_clear(){
+                $('fnd_dimensions_grid').clear();
+            }
+            function fnd_2210_next(){
+                 history.go(1);
+            }
+            function fnd_2210_back(){
+                history.go(-1);
+            }
+            function fnd_2210_quit(){
+                location.href = $('sys_service_welcome_link').getUrl();
+                parent.shMenu('show');
+            }
+            
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="fnd_dimension_query_ds" model="fnd.FND2210.fnd_dimensions">
+                <a:fields>
+                    <a:field name="dimension_code"/>
+                    <a:field name="description"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="fnd_dimension_result_ds" autoQuery="true" model="fnd.FND2210.fnd_dimensions_value_flag" pageSize="15" queryDataSet="fnd_dimension_query_ds" queryUrl="${/request/@context_path}/autocrud/fnd.FND2210.fnd_dimensions_value_flag/query?ORDER_FIELD=dimension_sequence" selectable="true" submitUrl="${/request/@context_path}/autocrud/fnd.FND2210.fnd_dimensions_operation/batch_update">
+                <a:fields>
+                    <a:field name="dimension_sequence" required="true" validator="sequenceValidator"/>
+                    <a:field name="dimension_code" required="true"/>
+                    <a:field name="description" required="true"/>
+                    <a:field name="system_level" checkedValue="Y" defaultValue="N" uncheckedValue="N" validator="enableValidator"/>
+                    <a:field name="company_level" checkedValue="Y" defaultValue="N" uncheckedValue="N" validator="enableValidator"/>
+                    <a:field name="system_flag" checkedValue="Y" defaultValue="N" prompt="FND_DIMENSION.SYS_PRESET" uncheckedValue="N"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N" validator="enableValidator"/>
+                    <a:field name="value_exist_flag"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="updateFunction"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar height="29">
+                <a:button click="fnd_2210_back" height="20" icon="${/request/@context_path}/images/back.png" iconAlign="left" text="HLS.BACK" width="50"/>
+                <a:separator style="margin-left:3px;"/>
+                <a:button click="fnd_2210_next" height="20" icon="${/request/@context_path}/images/forward.png" iconAlign="left" text="HLS.FORWARD" width="50"/>
+                <a:separator style="margin-left:3px;"/>
+                <a:button click="fnd_2210_grid_add" height="20" icon="${/request/@context_path}/images/add.png" iconAlign="left" text="HLS.NEW" width="50"/>
+                <a:separator style="margin-left:3px;"/>
+                <a:button click="fnd_2210_grid_clear" height="20" icon="${/request/@context_path}/images/clear.png" iconAlign="left" text="HLS.CLEAR" width="50"/>
+                <a:separator style="margin-left:3px;"/>
+                <a:button click="saveDimensions" height="20" icon="${/request/@context_path}/images/save.png" iconAlign="left" text="HLS.SAVE" width="50"/>
+                <a:separator style="margin-left:3px;"/>
+                <a:button click="fnd_2210_quit" height="20" icon="${/request/@context_path}/images/quit.png" iconAlign="left" text="HLS.EXIT" width="50"/>
+                <a:separator style="margin-left:3px;"/>
+                <a:button click="queryFndDimensions" height="20" icon="${/request/@context_path}/images/search.png" iconAlign="left" text="HLS.QUERY" width="50"/>
+                <a:separator style="margin-left:3px;"/>
+            </a:screenTopToolbar>
+            <a:form row="1" title="FND_DIMENSIONS.QUERY" width="600">
+                <a:textField name="dimension_code" bindTarget="fnd_dimension_query_ds" prompt="FND_DIMENSIONS.DIMENSION_CODE" typeCase="upper" width="150">
+                    <a:events>
+                        <a:event name="enterdown" handler="queryFndDimensions"/>
+                    </a:events>
+                </a:textField>
+                <a:textField name="description" bindTarget="fnd_dimension_query_ds" prompt="FND_DIMENSIONS.DESCRIPTION" width="150">
+                    <a:events>
+                        <a:event name="enterdown" handler="queryFndDimensions"/>
+                    </a:events>
+                </a:textField>
+            </a:form>
+            <a:grid id="fnd_dimensions_grid" bindTarget="fnd_dimension_result_ds" height="490" marginWidth="20" navBar="true" width="1000">
+                <a:columns>
+                    <a:column name="dimension_sequence" align="right" editorFunction="dimensionSequenceEdit" sortable="true"/>
+                    <a:column name="dimension_code" align="center" editorFunction="dimensionCodeEdit" sortable="true" width="150"/>
+                    <a:column name="description" align="center" editorFunction="descriptionEdit" sortable="true"/>
+                    <a:column name="system_level" align="center" editorFunction="sysLevelEdit" sortable="true"/>
+                    <a:column name="company_level" align="center" editorFunction="sysLevelEdit" sortable="true"/>
+                    <a:column name="system_flag" align="center" sortable="true"/>
+                    <a:column name="enabled_flag" align="center" editorFunction="enbFlagFunction" sortable="true"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="dimension_sequence_tf"/>
+                    <a:textField id="dimension_code_tf_upper" typeCase="upper"/>
+                    <a:textField id="description_tf"/>
+                    <a:checkBox id="system_level_cb"/>
+                    <a:checkBox id="company_level_cb"/>
+                    <a:checkBox id="system_flag_cb"/>
+                    <a:checkBox id="enabled_flag_cb"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

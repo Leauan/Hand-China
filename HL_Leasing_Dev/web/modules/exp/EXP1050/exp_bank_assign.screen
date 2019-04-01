@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query model="exp.exp_employees" rootPath="employee_info_record"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+            
+            function onUpdate_expBankDs(ds,record,name,value){
+                if(name == 'province_code'){
+                    // var field = record.getMeta().getField('city_name');
+                    // field.setLovPara('region_code',record.get('province_code'));
+                    
+                    record.set("city_code",null);
+                    record.set("city_name",null);
+                }
+                if(name == 'province_id'){
+                    record.getField('city_name').setLovPara('province_id', value);
+                }
+                
+            }
+            
+            function onCellClick_expBankDs_grid(grid,row,name,record){
+                if(name == 'city_name'){
+                    var field = record.getMeta().getField('city_name');
+                    field.setLovPara('region_code',record.get('province_code'));
+                    
+                }
+                
+            }
+            
+            function onBeforeSubmit_expBankDs(ds){
+                var length=ds.getAll().length;
+                var j=0;
+                for(var i=0;i<length;i++){
+                    if(ds.getAt(i).get("primary_flag")=="Y"){
+                        j++;
+                    }
+                }
+                if(j==0){
+                    Aurora.showInfoMessage('${l:PROMPT}','${l:EXP_EMPLOYEE_ACCOUNTS.CHANGE_MAIN_ACCOUNT}',null,250,100);
+			        return false;
+                }else if(j>1){
+                    Aurora.showInfoMessage('${l:PROMPT}','${l:EXP_EMPLOYEE_ACCOUNTS.CHANGE_ONE}',null,250,100);
+			        return false;
+                }
+                
+                for(var n=0;n<length;n++){
+                    for(var k=n+1;k<length;k++){
+                        var num_pre=ds.getAt(n).get("line_number");
+                        var num_next=ds.getAt(k).get("line_number");
+                        if(num_pre==num_next){
+                            Aurora.showInfoMessage('${l:PROMPT}','${l:EXP_EMPLOYEE_ACCOUNTS.LINE_NUMBER_REPEAT}',null,250,100);
+			        		return false;
+                        }
+                    }
+                }
+            }
+            
+            function onAdd_expBankDs(ds,record,index){
+                record.set("line_number",10*index);
+                record.set("account_name","${/model/employee_info_record/record/@name}");
+            }
+            
+          	function expBankDs_grid_add(){
+                $('expBankDs_grid').showEditorByRecord($('expBankDs').create());
+            }
+            function expBankDs_grid_clear(){
+                $('expBankDs_grid').clear();
+            }
+            function expBankDs_grid_submit() {
+                var ds = $('expBankDs');
+                if (ds.validate()) {
+                    ds.submit();
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="expBankPage_empInfoDs" model="exp.exp_employees">
+                <a:datas dataSource="/model/employee_info_record"/>
+                <a:fields>
+                    <a:field name="employee_code" readOnly="true"/>
+                    <a:field name="name" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="expBankDs" autoCount="true" autoQuery="true" fetchAll="false" model="exp.EXP1050.exp_employee_accounts" queryUrl="${/request/@context_path}/autocrud/exp.EXP1050.exp_employee_accounts/query?employee_id=${/parameter/@employee_id}" selectable="true" submitUrl="${/request/@context_path}/modules/exp/EXP1050/exp_bank_assign.svc?employee_id=${/parameter/@employee_id}">
+                <a:fields>
+                    <a:field name="province_id"/>
+                    <a:field name="line_number" required="true"/>
+                    <a:field name="bank_code" lovGridHeight="300" lovHeight="450" lovService="csh.csh_banks_vl?enabled_flag=Y" lovWidth="600" lovlabelWidth="100" required="true" title="HLS.BANK_CODE">
+                        <a:mapping>
+                            <a:map from="bank_code" to="bank_code"/>
+                            <a:map from="bank_name" to="bank_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_name"/>
+                    <a:field name="bank_location"/>
+                    <a:field name="province_code"/>
+                    <a:field name="province_name" lovGridHeight="300" lovHeight="450" lovService="basic.fnd_province_for_lov" lovWidth="700" title="HLS.PROVINCE_NAME">
+                        <a:mapping>
+                            <a:map from="province_code" to="province_code"/>
+                            <a:map from="description" to="province_name"/>
+                            <a:map from="province_id" to="province_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="city_code"/>
+                    <a:field name="city_name" lovGridHeight="300" lovHeight="450" lovService="basic.fnd_city_for_lov?province_id=${@province_id}" lovWidth="700" title="HLS.CITY_NAME">
+                        <a:mapping>
+                            <a:map from="city_code" to="city_code"/>
+                            <a:map from="description" to="city_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="account_name" required="true"/>
+                    <a:field name="account_number" required="true"/>
+                    <a:field name="notes"/>
+                    <a:field name="primary_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_expBankDs"/>
+                    <a:event name="beforesubmit" handler="onBeforeSubmit_expBankDs"/>
+                    <a:event name="add" handler="onAdd_expBankDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="expBankDs_grid_add" text="HLS.NEW"/>
+                <a:gridButton click="expBankDs_grid_clear" text="HLS.CLEAR"/>
+                <a:gridButton click="expBankDs_grid_submit" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:fieldSet column="2" title="EXP_EMPLOYEE_ASSIGN.EMPLOYEE_INFO">
+                <a:textField name="employee_code" bindTarget="expBankPage_empInfoDs"/>
+                <a:textField name="name" bindTarget="expBankPage_empInfoDs"/>
+            </a:fieldSet>
+            <a:grid id="expBankDs_grid" bindTarget="expBankDs" height="400" navBar="true" width="1000">
+                <a:columns>
+                    <a:column name="line_number" editor="expBankDs_grid_tf" width="45"/>
+                    <a:column name="bank_code" editor="expBankDs_grid_lov"/>
+                    <a:column name="bank_name"/>
+                    <a:column name="bank_location" editor="expBankDs_grid_tf"/>
+                    <a:column name="province_name" editor="expBankDs_grid_lov"/>
+                    <a:column name="city_name" editor="expBankDs_grid_lov"/>
+                    <a:column name="account_name" editor="expBankDs_grid_tf"/>
+                    <a:column name="account_number" editor="expBankDs_grid_tf"/>
+                    <a:column name="notes" editor="expBankDs_grid_tf"/>
+                    <a:column name="primary_flag" editor="expBankDs_grid_check" width="45"/>
+                    <a:column name="enabled_flag" editor="expBankDs_grid_check" width="45"/>
+                </a:columns>
+                <a:editors>
+                    <a:lov id="expBankDs_grid_lov"/>
+                    <a:textField id="expBankDs_grid_tf"/>
+                    <a:checkBox id="expBankDs_grid_check"/>
+                </a:editors>
+                <a:events>
+                    <a:event name="cellclick" handler="onCellClick_expBankDs_grid"/>
+                </a:events>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	&author:DJ
+	$date:2013/05/08
+	$purpose:现金流选择
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure><![CDATA[
+    ]]></a:init-procedure>
+    <a:view>
+        <a:link id="pageLink_invoice_create" url="${/request/@context_path}/modules/acr/ACR510/acr_invoice_create_invoice.screen"/>
+        <a:link id="svcLink_save_selected" url="${/request/@context_path}/modules/acr/ACR510/acr_invoice_save_selected.svc"/>
+        <script><![CDATA[
+	        function contractDs_grid_query() {
+	            $('contractDs').query();
+	        }
+	        
+	        function contractDs_grid_add() {
+	            $('contractDs_grid').showEditorByRecord($('contractDs').create());
+	        }
+	        
+	        function invoiceHd_close() {
+            	$('acr_invoice_select_cashflow').close();
+        	}
+	        
+	        function contractDs_grid_clear() {
+	            $('contractDs_grid').clear();
+	        }
+	        
+	        function cashflowDs_grid_clear() {
+	            $('cashflowDs_grid').clear();
+	        }
+	        
+			function winOpen_invoice_create()
+			{
+			    new Aurora.Window({
+	                id: 'acr_invoice_create_invoice',
+	                url: $('pageLink_invoice_create').getUrl(),
+	                params:{
+	                    company_id:'${/parameter/@company_id}'
+	                },
+	                title: '${l:ACR510.WIN_TITLE.CREATE}',
+	                fullScreen:true
+	            });
+			}
+			
+			function mask_selectScreen()
+			{
+			    
+			}
+			
+			function invoiceHd_confirm()
+			{
+			    var ds=$('contractDs');
+			    var datas = ds.getJsonData(true);
+			    
+			    Aurora.request({
+	                url: $('svcLink_save_selected').getUrl(),
+	                para: datas,
+	                success: function(res) {
+	                    winOpen_invoice_create();
+	                },
+	                failure: function() {
+	                },
+	                error: function() {
+	                },
+	                scope: this
+	            });
+			}
+			
+			
+			
+			
+			function onLoad_cashflowDs(ds)
+			{
+			    var hd_ds = $('contractDs'),
+			    	r = hd_ds.getCurrentRecord();
+			    if(hd_ds.getSelected().indexOf(r)!=-1){
+		        	ds.selectAll.defer(5,ds);
+			    }
+			}
+			var isSelectFromLine = false;
+			function onSelect_contractDs(ds,record)
+			{
+			    ds.locate(ds.indexOf(record)+1);
+			    if(!isSelectFromLine)
+			    {
+			        $('cashflowDs').selectAll();
+			    }
+			    	
+			}
+			
+			function unselect_contractDs(ds,record)
+			{
+			    ds.locate(ds.indexOf(record)+1);
+			    $('cashflowDs').unSelectAll();
+			}
+			
+			function onSelect_invoiceLineDs(ds,record){
+			    record.dirty = true;
+			    isSelectFromLine = true;
+			    $('contractDs').select($('contractDs').getCurrentRecord());
+			    isSelectFromLine = false;
+			}
+			function unSelect_invoiceLineDs(ds,record){
+			    record.dirty = false;
+			}
+			
+			function render_contractDs_grid(value,record,name){
+			    if(name=='billing_object_name')
+			    {
+			        record.getField('billing_object_name').setLovPara('contract_id',record.get('contract_id'));
+			    }
+			    return value;
+			}
+			
+		]]></script>
+        <a:dataSets>
+            <a:dataSet id="contractDs" autoQuery="true" fetchAll="true" model="acr.ACR510.acr_invoice_contract_v" queryDataSet="conditionDs" queryUrl="${/request/@context_path}/autocrud/acr.ACR510.acr_invoice_contract_v/query?company_id=${/parameter/@company_id}" selectable="true">
+                <a:fields>
+                    <a:field name="billing_object_name" lovGridHeight="300" lovHeight="450" lovService="acr.ACR510.acr_invoice_billing_object_lov" lovWidth="600" title="ACR510.ACR_INVOICE_CONTRACT_V.BILLING_OBJECT_NAME">
+                        <a:mapping>
+                            <a:map from="bp_id" to="billing_object_id"/>
+                            <a:map from="bp_name" to="billing_object_name"/>
+                            <a:map from="invoice_title" to="invoice_title"/>
+                            <a:map from="invoice_bp_address_phone_num" to="invoice_bp_address_phone_num"/>
+                            <a:map from="invoice_bp_bank_account" to="invoice_bp_bank_account"/>
+                            <a:map from="taxpayer_type" to="object_taxpayer_type"/>
+                            <a:map from="taxpayer_type_desc" to="object_taxpayer_type_desc"/>
+                            <a:map from="tax_registry_num" to="tax_registry_num"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+                <a:events>
+                    <a:event name="select" handler="onSelect_contractDs"/>
+                    <a:event name="unselect" handler="unselect_contractDs"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="cashflowDs" bindName="line_info" bindTarget="contractDs" fetchAll="true" model="acr.ACR510.acr_invoice_contract_cf_v" selectable="true">
+                <a:fields>
+                    <a:field name="last_received_date" datatype="date"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="onLoad_cashflowDs"/>
+                    <a:event name="select" handler="onSelect_invoiceLineDs"/>
+                    <a:event name="unselect" handler="unSelect_invoiceLineDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="invoiceHd_close" text="HLS.CLOSE"/>
+                <a:gridButton click="contractDs_grid_query" text="HLS.QUERY"/>
+                <a:gridButton click="contractDs_grid_clear" text="ACR510.BUTTON.CLEAR_CONTRACT"/>
+                <a:gridButton click="cashflowDs_grid_clear" text="ACR510.BUTTON.CLEAR_CASHFLOW"/>
+                <a:gridButton click="invoiceHd_confirm" text="ACR510.BUTTON.COMFIRM"/>
+            </a:screenTopToolbar>
+            <a:grid id="contractDs_grid" bindTarget="contractDs" height="270" marginWidth="30">
+                <a:columns>
+                    <a:column name="project_name" lock="true" width="200"/>
+                    <a:column name="contract_number" width="150"/>
+                    <a:column name="contract_status_desc" width="80"/>
+                    <a:column name="billing_method_desc" width="80"/>
+                    <a:column name="billing_object_name" editor="contractDs_grid_editor_lov" renderer="render_contractDs_grid" width="150"/>
+                    <a:column name="invoice_title" editor="contractDs_grid_editor_tf" width="150"/>
+                    <a:column name="invoice_bp_address_phone_num" editor="contractDs_grid_editor_tf" width="200"/>
+                    <a:column name="invoice_bp_bank_account" editor="contractDs_grid_editor_tf" width="150"/>
+                    <a:column name="description" editor="contractDs_grid_editor_tf" width="200"/>
+                    <a:column name="object_taxpayer_type_desc"/>
+                    <a:column name="contract_name" width="200"/>
+                    <a:column name="inception_of_lease" renderer="Aurora.formatDate" width="80"/>
+                </a:columns>
+                <a:editors>
+                    <a:lov id="contractDs_grid_editor_lov"/>
+                    <a:textField id="contractDs_grid_editor_tf"/>
+                </a:editors>
+            </a:grid>
+            <script><![CDATA[
+            	Ext.fly('contractDs_grid').child('[atype=grid.headcheck]').remove();
+            ]]></script>
+            <a:grid id="cashflowDs_grid" bindTarget="cashflowDs" marginHeight="400" marginWidth="30">
+                <a:columns>
+                    <a:column name="times" align="right" lock="true" width="40"/>
+                    <a:column name="cf_item_desc" lock="true"/>
+                    <a:column name="due_date" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="due_amount" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="principal" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="interest" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="received_amount" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="received_principal" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="received_interest" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="billing_amount" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="billing_principal" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="billing_interest" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="last_received_date" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="currency_desc" width="60"/>
+                    <a:column name="exchange_rate" align="right" width="60"/>
+                    <a:column name="exchange_rate_type_desc" width="60"/>
+                    <!--
+                    <a:column name="vat_due_amount" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="vat_principal" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="vat_interest" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="due_amount_after_tax" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="principal_after_tax" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="interest_after_tax" align="right" renderer="Aurora.formatMoney"/>
+                    -->
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

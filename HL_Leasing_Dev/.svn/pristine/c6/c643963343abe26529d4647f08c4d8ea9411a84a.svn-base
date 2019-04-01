@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ouyangzhaochang2663 $
+    $Date: 2010/10/29 08:25:14 $
+    $Revision: 1.2 $
+    $Purpose: 科目定义 - 指定公司
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query autocount="true" defaultWhereClause="enabled_flag = &apos;Y&apos; and account_set_id = ${/parameter/@account_set_id}" fetchall="true" model="gld.gld_set_of_books" rootpath="set_of_books_list"/>
+        <a:model-query autocount="true" defaultWhereClause="t1.company_id=${/session/@company_id}" fetchAll="true" model="fnd.fnd_companies_vl" rootPath="get_set_bookid"/>
+        <a:model-query autoCount="true" defaultWhereClause="sob.set_of_books_id=${/model/get_set_bookid/record/@set_of_books_id}" fetchAll="true" model="gld.gld_set_of_books" rootPath="book_name"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+            function companyAccountDs_query(){
+            	if(!$('para_companyAccountDs').validate()){
+            		return;
+            	}
+                $('companyAccountDs').query();
+            }
+            
+            function buttonHandler(type)
+            {
+                var btn_list=['add_btn','save_btn','clear_btn'];
+                
+                if(type=='disable')
+                {
+                    for (var i=0,j=btn_list.length;i<j;i++)
+	                {
+	                    $(btn_list[i]).disable();
+	                }
+                }
+                else if(type=='enable')
+                {
+                    for (var i=0,j=btn_list.length;i<j;i++)
+	                {
+	                    $(btn_list[i]).enable();
+	                }
+                }
+            }
+
+
+            function onUpdate_para_companyAccountDs(ds,record,name,value,oldValue){
+                if(name=='set_of_books_id'){
+                    if(Ext.isEmpty(value)){
+                        buttonHandler('disable');
+                    }else{
+                        buttonHandler('enable');
+                    }
+                }
+            }
+            
+            function gridCellClick(grid, row, name, record){
+                if(name =='company_code'){
+                    var para_record = $('para_companyAccountDs').getAt(0);
+                    var book_id = para_record.get('set_of_books_id');
+                    record.getMeta().getField(name).setLovPara('set_of_books_id',book_id);
+                    record.set('set_of_books_id',book_id);
+                }
+            }
+            
+            function editorFunction_companyAccountDs_grid(record,name){
+                if(name=='company_code')
+                {
+                    if(record.isNew){
+            			return 'companyAccountDs_grid_editor_lov';
+            		}
+                }
+            	return '';
+            }
+            
+            function onSubmitSuccess_companyAccountDs(ds,res){
+            	ds.query();
+            }
+            
+            function companyAccountDs_add(){
+                $('companyAccountDs_grid').showEditorByRecord($('companyAccountDs').create());
+            }
+            function companyAccountDs_clear(){
+                $('companyAccountDs_grid').clear();
+            }
+            function companyAccountDs_save() {
+                var ds = $('companyAccountDs');
+                if (ds.validate()) {
+                    ds.submit();
+                }
+            }
+            
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="gld_accounts_info_ds" loadData="true" model="gld.FND2140.gld_accounts">
+                <a:fields>
+                    <a:field name="account_code" readOnly="true"/>
+                    <a:field name="account_description" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="set_of_books_list_ds">
+                <a:datas dataSource="/model/set_of_books_list"/>
+            </a:dataSet>
+            <a:dataSet id="para_companyAccountDs" model="gld.FND2140.gld_company_accounts_query">
+                <a:fields>
+                    <a:field name="account_id" defaultValue="${/parameter/@account_id}"/>
+                    <a:field name="account_set_id" defaultValue="${/parameter/@account_set_id}"/>
+                    <a:field name="set_of_books_id" displayField="${/model/get_set_bookid/record/@set_of_books_id}"/>
+                    <a:field name="set_of_books_name_display" displayField="set_of_books_name_display" options="set_of_books_list_ds" prompt="GLD_ACCOUNT_COMPANY_ASSIGNED_BATCH.SET_OF_BOOKS" required="true" returnField="set_of_books_id" valueField="set_of_books_id"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_para_companyAccountDs"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="companyAccountDs" fetchAll="false" model="gld.FND2140.gld_company_accounts_query" queryDataSet="para_companyAccountDs" queryUrl="${/request/@context_path}/autocrud/gld.FND2140.gld_company_accounts_query/query?ORDER_FIELD=cpy.company_code" selectable="true" submitUrl="${/request/@context_path}/autocrud/gld.FND2140.gld_company_accounts/batch_update">
+                <a:fields>
+                    <a:field name="rowid"/>
+                    <a:field name="account_id" defaultValue="${/parameter/@account_id}"/>
+                    <a:field name="account_set_id" defaultValue="${/parameter/@account_set_id}"/>
+                    <a:field name="company_code" lovGridHeight="300" lovHeight="430" lovService="gld.FND2140.gld_company_accounts_company_lov?ORDER_FIELD=company_code" lovWidth="500" required="true" title="BGT_BALANCE_QUREY_CONDS_H.COMPANY_ID">
+                        <a:mapping>
+                            <a:map from="company_id" to="company_id"/>
+                            <a:map from="company_code" to="company_code"/>
+                            <a:map from="company_short_name" to="company_short_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="subsystem_flag" defaultValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="onSubmitSuccess_companyAccountDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton id="add_btn" click="companyAccountDs_add" text="HLS.NEW"/>
+                <a:gridButton id="clear_btn" click="companyAccountDs_clear" text="HLS.CLEAR"/>
+                <a:gridButton id="save_btn" click="companyAccountDs_save" text="HLS.SAVE"/>
+                <a:gridButton click="companyAccountDs_query" text="HLS.QUERY"/>
+            </a:screenTopToolbar>
+            <script><![CDATA[
+            	buttonHandler('disable');
+            ]]></script>
+            <a:form column="2" title="GLD_ACCOUNTS.APPOINT_COMPANY" width="482">
+                <a:textField name="account_code" bindTarget="gld_accounts_info_ds"/>
+                <a:textField name="account_description" bindTarget="gld_accounts_info_ds"/>
+                <a:comboBox name="set_of_books_name_display" bindTarget="para_companyAccountDs">
+                    <a:events>
+                        <a:event name="enterdown" handler="companyAccountDs_query"/>
+                    </a:events>
+                </a:comboBox>
+            </a:form>
+            <a:grid id="companyAccountDs_grid" bindTarget="companyAccountDs" height="300" navBar="true" width="480">
+                <a:columns>
+                    <a:column name="company_code" editorFunction="editorFunction_companyAccountDs_grid" sortable="true" width="120"/>
+                    <a:column name="company_short_name" width="200"/>
+                    <a:column name="enabled_flag" editor="companyAccountDs_grid_editor_check"/>
+                </a:columns>
+                <a:editors>
+                    <a:lov id="companyAccountDs_grid_editor_lov"/>
+                    <a:checkBox id="companyAccountDs_grid_editor_check"/>
+                </a:editors>
+                <a:events>
+                    <a:event name="cellclick" handler="gridCellClick"/>
+                </a:events>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

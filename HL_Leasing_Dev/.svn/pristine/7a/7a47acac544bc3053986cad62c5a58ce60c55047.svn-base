@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[select *from
+            (SELECT 
+            ccv.project_number,
+       round(ccv.irr * 100, 2) || '%' irr,
+       ccv.dd_bank_account_name,
+       ccv.contract_number, 
+       (SELECT bpv.bp_name
+          FROM hls_bp_master_v bpv
+         WHERE bpv.bp_id = ccv.bp_id_tenant) bpv_bp_name,
+       (select dbms_lob.substr(wmsys.wm_concat(h.bp_name))
+          from con_contract_bp b, hls_bp_master h
+         where b.enabled_flag = 'Y'
+           and b.bp_id = h.bp_id
+           and b.contract_id = ccv.contract_id
+           and b.bp_category = 'AGENT') bp_name, 
+       cclil.product_plan_id_n,
+       ccv.invoice_price,
+       decode(cclil.purchase_tax_flag,'Y','是','N','否') purchase_tax_flag,
+       cclil.purchase_tax,
+       decode( cclil.insurance_flag,'Y','是','N','否') insurance_flag, 
+       decode(cclil.insurance_flag,'N',null,cclil.insurance_amount) insurance_amount,
+       decode(cclil.travel_tax_flag,'Y','是','N','否') travel_tax_flag,
+       cclil.travel_tax,
+       decode( cclil.gps_flag,'Y','是','N','否') gps_flag, 
+       cclil.gps_amount,
+       cclil.deposit,
+       cclil.down_payment,
+       cclil.lease_charge,
+       cclil.residual_value,
+       ccv.total_rental,
+       ccv.pmt,
+       ccv.finance_amount,
+       ccv.total_interest,
+       ccv.lease_times,
+       to_char(ccv.inception_of_lease,'yyyy-mm-dd') inception_of_lease,
+       -- to_date(to_char(ccv.inception_of_lease,'yyyy-mm-dd'),'yyyy-mm-dd') inception_of_lease,
+        -- ccv.inception_of_lease,
+       ccv.lease_end_date,
+       (SELECT g.gps_provider
+          FROM ast_car_gps g
+         WHERE g.contract_id = ccv.contract_id and rownum=1) gps_provider,
+         ccv.contract_status,
+         ccv.contract_status_n
+  FROM con_contract_lv ccv, con_contract_lease_item_lv cclil
+ WHERE ccv.contract_id = cclil.contract_id
+   and ccv.data_class = 'NORMAL') #WHERE_CLAUSE#
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="project_number"/>
+        <bm:field name="irr"/>
+        <bm:field name="contract_number"/>
+        <bm:field name="bpv_bp_name"/>
+        <bm:field name="dd_bank_account_name"/>
+        <bm:field name="bp_name"/>
+        <bm:field name="product_plan_id_n"/>
+        <bm:field name="invoice_price" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="purchase_tax_flag"/>
+        <bm:field name="purchase_tax" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="insurance_flag"/>
+        <bm:field name="insurance_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="travel_tax_flag"/>
+        <bm:field name="travel_tax" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="gps_flag"/>
+        <bm:field name="gps_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="deposit" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="down_payment" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="lease_charge" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="residual_value" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="total_rental" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="pmt" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="finance_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="total_interest" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="lease_times"/>
+        <bm:field name="inception_of_lease"/>
+        <bm:field name="lease_end_date"/>
+        <bm:field name="gps_provider"/>
+        <bm:field name="contract_status"/>
+        <bm:field name="contract_status_n"/>
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field name="bp_name" queryExpression="bp_name=${@bp_name}"/>
+        <bm:query-field name="project_number" queryExpression="upper(project_number) like &apos;%&apos; || upper(${@project_number}) || &apos;%&apos;"/>
+        <bm:query-field name="contract_number" queryExpression="upper(contract_number) like &apos;%&apos; || upper(${@contract_number}) || &apos;%&apos;"/>
+        <bm:query-field name="dd_bank_account_name" queryExpression="dd_bank_account_name=${@dd_bank_account_name}"/>
+        <bm:query-field name="gps_provider" queryExpression="gps_provider=${@gps_provider}"/>
+        <bm:query-field name="contract_status" queryExpression="contract_status=${@contract_status}"/>
+        <!-- <bm:query-field name="inception_of_lease" queryexpression="trunc(to_date(inception_of_lease,&apos;yyyy-mm-dd&apos;)) = to_date(${@inception_of_lease},&apos;yyyy-mm-dd&apos;)"/> -->
+        <bm:query-field name="inception_of_lease_from" queryexpression="trunc(to_date(inception_of_lease,&apos;yyyy-mm-dd&apos;)) &gt;= to_date(${@inception_of_lease_from},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="inception_of_lease_to" queryexpression="trunc(to_date(inception_of_lease,&apos;yyyy-mm-dd&apos;)) &lt;= to_date(${@inception_of_lease_to},&apos;yyyy-mm-dd&apos;)"/>
+    </bm:query-fields>
+</bm:model>

@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Guoxuezhao  
+    $Date: 2013-6-4 下午5:33:13  
+    $Revision: 1.0  
+    $Purpose: 新增 还款明细
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query autoCount="false" defaultWhereClause="t1.loan_contract_id = ${/parameter/@loan_contract_id}" model="tre.tre502.tre_loan_contract" rootPath="loan_con"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+            var _data = {
+                'LOAN_CONTRACT_TYPE': '${/model/loan_con/record/@loan_contract_type}'
+            };
+            
+            function go_back() {
+                window.history.go(-1);
+            }
+            
+            function repayment_details_save() {
+                $('loan_contract_repayment_ds').submit('tre_loan_contract_repayment_save.svc');
+            }
+            
+            function switchToGrid(id) {
+                var grids = ['capital', 'interest', 'factoring'];
+                for (var i = 0,
+                    l = grids.length;i < l;i++) {
+                    var cg = grids[i];
+                    if (cg == id) {
+                        Ext.fly(cg).setStyle({
+                            'display': ''
+                        });
+                    } else {
+                        $('loan_contract_repayment_dtl_ds').removeAll();
+                        Ext.fly(cg).setStyle({
+                            'display': 'none'
+                        });
+                    }
+                }
+            }
+            
+            function repaymentUpd(dataSet, record, name, value, oldvalue) {
+                if (name == 'repayment_type') {
+                    switch (value) {
+                        //本金
+                    case 'CAPITAL':
+                        switchToGrid('capital');
+                        break;
+                        //利息
+                    case 'INTEREST':
+                        switchToGrid('interest');
+                        break;
+                        //保理费
+                    case 'FACTORING':
+                        if (_data['LOAN_CONTRACT_TYPE'] == 'RECOURSE_FACTORING' || _data['LOAN_CONTRACT_TYPE'] == 'NONRECOURSE_FACTORING') {
+                            switchToGrid('factoring');
+                            var dtlDs = $('loan_contract_repayment_dtl_ds');
+                            var dtlLovField = dtlDs.getField('loan_contract_number');
+                            dtlLovField.setLovService('tre.tre503.tre_loan_con_for_repayment_add_lov');
+                            dtlLovField.setLovPara('loan_contract_id','${/parameter/@loan_contract_id}');
+                            dtlLovField.setLovWidth(500);
+                            dtlLovField.setLovHeight(400);
+                            dtlLovField.setLovGridHeight(250);
+                            dtlLovField.setMapping([
+                            	{from:'factoring_fee_id', to: 'factoring_fee_id'},
+                            	{from:'prepayment_date', to: 'prepayment_date'},
+                            	{from:'amount', to: 'factoring_fees'},
+                            	{from:'remaining_factoring_fees', to: 'remaining_factoring_fees'}
+                            ]);
+                        } else {
+                            Aurora.showMessage('${l:TRE502.ALERT.MESSAGE}', '${l:TRE502.ALERT.ONLY_FACTORING_CONTRACT}', function() {
+                                record.set('repayment_type', '');
+                                record.set('repayment_type_desc', '');
+                            });
+                        }
+                        break;
+                    }
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="repayment_type_ds" lookupCode="TRE502_REPAYMENT_TYPE"/>
+            <a:dataSet id="loan_contract_repayment_ds" model="tre.tre503.tre_loan_contract_repayment" selectable="true">
+                <a:fields>
+                    <a:field name="repayment_type_desc" displayField="code_value_name" options="repayment_type_ds" required="true" returnField="repayment_type" valueField="code_value"/>
+                    <a:field name="repayment_number" required="true"/>
+                    <a:field name="repayment_amount" required="true"/>
+                    <a:field name="repayment_date" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="repaymentUpd"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="loan_contract_repayment_dtl_ds" bindName="details" bindTarget="loan_contract_repayment_ds" model="tre.tre503.tre_loan_con_repayment_dtl" selectable="true">
+                <a:fields>
+                    <a:field name="loan_contract_id" defaultValue="${/parameter/@loan_contract_id}"/>
+                    <a:field name="loan_contract_number" defaultValue="${/parameter/@loan_contract_number}"/>
+                    <a:field name="factoring_fee_id"/>
+                    <a:field name="prepayment_date"/>
+                    <a:field name="withdraw_number" lovAutoQuery="true" lovGridHeight="250" lovHeight="400" lovService="tre.tre503.tre_loan_contract_withdraw_love?loan_contract_id=${/parameter/@loan_contract_id}" lovWidth="600">
+                        <a:mapping>
+                            <a:map from="withdraw_number" to="withdraw_number"/>
+                            <a:map from="withdraw_date" to="withdraw_date"/>
+                            <a:map from="withdraw_amount" to="withdraw_amount"/>
+                            <a:map from="remaining_amount" to="remaining_amount"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="repayment_type"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="repayment_details_save" text="HAP_SAVE"/>
+                <a:gridButton click="go_back" text="HAP_BACK"/>
+            </a:screenTopToolbar>
+            <a:box column="4">
+                <a:textField name="repayment_number" bindTarget="loan_contract_repayment_ds" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_NUMBER"/>
+                <a:numberField name="repayment_amount" bindTarget="loan_contract_repayment_ds" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_AMOUNT"/>
+                <a:comboBox name="repayment_type_desc" bindTarget="loan_contract_repayment_ds" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_TYPE"/>
+                <a:datePicker name="repayment_date" bindTarget="loan_contract_repayment_ds" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_DATE"/>
+            </a:box>
+            <div>
+                <div id="capital" style="display:none;">
+                    <a:grid bindTarget="loan_contract_repayment_dtl_ds" marginHeight="200" marginWidth="300" navBar="true">
+                        <a:toolBar>
+                            <a:button type="add"/>
+                            <a:button type="delete"/>
+                        </a:toolBar>
+                        <a:columns>
+                            <a:column name="withdraw_number" editor="cap_lov" prompt="TRE_LOAN_CON_REPAYMENT_DTL.WITHDRAW_ID"/>
+                            <a:column name="withdraw_date" prompt="TRE_LOAN_CONTRACT_WITHDRAW.WITHDRAW_DATE" renderer="Aurora.formatDate"/>
+                            <a:column name="withdraw_amount" align="right" prompt="TTRE502.LOAN_AMOUNT"/>
+                            <a:column name="remaining_amount" align="right" prompt="TRE502.REMAINING_AMOUNT"/>
+                            <a:column name="repayment_amount" editor="cap_dp" prompt="TRE_LOAN_CON_REPAYMENT_DTL.REPAYMENT_AMOUNT"/>
+                        </a:columns>
+                        <a:editors>
+                            <a:lov id="cap_lov"/>
+                            <a:numberField id="cap_dp"/>
+                        </a:editors>
+                    </a:grid>
+                </div>
+                <div id="interest" style="display:none;">
+                    <a:grid bindTarget="loan_contract_repayment_dtl_ds" marginHeight="200" marginWidth="300" navBar="true">
+                        <a:toolBar>
+                            <a:button type="add"/>
+                            <a:button type="delete"/>
+                        </a:toolBar>
+                        <a:columns>
+                            <a:column name="loan_contract_number" prompt="TRE_LOAN_CONTRACT.LOAN_CONTRACT_NUMBER"/>
+                            <a:column name="expiry_date" prompt="TRE_LOAN_CONTRACT.INTEREST_CALC_DATE"/>
+                            <a:column name="interest_payable" prompt="TRE502.INTEREST_PAYABLE"/>
+                            <a:column name="remaining_interest" prompt="TRE502.REMAINING_INTEREST"/>
+                            <a:column name="repayment_amount" editor="int_dp" prompt="TRE502.REPAYMENT_INTEREST"/>
+                        </a:columns>
+                        <a:editors>
+                            <a:lov id="int_lov"/>
+                            <a:numberField id="int_dp"/>
+                        </a:editors>
+                    </a:grid>
+                </div>
+                <div id="factoring" style="display:none;">
+                    <a:grid bindTarget="loan_contract_repayment_dtl_ds" marginHeight="200" marginWidth="300" navBar="true">
+                        <a:toolBar>
+                            <a:button type="add"/>
+                            <a:button type="delete"/>
+                        </a:toolBar>
+                        <a:columns>
+                            <a:column name="loan_contract_number" align="right" editor="fac_lov" prompt="TRE_LOAN_CONTRACT.LOAN_CONTRACT_NUMBER"/>
+                            <a:column name="prepayment_date" prompt="TRE502.PAYABLE_DATE" renderer="Aurora.formatDate"/>
+                            <a:column name="factoring_fees" prompt="TRE502.PAYABLE_FACTORING_FEE"/>
+                            <a:column name="remaining_factoring_fees" prompt="TRE502.REMAINING_FACTORING_FEE"/>
+                            <a:column name="repayment_amount" editor="fac_dp" prompt="TRE502.PAYMENT_FACTORING_FEE"/>
+                        </a:columns>
+                        <a:editors>
+                            <a:lov id="fac_lov"/>
+                            <a:numberField id="fac_dp"/>
+                        </a:editors>
+                    </a:grid>
+                </div>
+            </div>
+        </a:screenBody>
+    </a:view>
+</a:screen>

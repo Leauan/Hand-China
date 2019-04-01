@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Guoxuezhao  
+    $Date: 2013-5-27 下午3:43:19  
+    $Revision: 1.0  
+    $Purpose: 授信额度维护
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <script><![CDATA[
+            function tre501_manage_query() {
+                $('bank_credit_contract_ds').query();
+            }
+            
+            function tre501_manage_add() {
+                $('bank_credit_contract_ds').create();
+            }
+            
+            function tre501_manage_reset() {
+                $('bank_credit_contract_query_ds').reset();
+            }
+            
+            function tre501_manage_clear() {
+                $('bccd_grid').clear();
+            }
+            
+            function lock_current_window() {
+                Aurora.Masker.mask(document.documentElement, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_current_window() {
+                Aurora.Masker.unmask(document.documentElement);
+            }
+            
+            function tre501_manage_save() {
+                lock_current_window();
+                if ($('bank_credit_contract_ds').validate()) {
+                    $('bank_credit_contract_ds').submit();
+                } else {
+                    unlock_current_window();
+                }
+            }
+            
+            function on_bank_credit_contract_submitsuccess(ds, res) {
+                ds.query(ds.currentPage);
+                unlock_current_window();
+            }
+            
+            function on_bank_credit_contract_submitfailed(ds, res) {
+                unlock_current_window();
+            }
+            
+            function viewDetails(value, record, name) {
+                if (record.isNew) {
+                    return '';
+                } else {
+                    return '<a href="javascript:openDetailWindow(' + record.get('credit_contract_id') + ',\'' + record.get('credit_contract_number') + '\');">${l:TRE501.TRE_BANK_CREDIT_CONTRACT.DETAIL}</a>';
+                }
+            }
+            
+            function openDetailWindow(id, number) {
+                var win = new Aurora.Window({
+                    id: 'tre_credit_amt_detail_winid',
+                    url: 'tre_credit_amt_detail.screen',
+                    params: {
+                        credit_contract_id: id,
+                        credit_contract_number: number
+                    },
+                    width: '900',
+                    height: '500',
+                    //title:'${l:TRE501.WIN_TITLE.CREDIT_DETAILS}'
+                    fullScreen: true
+                });
+                win.on('close', function() {
+                    var result_ds = $('bank_credit_contract_ds');
+                    result_ds.query(result_ds.currentPage);
+                });
+            }
+            
+            function dateValidator(record, name, value) { //日期校验方法
+                if (name == 'credit_date_from' || name == 'credit_date_to') {
+                    var start_date = Aurora.formatDate(record.get('credit_date_from'));
+                    var end_date = Aurora.formatDate(record.get('credit_date_to'));
+                    if ( !! end_date) { //由于结束日期非必填，只有在结束日期填了才进行比较
+                        if (!compareDate(start_date, end_date)) {
+                            return '${l:TRE501.CREDIT_DATE_FROM_BEYOND_TO}'; //校验不通过返回字符串
+                        }
+                    }
+                    return true; //校验通过返回true
+                }
+            }
+            
+            function compareDate(start, end) {
+                if (start > end) {
+                    return false;
+                }
+                return true;
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="credit_limit_type_ds" lookupCode="TRE501_CREDIT_LIMIT_TYPE"/>
+            <a:dataSet id="bank_credit_contract_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="credit_limit_type_desc" displayField="code_value_name" options="credit_limit_type_ds" returnField="credit_limit_type" valueField="code_value"/>
+                    <a:field name="bp_id"/>
+                    <a:field name="bank_branch_name" lovGridHeight="350" lovHeight="510" lovLabelWidth="90" lovService="basic.csh_bank_branch_for_lov" lovWidth="580" title="HLS.BANK_BRANCH_NAME">
+                        <a:mapping>
+                            <a:map from="bank_branch_id" to="bp_id"/>
+                            <a:map from="bank_branch_name" to="bank_branch_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="credit_contract_number"/>
+                    <a:field name="currency"/>
+                    <a:field name="currency_desc" lovAutoQuery="true" lovGridHeight="250" lovHeight="400" lovService="gld.gld_currency_lov" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="currency_name" to="currency_desc"/>
+                            <a:map from="currency_code" to="currency"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="bank_credit_contract_ds" autoPageSize="true" autoQuery="true" model="tre.tre501.tre_bank_credit_contract" queryDataSet="bank_credit_contract_query_ds" selectable="true" submitUrl="${/request/@context_path}/modules/tre/tre501/tre_credit_contract_save.svc">
+                <a:fields>
+                    <a:field name="credit_limit_type_desc" displayField="code_value_name" options="credit_limit_type_ds" returnField="credit_limit_type" valueField="code_value"/>
+                    <a:field name="bp_id"/>
+                    <a:field name="bank_branch_name" lovGridHeight="350" lovHeight="510" lovLabelWidth="90" lovService="basic.csh_bank_branch_for_lov" lovWidth="580" title="HLS.BANK_BRANCH_NAME">
+                        <a:mapping>
+                            <a:map from="bank_branch_id" to="bp_id"/>
+                            <a:map from="bank_branch_name" to="bank_branch_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="currency_name" lovAutoQuery="true" lovGridHeight="250" lovHeight="400" lovService="gld.gld_currency_lov" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="currency_name" to="currency_name"/>
+                            <a:map from="currency_code" to="currency"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="credit_date_from" validator="dateValidator"/>
+                    <a:field name="credit_date_to" validator="dateValidator"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="on_bank_credit_contract_submitsuccess"/>
+                    <a:event name="submitfailed" handler="on_bank_credit_contract_submitfailed"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="tre501_manage_query" text="HLS.QUERY"/>
+                <a:gridButton click="tre501_manage_add" text="HLS.NEW"/>
+                <a:gridButton click="tre501_manage_clear" text="HLS.CLEAR"/>
+                <a:gridButton click="tre501_manage_save" text="HLS.SAVE"/>
+                <!-- <a:gridButton text="TRE501.RESET_CREDIT"/> -->
+            </a:screenTopToolbar>
+            <a:form column="4" title="HLS.QUERY_TITLE">
+                <a:comboBox name="credit_limit_type_desc" bindTarget="bank_credit_contract_query_ds" prompt="TRE501.TRE_BANK_CREDIT_CONTRACT.CREDIT_LIMIT_TYPE"/>
+                <a:lov name="bank_branch_name" bindTarget="bank_credit_contract_query_ds" prompt="TRE501.TRE_BANK_CREDIT_CONTRACT.BANK_ID"/>
+                <a:textField name="credit_contract_number" bindTarget="bank_credit_contract_query_ds" prompt="TRE501.TRE_BANK_CREDIT_CONTRACT.CREDIT_CONTRACT_NUMBER"/>
+                <a:lov name="currency_desc" bindTarget="bank_credit_contract_query_ds" prompt="TRE501.TRE_BANK_CREDIT_CONTRACT.CURRENCY"/>
+            </a:form>
+            <a:grid id="bccd_grid" bindTarget="bank_credit_contract_ds" marginHeight="170" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="credit_limit_type_desc" editor="bccd_grid_cb" prompt="TRE501.TRE_BANK_CREDIT_CONTRACT.CREDIT_LIMIT_TYPE"/>
+                    <a:column name="bank_branch_name" editor="bccd_grid_lov" prompt="TRE501.TRE_BANK_CREDIT_CONTRACT.BANK_ID" width="150"/>
+                    <a:column name="credit_contract_number" editor="bccd_grid_tf" prompt="TRE501.TRE_BANK_CREDIT_CONTRACT.CREDIT_CONTRACT_NUMBER"/>
+                    <a:column name="credit_amount" align="right" editor="bccd_grid_nf" prompt="TRE501.TRE_BANK_CREDIT_CONTRACT.CREDIT_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="available_amount" align="right" prompt="TRE501.TRE_BANK_CREDIT_CONTRACT.AVAILABLE_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="currency_name" editor="bccd_grid_lov" prompt="TRE501.TRE_BANK_CREDIT_CONTRACT.CURRENCY"/>
+                    <a:column name="credit_date_from" editor="bccd_grid_dp" prompt="TRE501.TRE_BANK_CREDIT_CONTRACT.CREDIT_DATE_FROM" renderer="Aurora.formatDate"/>
+                    <a:column name="credit_date_to" editor="bccd_grid_dp" prompt="TRE501.TRE_BANK_CREDIT_CONTRACT.CREDIT_DATE_TO" renderer="Aurora.formatDate"/>
+                    <a:column align="center" prompt="TRE501.TRE_BANK_CREDIT_CONTRACT.DETAIL" renderer="viewDetails"/>
+                </a:columns>
+                <a:editors>
+                    <a:comboBox id="bccd_grid_cb"/>
+                    <a:lov id="bccd_grid_lov"/>
+                    <a:textField id="bccd_grid_tf"/>
+                    <a:numberField id="bccd_grid_nf" allowFormat="true" allowNegative="false"/>
+                    <a:datePicker id="bccd_grid_dp"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

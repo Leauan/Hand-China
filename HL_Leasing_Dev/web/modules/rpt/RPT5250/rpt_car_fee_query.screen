@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: 5th  
+    $Date: 2019-2-22 上午11:11:35  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="rpt.RPT5250.get_current_date" rootPath="default_date_path"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+            function rpt_car_fee_query() {
+                var query_ds = 'rpt_car_fee_req_query_ds';
+                var record = $(query_ds).getAt(0);
+                var month = record.get('month');
+                var reg = /^\d\d\d\d\d\d$/;
+                if (reg.test(month) || !month) {
+                    $('rpt_car_fee_req_sum_queryDs').query();
+                    $('rpt_car_fee_req_queryDs').query();
+                } else {
+                    Aurora.showMessage('提示', '时间格式应为【yyyymm】,举例【201812】');
+                    return '';
+                }
+            
+            }
+            
+            function rpt_car_fee_reset() {
+                $('rpt_car_fee_req_query_ds').reset();
+            }
+            
+            function amtSumInfo(data, name) {
+                if (name == 'agent_inventory_id_n') {
+                    return '<font color=red>' + '合计:' + '</font>';
+                } else {
+                    return colum_caculateTotal(data, name);
+                }
+            }
+            
+            function colum_caculateTotal(data, name) {
+                var total = 0;
+                var length = data.length;
+                var value = 0;
+                for (var i = 0;i < length;i++) {
+            
+                    if (Ext.isEmpty(data[i].get(name))) {
+                        value = 0;
+                    } else {
+                            value = data[i].get(name);
+                    }
+                    total = plus(total, value);
+                }
+                return '<font color=red>' + Aurora.formatMoney(total) + '</font>';
+            
+            }
+            
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="contract_status_flag_ds">
+                <a:datas>
+                    <a:record code_value="Y" code_value_name="已赎证"/>
+                    <a:record code_value="N" code_value_name="未赎证"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="month_ds" loadData="true" model="rpt.RPT5250.rpt_month_desc"/>
+            <a:dataSet id="car_status_ds" lookupCode="KR_CAR_STATUS"/>
+            <a:dataSet id="rpt_car_fee_req_query_ds">
+                <a:fields>
+                    <a:field name="month" defaultValue="${/model/default_date_path/record/@month}"/>
+                    <a:field name="month_desc" defaultValue="${/model/default_date_path/record/@current_month}" displayField="code_value_name" options="month_ds" returnField="month" valueField="code_value"/>
+                    <a:field name="car_status"/>
+                    <a:field name="car_status_desc" displayField="code_value_name" options="car_status_ds" returnField="car_status" valueField="code_value"/>
+                    <a:field name="contract_status_flag" defaultValue="N"/>
+                    <a:field name="contract_status_flag_desc" defaultValue="未赎证" displayField="code_value_name" options="contract_status_flag_ds" returnField="contract_status_flag" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="rpt_car_fee_req_queryDs" autoPageSize="true" autoQuery="true" model="rpt.RPT5250.rpt5250_line_query" queryDataSet="rpt_car_fee_req_query_ds" selectable="true" selectionModel="single"><![CDATA[
+           
+            ]]></a:dataSet>
+            <a:dataSet id="rpt_nowmonth_queryDs" autoQuery="true" model="rpt.RPT5250.rpt5250_nowmonth_query" queryDataSet="rpt_car_fee_req_query_ds"><![CDATA[
+                
+            ]]></a:dataSet>
+            <a:dataSet id="rpt_car_fee_req_sum_queryDs" autoQuery="true" model="rpt.RPT5250.rpt5250_head_query" queryDataSet="rpt_car_fee_req_query_ds"><![CDATA[
+                
+            ]]></a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="rpt_car_fee_query" text="HAP_QUERY"/>
+                <a:gridButton click="rpt_car_fee_reset" text="HLS.RESET"/>
+            </a:screenTopToolbar>
+            <a:form column="3" labelWidth="120" marginWidth="50" title="基本信息">
+                <a:numberField name="credit_total_amount" allowFormat="true" bindTarget="rpt_nowmonth_queryDs" prompt="本月授信额度" readOnly="true"/>
+                <a:numberField name="last_amount" allowFormat="true" bindTarget="rpt_nowmonth_queryDs" prompt="本月剩余授信额度" readOnly="true"/>
+                <a:percentField name="initial_rate" bindTarget="rpt_nowmonth_queryDs" prompt="初始利率" readOnly="true"/>
+                <a:numberField name="preferential_amount" allowFormat="true" bindTarget="rpt_nowmonth_queryDs" prompt="本月优惠额度" readOnly="true"/>
+                <a:numberField name="residual_preferential_limit" allowFormat="true" bindTarget="rpt_nowmonth_queryDs" prompt="本月剩余优惠额度" readOnly="true"/>
+                <a:percentField name="prime_rate" bindTarget="rpt_nowmonth_queryDs" prompt="本月优惠利率" readOnly="true"/>
+            </a:form>
+            <a:form column="4" labelWidth="120" marginWidth="50" title="车辆信息">
+                <a:numberField name="count_car" allowDecimals="false" bindTarget="rpt_car_fee_req_sum_queryDs" prompt="车辆数" readOnly="true"/>
+                <a:numberField name="due_amount" allowFormat="true" bindTarget="rpt_car_fee_req_sum_queryDs" prompt="应付管理费" readOnly="true"/>
+                <a:numberField name="received_amount" allowFormat="true" bindTarget="rpt_car_fee_req_sum_queryDs" prompt="已付管理费" readOnly="true"/>
+                <a:numberField name="unreceived_amount" allowFormat="true" bindTarget="rpt_car_fee_req_sum_queryDs" prompt="未付管理费" readOnly="true"/>
+                <a:comboBox name="contract_status_flag_desc" bindTarget="rpt_car_fee_req_query_ds" prompt="赎证状态"/>
+                <a:comboBox name="car_status_desc" bindTarget="rpt_car_fee_req_query_ds" prompt="车辆状态"/>
+                <a:comboBox name="month_desc" bindTarget="rpt_car_fee_req_query_ds" prompt="基准月"/>
+            </a:form>
+            <a:grid id="rpt_car_fee_req_grid_ds" bindTarget="rpt_car_fee_req_queryDs" marginHeight="280" marginWidth="50" navBar="true">
+                <a:toolBar>
+                    <a:button type="excel"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="project_number" align="left" lock="true" prompt="保理申请编号" width="140"/>
+                    <a:column name="item_frame_number" align="left" prompt="VIN码" width="140"/>
+                    <a:column name="son_code" align="left" prompt="SON号" width="140"/>
+                    <a:column name="model_code_name" align="left" prompt="车型代码描述" width="120"/>
+                    <a:column name="car_status_n" align="center" prompt="车辆状态" width="80"/>
+                    <a:column name="lease_start_date" align="center" prompt="起息日" width="100"/>
+                    <a:column name="lease_end_date" align="center" prompt="到期日" width="100"/>
+                    <a:column name="agent_inventory_id_n" align="left" footerRenderer="amtSumInfo" prompt="库点" width="120"/>
+                    <a:column name="finance_amount" align="right" footerRenderer="amtSumInfo" prompt="保理融资金额" renderer="Aurora.formatMoney" width="110"/>
+                    <a:column name="sz_amount" align="right" footerRenderer="amtSumInfo" prompt="赎证金额" renderer="Aurora.formatMoney" width="110"/>
+                    <a:column name="due_amount" align="right" footerRenderer="amtSumInfo" prompt="应付管理费" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="received_amount" align="right" footerRenderer="amtSumInfo" prompt="已付管理费" renderer="Aurora.formatMoney" width="100"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

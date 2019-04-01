@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-5-17 下午01:59:08  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <script><![CDATA[
+            function rsc_indicator_formula_copy_back() {
+                $('rsc_fin_statement_indicator_formula_copy_winid').close();
+            }
+            
+            function rsc_indicator_formula_copy_detail() {
+                var records = $('indicator_formula_copy_result_ds').getSelected();
+                if (!records.length) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:HLS.SELECT_DATA_FIRST}');
+                    return;
+                }
+                Aurora.Masker.mask($('rsc_fin_statement_indicator_formula_copy_winid').wrap, '${l:HLS.EXECUTING}');
+                var head_record = $('indicator_formula_copy_query_ds').getAt(0);
+                var saveData = [];
+                for (var i = 0;i < records.length;i++) {
+                    records[i].set('_status', 'update');
+                    records[i].set('fin_statement_templet_id', '${/parameter/@fin_statement_templet_id}');
+                    saveData.push(records[i].data);
+                }
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/rsc.RSC302.rsc_fin_statement_indicator_formula_copy/batch_update',
+                    para: saveData,
+                    success: function() {
+                        Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 2000
+                        });
+                        $('rsc_fin_indicator_formula_result_ds').query();
+                        Aurora.Masker.unmask($('rsc_fin_statement_indicator_formula_copy_winid').wrap);
+                        rsc_indicator_formula_copy_back();
+                    },
+                    failure: function() {
+                        Aurora.Masker.unmask($('rsc_fin_statement_indicator_formula_copy_winid').wrap);
+                    },
+                    error: function() {
+                        Aurora.Masker.unmask($('rsc_fin_statement_indicator_formula_copy_winid').wrap);
+                    },
+                    scope: this
+                });
+            }
+            
+            function indicator_formula_copy_update(ds, record, name, value, oldvalue) {
+                if (name == 'source_fin_statement_templet_id') {
+                    if (value) {
+                        $('indicator_formula_copy_result_ds').setQueryParameter('fin_statement_templet_id', value);
+                    } else {
+                        $('indicator_formula_copy_result_ds').setQueryParameter('fin_statement_templet_id', -999);
+                    }
+                    $('indicator_formula_copy_result_ds').query();
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="indicator_formula_copy_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="source_fin_statement_templet_code" lovGridHeight="350" lovHeight="500" lovService="rsc.RSC302.rsc_fin_statement_tmplt_hds_for_lov?indicator_formula_flag_id=${/parameter/@fin_statement_templet_id}" lovWidth="500" prompt="RSC_FIN_STATEMENT_TMPLT_HDS.FIN_STATEMENT_TEMPLET_CODE" title="财务报表模板">
+                        <a:mapping>
+                            <a:map from="fin_statement_templet_id" to="source_fin_statement_templet_id"/>
+                            <a:map from="fin_statement_templet_code" to="source_fin_statement_templet_code"/>
+                            <a:map from="fin_statement_templet_name" to="source_fin_statement_templet_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="source_fin_statement_templet_id"/>
+                    <a:field name="source_fin_statement_templet_name" prompt="RSC_FIN_STATEMENT_TMPLT_HDS.FIN_STATEMENT_TEMPLET_NAME" readOnly="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="indicator_formula_copy_update"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="indicator_formula_copy_result_ds" fetchAll="true" model="rsc.RSC302.rsc_fin_indicator_formula" pageSize="30" queryUrl="${/request/@context_path}/autocrud/rsc.RSC302.rsc_fin_indicator_formula/query?enabled_flag=Y" selectable="true"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="rsc_indicator_formula_copy_back" text="HLS.BACK"/>
+                <a:gridButton click="rsc_indicator_formula_copy_detail" text="HLS.COPY"/>
+            </a:screenTopToolbar>
+            <a:form column="2" labelWidth="120" title="RSC302.TMPLT_INFORMATION" width="650">
+                <a:lov name="source_fin_statement_templet_code" bindTarget="indicator_formula_copy_query_ds"/>
+                <a:textField name="source_fin_statement_templet_name" bindTarget="indicator_formula_copy_query_ds"/>
+            </a:form>
+            <a:grid id="indicator_formula_copy_grid_ds" bindTarget="indicator_formula_copy_result_ds" marginHeight="200" marginWidth="50" navBar="true">
+                <a:columns>
+                    <a:column name="line_number"/>
+                    <a:column name="indicator_name" width="200"/>
+                    <a:column name="indicator_formula" width="250"/>
+                    <a:column name="reference_results"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

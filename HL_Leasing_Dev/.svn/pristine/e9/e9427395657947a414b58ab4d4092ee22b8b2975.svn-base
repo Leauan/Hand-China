@@ -1,0 +1,1123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qianming   
+    $Date: 2016-3-18 下午3:34:22  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure/>
+    <a:view package="aurora.ui.std" template="default">
+        <a:link id="rd_project_analyse_detail_link_id" url="${/request/@context_path}/modules/prj/PRJ330/rd_project_analyse_detail_v.screen"/>
+        <a:link id="wfl_prj_update_project_lease_item_link_id" model="zjwfl.wfl_prj_update_project_lease_item" modelaction="update"/>
+        <a:link id="wfl_con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="wfl_prj_chance_create_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain.screen"/>
+        <a:link id="save_check_note_link_id" model="zjwfl.save_check_note" modelaction="update"/>
+        <script><![CDATA[
+            function do_open_detailes(target_type, target, project_id, condition_code) {
+                Aurora.Window({
+                    id: 'rd_project_analyse_detail_win_id',
+                    url: $('rd_project_analyse_detail_link_id').getUrl(),
+                    params: {
+                        target_type: target_type,
+                        target: target,
+                        project_id: ${/parameter/@project_id},
+                        condition_code: condition_code
+                    },
+                    fullScreen: true
+                });
+            }
+            
+            function on_base_ds_project_number_render(value, record, name) {
+                return '<a href="javascript:do_open_prj(\'' + record.ds.id + '\')" >' + value + '</a>';
+            }
+            
+            function do_open_prj(ds_id) {
+                var record = $(ds_id).getCurrentRecord();
+                record.set('function_code', 'PRJ501R');
+                record.set('function_usage', 'MODIFY');
+                record.set('document_category', 'PROJECT');
+                record.data['url_title'] = '租赁申请';
+                record.data['window_open_flag'] = 'Y';
+                record.data['show_history_flag'] = 'Y';
+                var param = record.data;
+                hls_doc_get_layout_code('wfl_con_contract_get_layout_code_link_id', param, 'wfl_prj_chance_create_link');
+            }
+            
+            function do_render(value, record, name) {
+                var condition_code = '';
+                if (name === 'approving_count') {
+                    condition_code = '11';
+                } else if (name === 'no_incept_count') {
+                    condition_code = '12';
+                } else if (name === 'cancel_count') {
+                    condition_code = '13';
+                } else if (name === 'reject_count') {
+                    condition_code = '14';
+                } else if (name === 'y_overdue') {
+                    condition_code = '15';
+                } else if (name === 'n_overdue') {
+                    condition_code = '16';
+                }
+                return value == 0 ? value : '<a href="javascript:do_open_detailes(\'' + record.get('target_type') + '\',\'' + record.get('target') + '\',\'' + record.get('project_id') + '\',\'' + condition_code + '\')" >' + value + '</a>';
+            
+            }
+            
+            
+            function GET_CONFIG_COLUMN_NAME(name) {
+                var query_name, length = name.length;
+                if (name.substring(length - 2, length) == '_n') {
+                    query_name = name.substring(0, length - 2);
+                } else {
+                    query_name = name;
+                }
+                return query_name;
+            }
+            
+            function wfl_hy_create_project_receipt_info_show_history(show_history_ds, source_ds) {
+                show_history_ds.setQueryParameter('table_pk_value', source_ds.getAt(0).get('project_lease_item_id'));
+                show_history_ds.setQueryParameter('layout_code', 'HY_CREATE_PROJECT');
+                show_history_ds.setQueryParameter('tab_code', 'G_INFO13');
+            
+                function wfl_hy_create_project_receipt_info_show_history_ds_load(ds) {
+                    show_history_ds.un('load', wfl_hy_create_project_receipt_info_show_history_ds_load);
+                    var history_records = ds.getAll();
+                    var record = source_ds.getAt(0);
+                    if (history_records.length && record && !record.isNew) {
+                        for (var name in record.data) {
+                            var history_record = show_history_ds.find('column_name', GET_CONFIG_COLUMN_NAME(name).toUpperCase());
+                            if (history_record) {
+                                var fieldId = ('WFL_HY_CREATE_PROJECT_G_INFO13_PRJ_PROJECT_LEASE_ITEM_' + GET_CONFIG_COLUMN_NAME(name)).toUpperCase();
+                                if ($A.CmpManager.get(fieldId)) {
+                                    record.getField(name).setPropertity('tooltip', history_record.get('from_value') || ' ');
+                                    if (Ext.get(fieldId).child('input')) {
+                                        Ext.get(fieldId).child('input').setStyle({
+                                            background: '#FF9965'
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                show_history_ds.on('load', wfl_hy_create_project_receipt_info_show_history_ds_load);
+                show_history_ds.query();
+            }
+            
+            function on_wfl_prj_project_finance_ds_load(ds) {
+                var show_history_ds = $('wfl_prj_show_history_ds');
+                wfl_hy_create_project_receipt_info_show_history(show_history_ds, ds);
+            }
+            
+            zjwfl5110_ApproveChecker_add('wfl_prj_lease_item_save', function(type) {
+                wfl_approve_save_flag = 'C';
+                var advice_no_count = 0;
+                var advice_record = $('cux_wfl_credit_advice_ds').getCurrentRecord();
+                if (advice_record) {
+                    var credit_advice_type = advice_record.get('credit_advice_type');
+                    var credit_advice_yes_reason = advice_record.get('credit_advice_yes_reason');
+            
+                }
+            
+                // var wfl_instance_id = advice_record.get('wfl_instance_id');
+                // $('cux_wfl_credit_advice_ds').setQueryParameter('instance_id','${/parameter/@instance_id}');
+                // alert(wfl_instance_id);
+                // 校验信审意见 是否填写
+                if (type == 'agree') {
+                    if (Ext.isEmpty(credit_advice_type)) {
+                        Aurora.showMessage('${l:PROMPT}', '请填写风险评审意见！');
+                        return false;
+                    }
+                    if (credit_advice_type != 'Y') {
+                        Aurora.showMessage('${l:PROMPT}', '风险评审意见不是”通过“，不能做”通过“处理！');
+                        return false;
+                    }
+            
+                    if (Ext.isEmpty(credit_advice_yes_reason)) {
+                        Aurora.showMessage('${l:PROMPT}', '请填写风险评审意见-通过原因！');
+                        return false;
+                    }
+                    // 拒绝意见
+                } else if (type == 'refuse') {
+                    if (Ext.isEmpty(credit_advice_type)) {
+                        Aurora.showMessage('${l:PROMPT}', '请填写风险评审意见！');
+                        return false;
+                    }
+                    // 拒绝
+                    if (credit_advice_type != 'N') {
+                        Aurora.showMessage('${l:PROMPT}', '风险评审意见不是”拒绝“，不能做”拒绝“处理！');
+                        return false;
+                    } else {
+                        var no_main_record = $('advice_no_main_ds').getCurrentRecord();
+                        for (var name in no_main_record.data) {
+                            if (no_main_record.get(name) == 'Y') {
+                                advice_no_count++;
+                            }
+                        }
+                        if (advice_no_count < 1) {
+                            Aurora.showMessage('${l:PROMPT}', '风险评审意见”拒绝“意见大类未选择，请选择！');
+                            return false;
+                        }
+                    }
+                }
+            
+            
+                var finance_ds = $('wfl_prj_project_finance_ds');
+                if (finance_ds.validate()) {
+                    // var record = finance_ds.getCurrentRecord();
+                    // if (record.dirty || advice_record.dirty) {
+                    // Aurora.showMessage('${l:PROMPT}', '请先保存数据！');
+                    // return false;
+                    // }
+                    // 0403 保存方法异步改为同步
+            
+            
+                    return wfl_prj_lease_item_save();
+            
+                } else {
+                    return false;
+                }
+            });
+            
+            function wfl_prj_approvePage_mask() {
+                Aurora.Masker.mask($('zj_wfl_approve_win').wrap, '正在保存');
+            }
+            
+            function wfl_prj_approvePage_unmask() {
+                Aurora.Masker.unmask($('zj_wfl_approve_win').wrap);
+            }
+            
+            function wfl_prj_lease_item_save() {
+                var finance_ds = $('wfl_prj_project_finance_ds');
+                var advice_record = $('cux_wfl_credit_advice_ds').getCurrentRecord();
+                var no_main_record = $('advice_no_main_ds').getCurrentRecord();
+                var no_main_a_record = $('advice_no_main_a_ds').getCurrentRecord();
+                var no_main_b_record = $('advice_no_main_b_ds').getCurrentRecord();
+                var no_main_c_record = $('advice_no_main_c_ds').getCurrentRecord();
+                var no_main_d_record = $('advice_no_main_d_ds').getCurrentRecord();
+                var no_main_e_record = $('advice_no_main_e_ds').getCurrentRecord();
+                var no_main_f_record = $('advice_no_main_f_ds').getCurrentRecord();
+                var no_main_g_record = $('advice_no_main_g_ds').getCurrentRecord();
+                var no_main_h_record = $('advice_no_main_h_ds').getCurrentRecord();
+                var no_main_i_record = $('advice_no_main_i_ds').getCurrentRecord();
+                var no_main_j_record = $('advice_no_main_j_ds').getCurrentRecord();
+                var no_main_k_record = $('advice_no_main_k_ds').getCurrentRecord();
+            
+                if (finance_ds.validate()) {
+                    var record = finance_ds.getCurrentRecord();
+            
+                    if (!Aurora.isEmpty(advice_record)) {
+            
+                        for (var name in advice_record.data) {
+                            if (!record.get(name) && advice_record.get(name)) {
+                                record.set(name, advice_record.get(name));
+                            }
+                        }
+                    }
+                    console.log(record);
+                    if (!Aurora.isEmpty(no_main_record)) {
+                        for (var name in no_main_record.data) {
+                            if (!record.get(name) && no_main_record.get(name)) {
+                                record.set(name, no_main_record.get(name));
+                            }
+                        }
+                    }
+                    if (!Aurora.isEmpty(no_main_a_record)) {
+                        for (var name in no_main_a_record.data) {
+                            if (!record.get(name) && no_main_a_record.get(name)) {
+                                record.set(name, no_main_a_record.get(name));
+                            }
+                        }
+                    }
+                    if (!Aurora.isEmpty(no_main_b_record)) {
+                        for (var name in no_main_b_record.data) {
+                            if (!record.get(name) && no_main_b_record.get(name)) {
+                                record.set(name, no_main_b_record.get(name));
+                            }
+                        }
+                    }
+                    if (!Aurora.isEmpty(no_main_c_record)) {
+                        for (var name in no_main_c_record.data) {
+                            if (!record.get(name) && no_main_c_record.get(name)) {
+                                record.set(name, no_main_c_record.get(name));
+                            }
+                        }
+                    }
+                    if (!Aurora.isEmpty(no_main_d_record)) {
+            
+                        for (var name in no_main_d_record.data) {
+                            if (!record.get(name) && no_main_d_record.get(name)) {
+                                record.set(name, no_main_d_record.get(name));
+                            }
+                        }
+                    }
+                    if (!Aurora.isEmpty(no_main_e_record)) {
+                        for (var name in no_main_e_record.data) {
+                            if (!record.get(name) && no_main_e_record.get(name)) {
+                                record.set(name, no_main_e_record.get(name));
+                            }
+                        }
+                    }
+                    if (!Aurora.isEmpty(no_main_f_record)) {
+                        for (var name in no_main_f_record.data) {
+                            if (!record.get(name) && no_main_f_record.get(name)) {
+                                record.set(name, no_main_f_record.get(name));
+                            }
+                        }
+                    }
+                    if (!Aurora.isEmpty(no_main_g_record)) {
+                        for (var name in no_main_g_record.data) {
+                            if (!record.get(name) && no_main_g_record.get(name)) {
+                                record.set(name, no_main_g_record.get(name));
+                            }
+                        }
+                    }
+                    if (!Aurora.isEmpty(no_main_h_record)) {
+                        for (var name in no_main_h_record.data) {
+                            if (!record.get(name) && no_main_h_record.get(name)) {
+                                record.set(name, no_main_h_record.get(name));
+                            }
+                        }
+                    }
+                    if (!Aurora.isEmpty(no_main_i_record)) {
+                        for (var name in no_main_i_record.data) {
+                            if (!record.get(name) && no_main_i_record.get(name)) {
+                                record.set(name, no_main_i_record.get(name));
+                            }
+                        }
+                    }
+                    if (!Aurora.isEmpty(no_main_j_record)) {
+                        for (var name in no_main_j_record.data) {
+                            if (!record.get(name) && no_main_j_record.get(name)) {
+                                record.set(name, no_main_j_record.get(name));
+                            }
+                        }
+                    }
+                    if (!Aurora.isEmpty(no_main_k_record)) {
+                        for (var name in no_main_k_record.data) {
+                            if (!record.get(name) && no_main_k_record.get(name)) {
+                                record.set(name, no_main_k_record.get(name));
+                            }
+                        }
+                    }
+            
+            
+                    var records =$('note_ds').getAt(0);
+                    var note = records.get('note');
+                    Aurora.request({
+                    url: $('save_check_note_link_id').getUrl(),
+                    para: {note : note,
+                        project_id:'${/parameter/@project_id}'
+                    },
+                    success: function(args) {
+                        Aurora.SideBar.show({
+                                msg: '保存成功！',
+                                duration: 2000
+                            });
+                    },
+                    failure: function(args) {
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    error: function(args) {
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    scope: this
+                    });
+                    // 一期只存储通过
+                    // record.set('credit_advice_type', advice_record.get('credit_advice_type'));
+                    // record.set('credit_advice_yes_reason', advice_record.get('credit_advice_yes_reason'));
+                    wfl_prj_approvePage_mask();
+                    var flag = false;
+                    Aurora.request({
+                        url: $('wfl_prj_update_project_lease_item_link_id').getUrl(),
+                        para: record.data,
+                        success: function(res) {
+                            Aurora.SideBar.enable = true;
+                            Aurora.SideBar.show({
+                                msg: '保存成功！',
+                                duration: 2000
+                            });
+                            wfl_approve_save_flag = 'Y';
+                            flag = true;
+                            $('base_ds').query();
+                            $('rd_project_analyse_total_v_result_ds').query();
+                            $('wfl_prj_project_finance_ds').query();
+                            if (!Aurora.isEmpty($('cux_wfl_credit_advice_ds').getCurrentRecord())) {
+                                $('cux_wfl_credit_advice_ds').getCurrentRecord().dirty = false;
+                            }
+            
+                            wfl_prj_approvePage_unmask();
+                        },
+                        failure: function() {
+                            wfl_prj_approvePage_unmask();
+                        },
+                        error: function() {
+                            wfl_prj_approvePage_unmask();
+                        },
+                        scope: this,
+                        // 0403 审批通过时，同时保存。异步改同步
+                        sync: true
+            
+                    });
+                    
+                    return flag;
+                } else {
+                    return false;
+                }
+            }
+            
+            function on_wfl_prj_project_finance_ds_update(ds, record, name, value, oldvalue) {
+                var down_payment = record.get('down_payment') || 0;
+                var invoice_price = record.get('invoice_price') || 0;
+                var down_payment_ratio = record.get('down_payment_ratio') || 0;
+                var balloon = record.get('balloon') || 0;
+                var balloon_ratio = record.get('balloon_ratio') || 0;
+                var deposit = record.get('deposit') || 0;
+                var deposit_ratio = record.get('deposit_ratio') || 0;
+                var other_amount = record.get('other_amount') || 0;
+                var charge_amount = record.get('charge_amount') || 0;
+                var deferred_premium = record.get('deferred_premium') || 0;
+                var purchase_tax_flag = record.get('purchase_tax_flag');
+                var purchase_tax = record.get('purchase_tax') || 0;
+                var insurance_flag = record.get('insurance_flag');
+                var insurance_amount = record.get('insurance_amount') || 0;
+                var travel_tax_flag = record.get('travel_tax_flag');
+                var travel_tax = record.get('travel_tax') || 0;
+                var postage_flag = record.get('postage_flag');
+                var postage = record.get('postage') || 0;
+                var gps_flag = record.get('gps_flag');
+                var gps_amount = record.get('gps_amount') || 0;
+            
+                var wfl_prj_quote_ds = $('wfl_prj_quote_ds');
+                var prj_quote_record = wfl_prj_quote_ds.getCurrentRecord();
+                if (!prj_quote_record) {
+                    Aurora.showMessage('${l:PROMPT}', '报价信息尚未加载，请稍等！');
+                    setTimeout(function() {
+                        record.set(name, '');
+                    }, 500);
+                    return;
+                }
+                var lease_item_amount = prj_quote_record.get('lease_item_amount') || 0;
+            
+                function calc_deposit_ratio(name) {
+                    var data = {
+                        'deposit': true,
+                        'purchase_tax_flag': true,
+                        'purchase_tax': true,
+                        'insurance_flag': true,
+                        'insurance_amount': true,
+                        'travel_tax_flag': true,
+                        'travel_tax': true,
+                        'other_amount': true,
+                        'charge_amount': true,
+                        'deferred_premium': true,
+                        'postage_flag': true,
+                        'postage': true,
+                        'gps_flag': true,
+                        'gps_amount': true
+                    };
+                    if (data[name]) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+                if (name == 'down_payment') {
+                    var down_payment_ratio_temp = div(down_payment, invoice_price);
+                    if (down_payment_ratio_temp != down_payment_ratio) {
+                        record.set('down_payment_ratio', down_payment_ratio_temp);
+                    }
+                    prj_quote_record.set('finance_amount', minus(lease_item_amount, down_payment));
+                    prj_quote_record.set('deposit_and_down_payment', plus(down_payment, deposit));
+            
+                } else if (name == 'down_payment_ratio') {
+                    var down_payment_temp = mul(down_payment_ratio, invoice_price);
+                    if (down_payment_temp != down_payment) {
+                        record.set('down_payment', down_payment_temp);
+                    }
+                } else if (name == 'deposit_ratio' || calc_deposit_ratio(name)) {
+                    if (purchase_tax_flag != 'Y') {
+                        purchase_tax = 0;
+                    }
+                    if (insurance_flag != 'Y') {
+                        insurance_amount = 0;
+                    }
+                    //是否融车船税
+                    if (travel_tax_flag != 'Y') {
+                        travel_tax = 0;
+                    }
+                    //是否邮寄发票
+                    if (postage_flag != 'Y') {
+                        postage = 0;
+                    }
+                    //是否融资gps
+                    if (gps_flag != 'Y') {
+                        gps_amount = 0;
+                    }
+                    var sum_amount = plus(plus(plus(plus(plus(plus(plus(plus(invoice_price, purchase_tax), insurance_amount), travel_tax), other_amount), charge_amount), deferred_premium), postage), gps_amount);
+                    if (calc_deposit_ratio(name)) {
+                        var deposit_ratio_temp = div(deposit, sum_amount);
+                        if (deposit_ratio_temp != deposit_ratio && !Ext.isEmpty(deposit) && !Ext.isEmpty(invoice_price)) {
+                            record.set('deposit_ratio', deposit_ratio_temp || null);
+                        }
+                        if (name == 'deposit') {
+                            prj_quote_record.set('deposit_and_down_payment', plus(down_payment, deposit));
+                        }
+                    } else if (name == 'deposit_ratio') {
+                        var deposit_temp = mul(deposit_ratio, sum_amount);
+                        if (deposit_temp != deposit && !Ext.isEmpty(deposit_ratio) && !Ext.isEmpty(invoice_price)) {
+                            record.set('deposit', deposit_temp);
+                        }
+                    }
+                }
+            }
+            
+            function onRadioChange(radio, newValue, oldValue) {
+                var record = $('cux_wfl_credit_advice_ds').getCurrentRecord();
+            
+                if (newValue == 'Y') {
+                    record.getField('credit_advice_yes_reason').setReadOnly(false);
+                    record.getField('credit_advice_yes_reason').setRequired(true);
+                    credit_advice_type_y_div.style.display = '';
+            
+                    credit_advice_type_n_div.style.display = 'none';
+                    detail_a_div.style.display = 'none';
+                    detail_b_div.style.display = 'none';
+                    detail_c_div.style.display = 'none';
+                    detail_d_div.style.display = 'none';
+                    detail_e_div.style.display = 'none';
+                    detail_f_div.style.display = 'none';
+                    detail_g_div.style.display = 'none';
+                    detail_h_div.style.display = 'none';
+                    detail_i_div.style.display = 'none';
+                    detail_j_div.style.display = 'none';
+                    detail_k_div.style.display = 'none';
+            
+            
+                    $('advice_no_main_ds').removeAll();
+                    $('advice_no_main_a_ds').removeAll();
+                    $('advice_no_main_b_ds').removeAll();
+                    $('advice_no_main_c_ds').removeAll();
+                    $('advice_no_main_d_ds').removeAll();
+                    $('advice_no_main_e_ds').removeAll();
+                    $('advice_no_main_f_ds').removeAll();
+                    $('advice_no_main_g_ds').removeAll();
+                    $('advice_no_main_h_ds').removeAll();
+                    $('advice_no_main_i_ds').removeAll();
+                    $('advice_no_main_j_ds').removeAll();
+                    $('advice_no_main_k_ds').removeAll();
+            
+            
+            
+            
+                } else if (newValue == 'N') {
+                    $('cux_wfl_credit_advice_ds').getAt(0).set('credit_advice_yes_reason', '');
+                    record.getField('credit_advice_yes_reason').setRequired(false);
+                    credit_advice_type_y_div.style.display = 'none';
+                    credit_advice_type_n_div.style.display = '';
+                } else {
+                    record.set('credit_advice_yes_reason', '');
+                    record.getMeta().getField('credit_advice_yes_reason').setReadOnly(true);
+                    record.getField('credit_advice_yes_reason').setRequired(false);
+                    credit_advice_type_y_div.style.display = 'none';
+                    credit_advice_type_n_div.style.display = 'none';
+                }
+            }
+            
+            
+            function advice_no_main_a_click() {
+            
+                var advice_no_main_a = $('advice_no_main_ds').getAt(0).get('advice_no_main_a');
+                if (advice_no_main_a == 'Y') {
+                    detail_a_div.style.display = '';
+                } else {
+                    detail_a_div.style.display = 'none';
+                    $('advice_no_main_a_ds').removeAll();
+            
+            
+                }
+            }
+            
+            function advice_no_main_b_click() {
+                var advice_no_main_b = $('advice_no_main_ds').getAt(0).get('advice_no_main_b');
+                if (advice_no_main_b == 'Y') {
+                    detail_b_div.style.display = '';
+                } else {
+                    detail_b_div.style.display = 'none';
+                    $('advice_no_main_b_ds').removeAll();
+                }
+            }
+            
+            function advice_no_main_c_click() {
+                var advice_no_main_c = $('advice_no_main_ds').getAt(0).get('advice_no_main_c');
+                if (advice_no_main_c == 'Y') {
+                    detail_c_div.style.display = '';
+                } else {
+                    detail_c_div.style.display = 'none';
+                    $('advice_no_main_c_ds').removeAll();
+                }
+            }
+            
+            function advice_no_main_d_click() {
+                var advice_no_main_d = $('advice_no_main_ds').getAt(0).get('advice_no_main_d');
+                if (advice_no_main_d == 'Y') {
+                    detail_d_div.style.display = '';
+                } else {
+                    detail_d_div.style.display = 'none';
+                    $('advice_no_main_d_ds').removeAll();
+            
+                }
+            }
+            
+            function advice_no_main_e_click() {
+                var advice_no_main_e = $('advice_no_main_ds').getAt(0).get('advice_no_main_e');
+                if (advice_no_main_e == 'Y') {
+                    detail_e_div.style.display = '';
+                } else {
+                    detail_e_div.style.display = 'none';
+                    $('advice_no_main_e_ds').removeAll();
+                }
+            }
+            
+            function advice_no_main_f_click() {
+                var advice_no_main_f = $('advice_no_main_ds').getAt(0).get('advice_no_main_f');
+                if (advice_no_main_f == 'Y') {
+                    detail_f_div.style.display = '';
+                } else {
+                    detail_f_div.style.display = 'none';
+            
+                    $('advice_no_main_f_ds').removeAll();
+                }
+            }
+            
+            function advice_no_main_g_click() {
+                var advice_no_main_g = $('advice_no_main_ds').getAt(0).get('advice_no_main_g');
+                if (advice_no_main_g == 'Y') {
+                    detail_g_div.style.display = '';
+                } else {
+                    detail_g_div.style.display = 'none';
+            
+                    $('advice_no_main_g_ds').removeAll();
+                }
+            }
+            
+            function advice_no_main_h_click() {
+                var advice_no_main_h = $('advice_no_main_ds').getAt(0).get('advice_no_main_h');
+                if (advice_no_main_h == 'Y') {
+                    detail_h_div.style.display = '';
+                } else {
+                    detail_h_div.style.display = 'none';
+                    $('advice_no_main_h_ds').removeAll();
+                }
+            }
+            
+            function advice_no_main_i_click() {
+                var advice_no_main_i = $('advice_no_main_ds').getAt(0).get('advice_no_main_i');
+                if (advice_no_main_i == 'Y') {
+                    detail_i_div.style.display = '';
+                } else {
+                    detail_i_div.style.display = 'none';
+            
+                    $('advice_no_main_i_ds').removeAll();
+                }
+            }
+            
+            function advice_no_main_j_click() {
+                var advice_no_main_j = $('advice_no_main_ds').getAt(0).get('advice_no_main_j');
+                if (advice_no_main_j == 'Y') {
+                    detail_j_div.style.display = '';
+                } else {
+                    detail_j_div.style.display = 'none';
+                    $('advice_no_main_j_ds').removeAll();
+            
+                }
+            }
+            
+            function advice_no_main_k_click() {
+                var advice_no_main_k = $('advice_no_main_ds').getAt(0).get('advice_no_main_k');
+                if (advice_no_main_k == 'Y') {
+                    detail_k_div.style.display = '';
+                } else {
+                    detail_k_div.style.display = 'none';
+                    $('advice_no_main_k_ds').removeAll();
+                }
+            }
+            
+            function change_down_payment(c, value, oldValue) {
+                var wfl_prj_quote_ds_finance_amount = $('wfl_prj_quote_ds').getAll()[0].get('finance_amount') || 0; //
+                var deposit = $('wfl_prj_project_finance_ds').getAll()[0].get('deposit') || 0;
+                var down_payment = value || 0;
+                var base_ds_finance_amount = minus(minus(wfl_prj_quote_ds_finance_amount, deposit), down_payment);
+                $('base_ds').getAll()[0].set('finance_amount', base_ds_finance_amount);
+            }
+            
+            function change_down_payment2(c, value, oldValue) {
+                var wfl_prj_quote_ds_finance_amount = $('wfl_prj_quote_ds').getAll()[0].get('finance_amount') || 0; //
+                var deposit = value || 0;
+                var down_payment = $('wfl_prj_project_finance_ds').getAll()[0].get('down_payment') || 0;
+                var base_ds_finance_amount = minus(minus(wfl_prj_quote_ds_finance_amount, deposit), down_payment);
+                $('base_ds').getAll()[0].set('finance_amount', base_ds_finance_amount);
+            }
+            
+            
+            function onLoad_cux_wfl_credit_adviceDS(ds) {
+                // var record;
+                // //ds.selectAll.defer(5,ds);
+                // for(var i = 0;i<ds.getAll().length;i++){
+                // record = ds.getAt(i);
+                // record.dirty = true;
+                // //record.set('1',1);
+                // }
+            
+                var record_id = '${/parameter/@record_id}';
+            
+            
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:dataSets>
+            <a:dataSet id="note_ds" autoCreate="true" autoQuery="true" model="zjwfl.check_note" queryUrl="${/request/@context_path}/autocrud/zjwfl.check_note/query?project_id=${/parameter/@project_id}"/>
+            <a:dataSet id="base_ds" autoQuery="true" queryUrl="${/request/@context_path}/autocrud/zjwfl.rd_project_base_info/query?project_id=${/parameter/@project_id}"/>
+            <a:dataSet id="rd_project_analyse_total_v_result_ds" autoQuery="true" bindTarget="base_ds" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/zjwfl.rd_project_analyse_total_v/query?project_id=${/parameter/@project_id}"/>
+            <a:dataSet id="wfl_prj_project_finance_ds" autoQuery="true" bindTarget="base_ds" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/zjwfl.wfl_prj_project_lease_item_lv/query?project_id=${/parameter/@project_id}">
+                <a:fields>
+                    <a:field name="down_payment" required="true"/>
+                    <a:field name="down_payment_ratio" required="true"/>
+                    <a:field name="deposit_ratio" required="true"/>
+                    <a:field name="deposit" required="true"/>
+                    <a:field name="factory_date" datatype="java.sql.Date"/>
+                    <a:field name="first_register_date" datatype="java.sql.Date"/>
+                    <a:field name="displacement"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_wfl_prj_project_finance_ds_update"/>
+                    <a:event name="load" handler="on_wfl_prj_project_finance_ds_load"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="wfl_prj_quote_ds" autoQuery="true" bindTarget="base_ds" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/zjwfl.wfl_prj_quotation_lv/query?project_id=${/parameter/@project_id}"/>
+            <a:dataSet id="wfl_prj_show_history_ds" queryUrl="${/request/@context_path}/autocrud/layout.server_doc_layout_show_history/query?table_name=PRJ_PROJECT_LEASE_ITEM"/>
+            <a:dataSet id="cux_wfl_credit_advice_ds" autoQuery="true" bindTarget="rd_project_analyse_total_v_result_ds" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/zjwfl.rd_project_analyse_total_v/query?project_id=${/parameter/@project_id}">
+                <a:fields>
+                    <a:field name="credit_advice_type"/>
+                    <a:field name="credit_advice_yes_reason"/>
+                    <a:field name="advice_no_main_a" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_b" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_c" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_d" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_e" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_f" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_g" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_h" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_i" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_j" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_k" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                </a:fields>
+                <a:envents>
+                    <!-- <a:event name="load" handler="onLoad_cux_wfl_credit_adviceDS"/> --><![CDATA[
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                	
+                ]]></a:envents>
+            </a:dataSet>
+            <a:dataSet id="advice_no_main_ds" autoQuery="true" bindTarget="base_ds" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/zjwfl.rd_project_analyse_total_v/query?project_id=${/parameter/@project_id}">
+                <a:fields>
+                    <a:field name="advice_no_main_a" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_b" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_c" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_d" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_e" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_f" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_g" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_h" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_i" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_j" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_main_k" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="advice_no_main_a_ds" autoQuery="true" bindTarget="base_ds" fetchAll="true">
+                <a:fields>
+                    <a:field name="advice_no_detail_a1" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_a2" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_a3" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_a4" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_a5" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_a6" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_a7" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_a8" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_a9" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_a10" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_a11" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_a12" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_a13" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="advice_no_main_b_ds" autoQuery="true" bindTarget="base_ds" fetchAll="true">
+                <a:fields>
+                    <a:field name="advice_no_detail_b1" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_b2" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_b3" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_b4" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_b5" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_b6" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="advice_no_main_c_ds" autoQuery="true" bindTarget="base_ds" fetchAll="true">
+                <a:fields>
+                    <a:field name="advice_no_detail_c1" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_c2" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_c3" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_c4" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_c5" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="advice_no_detail_c6" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="advice_no_main_d_ds" autoQuery="true" bindTarget="base_ds" fetchAll="true"><![CDATA[
+            ]]></a:dataSet>
+            <a:dataSet id="advice_no_main_e_ds" autoQuery="true" bindTarget="base_ds" fetchAll="true"><![CDATA[
+            ]]></a:dataSet>
+            <a:dataSet id="advice_no_main_f_ds" autoQuery="true" bindTarget="base_ds" fetchAll="true"><![CDATA[
+            ]]></a:dataSet>
+            <a:dataSet id="advice_no_main_g_ds" autoQuery="true" bindTarget="base_ds" fetchAll="true"><![CDATA[
+            ]]></a:dataSet>
+            <a:dataSet id="advice_no_main_h_ds" autoQuery="true" bindTarget="base_ds" fetchAll="true"><![CDATA[
+            ]]></a:dataSet>
+            <a:dataSet id="advice_no_main_i_ds" autoQuery="true" bindTarget="base_ds" fetchAll="true"/>
+            <a:dataSet id="advice_no_main_j_ds" autoQuery="true" bindTarget="base_ds" fetchAll="true"><![CDATA[
+            ]]></a:dataSet>
+            <a:dataSet id="advice_no_main_k_ds" autoQuery="true" bindTarget="base_ds" fetchAll="true"><![CDATA[
+            ]]></a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form column="4" labelWidth="110" marginWidth="45" title="概要信息">
+                <a:label name="project_number" bindTarget="base_ds" prompt="申请编号" readOnly="true" renderer="on_base_ds_project_number_render"/>
+                <a:textField name="bp_name" bindTarget="base_ds" prompt="客户名称" readOnly="true"/>
+                <a:textField name="division_n" bindTarget="base_ds" prompt="车辆类型" readOnly="true"/>
+                <a:textField name="lease_times" bindTarget="base_ds" prompt="融资期限" readOnly="true"/>
+                <a:textField name="price_list_n" bindTarget="base_ds" prompt="产品方案名称" readOnly="true"/>
+                <a:textField name="agent_name" bindTarget="base_ds" prompt="提报门店" readOnly="true"/>
+                <a:numberField name="finance_amount" allowDecimals="true" bindTarget="base_ds" decimalPrecision="2" prompt="风控融资额" readOnly="true"/>
+                <a:percentField name="down_payment_ratio" bindTarget="base_ds" prompt="首付比率" readOnly="true"/>
+                <a:textField name="pmt_first" bindTarget="base_ds" prompt="每期客户租金" readOnly="true"/>
+                <a:textField name="company_full_name" bindTarget="base_ds" prompt="分公司" readOnly="true"/>
+                <a:textField name="major_brand" bindTarget="base_ds" prompt="主营品牌" readOnly="true"/>
+                <a:textField name="total_overdue" bindTarget="base_ds" prompt="30+逾期汇总" readOnly="true"/>
+                <a:numberField name="pre_score_result" allowDecimals="true" bindTarget="base_ds" decimalPrecision="2" prompt="预评分" readOnly="true"/>
+                <a:numberField name="score_result" allowDecimals="true" bindTarget="base_ds" decimalPrecision="2" prompt="最终评分" readOnly="true"/>
+            </a:form>
+            <a:form column="4" marginWidth="45" title="征信反欺诈信息"/>
+            <a:grid bindTarget="rd_project_analyse_total_v_result_ds" height="200" marginWidth="45" navBar="true" showRowNumber="true">
+                <a:columns>
+                    <a:column name="target_type_desc" align="center" lock="true" prompt="维度" width="140"/>
+                    <a:column name="target" lock="true" prompt="目标码" width="200"/>
+                    <a:column name="approving_count" prompt="提交待审批数" renderer="do_render"/>
+                    <a:column name="no_incept_count" prompt="已通过未成交数" renderer="do_render"/>
+                    <a:column name="reject_count" prompt="已拒绝数" renderer="do_render"/>
+                    <a:column name="cancel_count" prompt="已取消" renderer="do_render"/>
+                    <a:column name="y_overdue" prompt="有逾期(已成交)" renderer="do_render"/>
+                    <a:column name="n_overdue" prompt="无逾期(已成交)" renderer="do_render"/>
+                </a:columns>
+            </a:grid>
+            <a:form column="4" marginWidth="45" title="融资信息">
+                <a:numberField name="finance_amount" allowdecimals="true" allowformat="true" allowpad="TRUE" bindTarget="wfl_prj_quote_ds" colspan="1" decimalprecision="2" prompt="融资总额" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="invoice_price" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="开票价" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:percentField name="int_rate_display" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="租赁年利率" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:comboBox name="annual_pay_times_n" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="还款频率" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:percentField name="down_payment_ratio" id="WFL_HY_CREATE_PROJECT_G_INFO13_PRJ_PROJECT_LEASE_ITEM_DOWN_PAYMENT_RATIO" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="首付款比例" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="down_payment" id="WFL_HY_CREATE_PROJECT_G_INFO13_PRJ_PROJECT_LEASE_ITEM_DOWN_PAYMENT" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="首付款" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150">
+                    <a:events>
+                        <a:event name="change" handler="change_down_payment"/>
+                    </a:events>
+                </a:numberField>
+                <a:percentField name="balloon_ratio" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="尾付款比率" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="balloon" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="尾付款" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:percentField name="deposit_ratio" id="WFL_HY_CREATE_PROJECT_G_INFO13_PRJ_PROJECT_LEASE_ITEM_DEPOSIT_RATIO" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="保证金比例" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="deposit" id="WFL_HY_CREATE_PROJECT_G_INFO13_PRJ_PROJECT_LEASE_ITEM_DEPOSIT" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="保证金" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150">
+                    <a:events>
+                        <a:event name="change" handler="change_down_payment2"/>
+                    </a:events>
+                </a:numberField>
+                <a:numberField name="residual_value" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="留购价款" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="agent_lease_income" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="店面收款" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:textField name="lease_times" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="还款期数" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:percentField name="lease_charge_ratio" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="手续费比率" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:comboBox name="purchase_tax_flag_n" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="是否融购置税" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="purchase_tax" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="购置税" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:comboBox name="insurance_flag_n" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="是否融保险费" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="insurance_amount" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="保险费" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:comboBox name="travel_tax_flag_n" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="是否融车船税" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="travel_tax" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="车船税" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="other_amount" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="加装费" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="charge_amount" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="后服务费" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="deferred_premium" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="延保费" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <div style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:comboBox name="postage_flag_n" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="是否邮寄发票" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="postage" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="邮寄发票费" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:comboBox name="gps_flag_n" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="是否融资GPS" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="gps_amount" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="GPS费" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:textField name="nonlocal_plate_desc" bindtarget="wfl_prj_project_finance_ds" colspan="2" prompt="备注" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="516"/>
+                <a:lov name="price_list_n" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="产品名称" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="deposit_and_down_payment" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindTarget="wfl_prj_quote_ds" colspan="1" decimalprecision="2" prompt="首付款加保证金金额" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+            </a:form>
+            <a:form column="4" marginWidth="45" title="车辆信息" wrapperadjust="false">
+                <a:textField name="producer" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="制造商" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:lov name="brand_id_n" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="品牌" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:lov name="series_id_n" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="车系" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:lov name="model_id_n" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="车型" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="guide_price" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="车辆指导价" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:numberField name="invoice_price" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="实际销售价" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:comboBox name="car_from" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="车辆渠道" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:textField name="car_from_id" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="车辆渠道名称" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                <a:textField name="displacement" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="排量" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+            </a:form>
+            <a:switchCard name="division" bindtarget="wfl_prj_project_finance_ds">
+                <a:cards>
+                    <a:card hidden="false" style="width:%98;padding:8px 0px 0px 0px" value="01">
+                        <a:form column="4" labelseparator=" " labelwidth="120" marginWidth="45" title="二手车信息" wrapperadjust="false">
+                            <a:numberField name="travelled_distance" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="行驶公里数(万公里)" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                            <!--<a:numberField name="invoice_price" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="提报预估价" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                            -->
+                            <a:numberField name="future_prices" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="二手车评估金额(临时)" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                            <a:textField name="item_frame_number" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="车架号(VIN)" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                            <a:datePicker name="factory_date" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="出厂日期" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                            <a:datePicker name="first_register_date" bindtarget="wfl_prj_project_finance_ds" colspan="1" prompt="初登日期" readOnly="true" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                            <a:numberField name="used_evaluation_amout" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="二手车评估金额(RedBook)" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                            <a:numberField name="rating_agency_used_prices" allowdecimals="TRUE" allowformat="TRUE" allowpad="TRUE" bindtarget="wfl_prj_project_finance_ds" colspan="1" decimalprecision="2" prompt="评估机构二手车价" rowspan="1" style="margin-top:3px;margin-bottom:3px" width="150"/>
+                        </a:form>
+                    </a:card>
+                </a:cards>
+            </a:switchCard>
+            <a:form marginWidth="45" row="1" title="风险评审意见" wrapperadjust="false">
+                <a:textArea name="note" bindTarget="note_ds" prompt="暂存意见" width="300"/>
+                <a:radio name="credit_advice_type" bindTarget="cux_wfl_credit_advice_ds" layout="horizontal" width="600">
+                    <a:items>
+                        <a:item label="通过" value="Y"/>
+                        <a:item label="拒绝" value="N"/>
+                        <!-- <a:item label="退回" value="R"/> -->
+                    </a:items>
+                    <a:events>
+                        <a:event name="change" handler="onRadioChange"/>
+                    </a:events>
+                </a:radio>
+            </a:form>
+            <div id="credit_advice_type_y_div" style="display:none">
+                <a:form showBorder="true" title="通过原因" width="1320">
+                    <!-- <a:textArea name="credit_advice_yes_reason" bindtarget="cux_wfl_credit_advice_ds"  height="50" style="width:94%"/> -->
+                    <a:radio name="credit_advice_yes_reason" bindTarget="cux_wfl_credit_advice_ds" layout="vertical" width="600">
+                        <a:items>
+                            <a:item label="完全同意客户申请需求，不做任何变更" value="Y1"/>
+                            <a:item label="房产水平欠佳，不符合购车对应价值" value="Y2"/>
+                            <a:item label="流水与月供匹配度较差，有较大差距" value="Y3"/>
+                            <a:item label="工作情况一般，对于未来还款有不确定" value="Y4"/>
+                            <a:item label="政策上首付限定，例如购多辆车，2次购车" value="Y5"/>
+                            <a:item label="征信有瑕疵，但不足以拒绝" value="Y6"/>
+                            <a:item label="特殊审批（集团内关系购车特批)" value="Y7"/>
+                            <a:item label="特殊审批（外部经销商购车特批)" value="Y8"/>
+                            <a:item label="其它" value="Y9"/>
+                        </a:items>
+                    </a:radio>
+                </a:form>
+            </div>
+            <div id="credit_advice_type_n_div" style="display:none">
+                <a:form showBorder="true" title="拒绝原因" width="1320">
+                    <a:hBox label="原因分类">
+                        <a:checkBox name="advice_no_main_a" bindTarget="advice_no_main_ds" label="虚假信息">
+                            <a:events>
+                                <a:event name="click" handler="advice_no_main_a_click"/>
+                            </a:events>
+                        </a:checkBox>
+                        <a:checkBox name="advice_no_main_b" bindTarget="advice_no_main_ds" label="涉及三方">
+                            <a:events>
+                                <a:event name="click" handler="advice_no_main_b_click"/>
+                            </a:events>
+                        </a:checkBox>
+                        <a:checkBox name="advice_no_main_c" bindTarget="advice_no_main_ds" label="信用瑕疵严重">
+                            <a:events>
+                                <a:event name="click" handler="advice_no_main_c_click"/>
+                            </a:events>
+                        </a:checkBox>
+                        <a:checkBox name="advice_no_main_d" bindTarget="advice_no_main_ds" label="工作和收入来源无法核实">
+                            <a:events>
+                                <a:event name="click" handler="advice_no_main_d_click"/>
+                            </a:events>
+                        </a:checkBox>
+                        <a:checkBox name="advice_no_main_e" bindTarget="advice_no_main_ds" label="高风险行业从业或违法经营">
+                            <a:events>
+                                <a:event name="click" handler="advice_no_main_e_click"/>
+                            </a:events>
+                        </a:checkBox>
+                        <a:checkBox name="advice_no_main_f" bindTarget="advice_no_main_ds" label="商用">
+                            <a:events>
+                                <a:event name="click" handler="advice_no_main_f_click"/>
+                            </a:events>
+                        </a:checkBox>
+                        <a:checkBox name="advice_no_main_g" bindTarget="advice_no_main_ds" label="拒绝配合">
+                            <a:events>
+                                <a:event name="click" handler="advice_no_main_g_click"/>
+                            </a:events>
+                        </a:checkBox>
+                        <a:checkBox name="advice_no_main_h" bindTarget="advice_no_main_ds" label="不符合贷款申请准入条件">
+                            <a:events>
+                                <a:event name="click" handler="advice_no_main_h_click"/>
+                            </a:events>
+                        </a:checkBox>
+                        <a:checkBox name="advice_no_main_i" bindTarget="advice_no_main_ds" label="购车合理性不足">
+                            <a:events>
+                                <a:event name="click" handler="advice_no_main_i_click"/>
+                            </a:events>
+                        </a:checkBox>
+                        <a:checkBox name="advice_no_main_j" bindTarget="advice_no_main_ds" label="婚姻关系复杂">
+                            <a:events>
+                                <a:event name="click" handler="advice_no_main_j_click"/>
+                            </a:events>
+                        </a:checkBox>
+                        <a:checkBox name="advice_no_main_k" bindTarget="advice_no_main_ds" label="其他">
+                            <a:events>
+                                <a:event name="click" handler="advice_no_main_k_click"/>
+                            </a:events>
+                        </a:checkBox>
+                    </a:hBox>
+                </a:form>
+            </div>
+            <div id="detail_a_div" style="display:none">
+                <a:form column="7" showBorder="false" title="虚假信息" width="1320">
+                    <a:checkBox name="advice_no_detail_a1" bindTarget="advice_no_main_a_ds" label="假身份证"/>
+                    <a:checkBox name="advice_no_detail_a2" bindTarget="advice_no_main_a_ds" label="工作信息虚假/提供信息不真实"/>
+                    <a:checkBox name="advice_no_detail_a3" bindTarget="advice_no_main_a_ds" label="假房产证明"/>
+                    <a:checkBox name="advice_no_detail_a4" bindTarget="advice_no_main_a_ds" label="假驾照/学车证明"/>
+                    <a:checkBox name="advice_no_detail_a5" bindTarget="advice_no_main_a_ds" label="虚假财力证明（收入证明、银行流水）"/>
+                    <a:checkBox name="advice_no_detail_a6" bindTarget="advice_no_main_a_ds" label="假营业执照"/>
+                    <a:checkBox name="advice_no_detail_a7" bindTarget="advice_no_main_a_ds" label="假婚姻证明"/>
+                    <a:checkBox name="advice_no_detail_a8" bindTarget="advice_no_main_a_ds" label="假征信报告"/>
+                    <a:checkBox name="advice_no_detail_a9" bindTarget="advice_no_main_a_ds" label="车型造假"/>
+                    <a:checkBox name="advice_no_detail_a10" bindTarget="advice_no_main_a_ds" label="评估报告PS"/>
+                    <a:checkBox name="advice_no_detail_a11" bindTarget="advice_no_main_a_ds" label="假登记证"/>
+                    <a:checkBox name="advice_no_detail_a12" bindTarget="advice_no_main_a_ds" label="假发票"/>
+                    <a:checkBox name="advice_no_detail_a13" bindTarget="advice_no_main_a_ds" label="其他"/>
+                </a:form>
+            </div>
+            <div id="detail_b_div" style="display:none">
+                <a:form column="7" showBorder="false" title="涉及三方" width="1320">
+                    <a:checkBox name="advice_no_detail_b1" bindTarget="advice_no_main_b_ds" label="冒签"/>
+                    <a:checkBox name="advice_no_detail_b2" bindTarget="advice_no_main_b_ds" label="多重造假"/>
+                    <a:checkBox name="advice_no_detail_b3" bindTarget="advice_no_main_b_ds" label="涉及团购骗贷"/>
+                    <a:checkBox name="advice_no_detail_b4" bindTarget="advice_no_main_b_ds" label="恶意欺诈"/>
+                    <a:checkBox name="advice_no_detail_b5" bindTarget="advice_no_main_b_ds" label="代购"/>
+                    <a:checkBox name="advice_no_detail_b6" bindTarget="advice_no_main_b_ds" label="其他"/>
+                </a:form>
+            </div>
+            <div id="detail_c_div" style="display:none">
+                <a:form column="6" showBorder="false" title="信用瑕疵严重" width="1320">
+                    <a:checkBox name="advice_no_detail_c1" bindTarget="advice_no_main_c_ds" label="信用卡"/>
+                    <a:checkBox name="advice_no_detail_c2" bindTarget="advice_no_main_c_ds" label="贷款"/>
+                    <a:checkBox name="advice_no_detail_c3" bindTarget="advice_no_main_c_ds" label="对外担保"/>
+                    <a:checkBox name="advice_no_detail_c4" bindTarget="advice_no_main_c_ds" label="法院被执行记录"/>
+                    <a:checkBox name="advice_no_detail_c5" bindTarget="advice_no_main_c_ds" label="犯罪记录"/>
+                    <a:checkBox name="advice_no_detail_c6" bindTarget="advice_no_main_c_ds" label="其他"/>
+                </a:form>
+            </div>
+            <div id="detail_d_div" style="display:none">
+                <a:form column="6" showBorder="false" title="工作和收入来源无法核实" width="1320">
+                    <a:checkBox name="advice_no_detail_d1" bindTarget="advice_no_main_d_ds" label="可核实收入不足或无法认可还款来源"/>
+                    <a:checkBox name="advice_no_detail_d2" bindTarget="advice_no_main_d_ds" label="名下负债过高"/>
+                    <a:checkBox name="advice_no_detail_d3" bindTarget="advice_no_main_d_ds" label="工作无法核实"/>
+                    <a:checkBox name="advice_no_detail_d4" bindTarget="advice_no_main_d_ds" label="经营无法核实"/>
+                    <a:checkBox name="advice_no_detail_d5" bindTarget="advice_no_main_d_ds" label="其他"/>
+                </a:form>
+            </div>
+            <div id="detail_e_div" style="display:none">
+                <a:form column="6" showBorder="false" title="高风险行业从业或违法经营" width="1320">
+                    <a:checkBox name="advice_no_detail_e1" bindTarget="advice_no_main_e_ds" label="民间借贷"/>
+                    <a:checkBox name="advice_no_detail_e2" bindTarget="advice_no_main_e_ds" label="违法经营"/>
+                    <a:checkBox name="advice_no_detail_e3" bindTarget="advice_no_main_e_ds" label="行业受宏观调控影响大"/>
+                    <a:checkBox name="advice_no_detail_e4" bindTarget="advice_no_main_e_ds" label="公安部可疑或在逃人员"/>
+                    <a:checkBox name="advice_no_detail_e5" bindTarget="advice_no_main_e_ds" label="其他"/>
+                </a:form>
+            </div>
+            <div id="detail_f_div" style="display:none">
+                <a:form column="6" showBorder="false" title="商用" width="1320">
+                    <a:checkBox name="advice_no_detail_f1" bindTarget="advice_no_main_f_ds" label="汽车租赁"/>
+                    <a:checkBox name="advice_no_detail_f2" bindTarget="advice_no_main_f_ds" label="出租车"/>
+                    <a:checkBox name="advice_no_detail_f3" bindTarget="advice_no_main_f_ds" label="婚庆用车"/>
+                    <a:checkBox name="advice_no_detail_f4" bindTarget="advice_no_main_f_ds" label="驾校"/>
+                    <a:checkBox name="advice_no_detail_f5" bindTarget="advice_no_main_f_ds" label="以车入股"/>
+                    <a:checkBox name="advice_no_detail_f6" bindTarget="advice_no_main_f_ds" label="其他"/>
+                </a:form>
+            </div>
+            <div id="detail_g_div" style="display:none">
+                <a:form column="6" showBorder="false" title="拒绝配合" width="1320">
+                    <a:checkBox name="advice_no_detail_g1" bindTarget="advice_no_main_g_ds" label="电话核查不配合"/>
+                    <a:checkBox name="advice_no_detail_g2" bindTarget="advice_no_main_g_ds" label="拒绝提供资料"/>
+                    <a:checkBox name="advice_no_detail_g3" bindTarget="advice_no_main_g_ds" label="拒绝配合现场调查"/>
+                    <a:checkBox name="advice_no_detail_g4" bindTarget="advice_no_main_g_ds" label="家庭不支持购车"/>
+                    <a:checkBox name="advice_no_detail_g5" bindTarget="advice_no_main_g_ds" label="担保人拒绝担保"/>
+                    <a:checkBox name="advice_no_detail_g6" bindTarget="advice_no_main_g_ds" label="长时间无法联系"/>
+                    <a:checkBox name="advice_no_detail_g7" bindTarget="advice_no_main_g_ds" label="其他"/>
+                </a:form>
+            </div>
+            <div id="detail_h_div" style="display:none">
+                <a:form column="6" showBorder="false" title="不符合贷款申请准入条件" width="1320">
+                    <a:checkBox name="advice_no_detail_h1" bindTarget="advice_no_main_h_ds" label="不符合信贷政策准入条件"/>
+                    <a:checkBox name="advice_no_detail_h2" bindTarget="advice_no_main_h_ds" label="双重身份"/>
+                    <a:checkBox name="advice_no_detail_h3" bindTarget="advice_no_main_h_ds" label="不符合风险区域准入条件"/>
+                    <a:checkBox name="advice_no_detail_h4" bindTarget="advice_no_main_h_ds" label="系统评分不足"/>
+                    <a:checkBox name="advice_no_detail_h5" bindTarget="advice_no_main_h_ds" label="其他"/>
+                </a:form>
+            </div>
+            <div id="detail_i_div" style="display:none">
+                <a:form column="6" showBorder="false" title="购车合理性不足" width="1320">
+                    <a:checkBox name="advice_no_detail_i1" bindTarget="advice_no_main_i_ds" label="代购/套现"/>
+                    <a:checkBox name="advice_no_detail_i2" bindTarget="advice_no_main_i_ds" label="无证驾驶"/>
+                    <a:checkBox name="advice_no_detail_i3" bindTarget="advice_no_main_i_ds" label="代驾/雇佣司机合理性不足"/>
+                    <a:checkBox name="advice_no_detail_i4" bindTarget="advice_no_main_i_ds" label="添车/换车合理性不足"/>
+                    <a:checkBox name="advice_no_detail_i5" bindTarget="advice_no_main_i_ds" label="不熟悉车辆/贷款信息"/>
+                    <a:checkBox name="advice_no_detail_i6" bindTarget="advice_no_main_i_ds" label="其他"/>
+                </a:form>
+            </div>
+            <div id="detail_j_div" style="display:none">
+                <a:form column="6" showBorder="false" title="婚姻关系复杂" width="1320">
+                    <a:checkBox name="advice_no_detail_j1" bindTarget="advice_no_main_j_ds" label="无有效婚姻证明"/>
+                    <a:checkBox name="advice_no_detail_j2" bindTarget="advice_no_main_j_ds" label="隐瞒婚姻状况"/>
+                    <a:checkBox name="advice_no_detail_j3" bindTarget="advice_no_main_j_ds" label="婚姻关系混乱"/>
+                    <a:checkBox name="advice_no_detail_j4" bindTarget="advice_no_main_j_ds" label="其他"/>
+                </a:form>
+            </div>
+            <div id="detail_k_div" style="display:none">
+                <a:form column="6" showBorder="false" title="其他" width="1320">
+                    <a:checkBox name="advice_no_detail_k1" bindTarget="advice_no_main_k_ds" label="其他"/>
+                </a:form>
+            </div>
+            <a:screenTopToolbar>
+                <a:gridButton click="wfl_prj_lease_item_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+        </a:screenBody>
+        <script><![CDATA[
+            // window.onload = function() {
+                // debugger;
+                 // var record_id = '${/parameter/@record_id}';
+	        	 // alert(record_id);
+                
+            // };
+        ]]></script>
+    </a:view>
+</a:screen>

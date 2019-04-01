@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: LR  
+    $Date: 2013-9-5 下午04:22:39  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="sc.result_id = ${/parameter/@result_id}" model="fnd.FND714.fnd_sc_score_query" rootPath="fnd714_sc_score_query_path"/>
+        <a:model-query defaultWhereClause="t1.score_template_id=${/parameter/@score_template_id}" model="fnd.FND713.fnd_score_template" rootPath="fnd714_score_template_path"/>
+        <a:model-query model="fnd.FND714.fnd_sc_score_result_grade_from_to" rootPath="fnd714_sc_score_result_grade_from_to_path"/>
+    </a:init-procedure>
+    <a:view>
+        <link href="${/request/@context_path}/css/fnd_sc_score_result_print.css" media="print" rel="stylesheet"/>
+        <style><![CDATA[
+        	.grid-hc{
+        		border-bottom:2px solid #ccc;
+        	}
+        ]]></style>
+        <script><![CDATA[
+        
+        	function fnd714_sc_score_result_print(){
+        	    print();
+        	}
+            
+            function fnd714_sc_score_result_dtl_grid_render_name(value, record, name) {
+                var target_score = record.get('target_score');
+                if (record.get('summary_flag') == 'Y') {
+                    return '';
+                }
+                if (name == record.get('target_score')) {
+                    return '<font size="4" color="orange">★</font>';
+                }
+            }
+            
+            function fnd714_sc_score_result_dtl_render_target_score(value, record, name) {
+                if (record.get('summary_flag') == 'Y') {
+                    return '';
+                }
+                return value;
+            }
+            
+            function fnd714_sc_score_result_dtl_render_target_score_sum(value, record, name) {
+                var target_score = record.get('target_score');
+                if (record.get('display_flag') == 'Y' && record.get('summary_flag') == 'Y' && $('fnd714_sc_score_head_query_ds').getCurrentRecord().get('template_type')=='PD') {
+                    return target_score;
+                }
+                else if (record.get('display_flag') == 'Y' && record.get('summary_flag') == 'Y' && $('fnd714_sc_score_head_query_ds').getCurrentRecord().get('template_type')=='LGD') {
+                	return Aurora.formatNumber(target_score,4);
+                }
+                return '';
+            }
+            
+            function fnd714_sc_score_head_query_onsubmitsuccess(ds, res) {
+                $('fnd714_sc_score_result_dtl_ds').setQueryParameter('result_id', '${/parameter/@result_id}');
+                $('fnd714_sc_score_result_dtl_ds').query();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="fnd714_sc_score_head_query_ds" model="fnd.FND714.fnd_sc_score_query">
+                <a:datas dataSource="/model/fnd714_sc_score_query_path"/>
+            </a:dataSet>
+            <a:dataSet id="fnd714_sc_score_result_dtl_ds" bindName="result_dtl" bindTarget="fnd714_sc_score_head_query_ds" fetchAll="true" loadData="true" model="fnd.FND714.fnd_sc_score_result_dtl_query" queryUrl="${/request/@context_path}/autocrud/fnd.FND714.fnd_sc_score_result_dtl_query/query?template_type=${/parameter/@template_type}">
+                <a:fields>
+                    <a:field name="target_score" lovGridHeight="350" lovHeight="550" lovWidth="500" title="评级">
+                        <a:mapping>
+                            <a:map from="score_value" to="target_score"/>
+                            <a:map from="score_value" to="target_value"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="target_value"/>
+                    <a:field name="target_score_original"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:hBox>
+                <a:vBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="template_type_desc" bindTarget="fnd714_sc_score_head_query_ds" prompt="FND713.FND_SCORE_TEMPLATE.TEMPLATE_TYPE" readOnly="true"/>
+                    <a:numberField name="score_result" bindTarget="fnd714_sc_score_head_query_ds" decimalPrecision="4" prompt="FND714.SCORE_RESULT" readOnly="true"/>
+                </a:vBox>
+                <a:vBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="object_name" bindTarget="fnd714_sc_score_head_query_ds" prompt="FND714.OBJECT_NAME" readOnly="true"/>
+                    <a:textField name="last_update_name" bindTarget="fnd714_sc_score_head_query_ds" prompt="FND714.LAST_UPDATE_NAME" readOnly="true"/>
+                </a:vBox>
+                <a:vBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="template_name" bindTarget="fnd714_sc_score_head_query_ds" prompt="FND714.SCORE_TEMPLATE_NAME" readOnly="true"/>
+                    <a:datePicker name="score_date" bindTarget="fnd714_sc_score_head_query_ds" prompt="FND714.SCORE_DATE" readOnly="true" renderer="Aurora.formatDate"/>
+                </a:vBox>
+                <a:vBox labelSeparator=" " labelWidth="50" padding="0">
+                    <a:textArea name="description" bindTarget="fnd714_sc_score_head_query_ds" height="50" prompt="FND714.DESCRIPTION" readOnly="true" width="350"/>
+                </a:vBox>
+            </a:hBox>
+            <a:treeGrid id="fnd714_sc_score_result_dtl_grid" bindTarget="fnd714_sc_score_result_dtl_ds" expandField="expand_flag" idField="tree_id_feild" marginHeight="180" marginWidth="30" navBar="false" parentField="tree_parent_field" sequenceField="score_target_code">
+                <a:columns>
+                    <a:column name="score_target_name" prompt="FND714.SCORE_TARGET_NAME" width="370"/>
+                    <a:column name="target_score" prompt="FND714.TARGET_SCORE" renderer="fnd714_sc_score_result_dtl_render_target_score"/>
+                    <a:placeHolder id="fnd714_dynamicColumns"/>
+                    <a:column name="target_score_sum" prompt="FND714.TARGET_SCORE_SUM" renderer="fnd714_sc_score_result_dtl_render_target_score_sum"/>
+                    <a:column name="note" prompt="HLS.COMMENT"/>
+                </a:columns>
+            </a:treeGrid>
+        </a:screenBody>
+        <script><![CDATA[
+        $A.onReady(function(){
+            $('fnd714_sc_score_result_dtl_grid').setHeight($('fnd714_sc_score_result_dtl_ds').getAll().length*25+75);
+            print();
+        });
+        ]]></script>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="fnd714_dynamicColumns">
+            <p:loop source="/model/fnd714_sc_score_result_grade_from_to_path">
+                <c:process-config>
+                    <a:column name="${@line_number}" align="center" prompt="${@sc_scaleplate_code}" renderer="fnd714_sc_score_result_dtl_grid_render_name" width="40"/>
+                </c:process-config>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

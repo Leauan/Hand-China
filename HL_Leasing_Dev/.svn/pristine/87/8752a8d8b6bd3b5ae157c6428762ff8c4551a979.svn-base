@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-9-27 上午10:26:57  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="ZJ_WFL_WORKFLOW_DISP_SVC_PARA">
+    <bm:fields>
+        <bm:field name="workflow_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="WORKFLOW_ID" prompt="ZJ_WFL_WORKFLOW_DISP_SVC_PARA.WORKFLOW_ID"/>
+        <bm:field name="sequence_num" forInsert="false" forUpdate="false"/>
+        <bm:field name="parameter_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="PARAMETER_ID" prompt="ZJ_WFL_WORKFLOW_DISP_SVC_PARA.PARAMETER_ID"/>
+        <bm:field name="parameter_code" forInsert="false" forUpdate="false"/>
+        <bm:field name="parameter_desc" forInsert="false" forUpdate="false"/>
+        <bm:field name="parameter_type" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PARAMETER_TYPE" prompt="ZJ_WFL_WORKFLOW_DISP_SVC_PARA.PARAMETER_TYPE"/>
+        <bm:field name="parameter_value_desc" forInsert="false" forUpdate="false"/>
+        <bm:field name="parameter_value" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PARAMETER_VALUE" prompt="ZJ_WFL_WORKFLOW_DISP_SVC_PARA.PARAMETER_VALUE"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+    			select t1.service_para_id as parameter_id,
+				       ${@workflow_id} as workflow_id,
+				       t1.sequence_num,
+				       t1.parameter_code,
+				       t1.parameter_desc,
+				       p.parameter_type,
+				       p.parameter_value,
+				       decode(p.parameter_type,
+				              'DEFAULT',
+				              p.parameter_value,
+				              'WFL_INSTANCE_PARA',
+				              (select v.code_value_name
+				                 from sys_code_values_v v
+				                where v.code_value = p.parameter_value
+				                  and v.code = 'ZJ_WFL_INSTANCE_PARA_VALUES'),
+				              'WFL_TYPE_PARA',
+				              (select tp.parameter_desc
+				                 from zj_wfl_workflow_type_parameter tp
+				                where tp.workflow_type_para_id = p.parameter_value),
+				              null) parameter_value_desc
+				  from ZJ_WFL_WORKFLOW_SERVICE_PARA t1, ZJ_WFL_WORKFLOW_DISP_SVC_PARA p
+				 where t1.service_id = ${@service_id}
+				   and p.workflow_id(+) = ${@workflow_id}
+				   and p.parameter_id(+) = t1.service_para_id
+				 order by t1.sequence_num
+    		]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+            begin
+				  zj_wfl_workflow_pkg.workflow_service_save(p_workflow_id       	=> ${@workflow_id},
+															p_parameter_id      	=> ${@parameter_id},
+															p_parameter_type    	=> ${@parameter_type},
+															p_parameter_value   	=> ${@parameter_value},
+															p_user_id           	=> ${/session/@user_id});
+			end;
+			]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:features>
+        <f:standard-who/>
+    </bm:features>
+    <bm:primary-key>
+        <bm:pk-field name="parameter_id"/>
+        <bm:pk-field name="workflow_id"/>
+    </bm:primary-key>
+</bm:model>

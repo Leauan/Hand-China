@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei  
+    $Date: 2015-1-16 下午1:10:28  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            select t1.* from(SELECT (select to_char(wfl.creation_date,'yyyy-mm-dd hh24:mi:ss') from zj_wfl_workflow_instance wfl 
+where wfl.instance_id=c.wfl_instance_id ) first_submit_date,
+to_char(a.submit_date,'yyyy-mm-dd hh24:mi:ss') submit_date,
+       a.contract_number project_number,
+       b.contract_number,
+       decode((SELECT COUNT(1)
+                FROM prj_project_bp c1
+               WHERE c1.project_id = c.project_id
+                     AND c1.bp_category = 'TENANT'
+                     AND c1.prj_bp_id != (SELECT MIN(bp.prj_bp_id) FROM prj_project_bp bp WHERE bp.bp_id = c1.bp_id)),
+              1,
+              '重新进件',
+              '新增客户') apply_status,
+       a.lease_channel_des,
+       a.price_list_des,
+       (SELECT su.description
+          FROM zj_wfl_approve_history_v t1,
+               zj_wfl_approve_record    t2,
+               sys_user                 su
+         WHERE t1.instance_id = c.wfl_instance_id
+               AND t1.node_sequence_num = '20'
+               AND t1.node_id = t2.node_id
+               AND t1.instance_id = t2.instance_id
+               AND t2.user_id = su.user_id
+               AND rownum = 1) approve_person,
+       (SELECT MAX(t1.create_date_fmt)
+          FROM zj_wfl_approve_history_v t1
+         WHERE t1.instance_id = c.wfl_instance_id
+               AND t1.node_sequence_num = '10'
+               and t1.action_type=1
+        ) create_date_fmt_1,
+          (SELECT MAX(t1.create_date_fmt)
+          FROM zj_wfl_approve_history_v t1
+         WHERE t1.instance_id = c.wfl_instance_id
+               AND t1.node_sequence_num = '20'
+               and t1.action_type=1
+        ) create_date_fmt_2,
+          (SELECT MAX(t1.create_date_fmt)
+          FROM zj_wfl_approve_history_v t1
+         WHERE t1.instance_id = c.wfl_instance_id
+               AND t1.node_sequence_num = '30'
+               and t1.action_type=1
+        ) create_date_fmt_3,
+          (SELECT MAX(t1.create_date_fmt)
+          FROM zj_wfl_approve_history_v t1
+         WHERE t1.instance_id = c.wfl_instance_id
+               AND t1.node_sequence_num = '40'
+               and t1.action_type=1
+        ) create_date_fmt_4,
+       a.tenant_name,
+       a.employee_id_des,
+       a.lease_term,
+       (SELECT des.description_text
+          FROM fnd_descriptions des,
+               hls_car_brands   brand
+         WHERE des.description_id = brand.description_id
+               AND brand.brand_id = a.brand_id
+               AND des.language = 'ZHS') brand_id_des,
+       a.series_id_des,
+       a.model_id_des,
+       a.unit_id_des,
+       nvl(a.down_payment,
+           0) + nvl(a.deposit,
+                    0) + nvl(a.lease_charge,
+                             0) total_amount,
+       a.lease_item_amount,
+       a.pmt,
+        decode(yonda_doc_history_pkg.yonda_get_status(c.project_id),
+              1,
+              '直接通过',
+              3,
+              '附条件通过',
+              4,
+              '取消',
+              5,
+              '审批中',
+              6,
+              '退回',
+              7,
+              '新建',
+              8,
+              '拒绝',
+              9,
+              '直接通过（合同取消）',
+              10,
+              '附条件（合同取消）') status_des,
+       to_char(c.first_trial_opinion) first_trial_opinion,
+       to_char(c.second_trial_opinion) second_trial_opinion,
+       to_char(c.risk_manager_opinion) risk_manager_opinion,
+       (SELECT bp.bp_name
+          FROM prj_project_bp bp
+         WHERE bp.project_id = c.project_id
+               AND bp.bp_category = 'GUARANTOR'
+               AND bp.bp_seq = '1') guar_name_1,
+       (SELECT bp.id_card_no
+          FROM prj_project_bp bp
+         WHERE bp.project_id = c.project_id
+               AND bp.bp_category = 'GUARANTOR'
+               AND bp.bp_seq = '1') id_card_no_1,
+       (SELECT bp.cell_phone
+          FROM prj_project_bp bp
+         WHERE bp.project_id = c.project_id
+               AND bp.bp_category = 'GUARANTOR'
+               AND bp.bp_seq = '1') cell_phone_1,
+       (SELECT bp.bp_name
+          FROM prj_project_bp bp
+         WHERE bp.project_id = c.project_id
+               AND bp.bp_category = 'GUARANTOR'
+               AND bp.bp_seq = '2') guar_name_2,
+       (SELECT bp.id_card_no
+          FROM prj_project_bp bp
+         WHERE bp.project_id = c.project_id
+               AND bp.bp_category = 'GUARANTOR'
+               AND bp.bp_seq = '2') id_card_no_2,
+       (SELECT bp.cell_phone
+          FROM prj_project_bp bp
+         WHERE bp.project_id = c.project_id
+               AND bp.bp_category = 'GUARANTOR'
+               AND bp.bp_seq = '2') cell_phone_2
+  FROM prj_project_union_con_v a,
+       con_contract            b,
+       prj_project             c
+ WHERE a.contract_id = b.project_id(+)
+       AND a.contract_id = c.project_id
+UNION
+SELECT (select to_char(wfl.creation_date,'yyyy-mm-dd hh24:mi:ss') from zj_wfl_workflow_instance wfl 
+where wfl.instance_id=c.wfl_instance_id ) first_submit_date,
+to_char(a.submit_date,'yyyy-mm-dd hh24:mi:ss') submit_date,
+       c.project_number,
+       b.contract_number,
+       decode((SELECT COUNT(1)
+                FROM prj_project_bp c1
+               WHERE c1.project_id = c.project_id
+                     AND c1.bp_category = 'TENANT'
+                     AND c1.prj_bp_id != (SELECT MIN(bp.prj_bp_id) FROM prj_project_bp bp WHERE bp.bp_id = c1.bp_id)),
+              1,
+              '重新进件',
+              '新增客户') apply_status,
+       a.lease_channel_des,
+       a.price_list_des,
+       (SELECT su.description
+          FROM zj_wfl_approve_history_v t1,
+               zj_wfl_approve_record    t2,
+               sys_user                 su
+         WHERE t1.instance_id = c.wfl_instance_id
+               AND t1.node_sequence_num = '20'
+               AND t1.node_id = t2.node_id
+               AND t1.instance_id = t2.instance_id
+               AND t2.user_id = su.user_id
+               AND rownum = 1) approve_person,
+       (SELECT MAX(t1.create_date_fmt)
+          FROM zj_wfl_approve_history_v t1
+         WHERE t1.instance_id = c.wfl_instance_id
+               AND t1.node_sequence_num = '10'
+               and t1.action_type=1
+        ) create_date_fmt_1,
+          (SELECT MAX(t1.create_date_fmt)
+          FROM zj_wfl_approve_history_v t1
+         WHERE t1.instance_id = c.wfl_instance_id
+               AND t1.node_sequence_num = '20'
+               and t1.action_type=1
+        ) create_date_fmt_2,
+          (SELECT MAX(t1.create_date_fmt)
+          FROM zj_wfl_approve_history_v t1
+         WHERE t1.instance_id = c.wfl_instance_id
+               AND t1.node_sequence_num = '30'
+               and t1.action_type=1
+        ) create_date_fmt_3,
+          (SELECT MAX(t1.create_date_fmt)
+          FROM zj_wfl_approve_history_v t1
+         WHERE t1.instance_id = c.wfl_instance_id
+               AND t1.node_sequence_num = '40'
+               and t1.action_type=1
+        ) create_date_fmt_4,
+       a.tenant_name,
+       a.employee_id_des,
+       a.lease_term,
+       (SELECT des.description_text
+          FROM fnd_descriptions des,
+               hls_car_brands   brand
+         WHERE des.description_id = brand.description_id
+               AND brand.brand_id = a.brand_id
+               AND des.language = 'ZHS') brand_id_des,
+       a.series_id_des,
+       a.model_id_des,
+       a.unit_id_des,
+       nvl(a.down_payment,
+           0) + nvl(a.deposit,
+                    0) + nvl(a.lease_charge,
+                             0) total_amount,
+       a.lease_item_amount,
+       a.pmt,
+       decode(yonda_doc_history_pkg.yonda_get_status(c.project_id),
+              1,
+              '直接通过',
+              3,
+              '附条件通过',
+              4,
+              '取消',
+              5,
+              '审批中',
+              6,
+              '退回',
+              7,
+              '新建',
+              8,
+              '拒绝',
+              9,
+              '直接通过（合同取消）',
+              10,
+              '附条件（合同取消）') status_des,
+       to_char(c.first_trial_opinion) first_trial_opinion,
+       to_char(c.second_trial_opinion) second_trial_opinion,
+       to_char(c.risk_manager_opinion) risk_manager_opinion,
+       (SELECT bp.bp_name
+          FROM prj_project_bp bp
+         WHERE bp.project_id = c.project_id
+               AND bp.bp_category = 'GUARANTOR'
+               AND bp.bp_seq = '1') guar_name_1,
+       (SELECT bp.id_card_no
+          FROM prj_project_bp bp
+         WHERE bp.project_id = c.project_id
+               AND bp.bp_category = 'GUARANTOR'
+               AND bp.bp_seq = '1') id_card_no_1,
+       (SELECT bp.cell_phone
+          FROM prj_project_bp bp
+         WHERE bp.project_id = c.project_id
+               AND bp.bp_category = 'GUARANTOR'
+               AND bp.bp_seq = '1') cell_phone_1,
+       (SELECT bp.bp_name
+          FROM prj_project_bp bp
+         WHERE bp.project_id = c.project_id
+               AND bp.bp_category = 'GUARANTOR'
+               AND bp.bp_seq = '2') guar_name_2,
+       (SELECT bp.id_card_no
+          FROM prj_project_bp bp
+         WHERE bp.project_id = c.project_id
+               AND bp.bp_category = 'GUARANTOR'
+               AND bp.bp_seq = '2') id_card_no_2,
+       (SELECT bp.cell_phone
+          FROM prj_project_bp bp
+         WHERE bp.project_id = c.project_id
+               AND bp.bp_category = 'GUARANTOR'
+               AND bp.bp_seq = '2') cell_phone_2
+  FROM con_contract_all_v a,
+       con_contract       b,
+       prj_project        c
+ WHERE a.contract_id = b.contract_id
+       AND b.project_id = c.project_id
+       AND b.data_class = 'NORMAL'
+       and b.contract_status<>'CANCEL'
+) t1 #WHERE_CLAUSE#
+       order by t1.project_number desc
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="first_submit_date_from" queryExpression="to_date(t1.first_submit_date,&apos;yyyy-mm-dd hh24:mi:ss&apos;) &gt;= trunc(to_date(${@first_submit_date_from},&apos;yyyy-mm-dd&apos;))"/>
+        <bm:query-field name="first_submit_date_to" queryExpression="trunc(to_date(t1.first_submit_date,&apos;yyyy-mm-dd hh24:mi:ss&apos;)) &lt;=to_date(${@first_submit_date_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="submit_date_from" queryExpression="to_date(t1.submit_date,&apos;yyyy-mm-dd hh24:mi:ss&apos;) &gt;= trunc(to_date(${@submit_date_from},&apos;yyyy-mm-dd&apos;))"/>
+        <bm:query-field name="submit_date_to" queryExpression="trunc(to_date(t1.submit_date,&apos;yyyy-mm-dd hh24:mi:ss&apos;)) &lt;=to_date(${@submit_date_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="project_number" queryExpression="t1.project_number like ${@project_number}"/>
+        <bm:query-field name="contract_number" queryExpression="t1.contract_number like ${@contract_number}"/>
+        <bm:query-field name="tenant_name" queryExpression="t1.tenant_name like ${@tenant_name}"/>
+    </bm:query-fields>
+</bm:model>

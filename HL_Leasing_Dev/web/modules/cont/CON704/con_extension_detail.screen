@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2015-12-02 下午1:29:07  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="con_contract_extension_change_req_submit_link_id" model="cont.CON704.con_contract_extension_change_req_submit" modelaction="update"/>
+        <a:link id="con_contract_extension_change_req_cancel_link_id" model="cont.CON704.con_contract_extension_change_req_cancel" modelaction="update"/>
+        <a:link id="con_contract_change_req_extension_calc_link_id" model="cont.CON704.con_contract_change_req_extension_calc" modelaction="update"/>
+        <a:link id="hls_fin_calculator_readonly_link_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calculator_readonly.screen"/>
+        <script><![CDATA[
+            function get_warning_message(msg) {
+                var warning_message, duration;
+                if (msg) {
+                    warning_message = msg;
+                    warning_message = '<font color="red">' + warning_message + '</font>';
+                    duration = 8000;
+                } else {
+                    warning_message = '${l:HLS.SUBMIT_SUCCESS}';
+                    duration = 2000;
+                }
+                parent.Aurora.SideBar.enable = true;
+                parent.Aurora.SideBar.show({
+                    html: '<div style="background-color:#ccfbd5;position:absolute;padding-top:5px;padding-bottom:5px;padding-left:20px;padding-right:20px;border:0px solid #009900"><b>' + warning_message + '</b></div>',
+                    duration: duration
+                });
+            }
+            
+            function con704_extension_calc() {
+                var req_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_change_req');
+                var contract_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract');
+                var req_record = $(req_ds_id).getCurrentRecord(),
+                    contract_record = $(contract_ds_id).getCurrentRecord();
+                var calc_session_id = req_record.get('ccr_calc_session_id');
+                var document_category = req_record.get('document_category');
+                if ($(req_ds_id).validate() && $(contract_ds_id).validate()) {
+                    if (req_record.dirty || contract_record.dirty) {
+                        Aurora.showMessage('${l:HLS.PROMPT}', '${l:HLS.EXECUTE_AFTER_SAVE}');
+                        return;
+                    }
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                    Aurora.request({
+                        url: $('con_contract_change_req_extension_calc_link_id').getUrl(),
+                        para: {
+                            change_req_id: ${/parameter/@change_req_id},
+                            calc_session_id: calc_session_id
+                        },
+                        success: function(res) {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                            if (!calc_session_id) {
+                                req_record.set('ccr_calc_session_id', res.result.calc_session_id);
+                            }
+                            get_warning_message(res.result.warning_message);
+                            $(contract_ds_id).query();
+                        },
+                        failure: function() {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        error: function() {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        scope: this
+                    });
+                }
+            }
+            
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+            var change_req_load_flag = 'N',
+                con_contract_load_flag = 'N';
+            
+            //新增和加载时调用(form)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_form_add_and_load'] = function(ds, record, config_records, bp_seq) {
+                if (ds.id.match(/con_contract_ds$/)) {
+                    con_contract_load_flag = 'Y';
+                }
+                if (ds.id.match(/con_contract_change_req_ds$/)) {
+                    if (!record.get('change_req_number')) {
+                        record.dirty = true;
+                    }
+                    change_req_load_flag = 'Y';
+                }
+                if (change_req_load_flag == 'Y' && con_contract_load_flag == 'Y') {
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                }
+            };
+            
+            
+            window['${/parameter/@layout_code}_quote_layout_dynamic_click'] = function() {
+                Aurora.SideBar.enable = false;
+                window['${/parameter/@bp_seq}${/parameter/@layout_code}_SAVE_LAYOUT_DYNAMIC_CLICK'](con704_extension_calc);
+            };
+            
+            window['${/parameter/@layout_code}_submit_approval_layout_dynamic_click'] = function() {
+                var ajax_flag = 'N';
+                window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var confirm_win = Aurora.showConfirm('${HLS.PROMPT}', '${l:HLS.ARE_YOU_SURE_TO_SUBMIT}', function() {
+                    ajax_flag = 'Y';
+                    Aurora.request({
+                        url: $('con_contract_extension_change_req_submit_link_id').getUrl(),
+                        para: {
+                            change_req_id: '${/parameter/@change_req_id}'
+                        },
+                        success: function(res) {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                            parent.Aurora.SideBar.enable = true;
+                            parent.Aurora.SideBar.show({
+                                msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                duration: 2000
+                            });
+                            $('${/parameter/@winid}').close();
+                        },
+                        failure: function() {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        error: function() {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        scope: this
+                    });
+                }, function() {
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                });
+                confirm_win.on('close', function() {
+                    if (ajax_flag == 'N') {
+                        window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    }
+                });
+            };
+            
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                var ajax_flag = 'N';
+                window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var confirm_win = Aurora.showConfirm('${HLS.PROMPT}', '是否确认取消？', function() {
+                    ajax_flag = 'Y';
+                    Aurora.request({
+                        url: $('con_contract_extension_change_req_cancel_link_id').getUrl(),
+                        para: {
+                            change_req_id: '${/parameter/@change_req_id}'
+                        },
+                        success: function(res) {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                            parent.Aurora.SideBar.enable = true;
+                            parent.Aurora.SideBar.show({
+                                msg: '取消成功',
+                                duration: 2000
+                            });
+                            $('${/parameter/@winid}').close();
+                        },
+                        failure: function() {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        error: function() {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        scope: this
+                    });
+                }, function() {
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                });
+                confirm_win.on('close', function() {
+                    if (ajax_flag == 'N') {
+                        window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    }
+                });
+            };
+            
+            
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                var req_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_change_req');
+                var req_record = $(req_ds_id).getCurrentRecord();
+                var calc_session_id = req_record.get('ccr_calc_session_id');
+                var calc_type = 'CLASSIC_CALCULATOR';
+                var document_category = req_record.get('document_category');
+                if (calc_session_id) {
+                    var quo_win = new Aurora.Window({
+                        id: '${/parameter/@layout_code}_hls_fin_calc_quotation_link_winid',
+                        params: {
+                            document_id: ${/parameter/@change_req_id},
+                            document_category: document_category,
+                            maintain_type: 'READONLY',
+                            calc_session_id: calc_session_id,
+                            winId: '${/parameter/@layout_code}_hls_fin_calc_quotation_link_winid',
+                            calc_type: calc_type,
+                            global_flag: 'Y'
+                        },
+                        url: $('hls_fin_calculator_readonly_link_id').getUrl(),
+                        fullScreen: true,
+                        draggable: true
+                    });
+                } else {
+                    Aurora.showMessage('${l:PROMPT}', '请先保存！');
+                }
+            
+            };
+            
+            
+            
+            //更新时调用
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+                if (ds.id.match(/con_contract_ds$/) && (name == 'ccr_start_times' || name == 'ccr_outstanding_times' || name == 'ccr_financing_overdue_rental')) {
+                    var req_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_change_req');
+                    var req_record = $(req_ds_id).getCurrentRecord();
+                    if (req_record) {
+                        req_record.set('is_calc_flag', 'N');
+                    }
+                }
+            };
+        ]]></script>
+    </a:view>
+</a:screen>

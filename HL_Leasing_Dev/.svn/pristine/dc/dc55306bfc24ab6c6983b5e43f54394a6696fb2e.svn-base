@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Yenick  
+    $Date: 2018-12-22 上午11:10:19  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="acr512_currency_list"/>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootPath="sys_time_default_value_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="csh_payment_req_link" url="${/request/@context_path}/modules/csh/CSH501/csh_payment_req_create.screen"/>
+        <a:link id="csh_df_payment_req_id_link" url="${/request/@context_path}/modules/csh/CSH760/csh_df_payment_req.svc"/>
+        <a:link id="csh501_prepayment_link" url="${/request/@context_path}/modules/csh/CSH504/csh_prepayment_update.screen"/>
+        <a:link id="csh501_csh_payment_req_link_id" url="${/request/@context_path}/modules/csh/CSH501/csh_payment_req.screen"/>
+        <a:link id="csh760_df_csh_payment_req_link_id" url="${/request/@context_path}/modules/csh/CSH760/csh_df_payment_req_selected_detail.screen"/>
+        <a:link id="csh501_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="con_contract_modify_link" url="${/request/@context_path}/modules/cont/CON505/con_contract_modify.screen"/>
+        <a:link id="car_modify_special_link" url="${/request/@context_path}/modules/prj/PRJ500N/prj_project_create_special.screen"/>
+        <a:link id="csh_payment_req_cashflow_id_link" url="${/request/@context_path}/modules/csh/CSH501/csh_payment_req_cashflow_id.svc"/>
+        <script><![CDATA[
+        var project_application='';
+            function open_contract_win(ds_id, record_id) {
+                var record = $(ds_id).findById(record_id);
+                var param = record.data;
+                param['function_code'] = 'CON501_DFF';
+                /* param['function_usage'] = 'QUERY'; */
+                param['maintain_type'] = 'UPDATE';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                hls_doc_get_layout_code('csh501_get_layout_code_link_id', param, 'con_contract_modify_link', null);
+            }
+            
+            function open_project_Window(record_id, ds_id) {
+                var record = $(ds_id).findById(record_id);
+                var param = {};
+                param['company_id'] = record.get('company_id');
+                param['project_id'] = record.get('project_id');
+                param['function_code'] = 'PRJ501_DFF';
+                param['function_usage'] = 'QUERY';
+                param['bp_class'] = record.get('bp_class');
+                param['maintain_type'] = 'QUERY';
+               /*  param['window_open_flag'] = 'Y';
+                param['show_history_flag'] = 'Y'; */
+                param['url_title'] = '${l:HLS.PROJECT_MAITAIN}';
+                hls_doc_get_layout_code('csh501_get_layout_code_link_id', param, 'car_modify_special_link', ds_id, '${/parameter/@layout_code}');
+            }
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                if (name == 'contract_number' && value) {
+                    return '<a href="javascript:open_contract_win(\'' + record.ds.id + '\',\'' + record.id + '\')">' + value + '</a>';
+                }
+                if (name == 'project_number' && value) {
+                    return '<a href="javascript:open_project_Window(\'' + record.id + '\',\'' + record.ds.id + '\')">' + value + '</a>';
+                }
+                return value;
+            };
+            window['${/parameter/@layout_code}_on_layout_dynamic_grid_query'] = function(ds, qpara, bp_seq) {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract');
+            
+                if (ds == $(ds_id)) {
+                    aut_authority_list_validate_query(ds, qpara);
+            
+                }
+            };
+            
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+            	//debugger;
+            	var result_ds = $('DF_CSH501_PAYMENT_REQ_DF_DETAIL_con_contract_df_car_info_ds');
+                var record = result_ds.getSelected();
+                var cashflow_id_list = [];
+                   var param = {};
+                if(record.length==0){
+                    Aurora.showMessage('${l:PROMPT_MESSAGE}', '未选中行', null, 250, 100);
+                }else{
+                      for (i = 0;i <record.length;i++) {
+                       project_application=record[0].get('project_id');   
+                       if(record[i].get('project_id')!=project_application){
+                           Aurora.showMessage('${l:PROMPT_MESSAGE}', '同一库融申请下的车辆合同才能批量付款', null, 250, 100);
+                        return;
+                       }if(record[i].get('fee')<=0){
+                           Aurora.showMessage('${l:PROMPT_MESSAGE}', '所选记录存在没有首付款的合同，请确认后发起付款！', null, 250, 100);
+                        return; 
+                       }
+                        var arr = {};
+                        cashflow_id = record[i].get('cashflow_id');
+                        arr['_status'] = 'insert';
+                        arr['cashflow_id'] = cashflow_id;
+                        arr['contract_id'] = record[i].get('contract_id');
+                        arr['project_id'] = record[i].get('project_id');
+                        arr['session_id'] = ${/session/@session_id};
+                        cashflow_id_list.push(arr);
+                      }
+                      param['details'] = cashflow_id_list;
+                    Aurora.Masker.mask(Ext.getBody(), '正在加载...');
+                    Aurora.request({
+                        url: $('csh_payment_req_cashflow_id_link').getUrl(),
+                        para: param,
+                        success: function(res) {
+                            var query_record = result_ds.getCurrentRecord();
+                            if (res.result.v_id != '') {
+                                Aurora.Masker.unmask(Ext.getBody());
+                                var param = {};
+                                param['function_code'] = 'CSH760D';
+                                param['layout_code']='CONTRACT_QUERY_DFF';
+                                param['function_usage'] = 'UPDATE';
+                                param['document_category'] = 'PAYMENT_REQ';
+                                param['business_type'] = 'PAYMENT';
+                                param['button_flag'] = 'Y';
+                                 param['car_info_hd_id'] =res.result.v_id;
+                                  param['project_number'] =query_record.get('project_number');
+                                param['winid'] = 'csh760_df_csh_payment_req_link_winid';
+                                param['url_title'] = '保理付款申请';
+                                hls_doc_get_layout_code('csh501_get_layout_code_link_id', param, 'csh760_df_csh_payment_req_link_id','DF_CSH501_PAYMENT_REQ_DF_DETAIL_con_contract_df_car_info_ds');
+                            }
+                        },
+                        failure: function() {
+                            Aurora.showWarningMessage('', '${l:PRJ509.DATA_NOT_BACK}', null, 200, 100);
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                }
+            };
+              //更新时调用
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+            if (name == 'contract_number_from') {
+                    if (record.get('contract_number_to') == 'undefined' || record.get('contract_number_to') == null || record.get('contract_number_to') == '') {
+                        record.set('contract_number_to', value);
+                    }
+                } else if (name == 'contract_number_to') {
+                    if (record.get('contract_number_from') == 'undefined' || record.get('contract_number_from') == null || record.get('contract_number_from') == '') {
+                        record.set('contract_number_from', value);
+                    }
+                }else if (name == 'finance_amount') {
+                    if (record.get('finance_amount_to') == 'undefined' || record.get('finance_amount_to') == null || record.get('finance_amount_to') == '') {
+                        record.set('finance_amount_to', value);
+                    }
+                } else if (name == 'finance_amount_to') {
+                    if (record.get('finance_amount') == 'undefined' || record.get('finance_amount') == null || record.get('finance_amount') == '') {
+                        record.set('finance_amount', value);
+                    }
+                } 
+               };
+
+            //导出按钮
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                //debugger;
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_df_car_info');
+                var grid_id = ds_id.replace('ds', 'layout_grid_id');
+                $(grid_id)._export();
+            };
+
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

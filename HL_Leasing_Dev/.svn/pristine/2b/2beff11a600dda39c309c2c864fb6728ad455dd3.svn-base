@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ZLF  
+    $Date: 2015-2-6 上午2:09:11  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            SELECT
+                    count(*) rs_num
+                FROM
+                    (SELECT
+                    	rownum rk,
+                        h.INVOICE_BP_NAME,   --付款单位
+                        h.contract_number,   --合同编号
+                        h.invoice_hd_id ,    --发票头id
+                        'YD'||to_char((to_number(to_char(sysdate,'yyyymm')*1000)+rownum+to_number( sys_parameter_pkg.value('PRINT_TIMES')))) receipt_number,--收据编号
+                        ct.Payment_Method_Id,--收款方式，存在csh_transaction表
+                        (NVL(
+                        (SELECT
+                            M.description
+                        FROM
+                            CSH_PAYMENT_METHOD M
+                        WHERE
+                            M.PAYMENT_METHOD_ID=ct.payment_method_id
+                        ),'转账')) payment_method_des,
+                        decode(l.cf_item,51,'保证金','租赁费') product_name,                             --款项性质，存在invoice_ln表
+                        to_char(l.price,'999,999,999,999.99') price ,  --收款金额
+                        change_number_to_rmb(l.price) rmb_price --收款金额大写
+                    FROM
+                        csh_transaction ct,
+                        csh_write_off cw,
+                        acr_invoice_hd_v h,
+                        acr_invoice_ln l
+                    WHERE
+                        ct.transaction_id (+)    = cw.csh_transaction_id AND
+                        cw.cashflow_id(+)        = l.cashflow_id AND
+                        l.invoice_hd_id          = h.INVOICE_HD_ID AND
+                        h.INVOICE_STATUS         = 'CONFIRM' AND
+                        h.invoice_hd_id in (${:@invoice_hd_id}) AND
+                        NVL(cw.reversed_flag,'N')= 'N'
+                    ) t1
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

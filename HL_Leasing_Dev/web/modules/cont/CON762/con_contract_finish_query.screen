@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei 
+    $Date: 2014-11-17 下午3:46:48  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" dynamiccreateenabled="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.document_category=&apos;CONTRACT&apos;" fetchAll="true" model="basic.hls_document_type_for_lov" rootPath="con762_document_type_path"/>
+        <a:model-query fetchAll="true" model="cont.CON301.con_contract_business_type_list" rootPath="con762_business_type_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_modify_link" url="${/request/@context_path}/modules/cont/CON505/con_contract_modify.screen"/>
+        <a:link id="update_transfer_flag_link" model="cont.CON762.update_transfer_flag" modelaction="update"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="ownership_change_link_id" url="${/request/@context_path}/modules/cont/CON762/con_contract_ownership_change.screen"/>
+        <script><![CDATA[
+            function con762_query() {
+                $('con_contract_teminate_result_ds').query();
+            }
+            
+            function con762_ownership_change() {
+                if ($('con_contract_teminate_result_ds').getAll().length < 1) {
+                    Aurora.showMessage('提示', '请选择行');
+                    return;
+                } else {
+                    var contract_id = $('con_contract_teminate_result_ds').getCurrentRecord().get('contract_id');
+                    var cdd_list_id = $('con_contract_teminate_result_ds').getCurrentRecord().get('cdd_list_id');
+                    var url = $('ownership_change_link_id').getUrl();
+                    var win = new Aurora.Window({
+                        id: 'con_contract_change_owner_window',
+                        url: url,
+                        params: {
+                            contract_id: contract_id,
+                            cdd_list_id:cdd_list_id,
+                            winId: 'con_contract_change_owner_window'
+                        },
+                        fullScreen: true
+                    });
+                    win.on('close', function() {
+                        con762_query();
+                    });
+                }
+            }
+            
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                debugger;
+            	var result_ds = $('CON_TRANSFER_RESULT_con_contract_ds');
+                var record = result_ds.getCurrentRecord();
+                var contract_id = record.get('contract_id');
+                Aurora.showConfirm('提示', '是否确认将<font color="RED">所有权转移</font>?', function() {
+                var detail_mask;
+                detail_mask = Ext.getBody();
+                Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+				Aurora.request({
+                    url: $('update_transfer_flag_link').getUrl(),
+                    para: {
+                        contract_id:contract_id
+                    },
+                    success: function() {
+                        $('CON_TRANSFER_RESULT_con_contract_ds').query();
+                        Aurora.Masker.unmask(detail_mask);
+                        Aurora.SideBar.show({
+                            msg: '操作成功',
+                            duration: 2000
+                        });
+                    },
+                    failure: function() {
+            			Aurora.Masker.unmask(detail_mask);
+                       },
+                    error: function() {
+            			Aurora.Masker.unmask(detail_mask);
+                       },
+                    scope: this
+                });
+                });
+            };
+            
+            function winOpen_con_query(record_id,name) {
+                var record = $('CON_TRANSFER_RESULT_con_contract_ds').findById(record_id);
+                var param = record.data;
+                param['function_code'] = 'CON301';
+                param['function_usage'] = 'QUERY';
+                param['maintain_type'] = 'UPDATE';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_modify_link', 'CON542_contract_result_ds');
+            }
+            
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                var link_function = '';
+                window['${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                if (name == 'contract_number') {
+                    link_function = 'winOpen_con_query';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + value + '</a>';
+                } 
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

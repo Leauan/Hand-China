@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhuxianfei
+    $Date: 2017年11月28日 上午10:11:01  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="bp_agent_modify_link" url="${/request/@context_path}/modules/hls/HLS303/bp_agent_create.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="first_add_agent_link_id" model="db.hls_bp_master_pkg.first_add_agent" modelaction="execute"/>
+        <script><![CDATA[
+            function bp_agent_query() {
+                $('bp_agent_grid_result_ds').query();
+            
+            }
+            
+            function bp_agent_reset() {
+                $('bp_agent_query_ds').reset();
+            
+            }
+            
+            
+            function bp_agent_grid_update(record_id) {
+                var record = $('bp_agent_grid_result_ds').findById(record_id);
+                var agent_instance_status = record.get('agent_instance_status');
+                var param = record.data;
+                if (agent_instance_status == 'APPROVING' || agent_instance_status == 'REJECT' || agent_instance_status == 'APPROVED') {
+                    param['document_id'] = record.get('bp_id');
+                    param['function_code'] = 'HLS303D';
+                    param['function_usage'] = 'QUERY';
+                    param['maintain_type'] = 'READONLY';
+                    param['cdd_list_id'] = record.get('bp_id');
+                    param['agent_instance_status'] = agent_instance_status;
+                    param['dsid'] = 'bp_agent_grid_result_ds';
+                    param['url_title'] = '经销商准入';
+                    hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'bp_agent_modify_link', 'bp_agent_grid_result_ds');
+                } else {
+            
+                    param['document_id'] = record.get('bp_id');
+                    param['function_code'] = 'HLS303';
+                    param['function_usage'] = 'MODIFY';
+                    param['maintain_type'] = 'MODIFY';
+                    param['cdd_list_id'] = record.get('bp_id');
+                    param['agent_instance_status'] = agent_instance_status;
+                    param['dsid'] = 'bp_agent_grid_result_ds';
+                    param['url_title'] = '经销商准入';
+                    Aurora.request({
+                        url: $('first_add_agent_link_id').getUrl(),
+                        para: {
+                            bp_id: record.get('bp_id')
+                        },
+                        success: function(res) {
+                            hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'bp_agent_modify_link', 'bp_agent_grid_result_ds');
+            
+                        },
+                        error: function() {},
+                        failure: function() {},
+                        sync: true,
+                        scope: this
+                    });
+                }
+            }
+            
+            function bp_agent_render(value, record, name) {
+                return '<a href="javascript:bp_agent_grid_update(' + record.id + ')">' + value + '</a>';
+            }
+            
+            
+            function bp_agent_add() {
+                var param = {};
+                param['function_code'] = 'HLS303';
+                param['function_usage'] = 'MODIFY';
+                param['maintain_type'] = 'MODIFY';
+                //param['dsid'] = 'bp_agent_grid_result_ds';
+                param['url_title'] = '经销商准入';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'bp_agent_modify_link');
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:dataSets>
+            <a:dataSet id="hls303_bp_agent_ds" lookupCode="BP_CATEGORY"/>
+            <a:dataSet id="hls303_instance_status_ds" lookupCode="HLS303_WFL_STATUS"/>
+            <a:dataSet id="hls303_agent_type_ds" lookupCode="HLS_AGENT_TYPE"/>
+            <a:dataSet id="bp_agent_query_ds" model="hls.HLS303.hls_bp_master_asgent_modify">
+                <a:fields>
+                    <a:field name="bp_code" lovHeight="500" lovService="hls.HLS303.hls_bp_master_lov" lovWidth="700" title="经销商选择">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_category_n" displayField="code_value_name" options="hls303_bp_agent_ds" returnField="code_value" valueField="code_value"/>
+                    <a:field name="agent_type_n" displayField="code_value_name" options="hls303_agent_type_ds" returnField="code_value" valueField="code_value"/>
+                    <a:field name="agent_instance_status_n" displayField="code_value_name" options="hls303_instance_status_ds" returnField="code_value" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="bp_agent_grid_result_ds" autoPageSize="true" autoQuery="true" model="hls.HLS303.hls_bp_master_asgent_modify" queryDataSet="bp_agent_query_ds" selectable="true" selectionModel="single"><![CDATA[
+               
+            ]]></a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="bp_agent_query" text="HLS.QUERY"/>
+                <a:gridButton click="bp_agent_reset" text="HLS.RESET"/>
+                <a:gridButton click="bp_agent_add" text="HLS.NEW"/>
+            </a:screenTopToolbar>
+            <a:form Width="1030" column="4" labelWidth="130" marginWidth="40" title="HAP_QUERY_TITLE">
+                <a:lov name="bp_code" bindTarget="bp_agent_query_ds" prompt="经销商编码"/>
+                <a:textField name="bp_name" bindTarget="bp_agent_query_ds" prompt="经销商名称"/>
+                <!-- <a:comboBox name="bp_category_n" bindTarget="bp_agent_query_ds" prompt="商业伙伴类型"/> -->
+                <a:comboBox name="agent_type_n" bindTarget="bp_agent_query_ds" prompt="经销商类型"/>
+                <a:comboBox name="agent_instance_status_n" bindTarget="bp_agent_query_ds" prompt="工作流状态"/>
+            </a:form>
+            <a:grid id="bp_agent_grid" bindTarget="bp_agent_grid_result_ds" marginHeight="240" marginWidth="40" navBar="true">
+                <a:columns>
+                    <a:column name="bp_code" align="center" lock="true" prompt="经销商编码" renderer="bp_agent_render" width="120"/>
+                    <a:column name="bp_name" lock="true" prompt="经销商名称" width="250"/>
+                    <a:column name="bp_class_n" align="center" prompt="商业伙伴类型" width="120"/>
+                    <a:column name="bp_category_n" align="center" prompt="商业伙伴类别" width="150"/>
+                    <a:column name="agent_type_n" align="center" prompt="经销商类型" width="150"/>
+                    <a:column name="extra_nam" align="center" prompt="经销商简称" width="150"/>
+                    <a:column name="agent_instance_status_n" align="center" prompt="工作流状态" width="150"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

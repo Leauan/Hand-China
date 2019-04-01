@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei 
+    $Date: 2013-6-24 下午03:23:39  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="prj.PRJ500.hls_doc_layout_tree_query" rootPath="prj_layout_tree_path"/>
+        <a:model-query defaultWhereClause="t1.enabled_flag=&apos;Y&apos; and t1.parent_tree_code is null" fetchAll="true" model="hls.HLS030.hls_doc_layout_tree" rootPath="prj_layout_tree_accordion_path"/>
+        <a:model-query defaultWhereClause="t1.parent_table is null and t1.tab_type!=&apos;TAB&apos; and t1.enabled_flag=&apos;Y&apos; and t1.base_table=&apos;PRJ_PROJECT&apos; and rownum=1" fetchAll="true" model="prj.PRJ500.prj_hls_doc_layout_tab_query" rootPath="prj_base_table_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="create_their_statement_link_id" url="${/request/@context_path}/modules/hls/HLS030N/hls_doc_layout_create_statement_preview.screen"/>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <script><![CDATA[
+            var tree_code_list = [],
+                currentStep = 0,
+                isLoaded = true,
+                contentWindow = document.getElementById('mainFrame2_id').contentWindow,
+                tree_loading_flag = false,
+                first_loading_flag = true;
+            
+           
+            function lock_tree_window() {
+                Aurora.Masker.mask($('${/parameter/@winid}').wrap, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_tree_window() {
+                Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+            }
+            var ajax_flag = 'N';
+            
+          
+           
+            
+            function bind(para) {
+                var params = para.split('?');
+                var data = [];
+                data[0] = params[0];
+                for (var i = 1;i < params.length;i++) {
+                    data.push(arguments[i] || '?');
+                    data.push(params[i]);
+                }
+                return data.join('');
+            }
+            
+            function linkrenderer(text, record, node) {
+                return bind("<span style='cursor:pointer'>?</span>", text);
+            }
+            
+            function on_tree_click(tree, record) {
+                if (first_loading_flag) {
+                    tree_loading_flag = false;
+                }
+                if (tree_loading_flag) {
+                    Aurora.showMessage('${HLS.PROMPT}', '${l:PRJ501.TREE_CODE_LOADING}');
+                    return false;
+                }
+                tree_loading_flag = true;
+                var code = record.get('tree_code');
+                if (isLoaded) {
+                    jump2(code);
+                }
+            }
+            
+            function jump2(id, parentId) {
+                mainIFrame2.open_tree_code_child(id, parentId);
+            }
+            
+            function jump(id, acc, index) {
+                if (mainIFrame2.open_tree_code) {
+                    mainIFrame2.open_tree_code(id, acc, index);
+                } else {
+                    Ext.get('mainFrame2_id').on('load', function() {
+                        if (mainIFrame2) {
+                            mainIFrame2.open_tree_code(id, acc, index);
+                            page_init = true;
+                        }
+                    });
+                }
+            }
+            
+            function on_accordion_beforeselect(acc, index) {
+                var code = acc.bodys.item(index).child('div[_data]').getAttribute('_data');
+                if (isLoaded) {
+                    if (mainIFrame2.page && mainIFrame2.page[code] && mainIFrame2.page[code].isLoaded) {
+                        jump(code);
+                    } else {
+                        isLoaded = false;
+                        jump(code, acc, index);
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
+            
+           
+            
+         
+            
+            function open_render_window(id, params, url, url_title) {
+                new Aurora.Window({
+                    id: id,
+                    params: params,
+                    url: url,
+                    title: url_title,
+                    fullScreen: true,
+                    draggable: true
+                });
+            }
+            
+            function layoutScreen_preview_quit(){
+                $('${/parameter/@winid}').close();
+            }
+        ]]></script>
+        <style><![CDATA[
+	        	#tree_accordion_id .item-accordion-body{
+	        		overflow:hidden;
+	        	}
+	    ]]></style>
+        <a:dataSets>
+            <a:placeHolder id="dynamicTreeDs_id"/>
+            <a:dataSet id="prj_layout_tree_id">
+                <a:datas dataSource="/model/prj_layout_tree_path"/>
+            </a:dataSet>
+            <a:dataSet id="prj_document_update_entrance_ds" autoCreate="true"/>
+            <a:dataSet id="prj_layout_tree_statement_id">
+                <a:datas dataSource="/model/prj_layout_tree_statement_path"/>
+            </a:dataSet>
+            <a:dataSet id="label_temp_ds" autoCreate="true"/>
+        </a:dataSets>
+        <a:screenTopToolbar>
+            <a:screenTitle/>
+            <a:gridButton click="layoutScreen_preview_quit" text="关闭"/>
+            <a:placeHolder id="prj_dynamicButton_id"/>
+        </a:screenTopToolbar>
+        <TABLE align="center" cellpadding="0" cellspacing="0" width="100%">
+            <TR>
+                <TD style="vertical-align:top" width="200">
+                    <a:accordionPanel id="tree_accordion_id" showIcon="false" width="200">
+                        <a:accordions>
+                            <a:placeHolder id="dynamicAccordion_id"/>
+                        </a:accordions>
+                        <a:events>
+                            <a:event name="beforeselect" handler="on_accordion_beforeselect"/>
+                        </a:events>
+                    </a:accordionPanel>
+                </TD>
+                <TD style="vertical-align:top">
+                    <iframe name="mainIFrame2" id="mainFrame2_id" frameborder="0" height="100%" scrolling="no" style="border:none;padding:0px;margin:0px;" width="100%"/>
+                    <script><![CDATA[
+                        var vw, vh;
+                        
+                        function initSize() {
+                            var topBarHeight = 71;
+                            var treeWidth = 210;
+                            var screenWidth = Aurora.getViewportWidth();
+                            var screenHeight = Aurora.getViewportHeight();
+                            var bottomHeight = screenHeight - topBarHeight;
+                            var bottomWidth = screenWidth - treeWidth;
+                            Ext.get('mainFrame2_id').setHeight(bottomHeight);
+                            Ext.get('mainFrame2_id').setWidth(bottomWidth);
+                            if (Ext.isIE || Ext.isIE9) {
+                                vh = bottomHeight;
+                                vw = bottomWidth - 10;
+                            } else {
+                                vh = bottomHeight - 15;
+                                vw = bottomWidth - 25;
+                            }
+                        }
+                        initSize();
+                        $A.Masker.mask(Ext.get('mainFrame2_id'), '${l:HLS.LOADING}');
+                        
+                        $A.post($('create_their_statement_link_id').getUrl(), {
+                            'layout_code': '${/parameter/@layout_code}',
+                              'document_category':'${/parameter/@document_category}',
+                            '_vh': vh,
+                            '_vw': vw
+                        }, 'mainIFrame2');
+                    ]]></script>
+                </TD>
+                <TD width="25"/>
+            </TR>
+        </TABLE>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="dynamicTreeDs_id">
+            <p:loop source="/model/prj_layout_tree_accordion_path">
+                <p:switch test="@tree_code">
+                    <p:case value="*">
+                        <c:process-config>
+                            <a:dataSet id="${@layout_code}_${@tree_code}_tree_ds" autoQuery="true" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/prj.PRJ500.hls_doc_layout_accordion_tree/query?layout_code=${/parameter/@layout_code}&amp;parent_tree_code=${@tree_code}"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicAccordion_id">
+            <p:loop source="/model/prj_layout_tree_accordion_path">
+                <p:switch test="@tree_code">
+                    <p:case value="*">
+                        <c:process-config>
+                            <a:accordion prompt="${@tree_desc}" selected="${@expand_boolean_flag}">
+                                <script><![CDATA[
+                            		tree_code_list.push('${@tree_code}');
+                            	]]></script>
+                                <div _data="${@tree_code}" style="display:none"/>
+                                <a:tree bindTarget="${@layout_code}_${@tree_code}_tree_ds" displayField="tree_desc" expandField="expand_flag" idField="tree_code" parentField="parent_tree_code" renderer="linkrenderer" sequenceField="tree_seq" showCheckBox="false" style="margin:8px 0" width="200">
+                                    <a:events>
+                                        <a:event name="click" handler="on_tree_click"/>
+                                    </a:events>
+                                </a:tree>
+                            </a:accordion>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

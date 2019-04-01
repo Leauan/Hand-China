@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Hand.wts  
+    $Date: 2019-2-1 15:07:02  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="rpt.RPT5210.get_current_date" rootPath="default_date_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="month_avg_amount_report_link" url="${/request/@context_path}/modules/rpt/RPT5230/month_avg_amount_report.screen"/>
+        <a:link id="rpt5230_ins_link_id" model="rpt.RPT5230.rpt5230_report_query_ins" modelaction="update"/>
+        <script><![CDATA[
+            function query() {
+                Aurora.Masker.mask(Ext.getBody(), '${l:BEING_IMPLEMENTED}');
+                var record = $('date_query_ds').getCurrentRecord();
+                var year = record.get('year');
+                var reg = /^\d\d\d\d$/;
+                if (!year) {
+                    Aurora.Masker.unmask(Ext.getBody());
+                    Aurora.showMessage('提示', '年份不能为空！');
+                    return '';
+                }
+                if (!reg.test(year)) {
+                    Aurora.Masker.unmask(Ext.getBody());
+                    Aurora.showMessage('提示', '时间格式应为【yyyy】,举例【2019】');
+                    return '';
+                }
+                if (year) {
+                    Aurora.request({
+                        url: $('rpt5230_ins_link_id').getUrl(),
+                        para: {
+                            year: year
+                        },
+                        success: function(res) {
+                            var win = new Aurora.Window({
+                                id: 'month_avg_amount_report_window',
+                                url: $('month_avg_amount_report_link').getUrl(),
+                                params: {
+                                    year: year,
+                                    winId: 'month_avg_amount_report_window'
+                                },
+                                title: '月末债权余额统计表',
+                                fullScreen: true
+                            });
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                } else {
+                    Aurora.showMessage('提示', '请输入年份！');
+                    return '';
+                }
+            }
+            
+            function reset() {
+                $('date_query_ds').reset();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="date_query_ds">
+                <a:fields>
+                    <a:field name="year" defaultValue="${/model/default_date_path/record/@year}" required="true"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="query" text="查询"/>
+                <a:gridButton click="reset" text="重置"/>
+            </a:screenTopToolbar>
+            <a:form column="2" title="查询条件">
+                <a:textField name="year" bindTarget="date_query_ds" prompt="年份"/>
+            </a:form>
+        </a:screenBody>
+    </a:view>
+</a:screen>

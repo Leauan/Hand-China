@@ -1,0 +1,350 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: xuls 
+    $Date: 2017-4-21 下午5:42:24  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:view>
+        <a:link id="wfl_readonly_pageLink_projectQueryScreen_update_project" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain_readonly.screen"/>
+        <a:link id="${/parameter/@layout_code}_con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="${/parameter/@layout_code}_con_contract_content_confirm_link_id" url="${/request/@context_path}/modules/cont/CON501N/con_contract_content_confirm.screen"/>
+        <a:link id="contract_lease_item_query_link" url="${/request/@context_path}/modules/cont/CON505/con_lease_item_query.screen"/>
+        <a:link id="contract_history_window_link" url="${/request/@context_path}/modules/cont/CON501N/con_document_history_query.screen"/>
+        <a:link id="con505_hls_bp_master_query_link" url="${/request/@context_path}/modules/cont/CON505/hls_bp_master_query.screen"/>
+        <a:link id="${/parameter/@layout_code}_prj500_cdd_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="${/parameter/@layout_code}_prj500_cdd_downloadFile_id" url="${/request/@context_path}/uploadOnlyFile.screen"/>
+        <!--打印使用-->
+        <a:link id="${/parameter/@layout_code}_con505_contract_content_id" model="cont.CON505.con505_contract_content" modelaction="update"/>
+        <a:link id="${/parameter/@layout_code}_creat_con_contract_content_link_id" model="cont.CON505.con505_contract_content" modelaction="execute"/>
+        <a:link id="${/parameter/@layout_code}_file_copy_from_template_link_id" url="${/request/@context_path}/modules/cont/CON505/file_copy_from_template.svc"/>
+        <a:link id="${/parameter/@layout_code}_con_batch_dl_link_id" url="${/request/@context_path}/modules/cont/CON505/con_atm_batch_dl.svc"/>
+        <script><![CDATA[
+            function lock_current_window() {
+                Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_current_window() {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract');
+                var contract_id = $(ds_id).getCurrentRecord().get('contract_id');
+                new Aurora.Window({
+                    id: 'contract_history_window',
+                    url: $('contract_history_window_link').getUrl(),
+                    params: {
+                        contract_id: contract_id
+                    },
+                    fullScreen: true
+                });
+            };
+            
+            
+            // window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+            
+            // if (name == 'car_detail') {
+            // return '<a href="javascript:open_contract_window(\'' + record.id + '\',\'' + record.ds.id + '\')">' + config_record.get('prompt') + '</a>';
+            // }
+            // return value;
+            // };
+            
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record, bp_seq) {
+                var link_function = '';
+                window['${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                debugger;
+                if(name=='project_number'){
+                    return '<a href="javascript:wfl_prj501_grid_update(\'' + record.id + '\',\'' + record.ds.id + '\')">' + value + '</a>';
+                }else if (name == 'gps_attch'){
+                    link_function = '${/parameter/@layout_code}_ast_con_cdd4_attachtment_upload';
+                    if (record.get('atm_num3') > 0) {
+                        return '<a style="color:red" href="javascript:window[\'' + link_function + '\'](\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                    } else {
+                        return '<a style="font-weight:bolder;font-size:1.2em" href="javascript:window[\'' + link_function + '\'](\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                    }}
+                     else if (name == 'description') {
+                    debugger;
+                    if (record.get('important_flag') == 'Y') {
+                        return '<font color="RED">' + value + '</font>';
+                    }
+                    return value;
+                } else if (name == 'bp_link' && record.get('bp_id') && record.get('record_id')) {
+                    link_function = '${/parameter/@layout_code}_open_bp_detail_window';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+                } else if (name == 'car_detail' && record.get('contract_lease_item_id')) {
+                    link_function = '${/parameter/@layout_code}_open_lease_item_detail_window';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+                } else if (name == 'attachment') {
+                    link_function = '${/parameter/@layout_code}_prj500_cdd_attachtment_upload';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                } else if (name == 'attach_file_name') {
+                    if (value != null) {
+                        var link = '${/request/@context_path}/atm_download.svc?attachment_id=';
+                        var str = value.split(';;');
+                        var url = '';
+                        for (var i = 0;i < str.length;i++) {
+                            var temp = str[i].split('--');
+                            if (!Aurora.isEmpty(temp[0])) {
+            
+                                var file_suffix = temp[0].substr(temp[0].lastIndexOf('.') + 1).toUpperCase();
+                                if (file_suffix == 'BMP' || file_suffix == 'JPG' || file_suffix == 'JPEG' || file_suffix == 'PNG' || file_suffix == 'GIF') {
+                                    url = url + '<a ref="img" href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                                } else {
+                                    url = url + '<a href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                                }
+                            }
+                        }
+                        return url;
+                    }
+                }
+            };
+            
+            function wfl_prj501_grid_update(record_id,ds_id) {
+                var record = $(ds_id).findById(record_id);
+                var param = {};
+                param['bp_class'] = record.get('bp_class');
+                param['project_id'] = record.get('project_id');
+                param['function_code'] = 'PRJ502D';
+                param['function_usage'] = 'QUERY';
+                param['url_title'] = '租赁申请查询';
+                hls_doc_get_layout_code('${/parameter/@layout_code}_con_contract_get_layout_code_link_id', param, 'wfl_readonly_pageLink_projectQueryScreen_update_project',record.ds.id, '${/parameter/@layout_code}');
+            }
+            
+            
+            window['${/parameter/@layout_code}_ast_con_cdd4_attachtment_upload'] = function(ds_id, id, name, query_only) {
+                var record = $(ds_id).findById(id);
+                // if (record.get('con_contract_id')) {
+                    var url;
+                    if (query_only == 'Y') {
+                        url = $('${/parameter/@layout_code}_prj500_cdd_downloadFile_id').getUrl() + '?table_name=CON_CONTRACT&header_id=' + record.get('contract_id');
+                    } else {
+                        url = $('${/parameter/@layout_code}_prj500_cdd_uploadFile_id').getUrl() + '?table_name=CON_CONTRACT&header_id=' + record.get('contract_id');
+                    }
+                    var win = new Aurora.Window({
+                        url: url,
+                        title: 'gps附件上传',
+                        id: '${/parameter/@layout_code}${/parameter/@tree_code}_ast_con_cdd4_attachtment_upload_id',
+                        width: 850,
+                        height: 400
+                    });
+                    // win.on('close', function(){
+                    // $(ds_id).query();
+                    // });
+                // } else {
+                    // Aurora.showMessage('${l:HLS.PROMPT}', '请先保存!');
+                // }
+            };
+            
+            window['${/parameter/@layout_code}_open_lease_item_detail_window'] = function(id, name) {
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][id + '---' + name];
+                var param = record.data;
+                var contract_lease_item_id = record.get('contract_lease_item_id');
+                new Aurora.Window({
+                    id: 'contract_lease_item_maintain_window',
+                    url: $('contract_lease_item_query_link').getUrl(),
+                    params: {
+                        contract_lease_item_id: contract_lease_item_id,
+                        winid: 'contract_lease_item_maintain_window'
+                    },
+                    draggable: true,
+                    fullScreen: true
+                });
+            };
+            
+            window['${/parameter/@layout_code}_open_bp_detail_window'] = function(id, name) {
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][id + '---' + name];
+                var param = record.data;
+                param['function_code'] = 'CON505H';
+                param['function_usage'] = 'MODIFY';
+                param['url_title'] = '${l:HLS212.BP_MASTER_MAINTAIN}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con505_hls_bp_master_query_link', record.ds.id, '${/parameter/@layout_code}');
+            };
+            
+            
+            // function open_contract_window(record_id, ds_id) {
+            
+            // var record = $(ds_id).findById(record_id);
+            
+            // var param = record.data;
+            // var contract_lease_item_id = record.get('contract_lease_item_id');
+            // new Aurora.Window({
+            // id: 'contract_lease_item_maintain_window',
+            // url: $('contract_lease_item_maintain_link').getUrl(),
+            // params: {
+            // contract_lease_item_id: contract_lease_item_id
+            // },
+            // fullScreen: true
+            // });
+            // // param['function_code'] = 'CON501D';
+            // // param['function_usage'] = 'MODIFY';
+            // // param['maintain_type'] = 'UPDATE';
+            // // param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+            // // hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_modify_link',ds_id);
+            // }
+            
+            
+
+            
+            window['${/parameter/@layout_code}_prj500_cdd_attachtment_upload'] = function(ds_id, id, name, query_only) {
+                var record = $(ds_id).findById(id);
+                if (record.get('check_id')) {
+                    var url;
+                    if (query_only == 'Y') {
+                        url = $('${/parameter/@layout_code}_prj500_cdd_downloadFile_id').getUrl() + '?table_name=PRJ_CDD_ITEM_CHECK&header_id=' + record.get('check_id');
+                    } else {
+                        url = $('${/parameter/@layout_code}_prj500_cdd_uploadFile_id').getUrl() + '?table_name=PRJ_CDD_ITEM_CHECK&header_id=' + record.get('check_id');
+                    }
+                    var win = new Aurora.Window({
+                        url: url,
+                        title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                        id: '${/parameter/@layout_code}${/parameter/@tree_code}_prj500_cdd_uploadFile_screen_id',
+                        width: 850,
+                        height: 400
+                    });
+            
+                    win.on('close', function() {
+                        record.ds.query();
+                    });
+                } else {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先保存!');
+                }
+            };
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                //debugger;
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract');
+                var record = $(ds_id).getCurrentRecord();
+                debugger;
+                var content_id;
+                //alert($('${/parameter/@layout_code}_con505_contract_content_id').getUrl);
+                Aurora.request({
+                    url: $('${/parameter/@layout_code}_con505_contract_content_id').getUrl(),
+                    para: {
+                        content_id: content_id,
+                        contract_id: record.get('contract_id'),
+                        contract_bp_id: record.get('content_bp_pk'),
+                        clause_usage: 'GH_WITHHOLD_AGREE'
+                    },
+                    success: function(rsc) {
+                        //debugger;
+                        //alert(rsc.result.content_id);
+                        Aurora.request({
+                            url: $('${/parameter/@layout_code}_creat_con_contract_content_link_id').getUrl(),
+                            para: {
+                                content_id: rsc.result.content_id,
+                                file_path: '${/parameter/@file_path}'
+                            },
+                            success: function() {
+                                Aurora.request({
+                                    url: $('${/parameter/@layout_code}_file_copy_from_template_link_id').getUrl(),
+                                    para: {
+                                        contract_id: record.get('contract_id'),
+                                        content_id:rsc.result.content_id,
+                                        file_path: '${/parameter/@file_path}',
+                                        batch_flag: 'Y'
+                                    },
+                                    success: function() {
+                                        var url = $('${/parameter/@layout_code}_con_batch_dl_link_id').getUrl() + '?contract_id=' + record.get('contract_id') + '&content_id=' + rsc.result.content_id;
+                                        window.open(url, '_self');
+                                        unlock_current_window();
+                                    }
+                                });
+                                unlock_current_window();
+                            },
+                            error: function() {
+                                unlock_current_window();
+                            },
+                            failure: function() {
+                                unlock_current_window();
+                            },
+                            scope: this
+                        });
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            };
+            
+             window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract');
+               
+                var record = $(ds_id).getCurrentRecord();
+                var direct_debit_bank_id = record.get('direct_debit_bank_id');
+                var dd_bank_account_name = record.get('dd_bank_account_name');
+                var dd_bank_account_num = record.get('dd_bank_account_num');
+                if (!Ext.isEmpty(record.get('contract_number'))) {
+                    new Aurora.Window({
+                        id: '${/parameter/@layout_code}_con_contract_content_confirm_win_id',
+                        params: {
+                            contract_id: record.get('contract_id'),
+                            company_id: record.get('company_id'),
+                            document_category: record.get('document_category'),
+                            business_type: record.get('business_type'),
+                            winid: '${/parameter/@layout_code}_con_contract_content_confirm_win_id'
+            
+                        },
+                        url: $('${/parameter/@layout_code}_con_contract_content_confirm_link_id').getUrl(),
+                        title: '合同查看',
+                        width: 1300,
+                        height: 550
+                    });
+                } else {
+                    Aurora.showErrorMessage('错误', '请先点击保存生成合同编号！');
+                }
+            };
+             var change_flag = 'N';
+            //工作流中合同文本生成按钮
+            //基本信息tab页 新增必输字段的校验  add by liukang 20160328
+            window['${/parameter/@layout_code}_print_layout_dynamic_click'] = function() {
+                debugger;
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract');
+                var con_lease_item_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_lease_item');
+                var record = $(ds_id).getCurrentRecord();
+                var con_lease_record = $(con_lease_item_id).getCurrentRecord();
+                var direct_debit_bank_id = record.get('direct_debit_bank_id');
+                var dd_bank_account_name = record.get('dd_bank_account_name');
+                var dd_bank_account_num = record.get('dd_bank_account_num');
+                var color_of_apprearance = con_lease_record.get('color_of_apprearance');
+                var item_frame_number = con_lease_record.get('item_frame_number');
+                var item_engine_number = con_lease_record.get('item_engine_number');
+                var license_number = con_lease_record.get('license_number');
+                /* if (Ext.isEmpty(direct_debit_bank_id)) {
+                 Aurora.showMessage('${l:HLS.PROMPT}', '请先填写数据并保存!');
+                 } else */
+                if (!Ext.isEmpty(record.get('contract_number'))) {
+                    var win = new Aurora.Window({
+                        id: '${/parameter/@layout_code}_con_contract_content_confirm_win_id',
+                        params: {
+                            contract_id: record.get('contract_id'),
+                            company_id: record.get('company_id'),
+                            document_category: record.get('document_category'),
+                            business_type: record.get('business_type'),
+                            winid: '${/parameter/@layout_code}_con_contract_content_confirm_win_id',
+                            change_flag: change_flag,
+                            contract_name: record.get('contract_name'),
+                            contract_number: record.get('contract_number')
+                        },
+                        url: $('${/parameter/@layout_code}_con_contract_content_confirm_link_id').getUrl(),
+                        title: '合同文本生成',
+                        width: 1300,
+                        height: 550
+                    });
+                    //在关闭页面之后,刷新一下ds
+                    win.on('close', function() {
+                        if (ds_id) {
+                            $(ds_id).query();
+                        }
+                    });
+                } else {
+                    Aurora.showErrorMessage('错误', '请先点击保存生成合同编号！');
+                }
+            };
+        ]]></script>
+    </a:view>
+</a:screen>

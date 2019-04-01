@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query autoCount="true" defaultWhereClause="enabled_flag = &apos;Y&apos;" fetchall="true" model="gld.gld_currency" queryOrderBy="currency_code" rootpath="currency_list"/>
+        <a:model-query autoCount="false" fetchAll="true" model="hls_acr.hls_acr5010.hls_acr_ebank_output_for_init" rootPath="hls_acr_ebank_output_for_init_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="acr_ebank_excel_id" url="${/request/@context_path}/modules/hls_acr/HLS_ACR5010/acr_ebank_excel.svc"/>
+        <a:link id="pageLink_report_dl" url="${/request/@context_path}/modules/acr/ACR528/excel_report_dl.svc"/>
+        <a:link id="acr_invoice_interface_excel_sheets_id" url="${/request/@context_path}/modules/hls_acr/HLS_ACR5010/acr_invoice_interface_excel_sheets.svc"/>
+        <script><![CDATA[
+            var file_name;
+            var output_id;
+            
+            function amountValidator(record, name, value) {
+                if (typeof(value) != 'undefined' && !Ext.isEmpty(value)) {
+                    if (value <= 0) {
+                        return '该字段只能为正数';
+                    } else {
+                        return true;
+                    }
+                }
+                return true;
+            }
+            
+            function submit_fun() {
+                debugger;
+                if ($('hls_acr_ebank_output_ds').validate()) {
+                    var data = $('hls_acr_ebank_output_ds').getJsonData(false);
+                    Aurora.request({
+                        url: 'hls_acr_ebank_output_init.svc',
+                        para: data,
+                        success: function(args) {
+                            file_name = args.result.file_name;
+                            output_id = args.result.record.output_id;
+                            $('hls_acr_ebank_output_temp_ds').setQueryParameter('output_id', output_id);
+                            $('hls_acr_ebank_output_temp_ds').query();
+                        },
+                        scope: this
+                    });
+                }
+            }
+            
+            function numberRenderer(value, ds, name) {
+                return Aurora.formatNumber(value, 2);
+            }
+            
+            
+            function onUpdate(ds, record, name, value, oldvalue) {
+                $('hls_acr_ebank_output_temp_ds').removeAll();
+                file_name = null;
+            
+                if (name == 'customer_type') {
+                    record.set('customer_name_display', null);
+            
+                    var customer_type = record.get("customer_type");
+                    var customer_name_display = record.getMeta().getField('customer_name_display');
+            
+                    customer_name_display.setTitle('${l:CUSTOMER}');
+                    customer_name_display.setReadOnly(false);
+                    var url = 'hls_acr.hls_acr5010.hls_prj_customer_for_lov?customer_type=' + customer_type;
+                    customer_name_display.setLovService(url);
+                    var mapping = [{
+                        from: "bp_id",
+                        to: "customer_id"
+                    }, {
+                        from: "bp_name",
+                        to: "customer_name_display"
+                    }];
+                    customer_name_display.setMapping(mapping);
+                }
+				//add by 5390  当生成规则是合并时，不能选择期数
+				else if(name == 'generate_rules'){
+					var period_number = record.getMeta().getField('period_number');
+					if(value == 'N'){
+						record.set('period_number', null);
+						period_number.setReadOnly(true);
+						return;
+					}else{
+						period_number.setReadOnly(false);
+						return;
+					}
+				}
+            }
+            
+            function getNowFormatDate() {
+                var date = new Date();
+                var seperator1 = "-";
+                var seperator2 = ":";
+                var month = date.getMonth() + 1;
+                var strDate = date.getDate();
+                if (month >= 1 && month <= 9) {
+                    month = "0" + month;
+                }
+                if (strDate >= 0 && strDate <= 9) {
+                    strDate = "0" + strDate;
+                }
+                var currentdate = date.getFullYear() + seperator1 + month + seperator1 + strDate + " " + date.getHours() + seperator2 + date.getMinutes() + seperator2 + date.getSeconds();
+                return currentdate;
+            }
+            
+            function output_file() {
+			 var templet= 'C:/project/HL_Leasing/temp/农行导出模板.xls';
+                if (!file_name) {
+                    return;
+                }
+            
+                if (!output_id) {
+                    return;
+                }
+            
+                var records = $('hls_acr_ebank_output_temp_ds').getAll();
+            
+                if (records.length == 0) {
+                    return;
+                }
+            
+                //add by wdd 20180530 for HL
+                //导出时相同客户账号不能有多条校验
+                var same_dd_bank_account_num_n = '';
+                for (var x = 0;x < records.length;x++) {
+                    var dd_bank_account_num_x = records[x].get('dd_bank_account_num');
+                    if (dd_bank_account_num_x != '') {
+                        for (var y = records.length - 1;y > x;y--) {
+                            var dd_bank_account_num_y = records[y].get('dd_bank_account_num');
+                            if (dd_bank_account_num_x == dd_bank_account_num_y) {
+                                if (same_dd_bank_account_num_n.indexOf(dd_bank_account_num_x) == -1) {
+                                    if (!Ext.isEmpty(same_dd_bank_account_num_n)) {
+                                        same_dd_bank_account_num_n = same_dd_bank_account_num_n + ',' + dd_bank_account_num_x;
+                                    } else {
+                                        same_dd_bank_account_num_n = dd_bank_account_num_x;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!Ext.isEmpty(same_dd_bank_account_num_n)) {
+                    Aurora.showMessage('提示', '客户账号 ' + same_dd_bank_account_num_n + '存在多条，不可导出，请核实！');
+                    return;
+                } else {
+                    url = $('acr_invoice_interface_excel_sheets_id').getUrl() + '?output_id=' + output_id+ '&templet=' + encodeURI(templet);
+                    window.open(url);
+                }
+                //end
+            }
+            /*
+             function file_download(i,sql){
+             var separator = "|";
+             form = document.createElement("form");
+             form.target = "_blank";
+             form.method="post";
+             form.action = 'hls_acr_ebank_export_txt.svc';
+             s = document.createElement("input");
+             s.type = 'hidden';
+             s.name = 'fileName';
+             s.value = file_name;
+             form.appendChild(s);
+             s = document.createElement("input");
+             s.type = 'hidden';
+             s.name = 'separator';
+             s.value = separator;
+             form.appendChild(s);
+             s = document.createElement("input");
+             s.type = 'hidden';
+             s.name = 'sql';
+             s.value = sql;
+             form.appendChild(s);
+             document.body.appendChild(form);
+             form.submit();
+             form.parentNode.removeChild(form);
+             }
+             */
+            
+            function delete_fun() {
+                $('grid_id').remove();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="hls_acr_payment_method_ds" lookupCode="WITHHOLD_WAYS"/>
+            <a:dataSet id="hls_customer_type_ds" lookupCode="CUSTOMER_TYPE"/>
+            <a:dataSet id="hls_generate_rules_ds" lookupCode="HLS_ACR_EBANK_GENERATE_RULES"/>
+            <a:dataSet id="hls_currency_ds" loadData="true">
+                <a:datas dataSource="/model/currency_list"/>
+            </a:dataSet>
+            <a:dataSet id="hls_acr_ebank_output_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="session_id" defaultValue="${/session/@session_id}"/>
+                    <a:field name="deadline_date" required="true"/>
+                    <a:field name="deadline_date_to" required="true"/>
+                    <a:field name="currency_name" displayField="currency_name" options="hls_currency_ds" required="true" returnField="currency_code" valueField="currency_code"/>
+                    <a:field name="payment_method_display" displayField="code_value_name" options="hls_acr_payment_method_ds" required="true" returnField="payment_method" valueField="code_value"/>
+                    <!-- <a:field name="payment_method_display" defaultValue="ABC" displayField="code_value_name" readOnly="true"  options="hls_acr_payment_method_ds" required="true" returnField="payment_method" valueField="code_value"/> -->
+                    <!-- <a:field name="payment_method_display_n" defaultValue="农行代扣" displayField="code_value_name" readOnly="true" options="hls_acr_payment_method_ds" required="true" returnField="payment_method" valueField="code_value"/> -->
+                    <a:field name="customer_type_display" displayField="code_value_name" options="hls_customer_type_ds" required="true" returnField="customer_type" valueField="code_value"/>
+                    <a:field name="customer_name_display" lovGridHeight="300" lovHeight="450" lovWidth="550" readOnly="true"/>
+                    <a:field name="limit_amount" validator="amountValidator"/>
+                    <a:field name="generate_rules_display" displayField="code_value_name" options="hls_generate_rules_ds" required="true" returnField="generate_rules" valueField="code_value"/>
+                    <a:field name="contract_number"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate"/>
+                </a:events>
+            </a:dataSet>
+            <!--             queryUrl="${/request/@context_path}/autocrud/hls_acr.hls_acr5010.hls_acr_ebank_output_temp_for_maintain/query?output_id=output_id"
+ -->
+            <a:dataSet id="hls_acr_ebank_output_temp_ds" fetchAll="false" model="hls_acr.hls_acr5010.hls_acr_ebank_output_temp_for_maintain" pageSize="10" queryDataSet="hls_acr_ebank_output_ds" selectable="true"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form column="2" labelWidth="120" title="代扣指令生成" width="600">
+                <a:datePicker name="deadline_date" bindTarget="hls_acr_ebank_output_ds" prompt="截至日期从" renderer="Aurora.formatDate"/>
+                <a:datePicker name="deadline_date_to" bindTarget="hls_acr_ebank_output_ds" prompt="截至日期到" renderer="Aurora.formatDate"/>
+                <a:comboBox name="currency_name" bindTarget="hls_acr_ebank_output_ds" prompt="币种"/>
+                <a:comboBox name="customer_type_display" bindTarget="hls_acr_ebank_output_ds" prompt="客户类型"/>
+                <a:lov name="customer_name_display" bindTarget="hls_acr_ebank_output_ds" prompt="客户名称"/>
+                <a:comboBox name="payment_method_display" bindTarget="hls_acr_ebank_output_ds" prompt="租金支付方式"/>
+                <a:numberField name="limit_amount" bindTarget="hls_acr_ebank_output_ds" prompt="代扣指令行限额" renderer="numberRenderer"/>
+                <a:comboBox name="generate_rules_display" bindTarget="hls_acr_ebank_output_ds" prompt="生成规则"/>
+                <a:textField name="contract_number" bindTarget="hls_acr_ebank_output_ds" prompt="合同编号"/>
+                <a:textField name="period_number" bindTarget="hls_acr_ebank_output_ds" prompt="期数"/>
+            </a:form>
+            <a:hBox>
+                <a:button click="submit_fun" text="PROMPT.OK" width="90"/>
+                <a:button click="delete_fun" text="删除" width="90"/>
+            </a:hBox>
+            <a:grid id="grid_id" bindTarget="hls_acr_ebank_output_temp_ds" height="301" navBar="true" width="1030">
+                <a:columns>
+                    <a:column name="sequence_no" align="center" prompt="序号" width="60"/>
+                    <a:column name="dd_bank_account_num" prompt="客户账号" width="100"/>
+                    <a:column name="bp_name" prompt="客户名称" width="150"/>
+                    <a:column name="due_amount" align="right" prompt="应扣金额" renderer="numberRenderer" width="120"/>
+                    <a:column name="id_card_no" prompt="证件号" width="150"/>
+                    <a:column name="contract_number" prompt="合同编号" width="150"/>
+                    <a:column name="times" prompt="期数" width="150"/>
+                    <a:column name="due_date" prompt="计划付款日" width="150"/>
+                </a:columns>
+            </a:grid>
+            <a:hBox>
+                <a:button click="output_file" text="导出" width="90"/>
+            </a:hBox>
+        </a:screenBody>
+    </a:view>
+</a:screen>

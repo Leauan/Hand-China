@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-2-26 下午2:37:49  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.layout_code=${@layout_code} and t1.enabled_flag=&apos;Y&apos; and t1.configurable=&apos;Y&apos;" fetchAll="true" model="hls.HLS030.hls_doc_layout_tab" rootpath="valid_tab_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="svcLink_layoutTab" url="${/request/@context_path}/modules/hls/HLS030/hls_doc_layout_tab.svc"/>
+        <script><![CDATA[
+        
+        	function tooltip_update(record,name)
+	    	{
+	    	    record.getField(name).setPropertity('tooltip',record.get(name));
+	    	}
+        	
+	    	function onAdd_screenDs(ds,record,index)
+	    	{
+	    	    for(var i=1,j=record.get('total_count');i<=j;i++)
+			    {
+			        tooltip_update(record,'column_'+i);
+			    }
+	    	}
+	    	
+	    	function onUpdate_screenDs(ds,record,name,value,oldValue)
+	    	{
+	    	    var regx=/^column_\d+$/;
+	    	    if(regx.test(name))
+	    	    {
+	    	        tooltip_update(record,name);
+	    	        propertyDs_set(record,name);
+	    	    }
+	    	}
+	    	
+	    	function onUpdate_propertyDs(ds,record,name,value,oldValue)
+	    	{
+	    	    if(name=='input_mode'||name=='input_mode_desc')
+	    	    {
+	    	        if(record.get('write_back_flag')==true)
+		    	    {
+		    	        var write_record=$(record.get('ds_name')).getAt(0);
+		    	        write_record.set(record.get('name')+'_'+name,value);
+		    	    }
+	    	    }
+	    	    
+	    	    
+	    	}
+	    	
+	    	function propertyDs_set(record,name)
+	    	{
+	    	    var prop_record=$('propertyDs').getAt(0);
+	    	    prop_record.set('write_back_flag',false);
+	    	    prop_record.set('ds_name',record.get('ds_name'));
+	    	    prop_record.set('name',name);
+	    	    var total=Number(name.substr('column_'.length));
+	    	    var max_column=Number(record.get('column_count'));
+	    	    var row=Math.ceil(total/max_column);
+	    	    var col=total%(max_column);
+	    	    if(col==0)
+	    	    {
+	    	        col=max_column;
+	    	    }
+	    	    prop_record.set('row_col',String(row)+'/'+String(col));
+	    	    prop_record.set('input_mode',record.get(name+'_input_mode'));
+	    	    prop_record.set('input_mode_desc',record.get(name+'_input_mode_desc'));
+	    	    prop_record.set('desc',record.get(name+'_desc'));
+	    	    prop_record.set('write_back_flag',true);
+	    	}
+	    	
+	    	function onLovClick_screenDs_form_lov(record,name)
+	    	{
+	    	    propertyDs_set(record,name);
+	    	}
+	    	
+	    	
+	    	function onFocus_screenDs_form_lov(record,name)
+	    	{
+	    	    propertyDs_set(record,name);
+	    	}
+	    	
+	    	function unmask_tabScreen()
+            {
+                Aurora.Masker.unmask($('hls_doc_layout_tab_screen').wrap);
+            }
+            
+            function mask_tabScreen()
+            {
+                Aurora.Masker.mask($('hls_doc_layout_tab_screen').wrap,'${l:HLS.SAVING}');
+            }
+	    	
+        	function tab_save(dsName)
+        	{
+        	    mask_tabScreen();
+        	    var ds=$(dsName);
+        	    var record=ds.getAt(0);
+        	    
+        	    var data={};
+        	    data['layout_code']='${/parameter/@layout_code}';
+        	    data['tab_code']=record.get('tab_code');
+        	    data['tab_list']=[];
+        	    
+        	    for (var i=0,j=record.get('total_count');i<j;i++)
+        	    {
+        	        var n=i+1;
+        	        data['tab_list'][i]={
+        	            column_name:record.get('column_'+n),
+        	            input_mode:record.get('column_'+n+'_input_mode'),
+        	            order_seq:n
+        	        };
+        	    }
+        	    
+        	    Aurora.request({
+                    url: $('svcLink_layoutTab').getUrl(),
+                    para: data,
+                    success: function(res) {
+                        unmask_tabScreen();
+                        Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 2000
+                        });
+                    },
+                    failure: function() {
+                        unmask_tabScreen();
+                    },
+                    error: function() {
+                        unmask_tabScreen();
+                    },
+                    scope: this
+                });
+        	}
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="inputModeDs" lookupCode="HLS050_INPUT_MODE"/>
+            <a:dataSet id="propertyDs" autoCreate="true">
+                <a:fields>
+                    <a:field name="row_col" readOnly="true"/>
+                    <a:field name="desc" readOnly="true"/>
+                    <a:field name="input_mode"/>
+                    <a:field name="input_mode_desc" displayField="code_value_name" options="inputModeDs" returnField="input_mode" valueField="code_value"/>
+                    <a:field name="ds_name"/>
+                    <a:field name="name"/>
+                    <a:field name="write_back_flag"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_propertyDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form column="3" title=" ">
+                <a:textField name="row_col" bindTarget="propertyDs" prompt="HLS030.FORM.ROW_COL"/>
+                <a:textField name="desc" bindTarget="propertyDs" prompt="HLS030.FORM.DESC"/>
+                <a:comboBox name="input_mode_desc" bindTarget="propertyDs" prompt="HLS030.FORM.INPUT_MODE"/>
+            </a:form>
+            <a:tabPanel marginHeight="150" marginWidth="30">
+                <a:tabs>
+                    <a:placeHolder id="dynamic_tab"/>
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+    <a:view-config>
+        <c:batch-config source="/model/valid_tab_list" targetId="dynamic_tab">
+            <a:tab id="tab_${@tab_code}" prompt="${@tab_desc}" ref="${/request/@context_path}/modules/hls/HLS030/hls_doc_layout_screen.screen?layout_code=${@layout_code}&amp;tab_code=${@tab_code}" width="100"/>
+        </c:batch-config>
+    </a:view-config>
+</a:screen>

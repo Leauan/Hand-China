@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	&author:DJ
+	$date:2013/11/20
+	$purpose:项目上会工作流评委意见汇总
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure>
+        <a:model-query model="wfl_screen.PRJ_PROJECT.prj_project_approval_project_manager_reply" rootPath="pm_reply_record"/>
+    </a:init-procedure>
+    <a:view>
+        <script charset="utf-8" src="${/request/@context_path}/kindeditor/kindeditor-min.js"><![CDATA[ ]]></script>
+        <script charset="utf-8" src="${/request/@context_path}/kindeditor/lang/zh_CN.js"><![CDATA[ ]]></script>
+        <a:link id="pageLink_PMReply_upload" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="pageLink_PMReply_download" url="${/request/@context_path}/downloadFile.screen"/>
+        <script><![CDATA[
+            function replyEditor_create(list) {
+                var k = KindEditor;
+            
+                var config = {
+                    width: '99%',
+                    height: '300px',
+                    resizeType: 0,
+                    allowPreviewEmoticons: false,
+                    allowImageUpload: false,
+                    items: ['undo', 'redo', '|', 'cut', 'copy', 'paste', 'plainpaste', '|', 'preview', 'print', '|', 'insertorderedlist', 'insertunorderedlist', '|', 'table', 'link', 'unlink', 'pagebreak', 'hr', '|', '/', 'fontname', 'fontsize', 'forecolor', 'hilitecolor', 'bold', 'italic', 'underline', '|', 'lineheight', 'justifyleft', 'justifycenter', 'justifyright', 'indent', 'outdent', '|', 'selectall', 'removeformat', '|']
+                };
+            
+                for (var i = 0;i < list.length;i++) {
+                    list[i]['value'] = k.create('textarea[id="' + list[i]['name'] + '"]', config);
+            
+                    if ('${/parameter/@readOnly}' == 'true') {
+                        list[i]['value'].readonly(true);
+                        list[i]['value'].toolbar.div.hide();
+                    }
+                }
+            }
+            
+            var replyEditorList = [];
+            
+            
+            function upload_PMreply(){
+                new Aurora.Window({
+                    url: $('pageLink_PMReply_upload').getUrl(),
+                    params:{
+                    	table_name:'PRJ_PROJECT_APPROVAL',
+                    	header_id:'${/parameter/@approval_id}'
+                    },
+                    title: '项目经理答复附件',
+                    id: 'uploadFile',
+                    width: 850,
+                    height: 400
+                });
+			}
+			
+			function download_PMreply(){
+				new Aurora.Window({
+                    url: $('pageLink_PMReply_download').getUrl(),
+                    params:{
+                    	table_name:'PRJ_PROJECT_APPROVAL',
+                    	header_id:'${/parameter/@approval_id}'
+                    },
+                    title: '项目经理答复附件',
+                    id: 'downloadFile',
+                    width: 850,
+                    height: 400
+                });
+			}
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="pmReplyDs" model="wfl_screen.PRJ_PROJECT.prj_project_approval_project_manager_reply">
+                <a:datas dataSource="/model/pm_reply_record"/>
+                <a:fields>
+                    <a:field name="project_manager_replay"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form labelSeparator="" labelWidth="0" marginWidth="30" title="项目经理答复">
+                <a:textArea name="project_manager_replay" id="project_manager_replay" bindTarget="pmReplyDs" prompt=""/>
+            </a:form>
+            <a:switch test="/parameter/@show_reply_attachment">
+                <a:case value="U">
+                    <a:form marginWidth="30" title="附件">
+                        <a href="javascript:upload_PMreply();" style="color:blue;text-decoration:underline;"><![CDATA[上传附件]]></a>
+                    </a:form>
+                </a:case>
+                <a:case value="D">
+                    <a:form marginWidth="30" title="附件">
+                        <a href="javascript:download_PMreply();" style="color:blue;text-decoration:underline;"><![CDATA[下载附件]]></a>
+                    </a:form>
+                </a:case>
+            </a:switch>
+            <a:switch test="/parameter/@show_save">
+                <a:case value="Y">
+                    <script><![CDATA[
+                    
+	                    zjwfl5110_ApproveChecker_add('project_manager_reply',function(type){
+			            	var ds = $('pmReplyDs');
+	                    	var record = ds.getAt(0);
+		                    
+		                    var list = replyEditorList;
+		                    
+		                    //比较editor中数据和record中数据是否相同
+		                    for (var i=0;i < list.length;i++)
+			                {
+			                    var temp = list[i]['value'].html();
+			                    var name = list[i]['name'];
+			                    var value = record.get(name);
+			                    
+			                    if(Ext.isEmpty(temp)&&Ext.isEmpty(value))
+			                    {
+			                        Aurora.showMessage('提示','项目经理答复不能为空，请填写！');
+		                        	return false;
+			                    }
+			                    else if(temp != value)
+			                    {
+			                        var editor_version = record.get('editor_version');
+			                        if(Ext.isEmpty(editor_version))
+			                        {
+			                            editor_version = 0;
+			                        }
+			                        else
+			                        {
+			                            editor_version = editor_version + 1;
+			                        }
+			                        record.set('editor_version',editor_version);
+			                        break;
+			                    }
+			                }
+		                    
+		                    if(!ds.validate())
+		                    {
+		                        return false;
+		                    }
+		                    if(record.dirty)
+		                    {
+		                        Aurora.showMessage('提示','项目经理答复已被修改，请保存！');
+		                        return false;
+		                    }
+		                    return true;
+			            });
+                    
+                    	function pmReply_save()
+			            {
+			                var ds = $('pmReplyDs');
+			                var record = ds.getAt(0);
+							
+							var list = replyEditorList;
+				                
+			                for (var i=0;i < list.length;i++)
+			                {
+			                    var value = list[i]['value'].html();
+			                    var name = list[i]['name'];
+			                    record.set(name,value);
+			                }			                
+
+			                if(!ds.validate())
+			                {
+			                    return;
+			                }
+			                ds.submit();
+			            }
+			            
+			        ]]></script>
+                    <a:hBox>
+                        <a:gridButton click="pmReply_save" text="保存答复"/>
+                    </a:hBox>
+                </a:case>
+            </a:switch>
+            <script><![CDATA[
+	            Aurora.onReady(function(K) {
+	            
+	                var list = replyEditorList;
+	            
+	                list[0] = {
+	                    name: 'project_manager_replay'
+	                };
+	            
+	                replyEditor_create(list);
+	            
+	            });
+            ]]></script>
+        </a:screenBody>
+    </a:view>
+</a:screen>

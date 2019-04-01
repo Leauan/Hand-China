@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure><![CDATA[
+    ]]></a:init-procedure>
+    <a:view>
+        <a:link id="pageLink_rule_detail" url="${/request/@context_path}/modules/zjwfl/WFL2030/zj_wfl_business_rules_define_details.screen"/>
+        <script><![CDATA[
+
+            function editorFun_ruleDefineDs_grid(record, name) {
+                if (record.isNew) {
+                    if(name=='business_rule_code')
+                    {
+                        return 'ruleDefineDs_grid_tf_upper';
+                    }
+                    return '';
+                }
+                return '';
+            }
+            
+            function query() {
+                $('ruleDefineDs').query();
+            }
+            
+            function reset() {
+                $('para_ruleDefineDs').reset();
+            }
+            
+            function openDetail(business_rule_id,workflow_category) {
+                new Aurora.Window({
+                    id: 'new_report_detail_window',
+                    url:$('pageLink_rule_detail').getUrl(),
+                    params:{
+                    	business_rule_id:business_rule_id,
+                    	workflow_category:workflow_category
+                    },
+                    fullScreen:true,
+                    title: '明细'
+                });
+            }
+            
+            function columndetail(value, record, name) {
+                if(record.isNew){
+                    return '';
+                }else{
+                     return '<a href="javascript:openDetail(\'' + record.get('business_rule_id') + '\',\'' + record.get('workflow_category') + '\')">' + '明细' + '</a>';
+                     
+                }
+            }
+            
+            function dateValidator(record, name, value) { //日期校验方法
+                if (name == 'start_date' || name == 'end_date') {
+                    var date_from = record.get('start_date');
+                    var date_to = record.get('end_date');
+                    if ( !! date_to) {
+                        if (!compareDate(date_from, date_to)) {
+                            return '开始时间不能大于结束时间'; //校验不通过返回字符串
+                        }
+                    }
+                    return true; //校验通过返回true
+                }
+            }
+            
+            function compareDate(start, end) {
+                if (start > end) {
+                    return false;
+                }
+                return true;
+            }
+            
+            function onUpdate_ruleDefineDs(ds, record, name, value) {
+                if (name == 'start_date' || name == 'end_date') {
+                    record.validate((name == 'start_date') ? 'end_date' : 'start_date');
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="wflTypeDs" loadData="true" model="zjwfl.zj_wfl_workflow_type"/>
+            <a:dataSet id="para_ruleDefineDs" autoCreate="true" model="zjwfl.WFL2030.zj_wfl_business_rules">
+                <a:fields>
+                    <a:field name="bussiness_rule_code_from" prompt="业务规则从"/>
+                    <a:field name="bussiness_rule_code_to" prompt="业务规则到"/>
+                    <a:field name="workflow_category_from_name" displayField="workflow_type" options="wflTypeDs" prompt="工作流类型从" returnField="workflow_category_from" valueField="workflow_type_code"/>
+                    <a:field name="workflow_category_to_name" displayField="workflow_type" options="wflTypeDs" prompt="工作流类型到" returnField="workflow_category_to" valueField="workflow_type_code"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="ruleDefineDs" autoPageSize="true" autoQuery="true" fetchAll="false" model="zjwfl.WFL2030.zj_wfl_business_rules" queryDataSet="para_ruleDefineDs" selectable="true">
+                <a:fields>
+                    <a:field name="business_rule_code" required="true"/>
+                    <a:field name="description" required="true"/>
+                    <a:field name="workflow_category_code" displayField="workflow_type" options="wflTypeDs" prompt="工作流类型" required="true" returnField="workflow_category" valueField="workflow_type_code"/>
+                    <a:field name="start_date" required="true" validator="dateValidator"/>
+                    <a:field name="end_date" validator="dateValidator"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_ruleDefineDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form column="4" labelWidth="100" marginWidth="30" title="工作流业务规则定义">
+                <a:textField name="bussiness_rule_code_from" bindTarget="para_ruleDefineDs"/>
+                <a:textField name="bussiness_rule_code_to" bindTarget="para_ruleDefineDs"/>
+                <a:comboBox name="workflow_category_from_name" bindTarget="para_ruleDefineDs"/>
+                <a:comboBox name="workflow_category_to_name" bindTarget="para_ruleDefineDs"/>
+            </a:form>
+            <a:hBox>
+                <a:button click="query" text="HAP_QUERY"/>
+                <a:button click="reset" text="HAP_RESET"/>
+            </a:hBox>
+            <a:grid id="ruleDefineDs_grid" bindTarget="ruleDefineDs" marginHeight="180" marginWidth="30" navBar="true">
+                <a:toolBar>
+                    <a:button type="add"/>
+                    <a:button type="clear"/>
+                    <a:button type="save"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="business_rule_code" editorFunction="editorFun_ruleDefineDs_grid" width="250"/>
+                    <a:column name="description" editor="ruleDefineDs_grid_tf" width="200"/>
+                    <a:column name="workflow_category_code" editor="ruleDefineDs_grid_comb" prompt="工作流类型" width="250"/>
+                    <a:column name="start_date" editor="ruleDefineDs_grid_dp" renderer="Aurora.formatDate" width="150"/>
+                    <a:column name="end_date" editor="ruleDefineDs_grid_dp" renderer="Aurora.formatDate" width="150"/>
+                    <a:column name="renderdetail" align="center" prompt="明细" renderer="columndetail" width="100"/>
+                </a:columns>
+                <a:editors>
+                    <a:datePicker id="ruleDefineDs_grid_dp"/>
+                    <a:comboBox id="ruleDefineDs_grid_comb"/>
+                    <a:textField id="ruleDefineDs_grid_tf"/>
+                    <a:textField id="ruleDefineDs_grid_tf_upper" typeCase="upper"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

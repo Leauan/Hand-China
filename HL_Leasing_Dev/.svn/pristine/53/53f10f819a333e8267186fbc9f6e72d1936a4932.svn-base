@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Icon  
+    $Date: 2014-11-3 下午3:22:47  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:fields>
+        <bm:field name="contract_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="inception_of_lease" databaseType="DATE" datatype="java.util.Date"/>
+        <bm:field name="contract_number" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="contract_name" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="bp_code" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="bp_name" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="lease_item_amount" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="other_fee3" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="insurance_fee" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="pay_req_print_status" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="pay_req_print_status_des" databaseType="VARCHAR2" datatype="java.lang.String"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+            	BEGIN
+                    csh_payment_req_pkg.change_print_status(p_contract_id =>${@contract_id}, p_user_id =>${/session/@user_id});
+                END;
+            ]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+        	select * from (
+        		select cc.contract_id,
+       cc.contract_number,
+       cc.contract_name,
+       cc.inception_of_lease,
+       (yonda_individual_pkg.string_combination(p_sql => 'select b.bp_code from con_contract_bp ccb,hls_bp_master b where ccb.bp_category=''AGENT'' and ccb.bp_id=b.bp_id and ccb.contract_id=', p_compare_column_val => cc.contract_id, p_division_symbol => ',') )bp_code,
+       (yonda_individual_pkg.string_combination(p_sql => 'select b.bp_name from con_contract_bp ccb,hls_bp_master b where ccb.bp_category=''AGENT'' and ccb.bp_id=b.bp_id and ccb.contract_id=', p_compare_column_val => cc.contract_id, p_division_symbol => ',') )bp_name,       
+       cc.lease_item_amount,
+       cc.other_fee3,
+       cc.insurance_fee,
+       cc.pay_req_print_status,
+       (select v.code_value_name from sys_code_values_v v where v.code='CSH506_PRINT_STATUS' and cc.pay_req_print_status=v.code_value ) pay_req_print_status_des
+        from con_contract cc ) t1 #WHERE_CLAUSE#
+        	]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="contract_number_from" datatype="java.lang.String" queryExpression="t1.contract_number&gt;=${@contract_number_from}"/>
+        <bm:query-field name="contract_number_to" datatype="java.lang.String" queryExpression="t1.contract_number&lt;=${@contract_number_to}"/>
+        <bm:query-field name="req_date_from" dataType="java.util.Date" queryexpression="t1.inception_of_lease &gt;= ${@req_date_from}"/>
+        <bm:query-field name="req_date_to" dataType="java.util.Date" queryexpression="t1.inception_of_lease &lt;= ${@req_date_to}"/>
+        <bm:query-field name="amount_from" queryExpression="t1.lease_item_amount&gt;=${@amount_from}"/>
+        <bm:query-field name="amount_to" queryExpression="t1.lease_item_amount&lt;=${@amount_to}"/>
+        <bm:query-field name="bp_code_from" datatype="java.lang.String" queryExpression="t1.bp_code&gt;=${@bp_code_from}"/>
+        <bm:query-field name="bp_code_to" datatype="java.lang.String" queryExpression="t1.bp_code&lt;=${@bp_code_to}"/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter name="date" expression="t1.inception_of_lease is not null"/>
+        <bm:data-filter enforceOperations="query" expression="exists (select 1               from yonda_doc_status_history t              where t.document_id = t1.contract_id                and t.document_category = &apos;CONTRACT&apos;                and t.status = &apos;280&apos;)"/>
+        <bm:data-filter name="query" expression="t1.pay_req_print_status = &apos;APPLIED&apos;"/>
+    </bm:data-filters>
+</bm:model>

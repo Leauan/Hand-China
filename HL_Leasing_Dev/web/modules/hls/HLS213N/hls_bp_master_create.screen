@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-8-29 下午03:53:38  
+    $Revision: 1.0  
+    $Purpose: 商业伙伴创建 明细页面
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:view>
+        <a:link id="get_special_fields_link_id" model="cont.CON500.con_contract_get_special_fields" modelaction="update"/>
+        <a:link id="gh_nc_post_addsupplierinfo_link" model="hls.HLS213.hls_bp_master_nc_post" modelaction="update"/>
+        <script src="${/request/@context_path}/modules/prj/PRJ500N/javascripts/input_validator.js"/>
+        <a:link id="gh_nc_post_addcustomerinfo_link" model="hls.HLS213.hls_bp_master_nc_post" modelaction="execute"/>
+        <script><![CDATA[
+            Aurora.onReady(function() {
+        	debugger;
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master_role');
+            
+                var bp_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+                var bp_record = $(bp_ds_id).getCurrentRecord();
+                if('${/parameter/@bp_type}'=='AGENT'){
+                    bp_record.getField('agent_type_n').setReadOnly(false);
+                    bp_record.getField('agent_type_n').setRequired(true);
+                }else{
+                    bp_record.getField('agent_type_n').setReadOnly(true);
+                    bp_record.getField('agent_type_n').setRequired(false);
+                    
+                }
+                
+                if('${/parameter/@bp_category}'=='AGENT'){
+                   //add by lara 11355 20190102 经销商需维护广三经销商代码
+                    bp_record.getField('gac_bp_code').setReadOnly(false);
+                    bp_record.getField('gac_bp_code').setRequired(true);
+                    //end add by lara 11355 20190102 
+                }else{
+                    //add by lara 11355 20190102 经销商需维护广三经销商代码
+                    bp_record.getField('gac_bp_code').setReadOnly(true);
+                    bp_record.getField('gac_bp_code').setRequired(false);
+                    //end add by lara 11355 20190102 
+                }
+                
+                if (ds_id && '${/parameter/@default_value_dsid}') {
+                    var head_record = $('${/parameter/@default_value_dsid}').getCurrentRecord();
+                    var bp_master_role_ds = $(ds_id);
+                    var record = new Aurora.Record({
+                        'primary_flag': 'Y',
+                        'bp_category': head_record.get('bp_category'),
+                        'bp_category_n': head_record.get('bp_category_n'),
+                        'bp_type': head_record.get('bp_type'),
+                        'bp_type_n': head_record.get('bp_type_n'),
+                        'bp_class': head_record.get('bp_class'),
+                        'bp_class_n': head_record.get('bp_class_n'),
+            
+            
+            
+                        'company_nature': head_record.get('company_nature'),
+                        'conpany_personal': head_record.get('conpany_personal'),
+                        'actual_online': head_record.get('actual_online'),
+                        'brand_unbrand': head_record.get('brand_unbrand'),
+            
+            
+                        'enabled_flag': 'Y'
+                    });
+                    bp_master_role_ds.add(record);
+                    var current_record = bp_master_role_ds.getAt(0);
+            
+                    if (head_record.get('bp_category') == 'MANUFACTURER') {
+                        bp_record.set('company_nature_n', '');
+                        bp_record.getField('company_nature_n').setReadOnly(true);
+                        bp_record.set('conpany_personal_n', '');
+                        bp_record.getField('conpany_personal_n').setReadOnly(true);
+                        bp_record.set('actual_online_n', '');
+                        bp_record.getField('actual_online_n').setReadOnly(true);
+                        bp_record.set('brand_unbrand_n', '');
+                        bp_record.getField('brand_unbrand_n').setReadOnly(true);
+            
+            
+                        current_record.getField('bp_type_n').setReadOnly(true);
+                        current_record.getField('enabled_flag').setReadOnly(true);
+                    } else {
+                        current_record.getField('bp_type_n').setReadOnly(true);
+                        current_record.getField('enabled_flag').setReadOnly(true);
+                    }
+                }
+            });
+            
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_form_add_and_load'] = function(ds, record, config_records, bp_seq) {
+                if ((ds.id).indexOf('hls_bp_master') != -1) {
+                    //身份证验证
+                    if (ds.fields.id_card_no) {
+                        ds.fields.id_card_no.pro.validator = id_card_no_validate;
+                    }
+
+                    if(ds.fields.parent_id){
+                        record.getField('parent_id_n').setReadOnly(true);
+                    }
+                }
+            };
+            
+            function id_card_no_validate(record, name, value) {
+                if (!checkCard(value)) {
+                    Aurora.showMessage('提示', '请输入正确格式的身份证！');
+                    return '请输入正确格式的身份证';
+                }
+                if (value.length == 18) {
+                    record.set('date_of_birth', new Date(value.substr(6, 4) + '/' + value.substr(10, 2) + '/' + value.substr(12, 2)));
+                    record.set('age', new Date().getFullYear() - value.substr(6, 4));
+                    if (value.substr(16, 1) % 2 == 1) {
+                        record.set('gender', 'MALE');
+                        record.set('gender_n', '男');
+                    } else if (value.substr(16, 1) % 2 == 0) {
+                        record.set('gender', 'FEMALE');
+                        record.set('gender_n', '女');
+                    }
+
+                }
+                return true;
+            }
+            
+
+            
+            //商业伙伴分类选择企业   且类型选择 制造商时  集团内外、企业个人、实体虚拟、品牌非品牌   给出只读默认值
+            // Aurora.onReady(function() {
+            // var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master_role');
+            // if (ds_id && '${/parameter/@default_value_dsid}') {
+            // var head_record = $('${/parameter/@default_value_dsid}').getCurrentRecord();
+            // var bp_master_role_ds = $(ds_id);
+            // var record = new Aurora.Record({
+            // 'primary_flag': 'Y',
+            // 'bp_category': head_record.get('bp_category'),
+            // 'bp_category_n': head_record.get('bp_category_n'),
+            // 'bp_type': head_record.get('bp_type'),
+            // 'bp_type_n': head_record.get('bp_type_n'),
+            // 'bp_class': head_record.get('bp_class'),
+            // 'bp_class_n': head_record.get('bp_class_n'),
+            // 'enabled_flag': 'Y'
+            // });
+            // bp_master_role_ds.add(record);
+            // var current_record = bp_master_role_ds.getAt(0);
+            // current_record.getField('bp_type_n').setReadOnly(true);
+            // current_record.getField('enabled_flag').setReadOnly(true);
+            // }
+            // });
+            
+            
+            
+            
+            //保存前调用，生成商机编号
+            window['${/parameter/@layout_code}_on_layout_dynamic_before_submit'] = function(ds, record) {
+                //debugger;
+                //alert('${/parameter/@unbrand}');
+            
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+                var head_record = $(ds_id).getCurrentRecord();
+                var check_flag = false;
+                if (head_record.get('bp_code')) {
+                    return true;
+                }
+                Aurora.request({
+                    url: $('get_special_fields_link_id').getUrl(),
+                    para: {
+                        document_category: 'BUSINESS_PARTNR',
+                        document_type: head_record.get('bp_type'),
+                        bp_class: head_record.get('bp_class'),
+                        id_type: head_record.get('id_type'),
+                        id_card_no: head_record.get('id_card_no'),
+                        bp_info: head_record.get('bp_info'),
+                        province_id: head_record.get('province_id'),
+                        organization_code: head_record.get('organization_code'),
+                        function_code: '${/parameter/@function_code}',
+                        function_usage: '${/parameter/@function_usage}'
+                    },
+                    success: function(res) {
+                        var document_number = res.result.document_number;
+                        head_record.set('bp_code', document_number);
+                        head_record.set('company_id', '${/session/@company_id}');
+                        head_record.set('unbrand', '${/parameter/@unbrand}');
+                        check_flag = true;
+                    },
+                    error: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    failure: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    sync: true,
+                    scope: this
+                });
+                return check_flag;
+            };
+            
+            /* //保存submitsuccess调用
+            window['${/parameter/@layout_code}_on_layout_dynamic_submitsuccess'] = function(ds, record, res, bp_seq) {
+                window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+                var head_record = $(ds_id).getCurrentRecord();
+            	debugger;
+                if (head_record.get('bp_class') == 'AGENT') {
+                    var url = $('gh_nc_post_addsupplierinfo_link').getUrl();
+                }
+                Aurora.request({
+                    url: url,
+                    para: {
+                        bp_id: head_record.get('bp_id')
+                    },
+                    success: function(res) {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    error: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    failure: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    sync: true,
+                    scope: this
+                });
+            }; */
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq){
+                if ((ds.id).indexOf('hls_bp_master') != -1 && (ds.id).indexOf('F_BASIC') != -1){
+                    if(name=='agent_type'){
+                        if(value=='AGENT_NO_REBATE'||value=='AGENT_EE'){
+                            record.getField('parent_id_n').setReadOnly(false);
+                        }else{
+                            record.getField('parent_id_n').setReadOnly(true);
+                        }
+                    }
+                }
+            };
+        ]]></script>
+    </a:view>
+</a:screen>

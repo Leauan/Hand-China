@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei  
+    $Date: 2015-1-26 上午11:32:01  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+select
+(select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+     AND B.DOCUMENT_TYPE='CARLS') project_NUMBER,
+   (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('NEW','APPROVED_RETURN') AND B.DOCUMENT_TYPE='CARLS') NO_SUBMIT_NUMBER,
+    (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('APPROVING') AND B.DOCUMENT_TYPE='CARLS') APPROVING_NUMBER,
+     (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('CLOSED','CANCEL') AND B.DOCUMENT_TYPE='CARLS') CLOSE_NUMBER,
+     (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('APPROVED','CONTRACT_CREATED','REJECT' ) AND B.DOCUMENT_TYPE='CARLS'
+    and not exists(select 1 from zj_wfl_approve_history_v his 
+    where his.instance_id=b.wfl_instance_id and his.action_type='2')) return_APPROVED_NUMBER,
+    (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('APPROVED','CONTRACT_CREATED','REJECT' ) AND B.DOCUMENT_TYPE='CARLS'
+    and  exists(select 1 from zj_wfl_approve_history_v wfl_his 
+    where wfl_his.instance_id=b.wfl_instance_id and wfl_his.action_type='2')) APPROVED_NUMBER,
+     (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('APPROVED','CONTRACT_CREATED' ) AND B.DOCUMENT_TYPE='CARLS'
+    and  not exists(SELECT 1
+        FROM yonda_doc_status_history his
+       WHERE his.document_category = 'PROJECT'
+             AND his.document_id = b.project_id
+             AND his.status = '290'))no_CONDITIONAL_NUMBER,
+    (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('APPROVED','CONTRACT_CREATED' ) AND B.DOCUMENT_TYPE='CARLS'
+    and  exists(SELECT 1
+        FROM yonda_doc_status_history his
+       WHERE his.document_category = 'PROJECT'
+             AND his.document_id = b.project_id
+             AND his.status = '290')) CONDITIONAL_NUMBER,
+   (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('REJECT' ) AND B.DOCUMENT_TYPE='CARLS') REJECT_NUMBER ,
+  (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('CONTRACT_CREATED' ) AND B.DOCUMENT_TYPE='CARLS'
+    and exists (select 1 from con_contract con where con.project_id=b.project_id
+    AND CON.DATA_CLASS='NORMAL')
+    and exists(select 1 from con_contract con where con.project_id=b.project_id )) contract_create_NUMBER,
+    (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('CONTRACT_CREATED','CANCEL' ) AND B.DOCUMENT_TYPE='CARLS'
+    and exists (select 1 from con_contract con 
+    where con.project_id=b.project_id and con.contract_status='CANCEL'
+     )
+     and exists(select 1 from con_contract con where con.project_id=b.project_id )) contract_cancel_NUMBER,
+   (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('CONTRACT_CREATED' ) AND B.DOCUMENT_TYPE='CARLS'
+    and exists (select 1 from con_contract con 
+    where con.project_id=b.project_id and con.signing_date is not null
+    and con.contract_status!='CANCEL'
+     AND CON.DATA_CLASS='NORMAL')
+     and exists(select 1 from con_contract con where con.project_id=b.project_id )) contract_sign_NUMBER,
+     (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('CONTRACT_CREATED' ) AND B.DOCUMENT_TYPE='CARLS'
+    and exists (select 1 from con_contract con 
+    where con.project_id=b.project_id and con.signing_date is  null 
+    and con.contract_status!='CANCEL'
+     AND CON.DATA_CLASS='NORMAL')
+     and exists(select 1 from con_contract con where con.project_id=b.project_id )) contract_unsign_NUMBER,
+    (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('CONTRACT_CREATED' ) AND B.DOCUMENT_TYPE='CARLS'
+    and exists (select 1 from con_contract con,YONDA_DOC_STATUS_HISTORY_V DOC
+    where con.project_id=b.project_id AND CON.CONTRACT_ID=DOC.document_id 
+    AND DOC.document_category='CONTRACT' AND DOC.status='280'
+    and con.contract_status!='CANCEL'
+     AND CON.DATA_CLASS='NORMAL')
+     and exists(select 1 from con_contract con where con.project_id=b.project_id )) contract_INCEPT_NUMBER,
+    (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('CONTRACT_CREATED' ) AND B.DOCUMENT_TYPE='CARLS'
+    and NOT exists (select 1 from con_contract con,YONDA_DOC_STATUS_HISTORY_V DOC
+    where con.project_id=b.project_id AND CON.CONTRACT_ID=DOC.document_id 
+    AND DOC.document_category='CONTRACT' AND DOC.status='280'
+    and con.contract_status!='CANCEL'
+     AND CON.DATA_CLASS='NORMAL')
+     and exists(select 1 from con_contract con where con.project_id=b.project_id )) contract_no_INCEPT_NUMBER,
+     (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('CONTRACT_CREATED' ) AND B.DOCUMENT_TYPE='CARLS'
+    and  exists (select 1 from con_contract con,con_contract_lease_item item,
+    con_contract_item_detail detail,ast_car_gps gps
+    where con.project_id=b.project_id and con.contract_id=item.contract_id 
+    and item.contract_lease_item_id=detail.item_detail_id
+    and detail.item_detail_id=gps.item_detail_id
+    and gps.enabled_flag='Y'
+    and con.contract_status!='CANCEL'
+     AND CON.DATA_CLASS='NORMAL')
+     and exists(select 1 from con_contract con where con.project_id=b.project_id )) contract_gps_NUMBER,
+    (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('CONTRACT_CREATED' ) AND B.DOCUMENT_TYPE='CARLS'
+    and  not exists (select 1 from con_contract con,con_contract_lease_item item,
+    con_contract_item_detail detail,ast_car_gps gps
+    where con.project_id=b.project_id and con.contract_id=item.contract_id 
+    and item.contract_lease_item_id=detail.item_detail_id
+    and detail.item_detail_id=gps.item_detail_id
+    and gps.enabled_flag='Y'
+    and con.contract_status!='CANCEL'
+     AND CON.DATA_CLASS='NORMAL')
+     and exists(select 1 from con_contract con where con.project_id=b.project_id )) contract_no_gps_NUMBER,
+   (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('CONTRACT_CREATED' ) AND B.DOCUMENT_TYPE='CARLS'
+    and   exists (select 1 from con_contract con,con_contract_lease_item item,
+    con_contract_item_detail detail,ast_car_license license
+    where con.project_id=b.project_id and con.contract_id=item.contract_id 
+    and item.contract_lease_item_id=detail.item_detail_id
+    and detail.item_detail_id=license.item_detail_id
+    and license.enabled_flag='Y'
+    and con.contract_status!='CANCEL'
+     AND CON.DATA_CLASS='NORMAL')
+     and exists(select 1 from con_contract con where con.project_id=b.project_id )) contract_licence_NUMBER,
+     (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('CONTRACT_CREATED' ) AND B.DOCUMENT_TYPE='CARLS'
+    and   exists (select 1 from con_contract con,con_contract_lease_item item,
+    con_contract_item_detail detail,ast_car_insurance insurance
+    where con.project_id=b.project_id and con.contract_id=item.contract_id 
+    and item.contract_lease_item_id=detail.item_detail_id
+    and detail.item_detail_id=insurance.item_detail_id
+    and con.contract_status!='CANCEL'
+     AND CON.DATA_CLASS='NORMAL')
+     and exists(select 1 from con_contract con where con.project_id=b.project_id )) contract_insurance_NUMBER ,
+    (select count(1) from prj_project b where b.creation_date>=trunc(nvl(to_date(${@start_date},'yyyy-mm-dd'),b.creation_date))
+    and trunc(b.creation_date)<=nvl(to_date(${@end_date},'yyyy-mm-dd'),b.creation_date)
+    and b.project_status IN ('CONTRACT_CREATED' ) AND B.DOCUMENT_TYPE='CARLS'
+    and  exists (select 1 from con_contract con,YONDA_DOC_STATUS_HISTORY_V DOC
+    where con.project_id=b.project_id AND CON.CONTRACT_ID=DOC.document_id 
+    AND DOC.document_category='CONTRACT' AND DOC.status='240'
+    and con.contract_status!='CANCEL'
+     AND CON.DATA_CLASS='NORMAL')
+    and exists(select 1 from con_contract con where con.project_id=b.project_id )) contract_GET_CAR_NUMBER
+  from dual
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

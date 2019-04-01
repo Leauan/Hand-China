@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-9-9 下午02:04:08  
+    $Revision: 1.0  
+    $Purpose: 已收租金
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:view>
+        <a:link id="csh_transaction_repayment_detail_query_link" url="${/request/@context_path}/modules/cont/CON305/con_contract_payment_transaction_detaill.screen"/>
+        <a:link id="csh_transaction_receipt_detail_query_link" url="${/request/@context_path}/modules/cont/CON305/con_contract_reception_transaction_detail.screen"/>
+        <script><![CDATA[
+            function close() {
+                $('con_contract_payment_detail_win').close();
+            }
+            
+            function con_contract_payment_detail_clear() {
+                $('con_contract_payment_detail_line_grid').clear();
+            
+            }
+            
+            function con_contract_payment_detail_query() {
+                $('con_contract_payment_detail_line_ds').query();
+            }
+            
+            function write_off_due_amount_renderer(value, record, name) {
+                if (value > 0) {
+                    var transaction_type = record.get('transaction_type');
+                    var csh_transaction_id = record.get('csh_transaction_id');
+                    if (transaction_type == 'RECEIPT') {
+                        return '<a href="javascript:open_transaction_receipt_detail_win(' + csh_transaction_id + ')">' + Aurora.formatMoney(value) + '</a>';
+                    } else if (transaction_type == 'PAYMENT') {
+                        return '<a href="javascript:open_transaction_repayment_detail_win(' + csh_transaction_id + ')">' + Aurora.formatMoney(value) + '</a>';
+            
+                    }
+                }
+            }
+            
+            function open_transaction_receipt_detail_win(csh_transaction_id) {
+                new Aurora.Window({
+                    id: 'transaction_receipt_detail_win',
+                    url: $('csh_transaction_receipt_detail_query_link').getUrl(),
+                    title: '收款明细',
+                    params: {
+                        'winId': 'transaction_receipt_detail_win',
+                        'transaction_id': csh_transaction_id
+                    },
+                    fullScreen: true
+                });
+            }
+            
+            function open_transaction_repayment_detail_win(csh_transaction_id) {
+                new Aurora.Window({
+                    id: 'transaction_receipt_detail_win',
+                    url: $('csh_transaction_repayment_detail_query_link').getUrl(),
+                    title: '付款明细',
+                    params: {
+                        'winId': 'transaction_receipt_detail_win',
+                        'transaction_id': csh_transaction_id
+                    },
+                    fullScreen: true
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="con_contract_payment_detail_ds" autoQuery="true" model="cont.CON305.con_contract_payment_detail_header" queryUrl="${/request/@context_path}/autocrud/cont.CON305.con_contract_payment_detail_header/query?contract_id=${/parameter/@contract_id}">
+                <a:fields>
+                    <a:field name="bp_name" readOnly="true"/>
+                    <a:field name="document_type_desc" readOnly="true"/>
+                    <a:field name="contract_number" readOnly="true"/>
+                    <a:field name="total_rental" readOnly="true"/>
+                    <a:field name="total_received" readOnly="true"/>
+                    <a:field name="total_balance" readOnly="true"/>
+                    <a:field name="overdue_amount" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con_contract_payment_detail_line_ds" autoPageSize="true" autoQuery="true" model="cont.CON305.con_contract_payment_detail_line" queryUrl="${/request/@context_path}/autocrud/cont.CON305.con_contract_payment_detail_line/query?contract_id=${/parameter/@contract_id}" selectable="true"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="close" text="HLS.CLOSE"/>
+                <a:gridButton click="con_contract_payment_detail_clear" text="HLS.CLEAR"/>
+                <a:gridButton click="con_contract_payment_detail_query" text="HLS.QUERY"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="100" title="HLS.QUERY_TITLE">
+                <a:textField name="bp_name" bindTarget="con_contract_payment_detail_ds" colspan="2" prompt="HLS.CUSTOMER_NAME" readOnly="true" width="408"/>
+                <a:textField name="contract_number" bindTarget="con_contract_payment_detail_ds" prompt="HLS.CONTRACT_NUMBER" readOnly="true" width="150"/>
+                <a:textField name="document_type_desc" bindTarget="con_contract_payment_detail_ds" prompt="HLS.CONTRACT_TYPE" readOnly="true" width="150"/>
+                <a:numberField name="total_rental" allowFormat="true" bindTarget="con_contract_payment_detail_ds" prompt="CON305.TOTAL_RENTAL" readOnly="true" width="150"/>
+                <a:numberField name="total_received" allowFormat="true" bindTarget="con_contract_payment_detail_ds" prompt="CON305.TOTAL_RENANT_RECEIVED" readOnly="true" width="150"/>
+                <a:numberField name="total_balance" allowFormat="true" bindTarget="con_contract_payment_detail_ds" prompt="CON305.UNRECEIVED_TOTAL_RENANT" readOnly="true" width="150"/>
+                <a:numberField name="overdue_amount" allowFormat="true" bindTarget="con_contract_payment_detail_ds" prompt="CON305.OVERDUE_AMOUNT" readOnly="true" width="150"/>
+            </a:form>
+            <a:grid id="con_contract_payment_detail_line_grid" bindTarget="con_contract_payment_detail_line_ds" marginHeight="240" marginWidth="30" navBar="true">
+                <a:columns>
+                    <!-- <a:column name="bp_name" prompt="HLS.CUSTOMER_NAME" width="200"/> -->
+                    <!-- <a:column name="contract_number" prompt="HLS.CONTRACT_NUMBER" width="125"/> -->
+                    <a:column name="tran_bp_name" prompt="CON305.TRAN_BP_NAME" width="225"/>
+                    <a:column name="times" prompt="CON305.TIMES" width="50"/>
+                    <a:column name="cf_item_desc" prompt="CON305.CF_ITEM" width="100"/>
+                    <a:column name="due_date" prompt="CON305.DUE_DATE" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="acc_due_amount_rental" align="right" prompt="CON305.ACC_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="acc_due_amount_principal" align="right" prompt="CON305.ACC_PRINCIPAL" renderer="Aurora.formatMoney"/>
+                    <a:column name="acc_due_amount_interest" align="right" prompt="CON305.ACC_INTEREST" renderer="Aurora.formatMoney"/>
+                    <a:column name="transaction_date" prompt="CON305.LAST_RECEIVED_DATE" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="write_off_due_amount" align="right" prompt="CON305.WRITE_OFF_DUE_AMOUNT_F" renderer="write_off_due_amount_renderer"/>
+                    <a:column name="write_off_principal" align="right" prompt="CON305.WRITE_OFF_PRINCIPAL" renderer="Aurora.formatMoney"/>
+                    <a:column name="write_off_interest" align="right" prompt="CON305.WRITE_OFF_INTEREST" renderer="Aurora.formatMoney"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

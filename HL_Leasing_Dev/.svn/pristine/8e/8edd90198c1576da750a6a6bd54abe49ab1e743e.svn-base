@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-2-26 下午2:37:49  
+    $Revision: 1.0  
+    $Purpose: 凭证模板头
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query model="basic.sys_session_info" rootPath="headPage_sessionInfo"/>
+        <a:model-query defaultWhereClause="t1.document_category = &apos;JE&apos;" model="basic.hls_document_type_v_simple_lov" rootPath="je_type_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="pageLink_template_copy" url="${/request/@context_path}/modules/gld/GLD107/gld_je_template_copy.screen"/>
+        <a:link id="pageLink_line_setup" url="${/request/@context_path}/modules/gld/GLD107/gld_je_template_lines.screen"/>
+        <script><![CDATA[
+        
+        function headPage_forward() {
+            history.go(1);
+        }
+        
+        function headPage_back() {
+            history.go(-1);
+        }
+        
+        function headPage_quit() {
+            location.href = $('sys_service_welcome_link').getUrl();
+        }
+    	
+        function headDs_grid_query() {
+            $('headDs').query();
+        }
+        
+        function para_headDs_reset()
+        {
+            $('para_headDs').reset();
+        }
+        
+        function headDs_grid_add() {
+            $('headDs_grid').showEditorByRecord($('headDs').create());
+        }
+        
+        function headDs_grid_remove() {
+            $('headDs_grid').remove();
+        }
+        
+        function headDs_grid_clear() {
+            $('headDs_grid').clear();
+        }
+        
+        function headDs_grid_save() {
+            var ds = $('headDs');
+            if (ds.validate()) {
+                ds.submit();
+            }
+        }
+        
+        
+        function winOpen_templateCopy(je_template_hd_id)
+        {
+            var win = new Aurora.Window({
+                id: 'gld_je_template_copy',
+                url: $('pageLink_template_copy').getUrl(),
+                params:{
+                    je_template_hd_id:je_template_hd_id
+                },
+                title: '复制',
+                height: 200,
+                width: 600
+            });
+            
+            win.on('close', function() {
+                headDs_grid_query();
+            });
+        }
+        
+        
+        function winOpen_line_setup(je_transaction_code,je_template_hd_id,je_template_desc)
+        {
+            new Aurora.Window({
+                id: 'gld_je_template_lines',
+                url: $('pageLink_line_setup').getUrl(),
+                params:{
+                    je_template_hd_id:je_template_hd_id,
+                    je_transaction_code:je_transaction_code
+                },
+                title: '${l:GLD107.WIN_TITLE.LINE_SETUP}'+'（' + je_template_desc +'）',
+                fullScreen:true
+            });
+        }
+        
+        
+        function render_headDs_grid(value, record, name)
+        {
+            var je_template_hd_id=record.get('je_template_hd_id');
+            var je_transaction_code = record.get('je_transaction_code');
+            
+            if(!record.isNew)
+            {
+                if(name=='line_setup')
+                {
+                    return '<a href="javascript:winOpen_line_setup(\'' + je_transaction_code + '\','+ je_template_hd_id + ',\'' + record.get('je_template_desc') + '\');">' + '${l:GLD107.LINK.LINE_SETUP}' + '</a>';
+                }
+                else if(name=='template_copy')
+                {
+                    return '<a href="javascript:winOpen_templateCopy('+ je_template_hd_id +');">' + '复制' + '</a>';
+                    
+                }
+                return '';
+            }
+            return '';
+        }
+        
+        
+        
+        
+        function headDs_query()
+        {
+            $('headDs').query();
+        }
+        
+        function editorFunction_headDs_grid(record,name)
+        {
+            if(record.isNew)
+            {
+                if(name=='je_transaction_desc')
+                {
+                    return 'headDs_grid_lov';
+                }
+                if(name=='je_template_code')
+                {
+                    return 'headDs_grid_tf_upper';
+                }
+                return '';
+            }
+            return '';
+        }
+        
+        
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="jeTypeDs">
+                <a:datas dataSource="/model/je_type_list"/>
+            </a:dataSet>
+            <a:dataSet id="headPage_enableFlagDs">
+                <a:datas>
+                    <a:record code_value="Y" code_value_name="是"/>
+                    <a:record code_value="N" code_value_name="否"/>
+                    <a:record code_value="" code_value_name="全部"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="para_headDs" autoCreate="true" model="gld.GLD107.gld_je_template_hds">
+                <a:fields>
+                    <a:field name="je_transaction_code"/>
+                    <a:field name="je_transaction_desc" lovGridHeight="450" lovHeight="600" lovService="gld.GLD104.gld_je_transaction_for_lov" lovWidth="550" lovpagesize="30" title="GLD104.GLD_JE_TRANSACTION.JE_TRANSACTION_DESC">
+                        <a:mapping>
+                            <a:map from="je_transaction_desc" to="je_transaction_desc"/>
+                            <a:map from="je_transaction_code" to="je_transaction_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="enabled_flag" defaultValue="Y"/>
+                    <a:field name="enabled_flag_desc" defaultValue="是" displayField="code_value_name" options="headPage_enableFlagDs" prompt="启用" returnField="enabled_flag" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="headDs" autoPageSize="true" autoQuery="true" model="gld.GLD107.gld_je_template_hds" queryDataSet="para_headDs" selectable="true">
+                <a:fields>
+                    <a:field name="je_template_code" required="true"/>
+                    <a:field name="company_short_name" defaultValue="${/model/headPage_sessionInfo/record/@company_short_name}"/>
+                    <a:field name="je_transaction_desc" lovGridHeight="450" lovHeight="600" lovService="gld.GLD104.gld_je_transaction_for_lov" lovWidth="550" lovpagesize="30" required="true" title="GLD104.GLD_JE_TRANSACTION.JE_TRANSACTION_DESC">
+                        <a:mapping>
+                            <a:map from="je_transaction_desc" to="je_transaction_desc"/>
+                            <a:map from="je_transaction_code" to="je_transaction_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="je_template_desc" required="true"/>
+                    <a:field name="je_desc"/>
+                    <a:field name="document_type_desc" displayField="document_type_desc" options="jeTypeDs" required="true" returnField="document_type" valueField="document_type"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <!-- <a:gridButton click="headPage_forward" text="HLS.FORWARD"/>
+                <a:gridButton click="headPage_back" text="HLS.BACK"/> -->
+                <a:gridButton click="headPage_quit" text="HLS.EXIT"/>
+                <a:gridButton click="headDs_grid_query" text="HLS.QUERY"/>
+                <a:gridButton click="para_headDs_reset" text="HLS.RESET"/>
+                <a:gridButton click="headDs_grid_add" text="HLS.NEW"/>
+                <a:gridButton click="headDs_grid_clear" text="HLS.CLEAR"/>
+                <!-- <a:gridButton click="headDs_grid_remove" text="HLS.REMOVE"/> -->
+                <a:gridButton click="headDs_grid_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="120" title="HAP_QUERY_TITLE">
+                <a:lov name="je_transaction_desc" bindTarget="para_headDs"/>
+                <a:textField name="je_template_code" bindTarget="para_headDs"/>
+                <a:textField name="je_template_desc" bindTarget="para_headDs"/>
+                <a:comboBox name="enabled_flag_desc" bindTarget="para_headDs"/>
+            </a:form>
+            <a:grid id="headDs_grid" bindTarget="headDs" marginHeight="180" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="company_short_name" autoAdjust="false" showTitle="true" width="100"/>
+                    <a:column name="je_transaction_code" autoAdjust="false" showTitle="true" width="200"/>
+                    <a:column name="je_transaction_desc" autoAdjust="false" editorFunction="editorFunction_headDs_grid" showTitle="true" width="150"/>
+                    <a:column name="je_template_code" autoAdjust="false" editorFunction="editorFunction_headDs_grid" showTitle="true" width="250"/>
+                    <a:column name="je_template_desc" autoAdjust="false" editor="headDs_grid_tf" showTitle="true" width="250"/>
+                    <a:column name="document_type_desc" editor="headDs_grid_comb"/>
+                    <a:column name="line_setup" align="center" prompt="GLD107.WIN_TITLE.LINE_SETUP" renderer="render_headDs_grid" width="60"/>
+                    <a:column name="enabled_flag" align="center" editor="headDs_grid_checkBox" width="40"/>
+                    <a:column name="template_copy" align="center" prompt="复制" renderer="render_headDs_grid" width="50"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="headDs_grid_tf_upper" maxLength="30"/>
+                    <a:textField id="headDs_grid_tf"/>
+                    <a:lov id="headDs_grid_lov"/>
+                    <a:checkBox id="headDs_grid_checkBox"/>
+                    <a:comboBox id="headDs_grid_comb"/>
+                    <a:numberField id="headDs_grid_nf" allowDecimals="false" allowNegative="false"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

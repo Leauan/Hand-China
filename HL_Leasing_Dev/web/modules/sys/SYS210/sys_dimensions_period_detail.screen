@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:c="aurora.application.action" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure>
+        <!--         <a:model-query model="sys.SYS210.get_sys_table" rootPath="sys_table_path"/> -->
+        <a:model-query autocount="false" fetchall="true" model="sys.SYS210.get_line_dimension" rootpath="line_dimension"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="sys_dimensions_period_delete_link" model="sys.SYS210.sys_dimensions_period_detail" modelaction="delete"/>
+        <a:link id="dimensions_detail_link" url="${/request/@context_path}/modules/sys/SYS210/sys_dimensions_detail.screen"/>
+        <a:screen-include screen="modules/hls/hls_common_javascript.screen"/>
+        <script><![CDATA[
+            function compareDate(start, end) {
+                if (start > end) {
+                    return false;
+                }
+                return true;
+            }
+            
+            function dateValidator(record, name, value) {
+                if (name == "valid_from_desc" || name == "valid_to_desc") {
+                    var start_date = record.get('valid_from_desc');
+                    var end_date = record.get('valid_to_desc');
+                    if (typeof(end_date) != 'undefined' && !Ext.isEmpty(end_date)) {
+                        if (!compareDate(Aurora.formatDate(start_date), Aurora.formatDate(end_date))) {
+                            return '日期有效期从大于或等于日期有效期到，请重新输入！';
+                        }
+                    }
+                    return true;
+                }
+            }
+            
+            function valid_date_update(dataset, record, name, value, oldvalue) {
+                if (name == "valid_from_desc" || name == "valid_to_desc") {
+                    if (value != oldvalue) {
+                        var v_start_date = record.get('valid_from_desc');
+                        var v_end_date = record.get('valid_to_desc');
+                        var records = $('period_lease_times_Ds').getAll();
+                        var start_date, end_date;
+                        for (var i = 0;i < records.length;i++) {
+                            if (record != records[i]) {
+                                start_date = records[i].get('valid_from_desc');
+                                end_date = records[i].get('valid_to_desc');
+                                if (Aurora.formatDate(value) >= Aurora.formatDate(start_date) && Aurora.formatDate(value) <= Aurora.formatDate(end_date)) {
+                                    Aurora.showMessage('Message', '所输日期已存在某个区间，请重新输入！', function() {
+                                        record.set(name, null);
+                                    });
+                                    return;
+                                }
+                                if (typeof(v_start_date) != 'undefined' && !Ext.isEmpty(v_start_date) && typeof(v_end_date) != 'undefined' && !Ext.isEmpty(v_end_date)) {
+                                    if (compareDate(Aurora.formatDate(v_start_date), Aurora.formatDate(start_date)) && !compareDate(Aurora.formatDate(v_end_date), Aurora.formatDate(end_date))) {
+                                        Aurora.showMessage('Message', '所输日期区间重叠', function() {
+                                            record.set(name, null);
+                                        });
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                        return true;
+                    }
+                }
+            }
+            
+            function queryFunction() {
+                $('period_lease_times_Ds').query();
+            }
+            
+            function sys_201_quit() {
+                window.location.href = $('dimensions_detail_link').getUrl() + '?condition_table=${/parameter/@condition_table}&condition_usage_type=${/parameter/@condition_usage_type}';
+            }
+            
+            function onSubmit(ds) {
+                var fieldsRecords = $('period_grps_ln_ds').getAll();
+                var records = $('period_lease_times_Ds').getAll();
+                var codes;
+                var values;
+                for (var i = 0;i < records.length;i++) {
+                    if ('${/parameter/@condition_record_id}' != "undefined" && '${/parameter/@condition_record_id}' != '' && '${/parameter/@condition_record_id}' != null) {
+                        for (var j = 0;j < fieldsRecords.length;j++) {
+                            var code = fieldsRecords[j].get('mapping_condition_code');
+                            if (typeof(records[i].get(code)) != "undefined") {
+                                codes = code;
+                                values = records[i].get(code);
+                                if ( !! (fieldsRecords[j].get('ref_id_field'))) {
+                                    c = code + '_c';
+                                    codes = codes + '*' + c;
+                                    values = values + '*' + records[i].get(c);
+                                }
+                            }
+                        }
+                        records[i].set('mapping_condition', codes);
+                        records[i].set('mapping_condition_value', values);
+                    }
+                }
+            }
+            
+            function submitSuccess() {
+                $('period_lease_times_Ds').query();
+            }
+            
+            function removeDelete(ds, record, index) {
+                Aurora.request({
+                    url: $('sys_dimensions_period_delete_link').getUrl() + '?generated_period_table=${/parameter/@generated_period_table}',
+                    para: record.data,
+                    success: function(args) {
+                        $('period_lease_times_Ds').query();
+                    },
+                    scope: this
+                });
+            }
+            
+            function period_lov_event(lov) {
+                var record = $('period_lease_times_Ds').getCurrentRecord();
+                var condition_code_desc = record.getMeta().getField('condition_code_desc');
+                var condition_usage_type = '${/parameter/@condition_usage_type}';
+                condition_code_desc.setLovPara('condition_usage_type', condition_usage_type);
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="period_grps_ln_ds">
+                <a:datas dataSource="/model/line_dimension"/>
+            </a:dataSet>
+            <a:dataSet id="period_lease_times_Ds" autoQuery="true" model="sys.SYS210.sys_dimensions_period_detail" pageSize="20" queryUrl="${/request/@context_path}/autocrud/sys.SYS210.sys_dimensions_period_detail/query?generated_period_table=${/parameter/@generated_period_table}&amp;condition_record_id=${/parameter/@condition_record_id}" selectable="true" submitUrl="${/request/@context_path}/autocrud/sys.SYS210.sys_dimensions_period_detail/batch_update?generated_period_table=${/parameter/@generated_period_table}&amp;condition_record_id=${/parameter/@condition_record_id}">
+                <a:fields>
+                    <a:field name="generated_period_table" defaultValue="${/parameter/@generated_period_table}"/>
+                    <a:field name="valid_from_desc" validator="dateValidator"/>
+                    <a:field name="valid_to_desc" validator="dateValidator"/>
+                    <a:placeHolder id="dynamicLineFields"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="beforesubmit" handler="onSubmit"/>
+                    <a:event name="submitsuccess" handler="submitSuccess"/>
+                    <a:event name="remove" handler="removeDelete"/>
+                    <a:event name="update" handler="valid_date_update"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="sys_201_quit" text="HLS.EXIT"/>
+                <!--  <a:gridButton click="queryFunction" text="HLS.QUERY"/> -->
+            </a:screenTopToolbar>
+            <a:grid id="lease_times_grid" bindTarget="period_lease_times_Ds" height="400" marginWidth="100" navBar="true">
+                <a:toolBar>
+                    <a:button type="add"/>
+                    <a:button text="删除" type="clear"/>
+                    <a:button type="save"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="valid_from_desc" editor="valid_dp" prompt="有效期从" renderer="Aurora.formatDate" width="170"/>
+                    <a:column name="valid_to_desc" editor="valid_dp" prompt="有效期到" renderer="Aurora.formatDate" width="170"/>
+                    <a:placeHolder id="dynamicLineColumn"/>
+                </a:columns>
+                <a:editors>
+                    <a:datePicker id="valid_dp"/>
+                    <a:textField id="period_lease_times_grid_tf"/>
+                    <a:lov id="lease_times_grid_lov">
+                        <a:events>
+                            <a:event name="beforetriggerclick" handler="period_lov_event"/>
+                        </a:events>
+                    </a:lov>
+                    <a:lov id="dy_grid_lov"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="dynamicLineFields">
+            <p:loop nullable="true" source="/model/line_dimension">
+                <p:switch test="@key_field">
+                    <p:case value="N">
+                        <p:switch test="@lov_flag">
+                            <p:case value="Y">
+                                <p:switch test="@ref_id_field">
+                                    <p:case value="null">
+                                        <c:process-config>
+                                            <a:field name="${@mapping_condition_code}" lovGridHeight="300" lovHeight="450" lovUrl="${/request/@context_path}/modules/sys/SYS210/sys_condition_code_lov.screen?condition_table=${/parameter/@condition_table}&amp;mapping_condition_code=${@mapping_condition_code}" lovWidth="500" required="true" title="选择">
+                                                <a:mapping>
+                                                    <a:map from="code" to="${@mapping_condition_code}"/>
+                                                </a:mapping>
+                                            </a:field>
+                                        </c:process-config>
+                                    </p:case>
+                                    <p:case value="*">
+                                        <c:process-config>
+                                            <a:field name="${@mapping_condition_code}_c" lovGridHeight="400" lovHeight="450" lovUrl="${/request/@context_path}/modules/sys/SYS210/sys_condition_code_lov.screen?condition_table=${/parameter/@condition_table}&amp;mapping_condition_code=${@mapping_condition_code}" lovWidth="500" required="true" title="选择">
+                                                <a:mapping>
+                                                    <a:map from="code" to="${@mapping_condition_code}_c"/>
+                                                    <a:map from="id" to="${@mapping_condition_code}"/>
+                                                </a:mapping>
+                                            </a:field>
+                                            <a:field name="${@mapping_condition_code}"/>
+                                        </c:process-config>
+                                    </p:case>
+                                </p:switch>
+                            </p:case>
+                            <p:case value="N">
+                                <c:process-config>
+                                    <a:field name="${@mapping_condition_code}"/>
+                                </c:process-config>
+                            </p:case>
+                        </p:switch>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicLineColumn">
+            <p:loop nullable="true" source="/model/line_dimension">
+                <p:switch test="@key_field">
+                    <p:case value="N">
+                        <p:switch test="@lov_flag">
+                            <p:case value="Y">
+                                <p:switch test="@ref_id_field">
+                                    <p:case value="null">
+                                        <c:process-config>
+                                            <a:column name="${@mapping_condition_code}" editor="dy_grid_lov" prompt="${@mapping_condition_sql_desc}" width="200"/>
+                                        </c:process-config>
+                                    </p:case>
+                                    <p:case value="*">
+                                        <c:process-config>
+                                            <a:column name="${@mapping_condition_code}_c" editor="dy_grid_lov" prompt="${@mapping_condition_sql_desc}" width="200"/>
+                                        </c:process-config>
+                                    </p:case>
+                                </p:switch>
+                            </p:case>
+                            <p:case value="N">
+                                <c:process-config>
+                                    <a:column name="${@mapping_condition_code}" editor="period_lease_times_grid_tf" prompt="${@mapping_condition_sql_desc}" width="200"/>
+                                </c:process-config>
+                            </p:case>
+                        </p:switch>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

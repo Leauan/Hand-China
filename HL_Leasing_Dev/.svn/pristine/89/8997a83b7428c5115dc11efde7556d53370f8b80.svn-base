@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: WangYu  
+    $Date: 2014-11-25 上午10:13:22  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:o="aurora.database.local.oracle" xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="YONDA_4S_AREA_DIRECTOR">
+    <bm:fields>
+        <bm:field name="employee_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="EMPLOYEE_ID" prompt="YONDA_4S_AREA_DIRECTOR.EMPLOYEE_ID"/>
+        <bm:field name="record_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="RECORD_ID" prompt="YONDA_4S_AREA_DIRECTOR.RECORD_ID"/>
+        <bm:field name="company_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="COMPANY_ID" prompt="YONDA_4S_AREA_DIRECTOR.COMPANY_ID"/>
+        <bm:field name="unit_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="UNIT_ID" prompt="YONDA_4S_AREA_DIRECTOR.UNIT_ID"/>
+        <bm:field name="enable_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="ENABLE_FLAG" prompt="YONDA_4S_AREA_DIRECTOR.ENABLE_FLAG"/>
+        <bm:field name="company_short_name" expression="(select t.company_short_name from fnd_companies t where t.company_id=t1.company_id)" forInsert="false" forUpdate="false"/>
+        <bm:field name="unit_name" expression="(select t.unit_name from exp_org_unit_v t where t.unit_id=t1.unit_id)" forInsert="false" forUpdate="false"/>
+    </bm:fields>
+    <bm:features>
+        <f:standard-who/>
+        <o:sequence-pk/>
+    </bm:features>
+    <bm:operations>
+        <bm:operation name="insert">
+            <bm:update-sql><![CDATA[
+        		DECLARE
+        		    v_name VARCHAR2(100);
+        		BEGIN
+        		   select ee.name into v_name from  yonda_4s_area_director t,exp_employees ee where t.company_id = ${@company_id} and t.unit_id=${@unit_id}
+and ee.employee_id=t.employee_id and t.unit_id!=181 and rownum=1;
+        		    
+        		    sys_raise_app_error_pkg.raise_user_define_error
+        		    (
+        		        p_message_code => '该公司下对应部门的区域主管为   '||v_name||'   ,请先删除再操作!', p_created_by => 1, p_package_name => 'YONDA_4S_AREA_DIRECTOR', p_procedure_function_name => 'YONDA_4S_AREA_DIRECTOR'
+        		    )
+        		    ;
+        		    raise_application_error
+        		    (
+        		        sys_raise_app_error_pkg.c_error_number, sys_raise_app_error_pkg.g_err_line_id
+        		    )
+        		    ;
+        		EXCEPTION
+        		WHEN no_data_found THEN
+        		    INSERT
+        		    INTO
+        		        YONDA_4S_AREA_DIRECTOR
+        		        (
+        		            EMPLOYEE_ID,
+        		            RECORD_ID,
+        		            COMPANY_ID,
+        		            UNIT_ID,
+        		            ENABLE_FLAG,
+        		            CREATED_BY,
+        		            CREATION_DATE,
+        		            LAST_UPDATED_BY,
+        		            LAST_UPDATE_DATE
+        		        )
+        		        VALUES
+        		        (
+        		            ${@employee_id},
+        		            YONDA_4S_AREA_DIRECTOR_S.NEXTVAL,
+        		            ${@company_id},
+        		            ${@unit_id},
+        		            ${@enable_flag},
+        		            ${/session/@user_id},
+        		            sysdate,
+        		            ${/session/@user_id},
+        		            sysdate
+        		        )
+        		        RETURNING RECORD_ID
+        		    INTO
+        		        ${@record_id};
+        		        
+        		         yonda_individual_pkg.yonda_sales_re_authorize;
+        		END;
+    		]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+            	BEGIN
+            	    UPDATE
+            	        YONDA_4S_AREA_DIRECTOR t1
+            	    SET
+            	        t1.EMPLOYEE_ID     =${@employee_id},
+            	        t1.COMPANY_ID      =${@company_id},
+            	        t1.UNIT_ID         =${@unit_id},
+            	        t1.ENABLE_FLAG     =${@enable_flag},
+            	        t1.LAST_UPDATED_BY =${/session/@user_id},
+            	        t1.LAST_UPDATE_DATE=sysdate
+            	    WHERE
+            	        t1.RECORD_ID = ${@record_id};
+            	        yonda_individual_pkg.yonda_sales_re_authorize;
+            	END;
+        	]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="delete">
+            <bm:update-sql><![CDATA[
+            	BEGIN
+            	    DELETE FROM YONDA_4S_AREA_DIRECTOR t WHERE t.RECORD_ID = ${@record_id};
+            	        yonda_individual_pkg.yonda_sales_re_authorize;
+            	END;
+        	]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field field="employee_id" queryOperator="="/>
+    </bm:query-fields>
+    <bm:primary-key>
+        <bm:pk-field name="record_id"/>
+    </bm:primary-key>
+</bm:model>

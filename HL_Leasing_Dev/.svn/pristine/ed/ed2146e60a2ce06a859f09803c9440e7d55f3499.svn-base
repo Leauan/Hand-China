@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:e="aurora.service.exception" xmlns:s="aurora.plugin.script" xmlns:o="aurora.database.local.oracle" xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="e">
+    <bm:fields/>
+    <bm:primary-key/>
+    <bm:features>
+        <o:sequence-pk/>
+        <f:standard-who/>
+        <!-- make sure bm-script must be the LAST feature -->
+        <s:bm-script><![CDATA[
+            function new_bm_map(name) {
+                return new CompositeMap("bm", 'http://www.aurora-framework.org/schema/bm', name);
+            }
+            
+            function create_query_field(query_field) {
+                if (query_field) {
+                    var qf = new_bm_map('query-field');
+                    qf.field = query_field;
+                    qf.queryoperator = '='; //attribute name must in lowercase
+                    $this.addQueryField(qf.getData()); //get it's java type...
+                }
+            }
+            var table_name = $ctx.dynamic_base_table;
+            // println("table_name:"+table_name);
+            if (!table_name) raise_app_error("table name not found");
+            $this.setBaseTable(table_name); //get base table from somewhere...
+            var dsf = $instance('aurora.database.service.DatabaseServiceFactory');
+            var it = new Packages.aurora.plugin.entity.OracleTableFields();
+            var tableName = $this.getBaseTable();
+            var fMap = new CompositeMap(it.getTableFields(dsf, tableName));
+            // println(fMap.toXML());
+            if (fMap.msg) raise_app_error('error while get table fields:' + fMap.msg + " :" + table_name);
+            var flds = fMap.getChildren();
+            for (var i = 0;i < flds.length;i++) {
+                var r = flds[i];
+                var f = Packages.aurora.bm.Field().createField(r.name.toLowerCase());
+                f.setPhysicalName(r.name);
+                if (r.dbtype == 'NUMBER') {
+                    f.setDataType('java.lang.Double');
+                }else if(r.dbtype == 'CLOB'){
+                    f.setDataType('java.sql.Clob');
+                } else {
+                    f.setDataType(r.javatype);
+                }
+                f.setDatabaseType(r.dbtype);
+                f.setPrompt(r.prompt);
+                $this.addField(f);
+                if (r.ispk) {
+                    //dynamic primary-key
+                    if (!$ctx.pkmap) $ctx.pkmap = {};
+                    $ctx.pkmap[table_name] = r.name.toLowerCase();
+                    var pk = new_bm_map('pk-field');
+                    // println("pk:" + r.toXML());
+                    //f.setInsertExpression(table_name+'_s.nextval');
+                    pk.name = r.name.toLowerCase();
+                    $this.getObjectContext().getChild('primary-key').addChild(pk.getData()); //get it's java type...
+                }
+            }
+            var qf_root = $ctx.model.getChild('rootpath_query_field');
+            // println("pk:" + qf_root.toXML());
+            var qfs = ( !! qf_root) ? qf_root.getChildren() : [];
+            var model = new CompositeMap($this.getObjectContext());
+            var datafilters = model.createChildNS('data-filters');
+            for (var i = 0;i < qfs.length;i++) {
+                //dynamic query field
+                var temp_qf = qfs[i];
+                create_query_field(temp_qf.query_field1);
+                create_query_field(temp_qf.query_field2);
+                if (temp_qf.query_field2) {
+                    var query_field2 = temp_qf.query_field2;
+                    var dataf = datafilters.createChildNS('data-filter');
+                    dataf.name = query_field2.toLowerCase();
+                    dataf.enforceoperations = 'query';
+                    dataf.expression = query_field2.toLowerCase() + '=${@' + query_field2.toLowerCase() + '}';
+                }
+            }
+             //println($this.getObjectContext().toXML());
+        ]]></s:bm-script>
+    </bm:features>
+    <bm:relations/>
+    <bm:query-fields/>
+</bm:model>

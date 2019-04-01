@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" cache="false" default-dispatch="${/model/url/@URL}" dispatch-style="redirect" trace="true">
+    <a:init-procedure participants="aurora.service.exception.ExceptionHandler">
+        <a:model-update model="prj.PRJ312.acp_check_invoice_receipt_number"/>
+        <a:model-query model="prj.PRJ312.con_receipt_info" rootPath="payment_req_path"/>
+        <a:model-update model="prj.PRJ312.update_invoice_hd_receipt_status"/>
+        <a:model-update model="prj.PRJ312.update_sys_parameter"/>
+        <batch-apply sourcePath="/model/payment_req_path" trace="true">
+            <a:model-update model="prj.PRJ312.update_receipt_number" trace="true"/>
+        </batch-apply>
+        <a:model-query model="prj.PRJ312.get_sys_date" rootPath="get_sysdate"/>
+        <a:model-query model="prj.PRJ312.get_rs_num" rootPath="get_rs_num"/>
+        <p:echo/>
+        <p:exception-handles>
+            <p:catch Exception="*">
+                <p:action name="HandleException"/>
+                <p:action name="CreateErrorResponse"/>
+            </p:catch>
+        </p:exception-handles>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="sys_parameter_update_link" model="prj.PRJ312.update_sys_parameter" modelaction="update"/>
+        <style media="print"><![CDATA[
+        .PageNext
+        {
+            page-break-after: always;
+        }
+        
+        .noprint {
+						display: none;
+					}   
+
+		]]></style>
+        <style type="text/css"><![CDATA[
+			table
+			{
+			border-collapse:collapse;
+			border:none;
+			};
+			.center_td{
+			    text-align:center;
+			};
+			.right_td{
+			    text-align:right;
+			};
+			.head_button {
+				width:100px;
+				height:50px;
+				font-family:微软雅黑;
+				font-size:14px;
+			}
+    ]]></style>
+        <script><![CDATA[
+            function Do_print() {
+                Aurora.request({
+                    url: $('sys_parameter_update_link').getUrl(),
+                    para: {
+                        step: ${/model/get_rs_num/record/@rs_num}
+                    },
+                    sync: true,
+                    success: function() {
+                        window.print();
+                    },
+                    failure: function() {
+            
+                       },
+                    error: function() {},
+                    scope: this
+                });
+            }
+        ]]></script>
+        <ajax-init/>
+        <!-- <div class="noprint" style="position:fixed;margin:0;">
+            <button class="head_button" onclick="window.print();" type="button"><![CDATA[打印]]></button>
+        </div> -->
+        <!-- <a:checkBox/> -->
+        <!-- 必须要一个可加载的组件  -->
+        <a:freeMarker><![CDATA[
+        <#if  model.getObject('/model/payment_req_path').getChilds()??>
+        	
+		<#list  model.getObject("/model/payment_req_path").getChilds() as payment_req_rec>
+		<#if (payment_req_rec.getString('rk')!'')!='1'>  
+		<div class="PageNext">
+            </div>
+        <div height="20">
+        	<p>
+        		&#160;  
+        	</p>
+        </div>
+         </#if>
+         <#if  model.getObject('/model/get_sysdate').getChilds()??>
+         <#list  model.getObject("/model/get_sysdate").getChilds() as get_sys_date>
+		 <P align="center">
+            <B>
+                <FONT face="楷体" size="9" style="border-bottom:4px double black;">业务收款确认单</FONT>
+                <div>
+                <div align="center">
+                <FONT face="楷体" size="5" style="text-align:center">${get_sys_date.getString('year')!''}年${get_sys_date.getString('month')!''}月${get_sys_date.getString('day')!''}日</FONT>
+                </div>
+                <div style="margin-left:800px" >
+                <FONT face="楷体" size="5">${payment_req_rec.getString('receipt_number')!''}</FONT>
+                </div>
+                </div>
+            </B>
+         </P>
+         </#list>
+		</#if>
+        <div align="center">
+       <table border="1" width="950">
+            <tr height="90">
+                    		<td class="tdborder" width="15%">
+                        		<B>
+                            		<FONT face="楷体" size="6">收款方式</FONT>
+                        		</B>
+                    		</td>
+		                    <td class="tdborder" width="35%">
+		                        <B>
+		                            <FONT face="楷体" size="6" style="border-bottom:4px black;">${payment_req_rec.getString('payment_method_des')!''}</FONT>
+		                        </B>
+		                    </td>
+		                    <td class="tdborder" width="20%">
+		                        <B>
+		                            <FONT face="楷体" size="6">款项性质</FONT>
+		                        </B>
+		                    </td>
+		                    <td class="tdborder" width="30%">
+		                        <B>
+		                            <FONT face="楷体" size="6" style="border-bottom:4px black;">${payment_req_rec.getString('product_name')!''}</FONT>
+		                        </B>
+		                    </td>
+                	</tr>
+	                <tr height="90">
+	                    <td class="tdborder" colspan="1">
+	                        <B>
+	                            <FONT face="楷体" size="6">付款单位</FONT>
+	                        </B>
+	                    </td>
+	                    <td class="tdborder" colspan="3">
+	                        <B>
+	                            <FONT face="楷体" size="6" style="border-bottom:4px black;">${payment_req_rec.getString('invoice_bp_name')!''} (合同号:${payment_req_rec.getString('contract_number')!''})</FONT>
+	                        </B>
+	                    </td>
+	                </tr>
+	                <tr height="90">
+	                    <td class="tdborder" colspan="1">
+	                        <B>
+	                            <FONT face="楷体" size="6">收款金额</FONT>
+	                        </B>
+	                    </td>
+	                    <td class="tdborder" colspan="3">
+	                        <B>
+	                            <FONT face="楷体" size="6" style="border-bottom:4px black;">（大写）${payment_req_rec.getString('rmb_price')!''}</FONT>
+	                            <br/>
+	                            <FONT face="楷体" size="6" style="border-bottom:4px black;">（小写）${payment_req_rec.getString('price')!''}</FONT>
+	                        </B>
+	                    </td>
+	                </tr>
+	                <tr height="90">
+	                    <td class="tdborder" colspan="4">
+	                        <B>
+	                            <FONT face="楷体" size="6" style="border-bottom:4px black;margin-left:10px">交款人：</FONT>
+	                            <FONT face="楷体" size="6" style="border-bottom:4px black;margin-left:200px">收款人：</FONT>
+	                            <FONT face="楷体" size="6" style="border-bottom:4px black;margin-left:230px">收款单位：</FONT>
+	                        </B>
+	                    </td>
+	                </tr>
+      </table>
+    </div>
+      <p/>
+		  
+		    
+		</#list>
+		</#if>
+
+		 ]]></a:freeMarker>
+        <script><![CDATA[
+            // window.onload = window.print();
+            var parent_ds = opener.$('acr310_invoice_result_ds');
+            parent_ds.query(parent_ds.currentPage);
+        ]]></script>
+    </a:view>
+</a:screen>

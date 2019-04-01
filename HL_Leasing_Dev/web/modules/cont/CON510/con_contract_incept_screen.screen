@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei 
+    $Date: 2014-11-17 下午3:46:48  
+    $Revision: 1.0  
+    $Purpose: 起租通知书打印
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.document_category=&apos;CONTRACT&apos;" fetchAll="true" model="basic.hls_document_type_for_lov" rootPath="con510_document_type_path"/>
+        <a:model-query fetchAll="true" model="cont.CON301.con_contract_business_type_list" rootPath="con510_business_type_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_print_incept_info_id" url="${/request/@context_path}/modules/cont/CON510/con_contract_print_incept.screen"/>
+        <a:link id="con_contract_dowload_uploadfile" url="${/request/@context_path}/modules/cont/CON580/con_other_content_print.svc"/>
+        <!--  获取合同打印路径的js -->
+        <script src="${/request/@context_path}/modules/cont/CON504/javascripts/contract_print_path.js"/>
+        <script><![CDATA[
+            function con510_query() {
+                $('con_contract_teminate_result_ds').query();
+            }
+            
+            function con510_print_incept() {
+                Aurora.showConfirm('提示', '确定打印选中项？', function() {
+                    Aurora.Masker.mask(Ext.getBody(), '正在提交');
+                    var record = $('con_contract_teminate_result_ds').getSelected()[0];
+                    var contract_id = record.get('contract_id');
+                    var templt_name = 'yonda_contract_incept_notice.xml';
+                    var spv_company_code = record.get('spv_company_code');
+                    var pdf_key_path = get_pdf_key_path();
+                    var doc_name = get_doc_path()+'OTHER_CONTRACT_CONTENT/';
+                    var content_number = '起租通知书';
+                    //不用于合同文本打印功能的文本
+                    var other_contract_content_flag = 'Y';
+                    var table_name = 'CON_CONTRACT_INCEPT';
+                    var table_pk_id = record.get('contract_id');
+                    //不用于合同文本打印功能的文本
+                    var link = $('con_contract_print_incept_info_id').getUrl();
+                    var url = link + '?templt_name=' + templt_name + '&contract_id=' + contract_id + '&pdf_key_path=' + pdf_key_path + '&spv_company_code=' + spv_company_code + '&content_number=' + content_number + '&doc_name=' + doc_name + '&other_contract_content_flag=' + other_contract_content_flag + '&table_name=' + table_name + '&table_pk_id=' + table_pk_id;
+                    var form = document.createElement("form");
+                    form.target = "word_export_window";
+                    form.method = "post";
+                    form.action = url;
+                    var iframe = Ext.get('word_export_window') || new Ext.Template('<iframe id ="word_export_window" name="word_export_window" style="position:absolute;left:-10000px;top:-10000px;width:1px;height:1px;display:none"></iframe>').insertFirst(document.body, {}, true);
+                    document.body.appendChild(form);
+                    form.submit();
+                    Ext.fly(form).remove();
+                    var doc_code = '合同文本附件';
+                    setTimeout(function() {
+                        var url_l = $('con_contract_dowload_uploadfile').getUrl() + '?table_name=CON_CONTRACT_INCEPT' + '&table_pk_value=' + contract_id + '&doc_code=' + encodeURI(doc_code) + '&type=SIN';
+                        window.open(href = url_l, target = "_self");
+                        Aurora.Masker.unmask(Ext.getBody());
+                    }, 2000);
+            
+            
+            
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="con510_document_type_name_ds">
+                <a:datas dataSource="/model/con510_document_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="con510_business_type_ds">
+                <a:datas dataSource="/model/con510_business_type_list"/>
+            </a:dataSet>
+            <a:dataSet id="con510_lease_organization_name_ds" loadData="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="con510_lease_channel_name_ds" loadData="true" model="basic.hls_lease_channel_for_lov"/>
+            <a:dataSet id="con_contract_teminate_head_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="contract_number"/>
+                    <a:field name="bp_name" autoComplete="true" lovGridHeight="350" lovHeight="500" lovLabelWidth="100" lovService="cont.CON761.hls_bp_master_v_for_lov?bp_category=TENANT" lovWidth="520" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="bp_id" to="bp_id_tenant"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="lease_channel_desc" displayField="description" options="con510_lease_channel_name_ds" returnField="lease_channel" valueField="lease_channel"/>
+                    <a:field name="document_type_desc" displayField="description" options="con510_document_type_name_ds" returnField="document_type" valueField="document_type"/>
+                    <a:field name="business_type_desc" displayField="business_type_desc" options="con510_business_type_ds" returnField="business_type" valueField="business_type"/>
+                    <a:field name="lease_organization_name" displayField="description" options="con510_lease_organization_name_ds" returnField="lease_organization" valueField="lease_organization"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con_contract_teminate_result_ds" autoQuery="true" model="cont.CON510.con_contract_v" queryDataSet="con_contract_teminate_head_ds" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <!-- <a:gridButton click="" text="后退"/>
+                <a:gridButton click="" text="前进"/> -->
+                <a:gridButton click="con510_query" text="查询"/>
+                <a:gridButton click="con510_print_incept" text="起租通知书打印"/>
+            </a:screenTopToolbar>
+            <a:form bindTarget="con_contract_teminate_head_ds" column="4" marginWidth="100" title="查询条件">
+                <a:textField name="contract_number" bindTarget="con_contract_teminate_head_ds" prompt="合同编号"/>
+                <a:textField name="contract_name" bindTarget="con_contract_teminate_head_ds" prompt="HLS.CONTRACT_NAME"/>
+                <a:textField name="project_number" bindTarget="con_contract_teminate_head_ds" prompt="申请编号"/>
+                <a:lov name="bp_name" bindTarget="con_contract_teminate_head_ds" prompt="承租人名称"/>
+                <a:comboBox name="document_type_desc" bindTarget="con_contract_teminate_head_ds" prompt="合同类型"/>
+                <a:comboBox name="business_type_desc" bindTarget="con_contract_teminate_head_ds" prompt="业务类型"/>
+                <a:comboBox name="lease_channel_desc" bindTarget="con_contract_teminate_head_ds" prompt="商业模式"/>
+                <a:comboBox name="lease_organization_name" bindTarget="con_contract_teminate_head_ds" prompt="业务部"/>
+                <a:datePicker name="lease_start_date_f" bindTarget="con_contract_teminate_head_ds" prompt="起租日从"/>
+                <a:datePicker name="lease_start_date_t" bindTarget="con_contract_teminate_head_ds" prompt="起租日到"/>
+                <a:numberField name="other_fee_f" bindTarget="con_contract_teminate_head_ds" prompt="开票价从"/>
+                <a:numberField name="other_fee_t" bindTarget="con_contract_teminate_head_ds" prompt="开票价到"/>
+            </a:form>
+            <a:grid bindTarget="con_contract_teminate_result_ds" marginHeight="200" marginWidth="100" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" prompt="合同编号" width="150"/>
+                    <a:column name="contract_name" prompt="合同名称" width="150"/>
+                    <a:column name="project_number" prompt="申请编号" width="150"/>
+                    <a:column name="bp_name" prompt="承租人名称" width="200"/>
+                    <a:column name="document_type_desc" align="center" prompt="合同类型" width="80"/>
+                    <a:column name="lease_channel_desc" align="center" prompt="商业模式" width="80"/>
+                    <a:column name="lease_organization_desc" align="center" prompt="业务部" width="100"/>
+                    <a:column name="business_type_desc" align="center" prompt="业务类型" width="100"/>
+                    <a:column name="owner_user_id_desc" align="center" prompt="融资经理"/>
+                    <a:column name="other_fee" align="right" prompt="开票价" renderer="Aurora.formatNumber"/>
+                    <a:column name="lease_start_date" prompt="起租日" renderer="Aurora.formatDate"/>
+                    <a:column name="contract_status_desc" prompt="合同状态"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

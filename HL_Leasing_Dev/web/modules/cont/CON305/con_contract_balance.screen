@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-9-5 下午03:35:35  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.document_category=&apos;CONTRACT&apos;" fetchAll="true" model="basic.hls_document_type_for_lov" rootPath="document_type_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_balance_details_link" url="${/request/@context_path}/modules/cont/CON305/con_contract_balance_details.screen"/>
+        <a:link id="con_contract_payment_detail_link" url="${/request/@context_path}/modules/cont/CON305/con_contract_payment_detail.screen"/>
+        <style><![CDATA[
+        	a:link {color: #0000EE}  
+        	a:hover {color: #ff8400} 
+			a:active {color:#ff8400}
+			a:visited {color:#338FCC} 
+        ]]></style>
+        <script><![CDATA[
+            function query() {
+                $('con_contract_outstanding_result_ds').query();
+            }
+            
+            
+            function reset() {
+                $('con_contract_outstanding_query_ds').reset();
+            }
+            
+            function con_contract_balance_export() {
+                $('con_contract_outstanding_result_grid')._export();
+            }
+            //返回回访报告
+            
+            
+            function con_contract_balance_back() {
+                var winid = '${/parameter/@winid}';
+                if (winid) {
+                    $('${/parameter/@winid}').close();
+                } else {
+                    history.go(-1);
+                }
+            }
+            
+            function con_contract_balance_details_win(value, record, name) {
+                var contract_id = record.get('contract_id');
+                var url = $('con_contract_balance_details_link').getUrl();
+                return '<a  href="#' + Math.random() + '" onclick="openWindow(\'' + url + '\',' + contract_id + ')">' + Aurora.formatMoney(value) + '</a>';
+            }
+            
+            function openWindow(url, contract_id) {
+                new Aurora.Window({
+                    title: '合同余额明细信息',
+                    id: 'con_contract_balance_details_win',
+                    url: url,
+                    params: {
+                        'contract_id': contract_id
+                    },
+                    fullScreen: true
+                });
+            }
+            
+            function contract_payment_detail(value, record, name) {
+                if (value != 0) {
+                    var contract_id = record.get('contract_id');
+                    var url = $('con_contract_payment_detail_link').getUrl();
+                    return '<a  href="#' + Math.random() + '" onclick="openPaymentWindow(\'' + url + '\',' + contract_id + ')">' + Aurora.formatMoney(value) + '</a>';
+                } else {
+                    return Aurora.formatMoney(value);
+                }
+            }
+            
+            function openPaymentWindow(url, contract_id) {
+                new Aurora.Window({
+                    title: '合同收款明细',
+                    id: 'con_contract_payment_detail_win',
+                    url: url,
+                    params: {
+                        'contract_id': contract_id
+                    },
+                    fullScreen: true
+                });
+            }
+            
+            function contract_number_renderer(value, record, name) {
+                if (record.get('overdue_amount') != 0) {
+                    return '<span style="color:red">' + value + '</span>';
+                } else {
+                    return value;
+                }
+            }
+            
+            function on_con_contract_outstanding_result_load(ds) {
+                var grid_id = $('con_contract_outstanding_result_grid');
+                grid_id.hideColumn('project_number');
+                grid_id.hideColumn('contract_name');
+                grid_id.hideColumn('bp_code');
+                grid_id.hideColumn('lease_organization_desc');
+                grid_id.hideColumn('employee_name');
+                grid_id.hideColumn('division_desc');
+                grid_id.hideColumn('lease_channel_desc');
+                grid_id.hideColumn('con_search_term_1');
+                grid_id.hideColumn('con_search_term_2');
+            
+                var records = ds.getAll();
+                for (var i = 0;i < records.length;i++) {
+                    var record = records[i];
+                    if (record.get('overdue_amount') > 0) {
+                        record.getField('contract_number').setPropertity('tooltip', '<span style="color:#FF0000">已逾期!</span>');
+                    }
+                }
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=CONTRACT&amp;function_code=CON305&amp;custom_code=BALANCE_QUERY"/>
+        <a:dataSets>
+            <a:dataSet id="con501_document_type_name_ds">
+                <a:datas dataSource="/model/document_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="lease_organization_name_ds" loadData="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="division_name_ds" loadData="true" model="basic.hls_division_for_lov"/>
+            <a:dataSet id="contract_status_ds" lookupCode="CON500_CONTRACT_STATUS"/>
+            <a:dataSet id="lease_channel_name_ds" loadData="true" model="basic.hls_lease_channel_for_lov"/>
+            <a:dataSet id="con_contract_outstanding_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="bp_id" defaultValue="${/parameter/@bp_id}"/>
+                    <a:field name="lease_start_date_from"/>
+                    <a:field name="lease_start_date_to"/>
+                    <a:field name="project_name"/>
+                    <a:field name="contract_number"/>
+                    <a:field name="contract_name"/>
+                    <a:field name="lease_organization_name" displayField="description" options="lease_organization_name_ds" returnField="lease_organization" valueField="lease_organization"/>
+                    <a:field name="manager_employee_name" lovGridHeight="350" lovHeight="500" lovService="basic.hls_salesman_v_for_lov" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="employee_id" to="employee_id"/>
+                            <a:map from="name" to="manager_employee_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="division_desc" displayField="description" options="division_name_ds" returnField="division" valueField="division"/>
+                    <a:field name="lease_channel_desc" displayField="description" options="lease_channel_name_ds" returnField="lease_channel" valueField="lease_channel"/>
+                    <a:field name="document_type_desc" displayField="description" options="con501_document_type_name_ds" returnField="document_type" valueField="document_type"/>
+                    <a:field name="company_authority" defaultValue="${/session/@company_id}"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con_contract_outstanding_result_ds" autoPageSize="true" autoQuery="true" model="cont.CON305.con_contract_outstanding_query" queryDataSet="con_contract_outstanding_query_ds">
+                <a:events>
+                    <!--  <a:event name="query" handler="aut_authority_list_validate_query"/> -->
+                    <a:event name="load" handler="on_con_contract_outstanding_result_load"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="con_contract_balance_back" text="HLS.BACK"/>
+                <a:gridButton click="query" text="HLS.QUERY"/>
+                <a:gridButton click="reset" text="HLS.RESET"/>
+                <a:gridButton click="con_contract_balance_export" text="HLS.EXPORT"/>
+            </a:screenTopToolbar>
+            <a:queryForm bindTarget="con_contract_outstanding_query_ds" column="4" resultTarget="con_contract_outstanding_result_ds" title="HLS.QUERY_TITLE">
+                <a:formToolBar column="4" labelWidth="100">
+                    <a:textField name="project_name" bindTarget="con_contract_outstanding_query_ds" prompt="HLS.PROJECT_NAME"/>
+                    <a:textField name="contract_number" bindTarget="con_contract_outstanding_query_ds" prompt="HLS.CONTRACT_NUMBER"/>
+                    <a:datePicker name="lease_start_date_from" bindTarget="con_contract_outstanding_query_ds" prompt="CON305.LEASE_START_DATE_FROM"/>
+                    <a:datePicker name="lease_start_date_to" bindTarget="con_contract_outstanding_query_ds" prompt="CON305.LEASE_START_DATE_TO"/>
+                </a:formToolBar>
+                <a:formBody column="4" labelWidth="100">
+                    <a:comboBox name="lease_organization_name" bindTarget="con_contract_outstanding_query_ds" prompt="HLS.LEASE_ORGANIZATION"/>
+                    <a:lov name="manager_employee_name" bindTarget="con_contract_outstanding_query_ds" prompt="HLS.SALES_EMPLOYEE"/>
+                    <a:comboBox name="division_desc" bindTarget="con_contract_outstanding_query_ds" prompt="HLS.DIVISION_NAME"/>
+                    <a:comboBox name="lease_channel_desc" bindTarget="con_contract_outstanding_query_ds" prompt="HLS.LEASE_CHANNEL_NAME"/>
+                    <a:comboBox name="document_type_desc" bindTarget="con_contract_outstanding_query_ds" prompt="HLS.CONTRACT_TYPE"/>
+                    <a:textField name="con_search_term_1" bindTarget="con_contract_outstanding_query_ds" prompt="CON301.CON_CONTRACT_V.CON_SEARCH_TERM_1"/>
+                    <a:textField name="con_search_term_2" bindTarget="con_contract_outstanding_query_ds" prompt="CON301.CON_CONTRACT_V.CON_SEARCH_TERM_2"/>
+                    <a:textField name="contract_name" bindTarget="con_contract_outstanding_query_ds" prompt="HLS.CONTRACT_NAME"/>
+                </a:formBody>
+            </a:queryForm>
+            <a:grid id="con_contract_outstanding_result_grid" bindTarget="con_contract_outstanding_result_ds" marginHeight="185" marginWidth="20" navBar="true">
+                <a:columns>
+                    <a:column name="project_number" prompt="HLS.PROJECT_NUMBER" width="150"/>
+                    <a:column name="bp_name" prompt="HLS.TENANT_NAME" width="200"/>
+                    <a:column name="contract_name" prompt="HLS.CONTRACT_NAME" width="200"/>
+                    <a:column name="contract_number" prompt="HLS.CONTRACT_NUMBER" renderer="contract_number_renderer" width="125"/>
+                    <a:column name="lease_times" align="center" prompt="CON305.TIMES" width="50"/>
+                    <a:column name="bp_code" prompt="CON305.BP_ID_TENANT" width="100"/>
+                    <a:column name="lease_start_date" prompt="CON305.LEASE_START_DATE" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="total_rental" align="right" prompt="CON305.TOTAL_RENTAL" renderer="con_contract_balance_details_win" width="100"/>
+                    <a:column name="total_received" align="right" prompt="CON305.TOTAL_RENANT_RECEIVED" renderer="contract_payment_detail" width="100"/>
+                    <a:column name="unreceived_totle_rental" align="right" prompt="CON305.UNRECEIVED_TOTAL_RENANT" renderer="Aurora.formatMoney"/>
+                    <a:column name="lease_charge_mgt_fee" align="right" prompt="CON305.RECEIVED_LEASE_CHARGE" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="received_lease_charge_mgt_fee" align="right" prompt="CON305.RECEIVED_AMOUNT" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="unreceived_total_amount" align="right" prompt="CON305.UNRECEIVED_TOTAL_AMOUNT" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="overdue_amount" align="right" prompt="CON305.OVERDUE_AMOUNT" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="unreceived_fine_amount" align="right" prompt="未支付罚金" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="document_type_desc" prompt="HLS.CONTRACT_TYPE" width="70"/>
+                    <a:column name="contract_status_desc" align="center" prompt="HLS.CONTRACT_STATUS" width="70"/>
+                    <a:column name="project_name" prompt="HLS.PROJECT_NAME" width="250"/>
+                    <a:column name="lease_organization_desc" prompt="HLS.LEASE_ORGANIZATION"/>
+                    <a:column name="employee_name" prompt="HLS.SALES_EMPLOYEE"/>
+                    <a:column name="division_desc" prompt="HLS.DIVISION"/>
+                    <a:column name="lease_channel_desc" prompt="HLS.LEASE_CHANNEL"/>
+                    <!-- <a:column name="con_search_term_1" prompt="合同字符检索码"   /> -->
+                    <!-- <a:column name="con_search_term_2" prompt="合同数字检索码"   /> -->
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

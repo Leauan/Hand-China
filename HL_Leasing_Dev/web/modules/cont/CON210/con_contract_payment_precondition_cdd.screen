@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-10-30 上午10:18:17  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="cont.CON500.con_contract_v" rootPath="con_contract_path"/>
+        <a:model-query fetchAll="true" model="cont.CON210.prj_project_pay_condition" rootPath="get_pay_condition_status"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_payment_terms_create_link_id" model="cont.CON210.con_contract_payment_terms_create" modelaction="update"/>
+        <a:link id="project_pay_condition_status_update_link" model="cont.CON210.prj_project_pay_condition_status_update" modelaction="update"/>
+        <script><![CDATA[
+            function payment_precondition_cdd_new() {
+                if('${/model/get_pay_condition_status/record/@status}'=='SUBMITED') {
+                    Aurora.showMessage('提示','已生成付款先决条件，不能再维护！');
+                    return;
+                }
+                $('con_contract_payment_precondition_cdd_grid_id').showEditorByRecord($('con_contract_payment_precondition_cdd_result_ds').create());
+            }
+            
+            function payment_precondition_cdd_return() {
+                $('${/parameter/@winid}').close();
+            }
+            
+            function payment_precondition_cdd_create() {
+                if('${/model/get_pay_condition_status/record/@status}'=='SUBMITED') {
+                    Aurora.showMessage('提示','已生成付款先决条件，无需重复生成！');
+                    return;
+                }
+                lock_precondition_cdd_win();
+                Aurora.request({
+                    url: $('project_pay_condition_status_update_link').getUrl(),
+                    para: {
+                        project_id: '${/parameter/@project_id}'
+                    },
+                    success: function(res) {
+                        $('prj_project_pay_condition_result_ds').query();
+                        unlock_precondition_cdd_win();
+                    },
+                    failure: function() {
+                        unlock_precondition_cdd_win();
+                    },
+                    error: function() {
+                        unlock_precondition_cdd_win();
+                    },
+                    scope: this
+                });
+            }
+            
+            function payment_precondition_cdd_remove() {
+                lock_precondition_cdd_win();
+                var records = $('con_contract_payment_precondition_cdd_result_ds').getSelected();
+                if (records.length) {
+                    precondition_cdd_setsubmitparameter();
+                    var ajax_flag = 'N';
+                    var confirm_win = Aurora.showConfirm('${l:HLS.PROMPT}', '${l:HLS.DELETE_CONFIRM}', function() {
+                        ajax_flag = 'Y';
+                        $('con_contract_payment_precondition_cdd_result_ds').remove(records);
+                    }, function() {
+                        unlock_precondition_cdd_win();
+                    });
+                    confirm_win.on('close', function() {
+                        if (ajax_flag == 'N') {
+                            unlock_precondition_cdd_win();
+                        }
+                    });
+                } else {
+                    unlock_precondition_cdd_win();
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                }
+            }
+            
+            function on_precondition_cdd_remove() {
+                unlock_precondition_cdd_win();
+            }
+            
+            function precondition_cdd_setsubmitparameter() {
+                $('con_contract_payment_precondition_cdd_result_ds').setSubmitParameter('contract_id', '${/parameter/@contract_id}');
+                $('con_contract_payment_precondition_cdd_result_ds').setSubmitParameter('cashflow_id', '${/parameter/@cashflow_id}');
+            }
+            
+            function payment_precondition_cdd_query() {
+                $('prj_project_pay_condition_result_ds').query();
+            }
+            
+            function payment_precondition_cdd_save() {
+                lock_precondition_cdd_win();
+                if ($('prj_project_pay_condition_result_ds').validate()) {
+                    $('prj_project_pay_condition_result_ds').submit();
+                } else {
+                    unlock_precondition_cdd_win();
+                }
+            
+            }
+            
+            function lock_precondition_cdd_win() {
+                Aurora.Masker.mask($('${/parameter/@winid}').wrap, '${HLS.EXECUTING}');
+            }
+            
+            function unlock_precondition_cdd_win() {
+                Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+            }
+            
+            function on_precondition_cdd_submitsuccess() {
+                unlock_precondition_cdd_win();
+            }
+            
+            function on_precondition_cdd_submitfailed() {
+                unlock_precondition_cdd_win();
+            }
+            
+            function on_cdd_item_editorfunction(record, name) {
+                if ('${/parameter/@write_off_flag}' == 'FULL' || !record.isNew) {
+                    return '';
+                } else {
+                    if (name == 'cdd_item') {
+                        return 'precondition_cdd_grid_lov_id';
+                    } else if (name == 'cdd_item_name') {
+                        return 'precondition_cdd_grid_textfield_id';
+                    }
+                }
+            }
+            
+            function pry_condition_add_handler(ds,record,index) {
+                if('${/model/get_pay_condition_status/record/@status}'=='SUBMITED') {
+                    Aurora.showMessage('提示','已生成付款先决条件，不能再维护！');
+                    ds.remove(record);
+                    return;
+                }
+            }
+            
+            function pay_condition_select_func() {
+                if('${/model/get_pay_condition_status/record/@status}'=='SUBMITED') {
+                    return false;
+                }
+                return true;
+            }
+            
+            function grid_edit_func(record,name) {
+                if(record.isNew) {
+                    return 'precondition_cdd_grid_textfield_id';
+                }else {
+                	return '';
+                }
+                
+            }
+            
+            function required_flag_edit_func(record,name) {
+                if('${/model/get_pay_condition_status/record/@status}'=='SUBMITED') {
+                    return '';
+                }else {
+                    return 'precondition_grid_cb';
+                }
+                
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="con_contract_payment_precondition_cdd_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="project_id" defaultValue="${/parameter/@project_id}"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con_contract_payment_precondition_cdd_result_ds" autoQuery="true" model="cont.CON210.con_contract_payment_terms" queryDataSet="con_contract_payment_precondition_cdd_query_ds" selectable="true" submitUrl="${/request/@context_path}/modules/cont/CON210/con_contract_payment_terms.svc">
+                <a:fields>
+                    <a:field name="cdd_item" fetchRemote="false" lovGridHeight="350" lovHeight="500" lovService="cont.CON210.con_contract_payment_terms_cdd_lov?contract_id=${/parameter/@contract_id}&amp;cdd_list_id=${/model/con_contract_path/record/@cdd_list_id}" lovWidth="500" lovpagesize="11" required="true" title="CON210.PAYMENT_PRECONDITION_CDD_ITEM_NAME">
+                        <a:mapping>
+                            <a:map from="cdd_item_id" to="cdd_item_id"/>
+                            <a:map from="cdd_item" to="cdd_item"/>
+                            <a:map from="cdd_item_name" to="cdd_item_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="cdd_item_name" required="true"/>
+                    <a:field name="required_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="contract_id" defaultValue="${/parameter/@contract_id}"/>
+                    <a:field name="cashflow_id" defaultValue="${/parameter/@cashflow_id}"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="on_precondition_cdd_submitsuccess"/>
+                    <a:event name="submitfailed" handler="on_precondition_cdd_submitfailed"/>
+                    <a:event name="remove" handler="on_precondition_cdd_remove"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="prj_project_pay_condition_result_ds" autoQuery="true" model="cont.CON210.prj_pay_condition" queryDataSet="con_contract_payment_precondition_cdd_query_ds" selectFunction="pay_condition_select_func" selectable="true">
+                <a:fields>
+                    <a:field name="condition_seq" required="true"/>
+                    <a:field name="condition_des" required="true"/>
+                    <a:field name="required_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="pry_condition_add_handler"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:switch test="/parameter/@write_off_flag">
+                <a:case value="FULL">
+                    <a:screenTopToolbar>
+                        <a:gridButton click="payment_precondition_cdd_return" text="HLS.RETURN"/>
+                    </a:screenTopToolbar>
+                </a:case>
+                <a:case value="*">
+                    <a:screenTopToolbar>
+                        <a:gridButton click="payment_precondition_cdd_return" text="HLS.RETURN"/>
+                        <!-- <a:gridButton click="payment_precondition_cdd_new" text="HLS.NEW"/>
+                        <a:gridButton click="payment_precondition_cdd_remove" text="HLS.REMOVE"/> -->
+                        <a:gridButton click="payment_precondition_cdd_query" text="HLS.QUERY"/>
+                        <!-- <a:gridButton click="payment_precondition_cdd_save" text="HLS.SAVE"/> -->
+                        <a:gridButton click="payment_precondition_cdd_create" text="提交"/>
+                    </a:screenTopToolbar>
+                </a:case>
+            </a:switch>
+            <a:grid id="con_contract_payment_precondition_cdd_grid_id" bindTarget="prj_project_pay_condition_result_ds" height="350" navBar="true" width="650">
+                <a:toolBar>
+                    <a:button type="add"/>
+                    <a:button type="delete"/>
+                    <a:button type="save"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="condition_seq" editorFunction="grid_edit_func" prompt="序号" width="280"/>
+                    <a:column name="condition_des" editorFunction="grid_edit_func" prompt="付款条件" width="250"/>
+                    <a:column name="required_flag" editorFunction="required_flag_edit_func" prompt="CON210.PAYMENT_PRECONDITION_IS_REQUIRED" width="70"/>
+                </a:columns>
+                <a:editors>
+                    <a:checkBox id="precondition_grid_cb"/>
+                    <a:lov id="precondition_cdd_grid_lov_id"/>
+                    <a:textField id="precondition_cdd_grid_textfield_id"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

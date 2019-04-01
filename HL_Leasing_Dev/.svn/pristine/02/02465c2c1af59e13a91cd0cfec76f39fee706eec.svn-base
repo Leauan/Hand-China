@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2016-5-10 上午10:24:11  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:service xmlns:ns1="aurora.application.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <a:model-update model="gps.con_contract_gps_data_check"/>
+        <s:server-script import="gps/ln_gps.js"><![CDATA[
+            importPackage(Packages.rd.ln.gps.findsaleinfo);
+            importPackage(Packages.rd.ln.gps.savesaleinfo);
+            importPackage(Packages.rd.ln.gps.downloadsaleinfo);
+            importPackage(Packages.java.util);
+            importPackage(Packages.java.text);
+            
+            // var Account = gps_config.Account,
+            // Password = gps_config.Password,
+            // filePath = gps_config.filePath;
+            var Account, Password, filePath = gps_config.filePath;
+            var spAccountInfoBm = $bm('gps.con_contract_ln_gps_sp_account_info');
+            var spAccountInfoResult = spAccountInfoBm.queryAsMap({
+                contract_id: $ctx.parameter.contract_id
+            });
+            var spAccountInfoChilds = spAccountInfoResult.getChildren();
+            if (spAccountInfoChilds.length == 1) {
+                var spAccountInfoChild = spAccountInfoChilds[0];
+                Account = spAccountInfoChild.GPS_SP_NAME;
+                Password = spAccountInfoChild.GPS_SP_PWD;
+            } else {
+                raise_app_error("未获取到对应的经销商GPS用户信息");
+            }
+            
+            function save_gps_resp(savetype, respArray) {
+                var saveBm = $bm('gps.con_contract_update_ln_gps_response');
+                if (savetype == 'LN_NEW_GPS') {
+                    var flag = respArray[0];
+                    var result = respArray[1];
+                    if (flag == 'true') {
+                        saveBm.update({
+                            contract_id: $ctx.parameter.contract_id,
+                            saleno: result,
+                            savetype: savetype
+                        });
+                    } else {
+                        raise_app_error("新增工单失败：" + result);
+                    }
+                } else if (savetype == 'LN_FIND_GPS') {
+                    var address = respArray.get('Address');
+                    saveBm.update({
+                        contract_id: $ctx.parameter.contract_id,
+                        address: address,
+                        savetype: savetype
+                    });
+                } else if (savetype == 'LN_DOWNLOAD_GPS') {
+                    var download_url_info = respArray;
+                    if (download_url_info.indexOf('http') == -1) {
+                        raise_app_error("下载保单失败：" + download_url_info);
+                    }
+                    if (download_url_info) {
+                        $ctx.parameter.ln_url = String(download_url_info);
+                    }
+                    saveBm.update({
+                        contract_id: $ctx.parameter.contract_id,
+                        download_url_info: download_url_info,
+                        savetype: savetype
+                    });
+                }
+            }
+            
+            function new_con_gps() {
+                var infoBm = $bm('gps.con_contract_ln_add_gps_info');
+                var infoResult = infoBm.queryAsMap({
+                    contract_id: $ctx.parameter.contract_id
+                });
+                var infoChilds = infoResult.getChildren();
+                if (infoChilds.length) {
+                    var infoChild = infoChilds[0];
+                    var newGpsUrl = gps_config.newGpsUrl;
+                    var infoStrArray = [];
+                    var saleNo = infoChild.SALENO || '';
+                    var date = new Date();
+                    var format = new SimpleDateFormat("yyyyMMddHHmmss");
+                    var current_time = format.format(date);
+                    var ReqfilePath = filePath + "new_lngps_req_" + current_time + "_" + infoChild.CONTRACT_ID;
+                    var RespfilePath = filePath + "new_lngps_resp_" + current_time + "_" + infoChild.CONTRACT_ID;
+                    infoStrArray[0] = infoChild.BP_CLASS_N;
+                    infoStrArray[1] = infoChild.NAME;
+                    infoStrArray[2] = infoChild.ID_TYPE_N;
+                    infoStrArray[3] = infoChild.ID_CARD_NO;
+                    infoStrArray[4] = infoChild.LIV_PROVINCE_N;
+                    infoStrArray[5] = infoChild.LIV_CITY_N;
+                    infoStrArray[6] = infoChild.LIVING_ADDRESS;
+                    infoStrArray[7] = infoChild.CELL_PHONE;
+                    infoStrArray[8] = infoChild.PHONE;
+                    infoStrArray[9] = infoChild.EMAIL;
+                    infoStrArray[10] = infoChild.CONTACT_PERSON;
+                    infoStrArray[11] = infoChild.CONTACT_PERSON_PHONE;
+                    infoStrArray[12] = infoChild.CONTACT_PERSON_CELL_PHONE;
+                    infoStrArray[13] = infoChild.LN_PRODUCT_NAME;
+                    infoStrArray[14] = infoChild.PURCHASE_DATE;
+                    infoStrArray[15] = infoChild.BRAND_ID_N;
+                    infoStrArray[16] = infoChild.MODEL_ID_N;
+                    infoStrArray[17] = infoChild.COLOR_OF_APPREARANCE;
+                    infoStrArray[18] = infoChild.INVOICE_PRICE;
+                    infoStrArray[19] = infoChild.ITEM_ENGINE_NUMBER;
+                    infoStrArray[20] = infoChild.ITEM_FRAME_NUMBER;
+                    infoStrArray[21] = infoChild.LICENSE_NUMBER;
+                    infoStrArray[22] = infoChild.PURCHASE_CAR_TYPE;
+                    infoStrArray[23] = '';
+                    infoStrArray[24] = infoChild.COMPANY_ID_N;
+                    try {
+                        var nv = new SaveSaleInfo(newGpsUrl, saleNo, Account, Password, infoStrArray, "gb2312", ReqfilePath, RespfilePath);
+                        var respArray = nv.run();
+                        save_gps_resp('LN_NEW_GPS', respArray);
+                    } catch (e) {
+                        raise_app_error("初始化新增工单失败：" + e);
+                    }
+                } else {
+                    raise_app_error("未获取到对应的合同工单信息");
+                }
+            }
+            
+            function find_con_gps() {
+                var infoBm = $bm('gps.con_contract_ln_find_gps_info');
+                var infoResult = infoBm.queryAsMap({
+                    contract_id: $ctx.parameter.contract_id
+                });
+                var infoChilds = infoResult.getChildren();
+                if (infoChilds.length) {
+                    var infoChild = infoChilds[0];
+                    var findGpsUrl = gps_config.findGpsUrl;
+                    var infoStrArray = [];
+                    var date = new Date();
+                    var format = new SimpleDateFormat("yyyyMMddHHmmss");
+                    var current_time = format.format(date);
+                    var ReqfilePath = filePath + "find_lngps_req_" + current_time + "_" + infoChild.CONTRACT_ID;
+                    var RespfilePath = filePath + "find_lngps_resp_" + current_time + "_" + infoChild.CONTRACT_ID;
+                    infoStrArray[0] = infoChild.gps1;
+                    try {
+                        var fv = new FindSaleNo(findGpsUrl, infoStrArray, "gb2312", ReqfilePath, RespfilePath);
+                        var respMap = fv.run();
+                        save_gps_resp('LN_FIND_GPS', respMap);
+                    } catch (e) {
+                        raise_app_error("初始化新增工单失败：" + e);
+                    }
+                } else {
+                    raise_app_error("未获取到对应的合同工单信息");
+                }
+            }
+            
+            function down_con_gps() {
+                var infoBm = $bm('gps.con_contract_ln_add_gps_info');
+                var infoResult = infoBm.queryAsMap({
+                    contract_id: $ctx.parameter.contract_id
+                });
+                var infoChilds = infoResult.getChildren();
+                if (infoChilds.length) {
+                    var infoChild = infoChilds[0];
+                    var downloadGpsUrl = gps_config.downloadGpsUrl;
+                    var infoStrArray = [];
+                    var saleNo = infoChild.SALENO || '';
+                    var date = new Date();
+                    var format = new SimpleDateFormat("yyyyMMddHHmmss");
+                    var current_time = format.format(date);
+                    var ReqfilePath = filePath + "new_lngps_req_" + current_time + "_" + infoChild.CONTRACT_ID;
+                    var RespfilePath = filePath + "new_lngps_resp_" + current_time + "_" + infoChild.CONTRACT_ID;
+                    try {
+                        var dv = new DownLoadSaleInfo(downloadGpsUrl, saleNo, Account, Password, infoStrArray, "gb2312", ReqfilePath, RespfilePath);
+                        var download_url_info = dv.run();
+                        save_gps_resp('LN_DOWNLOAD_GPS', download_url_info);
+                    } catch (e) {
+                        raise_app_error("初始化新增工单失败：" + e);
+                    }
+                } else {
+                    raise_app_error("未获取到对应的合同工单信息");
+                }
+            }
+            
+            var gps_type = $ctx.parameter.gps_type;
+            if (gps_type == 'LN_NEW_GPS') {
+                new_con_gps();
+            } else if (gps_type == 'LN_FIND_GPS') {
+                find_con_gps();
+            } else if (gps_type == 'LN_DOWNLOAD_GPS') {
+                down_con_gps();
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:service-output output="/parameter"/>
+</a:service>

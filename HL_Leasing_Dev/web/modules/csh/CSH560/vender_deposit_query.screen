@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qianming  
+    $Date: 2014-8-27 上午11:06:56  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure/>
+    <a:view package="aurora.ui.std" template="default">
+        <a:link id="save_pay_check_link" model="csh.CSH560.save_pay_check" modelaction=""/>
+        <a:link id="csh560_check_wfl_link" model="csh.CSH560.return_workflow_start" modelaction="query"/>
+        <a:link id="con505_hls_bp_master_query_link" url="${/request/@context_path}/modules/cont/CON505/hls_bp_master_query.screen"/>
+        <a:link id="csh560_get_layout_link" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="csh560_deposit_return_link" url="${/request/@context_path}/modules/csh/CSH560/vender_deposit_return.screen"/>
+        <script><![CDATA[
+        	function reset(){
+        	    $('vender_deposit_query_ds').reset();
+        	} 	
+        	function query(){
+        	    $('vender_deposit_result_ds').query();
+        	}
+        	
+        	function bp_query(value, record, name) {
+                return '<a href="javascript:winOpen_req_pay(\'' + record.id + '\')">' + value + '</a>';
+           }
+            function winOpen_req_pay(record_id) {
+
+                var record = $('vender_deposit_result_ds').findById(record_id);
+                var param = record.data;
+                param['function_code'] = 'CON505H';
+                param['function_usage'] = 'MODIFY';
+                param['url_title'] = '商业伙伴';
+                hls_doc_get_layout_code('csh560_get_layout_link', param, 'con505_hls_bp_master_query_link', record.ds.id,'${/parameter/@layout_code}');
+  			 }
+  			         	
+        	function in_query(){
+        	    var transaction_id = $('vender_deposit_result_ds').getSelected()[0].get('transaction_id');
+        	    var bp_id = $('vender_deposit_result_ds').getSelected()[0].get('bp_id');
+        	    $('vender_deposit_in_ds').setQueryParameter('transaction_id',transaction_id);
+        	    $('vender_deposit_out_ds').setQueryParameter('bp_id',bp_id);
+        	    $('vender_deposit_out_ds').query();
+        	    $('vender_deposit_in_ds').query();
+        	}
+        	function selectHandler(ds,rec){
+        	    in_query();
+        	}
+        	function updateHandler(ds,rec,name,val,oldVal){
+        	    query();
+        	}
+        	function deposit_deduction(){
+        	    debugger;
+        	    var bp_id = $('vender_deposit_result_ds').getSelected()[0].get('bp_id');
+        	    var bp_code = $('vender_deposit_result_ds').getSelected()[0].get('bp_code');
+        	    var bp_name = $('vender_deposit_result_ds').getSelected()[0].get('bp_name'); 
+        Aurora.request({
+            url: $('csh560_check_wfl_link').getUrl(),
+            para: {
+                bp_id: bp_id
+            },
+            success: function(res) {
+                var check_flag = res.result.record.check_flag;
+				if (check_flag == 'Y' || check_flag == 'D' || check_flag == 'R'){
+				    Aurora.showMessage('提示','已经有工作流在审批中');
+				}else{
+	        	    window.location = '${/request/@context_path}/modules/csh/CSH513/csh_transaction_receipt_write_off.screen?deposit_flag=Y&bp_id='+bp_id+'&bp_code='+bp_code+'&bp_name='+bp_name+'&limit_flag=Y&limit2_flag=Y&limit3_flag=N&type=DEPOSIT&bp_limit_flag=Y';
+				}
+            },
+            error: function(res) {
+            },
+            faliure: function() {
+            },
+            scope: this
+        });   	    
+        	}
+        	function achieve_status_rendener(val,rec,name){
+        	    if(rec.get('contract_number') == '--'){
+        	        return val;
+        	    }else{
+        	        return '未归档';
+        	    }
+        	}
+        	function return_deposit(){
+        	    var record = $('vender_deposit_result_ds').getCurrentRecord();
+        	    var transaction_amount = record.get('transaction_amount')||0;
+        	    var bp_id = record.get('bp_id');
+        	    var deposit_total_amount = record.get('deposit_total_amount');
+        	    Aurora.request({
+            url: $('csh560_check_wfl_link').getUrl(),
+            para: {
+                bp_id: bp_id
+            },
+            success: function(res) {
+                var check_flag = res.result.record.check_flag;
+				if (check_flag == 'Y' || check_flag == 'D'){
+				    Aurora.showMessage('提示','已经有工作流在审批中');
+				}else{
+					if (transaction_amount <=0){
+					    Aurora.showMessage('提示','该保证金没有金额可以被退还');
+					    return;
+					}
+					var param = record.data;
+					param['function_code'] = 'CSH560R';
+					param['url_title'] = '收款退款';
+					param['bp_id'] = bp_id;
+					param['deposit_total_amount'] = deposit_total_amount;
+					hls_doc_get_layout_code('csh560_get_layout_link', param, 'csh560_deposit_return_link', null);
+				}
+            },
+            error: function(res) {
+            },
+            faliure: function() {
+            },
+            scope: this
+        });
+        	}
+        	function save_pay_check(){
+        	    var records = $('vender_deposit_in_ds').getJsonData(false);
+                var datas = [];
+                for (var i = 0;i < records.length;i++) {
+                 var obj1 = {};
+                 obj1['pay_check'] = records[i]['pay_check'];
+                 obj1['write_off_id'] = records[i]['write_off_id'];
+                 obj1['_status'] = 'update';
+                 datas.push(obj1);
+                }
+            	Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/csh.CSH560.save_pay_check/batch_update',
+                    para: datas,
+                    success: function() {
+						Aurora.SideBar.show({
+                    			msg: '${l:HLS.SUBMIT_SUCCESS}',
+                    			duration: 2000
+                				});
+        	    		Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    scope: this
+                });
+                Aurora.Masker.unmask(Ext.getBody());
+        	}
+        	
+        	function numberRenderer(value,ds,name){
+ 				return Aurora.formatMoney(value,2);
+ 			}
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="hls_bp_category_ds" loadData="true" model="csh.CSH560.hls_bp_category">
+                <a:fields>
+                    <a:field name="bp_category"/>
+                    <a:field name="description"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="agent_type_ds" lookupCode="HLS_AGENT_TYPE"/>
+            <a:dataSet id="quarter_ds" lookupCode="HLS_QUARTER"/>
+            <a:dataSet id="month_ds" lookupCode="HLS_MONTHLY"/>
+            <a:dataSet id="transfer_type_ds" lookupCode="CSH_DEPOSIT_TRANSFER_TYPE"/>
+            <a:dataSet id="vender_deposit_query_ds">
+                <a:fields>
+                    <a:field name="bp_id"/>
+                    <a:field name="bp_name" lovHeight="480" lovService="csh.CSH560.hls_bp_master" lovWidth="510" prompt="商业伙伴名称" title="商业伙伴信息">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_category"/>
+                    <a:field name="agent_type_n" displayField="code_value_name" options="agent_type_ds" prompt="经销商类型" returnField="agent_type" valueField="code_value"/>
+                    <a:field name="deposit_total_amount_from" prompt="保证金余额从"/>
+                    <a:field name="deposit_total_amount_to" prompt="保证金余额到"/>
+                    <a:field name="cf_item_desc" displayField="code_value_name" options="transfer_type_ds" prompt="收入项目" returnField="cf_item" valueField="code_value"/>
+                    <a:field name="write_off_type_dis" prompt="支出项目"/>
+                    <a:field name="write_off_date_from" prompt="收入时间从"/>
+                    <a:field name="write_off_date_to" prompt="收入时间到"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="updateHandler"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="vender_deposit_result_ds" autoQuery="true" model="csh.CSH560.vender_deposit_query" pageSize="6" queryDataSet="vender_deposit_query_ds" selectable="true" selectionModel="single">
+                <a:events>
+                    <a:event name="select" handler="selectHandler"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="vender_deposit_in_ds" autoQuery="true" model="csh.CSH560.vander_deposit_in" pageSize="5" queryDataSet="vender_deposit_query_ds">
+                <a:fields>
+                    <a:field name="quarter_flag_n" displayField="code_value_name" options="quarter_ds" readOnly="true" returnField="quarter_flag" valueField="code_value"/>
+                    <a:field name="month_flag_n" displayField="code_value_name" options="month_ds" readOnly="true" returnField="month_flag" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="vender_deposit_out_ds" autoQuery="true" model="csh.CSH560.vender_deposit_out" pageSize="5" queryDataSet="vender_deposit_query_ds"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="reset" text="HLS.RESET"/>
+                <a:gridButton click="query" text="HLS.QUERY"/>
+                <a:gridButton click="deposit_deduction" text="保证金抵扣"/>
+                <a:gridButton click="return_deposit" text="保证金退还"/>
+                <a:gridButton click="save_pay_check" text="保存"/>
+            </a:screenTopToolbar>
+            <a:form title="查询条件" width="1065">
+                <a:hBox labelWidth="100">
+                    <a:lov name="bp_name" bindTarget="vender_deposit_query_ds"/>
+                    <a:comboBox name="agent_type_n" bindTarget="vender_deposit_query_ds"/>
+                    <a:numberField name="deposit_total_amount_from" bindTarget="vender_deposit_query_ds"/>
+                    <a:numberField name="deposit_total_amount_to" bindTarget="vender_deposit_query_ds"/>
+                </a:hBox>
+                <a:hBox labelWidth="100">
+                    <a:comboBox name="cf_item_desc" bindTarget="vender_deposit_query_ds"/>
+                    <a:datePicker name="write_off_date_from" bindTarget="vender_deposit_query_ds"/>
+                    <a:datePicker name="write_off_date_to" bindTarget="vender_deposit_query_ds"/>
+                </a:hBox>
+                <a:hBox labelWidth="100"><![CDATA[
+
+                ]]></a:hBox>
+            </a:form>
+            <a:grid bindTarget="vender_deposit_result_ds" height="228" navBar="true" width="1065">
+                <a:toolBar>
+                    <a:button type="excel"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="bp_code" width="150"/>
+                    <a:column name="bp_name" renderer="bp_query" width="220"/>
+                    <a:column name="agent_type_n"/>
+                    <a:column name="deposit_total_amount" align="right" renderer="numberRenderer"/>
+                    <!--                     <a:column name="fin_amount_num" align="right"/>
+                    <a:column name="credit_amount" align="right"/> -->
+                </a:columns>
+            </a:grid>
+            <a:tabPanel height="210" width="1175">
+                <a:tabs>
+                    <a:tab prompt="保证金收入明细" width="120">
+                        <a:grid bindTarget="vender_deposit_in_ds" height="180" navBar="true" width="1120">
+                            <a:toolBar>
+                                <a:button type="excel"/>
+                            </a:toolBar>
+                            <a:columns>
+                                <a:column name="contract_number" prompt="合同编号" width="120"/>
+                                <a:column name="bp_name" prompt="承租人" width="100"/>
+                                <a:column name="cf_item_desc" prompt="收入项目"/>
+                                <a:column name="write_off_due_amount" align="right" prompt="保证金收入"/>
+                                <a:column name="write_off_date" prompt="收入时间" width="80"/>
+                                <a:column name="lease_times" prompt="租赁期数"/>
+                                <a:column name="year_flag" prompt="年度"/>
+                                <a:column name="quarter_flag_n" editor="combo_edit" prompt="季度"/>
+                                <a:column name="month_flag_n" editor="combo_edit" prompt="月度"/>
+                                <a:column name="description" prompt="备注"/>
+                                <a:column name="pay_check" editor="text_edit" prompt="支付审核"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:comboBox id="combo_edit"/>
+                                <a:textField id="text_edit"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab prompt="保证金支出明细" width="120">
+                        <a:grid bindTarget="vender_deposit_out_ds" height="180" navBar="true" width="855">
+                            <a:toolBar>
+                                <a:button type="excel"/>
+                            </a:toolBar>
+                            <a:columns>
+                                <a:column name="contract_number" prompt="合同编号" width="120"/>
+                                <a:column name="bp_name" prompt="承租人" width="200"/>
+                                <a:column name="write_off_type_dis" prompt="支出项目"/>
+                                <a:column name="write_off_due_amount" align="right" prompt="保证金支出"/>
+                                <a:column name="write_off_date" prompt="支出时间" width="80"/>
+                                <a:column name="lease_times" prompt="租赁期数"/>
+                                <a:column name="description" prompt="备注"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

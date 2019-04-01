@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qianming  
+    $Date: 2014-8-27 下午4:14:05  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" alias="t1">
+    <bm:fields>
+        <bm:field name="bp_id"/>
+        <bm:field name="write_off_id"/>
+        <bm:field name="contract_number"/>
+        <bm:field name="bp_name"/>
+        <bm:field name="lease_item_amount"/>
+        <bm:field name="write_off_due_amount"/>
+        <bm:field name="write_off_date"/>
+        <bm:field name="cf_item_desc"/>
+        <bm:field name="lease_times"/>
+        <bm:field name="cf_item"/>
+        <bm:field name="year_flag"/>
+        <bm:field name="quarter_flag"/>
+        <bm:field name="month_flag"/>
+        <bm:field name="description"/>
+        <bm:field name="pay_check"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+    			SELECT bp_id,
+    				   write_off_id,
+				       contract_number,
+				       nvl(bp_name,
+				           '--')bp_name,
+				       decode(nvl(lease_item_amount,
+				                  0),
+				              0,
+				              '0.00',
+				              to_char(lease_item_amount,
+				                      'FM999,999,999.00')) lease_item_amount,
+				       decode(nvl(write_off_due_amount,
+				                  0),
+				              0,
+				              '0.00',
+				              to_char(write_off_due_amount,
+				                      'FM999,999,999.00')) write_off_due_amount,
+				       write_off_date,
+				       lease_times,
+				       cf_item,
+				       cf_item_desc,
+				       year_flag,
+				       quarter_flag,
+				       month_flag,
+						pay_dec,
+						description,
+						pay_check
+				  FROM (SELECT subsequent_csh_trx_id transaction_id,
+				               nvl((SELECT contract_number FROM con_contract WHERE contract_id = t.contract_id),
+				                   '--') contract_number,
+				                nvl((select lease_times FROM con_contract WHERE contract_id = t.contract_id),0)lease_times,
+				               (SELECT b.bp_name
+				                  FROM con_contract_bp a,
+				                       hls_bp_master   b
+				                 WHERE contract_id = t.contract_id
+				                       AND a.bp_category = 'TENANT'
+				                       AND a.bp_id = b.bp_id) bp_name,
+				               (SELECT lease_item_amount FROM con_contract WHERE contract_id = t.contract_id) lease_item_amount,
+				               t.write_off_due_amount,
+				               to_char(t.write_off_date,
+				                       'yyyy-mm-dd') write_off_date,
+				                 t.transfer_type cf_item,
+				                (select code_value_name value_name from sys_code_values_vl 
+								where code_id=(select code_id from sys_codes where code='CSH_DEPOSIT_TRANSFER_TYPE')
+								and code_value=t.transfer_type) cf_item_desc,
+				                t.year_flag,
+				                t.quarter_flag,
+				                t.month_flag,
+				                t.pay_dec,
+				                t.description,
+				                t.write_off_id,
+				                t.pay_check,
+				                (SELECT bp_id
+                     				FROM csh_transaction
+                    				WHERE transaction_id = t.subsequent_csh_trx_id
+                      				AND transaction_category = 'BUSINESS'
+                      				AND transaction_type = 'DEPOSIT'
+                      				and returned_flag != 'RETURN') bp_id
+				          FROM csh_write_off t
+				         WHERE (t.write_off_type = 'DEPOSIT'
+				               AND t.reversed_flag = 'N'
+				               AND
+				               (t.cashflow_id IS NULL OR EXISTS (SELECT 1
+				                                                   FROM con_contract_cashflow
+				                                                  WHERE cashflow_id = t.cashflow_id
+				                                                        AND cf_direction = 'INFLOW')))
+				               or (t.cf_item='55' and t.reversed_flag='N')
+				        order by write_off_date desc
+				                                                        ) t1 #WHERE_CLAUSE#
+    		]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field field="bp_id" queryOperator="="/>
+        <bm:query-field field="cf_item" queryOperator="="/>
+        <bm:query-field name="write_off_date_from" queryExpression="t1.write_off_date &gt;= ${@write_off_date_from}"/>
+        <bm:query-field name="write_off_date_to" queryExpression="t1.write_off_date &lt;= ${@write_off_date_to}"/>
+    </bm:query-fields>
+</bm:model>

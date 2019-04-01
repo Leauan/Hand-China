@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="v.code=&apos;ZJ_WFL_INSTANCE_PARA_VALUES&apos; and v.code_value in (&apos;INSTANCE_USER_ID&apos;,&apos;INSTANCE_ID&apos;,&apos;INSTANCE_WORKFLOW_ID&apos;)" model="zjwfl.sys_code_default_value" rootPath="instance_para_value_list"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+        
+         function onUpdate_endProcParaDs(ds,record,name,value,oldvalue){
+            	if(name=="parameter_type_desc")
+            	{
+					record.set('parameter_value',null);
+					record.set('parameter_value_desc',null);
+            	}
+            	else if(name=='parameter_value_desc')
+            	{
+            	    if(record.get('parameter_type')=='DEFAULT')
+            	    {
+            	        record.set('parameter_value',value);
+            	    }
+            	}
+            }
+            
+            function clear_field(field,type)
+            {
+                if(type=='LOV')
+                {
+                    field.setMapping(null);
+    			    field.setLovService(null);
+                }
+                else if(type=='COMBOBOX')
+                {
+                    field.setMapping(null);
+                    field.setPropertity('displayfield', null);
+    			    field.setPropertity('valuefield', null);
+    			    field.setPropertity('options', null);
+    			    field.setPropertity('returnfield', null);
+                }
+            }
+            
+            function editorFun_endProcParaDs_grid(record, name){
+                
+                var field=record.getField(name);
+            	var parameter_type = record.get('parameter_type');
+            	
+        		if(name=='parameter_value_desc'){
+        			if(parameter_type=='DEFAULT')
+        			{
+        				return 'endProcParaDs_grid_tf';
+        			}
+        			else if(parameter_type=='WFL_TYPE_PARA')
+        			{
+        			    clear_field(field,'COMBOBOX');
+        			    
+        				field.setLovService('zjwfl.zj_wfl_workflow_type_parameter_lov');
+        				field.setLovPara('workflow_id','${/parameter/@workflow_id}');
+        				field.setLovWidth(600);
+        				field.setLovGridHeight(300);
+        				field.setLovHeight(450);
+        				field.setMapping([{
+        				    from:'workflow_type_para_id',
+        				    to: 'parameter_value'
+    				    },
+    				    {
+    				        from:'workflow_type_para_desc',
+    				        to: 'parameter_value_desc'
+				        }]);
+        				field.setTitle('工作流类型参数选择');
+        				
+        				return 'endProcParaDs_grid_lov';
+        			}
+        			else if(parameter_type=='WFL_INSTANCE_PARA')
+        			{
+        			    clear_field(field,'LOV');
+        			    
+        			    field.setPropertity('displayfield', 'code_value_name');
+        			    field.setPropertity('valuefield', 'code_value');
+        			    field.setPropertity('options', 'instanceParaValueDs');
+        			    field.setMapping([{
+        				    from:'code_value',
+        				    to: 'parameter_value'
+    				    }]);
+        				return 'endProcParaDs_grid_comb';
+        			}
+        		}
+        		return '';
+            }
+            
+            
+            function close_endProcParaPage(){
+            	$('zj_wfl_workflow_node_proc_para_window').close();
+            }
+            
+            function save_endProcParaDs(){
+            	var ds = $('endProcParaDs');
+            	if(ds.validate)
+            	{
+            		ds.submit();
+            	}         	
+            }
+            
+            
+            
+            
+            ]]></script>
+        <a:dataSets>
+            <a:dataSet id="instanceParaValueDs">
+                <a:datas dataSource="/model/instance_para_value_list"/>
+            </a:dataSet>
+            <a:dataSet id="paraTypeDs" lookupCode="ZJ_WFL_PARAMETER_TYPE"/>
+            <a:dataSet id="endProcParaPage_endProcDs" loadData="true" model="zjwfl.WFL2012.zj_wfl_workflow_end_procedure">
+                <a:fields>
+                    <a:field name="sequence_num" readOnly="true"/>
+                    <a:field name="procedure_code" readOnly="true"/>
+                    <a:field name="procedure_desc" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="endProcParaDs" autoPageSize="true" autoQuery="true" fetchAll="true" model="zjwfl.WFL2012.zj_wfl_workflow_end_proc_para" queryUrl="${/request/@context_path}/autocrud/zjwfl.WFL2012.zj_wfl_workflow_end_proc_para/query?workflow_procedure_id=${/parameter/@workflow_procedure_id}&amp;procedure_id=${/parameter/@procedure_id}" selectable="false">
+                <a:fields>
+                    <a:field name="parameter_value_desc"/>
+                    <a:field name="parameter_type_desc" displayField="code_value_name" options="paraTypeDs" required="true" returnField="parameter_type" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_endProcParaDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form column="3" labelWidth="100" title="结束过程信息">
+                <a:textField name="sequence_num" bindTarget="endProcParaPage_endProcDs" prompt="结束过程序号"/>
+                <a:textField name="procedure_code" bindTarget="endProcParaPage_endProcDs" prompt="过程代码"/>
+                <a:textField name="procedure_desc" bindTarget="endProcParaPage_endProcDs" prompt="过程描述"/>
+            </a:form>
+            <a:hBox>
+                <a:button click="save_endProcParaDs" text="HAP_SAVE"/>
+                <a:button click="close_endProcParaPage" text="HAP_CLOSE"/>
+            </a:hBox>
+            <a:grid id="endProcParaDs_grid" bindTarget="endProcParaDs" height="350" width="950">
+                <a:columns>
+                    <a:column name="sequence_num" align="right" prompt="参数序号" width="100"/>
+                    <a:column name="parameter_code" prompt="参数代码" width="200"/>
+                    <a:column name="parameter_desc" prompt="参数描述" width="200"/>
+                    <a:column name="parameter_type_desc" editor="endProcParaDs_grid_comb" prompt="参数类型" width="200"/>
+                    <a:column name="parameter_value_desc" editorFunction="editorFun_endProcParaDs_grid" prompt="参数值" width="200"/>
+                </a:columns>
+                <a:editors>
+                    <a:lov id="endProcParaDs_grid_lov"/>
+                    <a:textField id="endProcParaDs_grid_tf"/>
+                    <a:comboBox id="endProcParaDs_grid_comb"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

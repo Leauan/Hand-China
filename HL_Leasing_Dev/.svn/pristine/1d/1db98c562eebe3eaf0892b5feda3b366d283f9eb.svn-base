@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:update-sql><![CDATA[
+                SELECT
+                    t1.*
+                FROM
+                    (SELECT
+                        bp.bp_id,
+                        bp.bp_code,
+                        bp.bp_name,
+                        bp.bp_class,
+                        (SELECT
+                            v.code_value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code                    = 'HLS211_BP_CLASS' AND
+                            v.code_enabled_flag       = 'Y' AND
+                            v.code_value_enabled_flag = 'Y' AND
+                            v.code_value              = bp.bp_class
+                        ) bp_class_n,
+                        bp.bp_category,
+                        (SELECT
+                            description AS value_name
+                        FROM
+                            hls_bp_category t
+                        WHERE
+                            t.bp_category = bp.bp_category AND
+                            enabled_flag  = 'Y'
+                        ) bp_category_n,
+                        bp.agent_type,
+                        (SELECT
+                            v.code_value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code                    = 'HLS_AGENT_TYPE' AND
+                            v.code_enabled_flag       = 'Y' AND
+                            v.code_value_enabled_flag = 'Y' AND
+                            v.code_value              = bp.agent_type
+                        ) agent_type_n,
+                        bp.extra_nam,
+                        bp.agent_instance_status,
+                        (SELECT
+                            v.code_value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code                    = 'HLS303_WFL_STATUS' AND
+                            v.code_enabled_flag       = 'Y' AND
+                            v.code_value_enabled_flag = 'Y' AND
+                            v.code_value              = NVL(bp.agent_instance_status, 'NEW')
+                        ) agent_instance_status_n,
+                        bp.cdd_list_id
+                    FROM
+                        hls_bp_master bp
+                    WHERE
+                        bp.bp_category                        = 'AGENT' AND
+                        NVL(bp.agent_instance_status, 'NEW') IN ('NEW','APPROVING', 'REJECT','APPROVED','APPROVED_RETURN')
+                    ) t1 #WHERE_CLAUSE#
+            ]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+                BEGIN
+                    hls_bp_master_pkg.submit_agent_access_wfl( p_bp_id=>${@bp_id},
+                    										   p_user_id=>${/session/@user_id},
+                    										   p_company_id=>${/session/@company_id});
+                END;
+            ]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="bp_id"/>
+        <bm:field name="bp_code"/>
+        <bm:field name="bp_category"/>
+        <bm:field name="bp_name"/>
+        <bm:field name="extra_nam"/>
+        <bm:field name="bp_class"/>
+        <bm:field name="bp_category_n"/>
+        <bm:field name="bp_class_n"/>
+        <bm:field name="agent_type"/>
+        <bm:field name="agent_type_n"/>
+        <bm:field name="agent_instance_status"/>
+        <bm:field name="agent_instance_status_n"/>
+        <bm:field name="cdd_list_id"/>
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field field="bp_code" queryExpression="t1.bp_code like upper(&apos;%&apos;||${@bp_code}||&apos;%&apos;)"/>
+        <bm:query-field field="bp_name" queryOperator="like"/>
+        <bm:query-field field="bp_category_n" queryOperator="like"/>
+        <bm:query-field field="agent_instance_status_n" queryOperator="like"/>
+        <bm:query-field field="agent_type_n" queryOperator="like"/>
+    </bm:query-fields>
+</bm:model>

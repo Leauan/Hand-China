@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-5-30 上午09:44:31  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="currency"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="csh_payment_reverse_confirm_link" url="${/request/@context_path}/modules/csh/CSH503/csh_payment_reverse_confirm.screen"/>
+        <div/>
+        <script><![CDATA[
+        
+       function dateValidator(record, name, value) { //日期校验方法
+                if (name == 'transaction_date_from' || name == 'transaction_date_to') {
+                    var start_date = Aurora.formatDate(record.get('transaction_date_from'));
+                    var end_date = Aurora.formatDate(record.get('transaction_date_to'));
+                    if ( !! end_date) { //由于结束日期非必填，只有在结束日期填了才进行比较
+                        if (!compareDate(start_date, end_date)) {
+                            return '${l:CSH510.CSH_RECEIPT_DATE_CHECK}'; //校验不通过返回字符串
+                        }
+                    }
+                    return true; //校验通过返回true
+                }
+            } 
+		function compareDate(start, end) {
+                if (start > end) {
+                    return false;
+                }
+                return true;
+            }            
+       
+       function csh503_payment_query(){
+           $('csh_payment_reverse_ds').query();
+           $('csh_payment_reverse_ds').setQueryParameter(closed_flag,'N');
+       }     
+       
+       function csh503_payment_reset(){
+           $('csh_payment_reverse_query_ds').reset();
+       }
+       
+
+                   
+            function winOpen_reverse(payment_req_id) {
+                new Aurora.Window({
+                    id: 'csh_payment_reverse_confirm_window',
+                    url: $('csh_payment_reverse_confirm_link').getUrl(),
+                    params:{
+	                	payment_req_id:payment_req_id
+	                },
+                    title: '付款反冲确认',
+                    height: 458,
+                    width: 550
+                });
+            }
+            
+            function csh503_payment_reverse(){
+                var a = $('csh_payment_reverse_ds').getSelected();
+                var record = a[0];
+             
+                //改为后台校验
+                // var record = $('csh_payment_reverse_ds').getCurrentRecord();
+                // if(record.get('contract_count')>0){
+                     // Aurora.showMessage('${l:PROMPT_MESSAGE}','合同已赎证或在赎证中，无法反冲',null,250,100);
+                     // return ;
+                // }
+                // if(record.get('write301_count')>0){
+                     // Aurora.showMessage('${l:PROMPT_MESSAGE}','管理费存在后续操作，请先反冲管理费',null,250,100);
+                      // return ;
+                // }
+                if(record.get('finance_income_recognized')=='Y'){
+                     Aurora.showMessage('${l:PROMPT_MESSAGE}','管理费收入已确认，请联系系统管理员！',null,250,100);
+                      return ;
+                }
+                if(record == undefined){
+                    Aurora.showMessage('${l:PROMPT_MESSAGE}','未选中行',null,250,100);
+                     return ;
+                }else{
+                    new Aurora.Window({
+                    id: 'csh_payment_reverse_confirm_window',
+                    url: $('csh_payment_reverse_confirm_link').getUrl(),
+                    params:{
+	                	
+	                },
+                    title: '付款反冲确认',
+                    height: 200,
+                    width: 800
+                });
+                    
+                }
+            }
+            
+            
+            function onUpdate_csh503_payment(ds, record, name, value, oldvalue){
+               if (name == 'reverse_date') {
+                    showPeriod(record);
+                    //alert(value);
+                    //value = Aurora.formatDate(value);
+                    //$('csh_payment_reverse_ds').getAt(0).set('reverse_date', value);
+                    record.set('reverse_date', value);
+                } 
+           }
+           
+           function showPeriod(record) {
+                var r_date = record.get('reverse_date');
+                r_date = Aurora.formatDate(r_date);
+                Aurora.request({
+                    url: $('get_period_name_id').getUrl(),
+                    para: {
+                        p_date: r_date
+                    },
+                    success: periodname,
+                    scope: this
+                });
+            }
+            
+            function periodname(res) {
+                if (res) {
+                    var period_name = res.result.record.period_name,
+                        internal_period_num = res.result.record.internal_period_num;
+                        //alert(internal_period_num);
+                    if (period_name) {
+                        $('csh_payment_reverse_ds').getCurrentRecord().set('period_name', period_name);
+                        $('csh_payment_reverse_ds').getCurrentRecord().set('internal_period_num', internal_period_num);
+                    } else {
+                        $('csh_payment_reverse_ds').getCurrentRecord().set('period_name', '');
+                        $('csh_payment_reverse_ds').getCurrentRecord().set('internal_period_num', '');
+                    }
+                    
+                }
+            }
+            
+            function csh503_reverse_query_update(ds, record, name, value, oldvalue){
+                if (name == 'payment_req_number_from') {
+                    if (record.get('payment_req_number_to') == 'undefined' || record.get('payment_req_number_to') == null || record.get('payment_req_number_to') == '') {
+                        record.set('payment_req_number_to', value);
+                    }
+                } else if (name == 'payment_req_number_to') {
+                    if (record.get('payment_req_number_from') == 'undefined' || record.get('payment_req_number_from') == null || record.get('payment_req_number_from') == '') {
+                        record.set('payment_req_number_from', value);
+                    }
+                } else if (name == 'transaction_amount_from') {
+                    if (record.get('transaction_amount_to') == 'undefined' || record.get('transaction_amount_to') == null || record.get('transaction_amount_to') == '') {
+                        record.set('transaction_amount_to', value);
+                    }
+                } else if (name == 'transaction_amount_to') {
+                    if (record.get('transaction_amount_from') == 'undefined' || record.get('transaction_amount_from') == null || record.get('transaction_amount_from') == '') {
+                        record.set('transaction_amount_from', value);
+                    }
+                } else if (name == 'transaction_date_from') {
+                    if (record.get('transaction_date_to') == 'undefined' || record.get('transaction_date_to') == null || record.get('transaction_date_to') == '') {
+                        record.set('transaction_date_to', value);
+                    }
+                } else if (name == 'transaction_date_to') {
+                    if (record.get('transaction_date_from') == 'undefined' || record.get('transaction_date_from') == null || record.get('transaction_date_from') == '') {
+                        record.set('transaction_date_from', value);
+                    }
+                }
+                if (name == 'transaction_num_from') {
+                    if (record.get('transaction_num_to') == 'undefined' || record.get('transaction_num_to') == null || record.get('transaction_num_to') == '') {
+                        record.set('transaction_num_to', value);
+                    }
+                } else if (name == 'transaction_num_to') {
+                    if (record.get('transaction_num_from') == 'undefined' || record.get('transaction_num_from') == null || record.get('transaction_num_from') == '') {
+                        record.set('transaction_num_from', value);
+                    }
+                }
+                else if (name == 'bank_account_code_from') {
+                    if (record.get('bank_account_code_to') == 'undefined' || record.get('bank_account_code_to') == null || record.get('bank_account_code_to') == '') {
+                        record.set('bank_account_code_to', value);
+                    }
+                } else if (name == 'bank_account_code_to') {
+                    if (record.get('bank_account_code_from') == 'undefined' || record.get('bank_account_code_from') == null || record.get('bank_account_code_from') == '') {
+                        record.set('bank_account_code_from', value);
+                    }
+                } 
+                
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="currency_ds">
+                <a:datas dataSource="/model/currency"/>
+            </a:dataSet>
+            <a:dataSet id="csh_payment_reverse_query_ds">
+                <a:fields>
+                    <a:field name="bp_code" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="bp_id" to="bp_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="transaction_date_from" validator="dateValidator"/>
+                    <a:field name="transaction_date_to" validator="dateValidator"/>
+                    <a:field name="bank_account_code_from" autoCompleteField="bank_account_num" lovGridHeight="350" lovHeight="550" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_code" to="bank_account_code_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_account_from_id"/>
+                    <a:field name="bank_account_code_to" autoComplete="true" autoCompleteField="bank_account_num" lovGridHeight="350" lovHeight="550" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_code" to="bank_account_code_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="currency_name_display" displayField="currency_name" options="currency_ds" returnField="currency_code" valueField="currency_code"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="csh503_reverse_query_update"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="csh_payment_reverse_ds" autoQuery="true" model="csh.CSH503.csh_payment_reverse" queryDataSet="csh_payment_reverse_query_ds" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="closed_flag" checkedValue="Y" defaultValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="submitted_flag" checkedValue="Y" defaultValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="approval_status" checkedValue="Y" defaultValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="reverse_date" required="true"/>
+                    <a:field name="bp_name" readOnly="true"/>
+                    <a:field name="transaction_amount" readOnly="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_csh503_payment"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="csh503_payment_query" text="HAP_QUERY"/>
+                <a:gridButton click="csh503_payment_reset" text="HLS.RESET"/>
+                <a:gridButton click="csh503_payment_reverse" text="HLS.REVERSE"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="100" title="CSH502.CSH_PAYMENT_REVERSE_QUERY">
+                <!-- <a:textField name="payment_req_number_from" bindTarget="csh_payment_reverse_query_ds" prompt="申请单号从" width="150"/>
+                <a:textField name="payment_req_number_to" bindTarget="csh_payment_reverse_query_ds" prompt="申请单号到" width="150"/> -->
+                <a:textField name="transaction_num_from" bindTarget="csh_payment_reverse_query_ds" prompt="CSH502.CSH_TRANSACTION.TRANSACTION_NUM_FROM" width="150"/>
+                <a:textField name="transaction_num_to" bindTarget="csh_payment_reverse_query_ds" prompt="CSH502.CSH_TRANSACTION.TRANSACTION_NUM_TO" width="150"/>
+                <a:datePicker name="transaction_date_from" bindTarget="csh_payment_reverse_query_ds" prompt="CSH502.CSH_TRANSACTION.TRANSACTION_DATE_FROM" width="150"/>
+                <a:datePicker name="transaction_date_to" bindTarget="csh_payment_reverse_query_ds" prompt="CSH502.CSH_TRANSACTION.TRANSACTION_DATE_TO" width="150"/>
+                <a:textField name="payment_req_number_from" bindTarget="csh_payment_reverse_query_ds" prompt="CSH502.CSH_PAYMENT_REQ_HD.PAYMENT_REQ_NUMBER_FROM" width="150"/>
+                <a:textField name="payment_req_number_to" bindTarget="csh_payment_reverse_query_ds" prompt="CSH502.CSH_PAYMENT_REQ_HD.PAYMENT_REQ_NUMBER_TO" width="150"/>
+                <a:numberField name="transaction_amount_from" allowDecimals="true" allowFormat="true" allowNegative="false" bindTarget="csh_payment_reverse_query_ds" prompt="CSH502.CSH_PAYMENT_AMOUNT_FROM" width="150"/>
+                <a:numberField name="transaction_amount_to" allowDecimals="true" allowFormat="true" allowNegative="false" bindTarget="csh_payment_reverse_query_ds" prompt="CSH502.CSH_PAYMENT_AMOUNT_TO" width="150"/>
+                <a:lov name="bank_account_code_from" bindTarget="csh_payment_reverse_query_ds" prompt="CSH502.BANK_ACCOUNT_CODE_FROM" width="150"/>
+                <a:lov name="bank_account_code_to" bindTarget="csh_payment_reverse_query_ds" prompt="CSH502.BANK_ACCOUNT_CODE_TO" width="150"/>
+                <a:lov name="bp_code" bindTarget="csh_payment_reverse_query_ds" prompt="CSH502.CSH_PAYMENT_OBJ" width="150"><![CDATA[
+                ]]></a:lov>
+                <a:comboBox name="currency_name_display" bindTarget="csh_payment_reverse_query_ds" prompt="HLS.CURRENCY"/>
+            </a:form>
+            <a:grid id="csh_payment_reverse_grid_ds" bindTarget="csh_payment_reverse_ds" marginHeight="220" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="transaction_num" prompt="CSH502.CSH_TRANSACTION.TRANSACTION_NUM" width="140"/>
+                    <a:column name="transaction_date" prompt="CSH502.CSH_PAY_DATE"/>
+                    <a:column name="transaction_amount" align="right" prompt="CSH502.CSH_PAYMENT_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="currency_name" prompt="HLS.CURRENCY"/>
+                    <a:column name="bank_account_code" prompt="CSH502.BANK_ACCOUNT_CODE"/>
+                    <a:column name="bank_account_name" prompt="CSH502.BANK_ACCOUNT_NAME" width="200"/>
+                    <a:column name="bp_name" prompt="CSH502.CSH_PAYMENT_OBJ" width="200"/>
+                    <a:column name="payment_req_number" prompt="CSH502.CSH_PAYMENT_REQ_HD.PAYMENT_REQ_NUMBER" width="200"/>
+                </a:columns>
+                <a:editors>
+                    <a:checkBox id="grid_checkbox"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

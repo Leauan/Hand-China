@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Icon  
+    $Date: 2014-10-15 下午1:11:42  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:o="aurora.database.local.oracle" xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="AST_CAR_VIOLATION">
+    <bm:fields>
+        <bm:field name="violation_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="VIOLATION_ID" prompt="AST_CAR_VIOLATION.VIOLATION_ID"/>
+        <bm:field name="item_detail_id" databaseType="NUMBER" datatype="java.lang.Long" insertExpression="${/parameter/@item_detail_id}" physicalName="ITEM_DETAIL_ID" prompt="AST_CAR_VIOLATION.ITEM_DETAIL_ID"/>
+        <bm:field name="violation_date" databaseType="DATE" datatype="java.util.Date" physicalName="VIOLATION_DATE" prompt="AST_CAR_VIOLATION.VIOLATION_DATE"/>
+        <bm:field name="violation_address" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="VIOLATION_ADDRESS" prompt="AST_CAR_VIOLATION.VIOLATION_ADDRESS"/>
+        <bm:field name="deal_methods" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DEAL_METHODS" prompt="AST_CAR_VIOLATION.DEAL_METHODS"/>
+        <bm:field name="handle_result" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="HANDLE_RESULT" prompt="AST_CAR_VIOLATION.HANDLE_RESULT"/>
+        <bm:field name="description" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DESCRIPTION" prompt="AST_CAR_VIOLATION.DESCRIPTION"/>
+    </bm:fields>
+    <bm:features>
+        <f:standard-who/>
+        <o:sequence-pk/>
+    </bm:features>
+    <bm:primary-key>
+        <bm:pk-field name="violation_id"/>
+    </bm:primary-key>
+    <bm:operations>
+        <bm:operation name="insert">
+            <bm:update-sql><![CDATA[
+            DECLARE
+                v_con_contract con_contract%rowtype;
+            BEGIN
+                SELECT
+                    t.*
+                INTO
+                    v_con_contract
+                FROM
+                    con_contract t,
+                    con_contract_item_detail d
+                WHERE
+                    t.contract_id    =d.contract_id AND
+                    d.ITEM_DETAIL_ID = ${/parameter/@item_detail_id};
+                yonda_doc_history_pkg.yonda_insert_doc_status(p_document_id => v_con_contract.contract_id, p_document_type => v_con_contract.document_type, p_document_category => v_con_contract.document_category, p_doc_status => yonda_doc_history_pkg.yonda_con_car_Violation, p_instance_id => NULL, p_user_id => ${/session/@user_id});
+                INSERT
+                INTO
+                    AST_CAR_VIOLATION
+                    (
+                        VIOLATION_ID,
+                        ITEM_DETAIL_ID,
+                        VIOLATION_DATE,
+                        VIOLATION_ADDRESS,
+                        DEAL_METHODS,
+                        HANDLE_RESULT,
+                        DESCRIPTION,
+                        CREATED_BY,
+                        CREATION_DATE,
+                        LAST_UPDATED_BY,
+                        LAST_UPDATE_DATE
+                    )
+                    VALUES
+                    (
+                        AST_CAR_VIOLATION_S.NEXTVAL,
+                        ${/parameter/@item_detail_id},
+                        to_date(${@violation_date},'yyyy-mm-dd'),
+                        ${@violation_address},
+                        ${@deal_methods},
+                        ${@handle_result},
+                        ${@description},
+                        ${/session/@user_id},
+                        sysdate,
+                        ${/session/@user_id},
+                        sysdate
+                    )
+                    RETURNING VIOLATION_ID
+                INTO
+                    ${@violation_id};
+            END;
+        ]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field field="item_detail_id" queryOperator="="/>
+    </bm:query-fields>
+</bm:model>

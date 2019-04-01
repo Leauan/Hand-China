@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	&author:DJ
+	$date:2013/11/20
+	$purpose:项目上会工作流创建上会
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query model="wfl_screen.PRJ_PROJECT.prj_project_approval_meeting_choose" rootPath="approval_meeting_record"/>
+    </a:init-procedure>
+    <a:view>
+        <a:switch test="/parameter/@show">
+            <a:case value="W">
+                <a:link id="pageLink_add_project_approver" url="${/request/@context_path}/modules/wfl_screen/PRJ_PROJECT/prj_project_approval_choose_approver.screen"/>
+                <a:link id="bmLink_add_auto_approver" model="wfl_screen.PRJ_PROJECT.prj_project_approver_choose" modelaction="execute"/>
+            </a:case>
+        </a:switch>
+        <script><![CDATA[
+            function validate_meeting_time(record,name,value)
+            {
+                var reg=/^\d\d:\d\d$/;
+				if(reg.test(value)){
+					return true;
+				}
+				return '上会时间格式应为【hh:mm】,举例【09:05】';
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="approval_tempDs" autoCreate="true">
+                <a:fields>
+                    <a:field name="approver_count" defaultValue="7"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="approvalMeetingDs" model="wfl_screen.PRJ_PROJECT.prj_project_approval">
+                <a:datas dataSource="/model/approval_meeting_record"/>
+                <a:fields>
+                    <a:field name="meeting_name" lovHeight="480" lovUrl="${/request/@context_path}/modules/wfl_screen/PRJ_PROJECT/prj_project_approval_choose_meeting.screen?approval_id=${/parameter/@approval_id}" lovWidth="680" readOnly="true" title="会议名称">
+                        <a:mapping>
+                            <a:map from="meeting_id" to="meeting_id"/>
+                            <a:map from="meeting_name" to="meeting_name"/>
+                            <a:map from="meeting_location" to="meeting_location"/>
+                            <a:map from="meeting_date" to="meeting_date"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="meeting_time" readOnly="true" validator="validate_meeting_time"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="approverDs" autoQuery="true" fetchAll="true" model="wfl_screen.PRJ_PROJECT.prj_project_approver" queryUrl="${/request/@context_path}/autocrud/wfl_screen.PRJ_PROJECT.prj_project_approver/query?approval_id=${/parameter/@approval_id}" selectable="true">
+                <a:fields>
+                    <a:field name="approval_id" defaultValue="${/parameter/@approval_id}"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:switch test="/parameter/@show">
+            <a:case value="W">
+                <script><![CDATA[
+		            (function ()
+		            {
+		                var record = $('approvalMeetingDs').getAt(0);
+		                record.getField('meeting_name').setReadOnly(false);
+		                record.getField('meeting_name').setRequired(true);
+		                record.getField('meeting_time').setReadOnly(false);
+		                record.getField('meeting_time').setRequired(true);
+		                
+		            })();
+		            
+		            function save_approvalMeetingDs()
+		            {
+		                var ds = $('approvalMeetingDs');
+		                if(!ds.validate())
+		                {
+		                    return;
+		                }
+		                ds.submit();
+		            }
+		            
+		            function zjwfl5110_approveCheck(type)
+		            {
+		                if(type=='agree')
+		                {
+		                    if('${/parameter/@show}'=='W')
+			                {
+			                    var ds = $('approvalMeetingDs');
+				                var record = ds.getAt(0);
+				                if(!ds.validate())
+				                {
+				                    return false;
+				                }
+				                if(record.dirty)
+				                {
+				                    Aurora.showMessage('提示','请保存会议');
+				                    return false;
+				                }
+			                }
+			                return true;
+		                }
+		                else
+		                {
+		                    return true;
+		                }
+		            }
+		        ]]></script>
+                <a:screenBody>
+                    <a:hBox>
+                        <a:gridButton click="save_approvalMeetingDs" text="保存会议"/>
+                    </a:hBox>
+                </a:screenBody>
+            </a:case>
+        </a:switch>
+        <a:screen-include screen="modules/wfl_screen/PRJ_PROJECT/prj_project_document_project_info.screen?project_id=${/parameter/@project_id}"/>
+        <a:screenBody>
+            <a:form title="会议信息" width="1200">
+                <a:hBox cellPadding="0" cellSpacing="0" padding="0">
+                    <a:lov name="meeting_name" bindTarget="approvalMeetingDs" prompt="会议名称" width="377"/>
+                    <a:textField name="meeting_location" bindTarget="approvalMeetingDs" prompt="上会地点" readOnly="true"/>
+                    <a:datePicker name="meeting_date" bindTarget="approvalMeetingDs" prompt="上会日期" readOnly="true"/>
+                    <a:textField name="meeting_time" bindTarget="approvalMeetingDs" prompt="上会时间"/>
+                </a:hBox>
+            </a:form>
+            <a:switch test="/parameter/@show">
+                <a:case value="W">
+                    <script><![CDATA[
+			            function add_approver()
+			            {
+			                var win = new Aurora.Window({
+				                id: 'prj_project_approval_choose_approver',
+				                params: {
+				                    approval_id : '${/parameter/@approval_id}'
+				                },
+				                url: $('pageLink_add_project_approver').getUrl(),
+				                title: '添加评审委员',
+				                width: 980,
+				                height: 550
+				            });
+				            
+				            win.on('close',function (){
+				            	$('approverDs').query();
+				            });
+			            }
+			            
+			            function delete_approver()
+			            {
+			                $('approverDs_grid').remove();
+			            }
+			            
+			            function add_auto_approver()
+			            {
+			                var approver_count = $('approval_tempDs').getAt(0).get('approver_count');
+			                if(Ext.isEmpty(approver_count))
+			                {
+			                    Aurora.showMessage('提示','自动挑选需要填写评委人数');
+			                    return false;
+			                }
+			                
+			                Aurora.request({
+				                url: $('bmLink_add_auto_approver').getUrl(),
+				                para: {
+				                	approver_count : approver_count,
+				                	approval_id : '${/parameter/@approval_id}'
+				                },
+				                success: function(res) {
+				                    
+				                    Aurora.SideBar.show({
+			                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+			                            duration: 2000
+			                        });
+			                        
+				                    $('approverDs').query();
+				                },
+				                failure: function() {
+				                },
+				                error: function() {
+				                },
+				                scope: this
+				            });
+			            }
+			            
+			        ]]></script>
+                    <a:hBox>
+                        <a:gridButton click="add_approver" text="添加评委"/>
+                        <a:gridButton click="delete_approver" text="删除评委"/>
+                        <a:numberField name="approver_count" allowDecimals="false" allowNegative="false" bindTarget="approval_tempDs" prompt="评委人数" width="30"/>
+                        <a:gridButton click="add_auto_approver" text="自动挑选"/>
+                    </a:hBox>
+                </a:case>
+            </a:switch>
+            <a:grid id="approverDs_grid" bindTarget="approverDs" height="300" width="1198">
+                <a:columns>
+                    <a:column name="employee_code" width="200"/>
+                    <a:column name="employee_name" width="200"/>
+                    <a:column name="unit_name" width="200"/>
+                    <a:column name="position_name" width="200"/>
+                    <a:column name="company_short_name" width="200"/>
+                </a:columns>
+                <a:editors>
+                    <a:checkBox id="approverDs_grid_check"/>
+                    <a:textField id="approverDs_grid_tf"/>
+                    <a:numberField id="approverDs_grid_nf_integer" allowDecimals="false" allowNegative="false"/>
+                    <a:lov id="approverDs_grid_lov"/>
+                    <a:comboBox id="approverDs_grid_comb"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Feng  
+    $Date: 2013-9-24 上午11:35:20  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:o="aurora.database.local.oracle" xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="CON_DUN_RECORD" defaultOrderBy="t1.contact_date desc">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        c.con_dun_id,
+                        c.contract_id,
+                        to_char(c.contact_date,'yyyy-mm-dd') contact_date,
+                        c.contact_ways,
+                        to_char(c.promised_return_date,'yyyy-mm-dd') promised_return_date,
+                        c.promised_return_amount,
+                        c.dun_message,
+                        c.dun_after_message,
+                        c.dun_unit_id,
+                        (SELECT
+                            unit_code
+                            || '-'
+                            || unit_name
+                        FROM
+                            exp_org_unit_v
+                        WHERE
+                            unit_id = c.dun_unit_id
+                        ) dun_unit_id_desc,
+                        c.dun_person_id,
+                        (SELECT
+                            employee_code
+                            || '-'
+                            || NAME
+                        FROM
+                            exp_employees
+                        WHERE
+                            employee_id = c.dun_person_id
+                        ) dun_person_id_desc,
+                        cc.contract_number,
+                        cc.bp_id_tenant,
+                        (SELECT
+                            bp_name
+                        FROM
+                            hls_bp_master
+                        WHERE
+                            bp_id       = cc.bp_id_tenant AND
+                            enabled_flag='Y'
+                        ) bp_id_tenant_desc,
+                        NVL(
+                        (SELECT
+                            NVL(SUM(due_amount),0) - NVL(SUM(received_amount),0)
+                        FROM
+                            con_contract_cashflow
+                        WHERE
+                            contract_id    = cc.contract_id AND
+                            overdue_status = 'Y' AND
+                            cf_item        = 1 AND
+                            cf_direction   = 'INFLOW'
+                        ), 0) overdue_amount,
+                        (SELECT
+                            NVL(SUM(due_amount),0)-NVL(SUM(received_amount),0)
+                        FROM
+                            con_contract_cashflow
+                        WHERE
+                            contract_id  = cc.contract_id AND
+                            cf_item      = 9 AND
+                            cf_direction = 'INFLOW'
+                        ) penalty,
+                        NVL(cc.overdue_max_days,0) overdue_days
+                    FROM
+                        CON_DUN_RECORD c,
+                        con_contract cc
+                    WHERE
+                        c.contract_id = cc.contract_id
+                    ) t1 #WHERE_CLAUSE#
+                ORDER BY
+                    t1.overdue_days DESC
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="contract_number" queryExpression="t1.contract_number like &apos;%&apos;||${@contract_number}||&apos;%&apos;"/>
+        <bm:query-field name="bp_id_tenant_desc" queryExpression="t1.bp_id_tenant_desc like &apos;%&apos;||${@bp_id_tenant_desc}||&apos;%&apos;"/>
+    </bm:query-fields>
+</bm:model>

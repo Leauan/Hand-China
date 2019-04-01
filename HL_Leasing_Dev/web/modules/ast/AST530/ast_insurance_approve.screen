@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2015-11-13 上午09:40:28  
+    $Revision: 1.0  
+    $Purpose: 保险审批功能
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:view>
+        <a:link id="insurance_attachment_uploadFile_id" url="${/request/@context_path}/downloadFile.screen"/>
+        <a:link id="ast_insurance_approve_link" model="ast.AST530.ast_insurance_approve" modelaction="batch_update"/>
+        <script><![CDATA[
+            function ast_insurance_approve_query() {
+                $('ast_insurance_approve_ds').query();
+            }
+            
+            function ast_insurance_approve_approve() {
+                var records = $('ast_insurance_approve_ds').getSelected();
+                if (records.length == 0) {
+                    Aurora.showMessage('提示', '请选择需要审批的单据信息！');
+                    return;
+                }
+                Aurora.Masker.mask(Ext.getBody(), '正在操作......');
+                Aurora.showConfirm('提示', '是否确定审批通过？', function() {
+                    var datas = [];
+                    for (var i = 0;i < records.length;i++) {
+                        records[i].set('_status', 'update');
+                        datas.push(records[i].data);
+                    }
+            
+                    Aurora.request({
+                        url: $('ast_insurance_approve_link').getUrl(),
+                        para: datas,
+                        success: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                            $('ast_insurance_approve_ds').query();
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                }, function() {
+                    Aurora.Masker.unmask(Ext.getBody());
+                });
+            }
+            
+            function open_upload_window(record_id) {
+                if (Aurora.isEmpty(record_id)) {
+                    Aurora.showMessage('提示', '请先保存再上传附件！');
+                    return;
+                }
+                var url = $('insurance_attachment_uploadFile_id').getUrl() + '?table_name=AST_CAR_INSURANCE&header_id=' + record_id;
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'insurance_uploadFile_id',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {});
+            }
+            
+            function attachment_detail_renderer(value, record, name) {
+                if (!Ext.isEmpty(record.get('ast_car_insurance_id'))) {
+                    return '<a href=javascript:open_upload_window(' + record.get('ast_car_insurance_id') + ')>附件查看</a>';
+                }
+                return value;
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="ast_insurance_approve_query_ds">
+                <a:fields>
+                    <a:field name="contract_number"/>
+                    <a:field name="insurance_number"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="ast_insurance_approve_ds" autoPageSize="true" autoQuery="true" model="ast.AST530.ast_insurance_approve" queryDataSet="ast_insurance_approve_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="insure_date" datatype="java.util.Date"/>
+                    <a:field name="insurance_date_from" datatype="java.util.Date"/>
+                    <a:field name="insurance_date_to" datatype="java.util.Date"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="ast_insurance_approve_query" text="查询"/>
+                <a:gridButton click="ast_insurance_approve_approve" text="确认通过"/>
+            </a:screenTopToolbar>
+            <a:form column="2" labelWidth="120" title="查询条件">
+                <a:textField name="contract_number" bindTarget="ast_insurance_approve_query_ds" prompt="合同编号"/>
+                <a:textField name="insurance_number" bindTarget="ast_insurance_approve_query_ds" prompt="保单号"/>
+            </a:form>
+            <a:grid bindTarget="ast_insurance_approve_ds" marginHeight="170" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" prompt="合同编号" width="120"/>
+                    <a:column name="insurer_dis" prompt="保险公司" width="200"/>
+                    <a:column name="insurance_number" prompt="保单号" width="200"/>
+                    <a:column name="insurance_type_desc" prompt="保险类型" width="100"/>
+                    <a:column name="document_status_des" prompt="单据状态" width="100"/>
+                    <a:column name="payment_finish_flag" prompt="是否完成支付" width="100"/>
+                    <a:column name="insure_date" prompt="投保日" renderer="Aurora.formatDate" width="100"/>
+                    <a:column name="insure_name" prompt="投保人" width="100"/>
+                    <a:column name="protege_name" prompt="被保人" width="100"/>
+                    <a:column name="insurance_date_from" prompt="保险起始日" renderer="Aurora.formatDate" width="100"/>
+                    <a:column name="insurance_date_to" prompt="保险终止日" renderer="Aurora.formatDate" width="100"/>
+                    <a:column name="compulsory_insurance_amount" align="right" prompt="交强险金额" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="travel_tax" align="right" prompt="车船税" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="damage_insurance_amount" align="right" prompt="车损险金额" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="third_party_insurance_amount" align="right" prompt="第三者责任险金额" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="basic_non_deductible_amount" align="right" prompt="不计免赔金额" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="pilfer_insurance_amount" align="right" prompt="盗抢险金额" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="commercial_insurance_amount" align="right" prompt="商业险" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="glass_insurance_amount" align="right" prompt="玻璃险" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="seat_insurance_amount" align="right" prompt="座位险" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="combustion_insurance_amount" align="right" prompt="自燃险" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="others_insurance_amount" align="right" prompt="其他险种" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="insure_place" prompt="投保地点" width="100"/>
+                    <a:column name="first_beneficiary" prompt="第一受益人" width="100"/>
+                    <a:column name="ref_v01" prompt="备注" width="200"/>
+                    <a:column name="confirm_flag" prompt="保险确认" width="100"/>
+                    <a:column align="center" prompt="批单更改" width="100"/>
+                    <a:column name="attachment_detail" align="center" prompt="附件查看" renderer="attachment_detail_renderer" width="80"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

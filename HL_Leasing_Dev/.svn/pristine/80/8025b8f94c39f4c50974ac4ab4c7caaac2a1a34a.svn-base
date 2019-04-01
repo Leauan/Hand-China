@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: xuls  
+    $Date: 2016-12-20 下午8:55:23  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="csh.CSH560.get_fin_amount" rootPath="fin_amount_check"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="csh560_start_wfl_link" model="csh.CSH560.return_workflow_start" modelaction="execute"/>
+        <a:link id="${/parameter/@layout_code}_csh560_cdd_downloadFile_id" url="${/request/@context_path}/downloadFile.screen"/>
+        <a:link id="${/parameter/@layout_code}_csh560_cdd_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <script><![CDATA[
+        window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_form_add_and_load'] = function(ds, record, config_records, bp_seq) {
+            debugger;
+            var transaction_amount = record.get('transaction_amount')||0;
+            var return_amount = record.get('return_amount')||0;
+            var write_off_amount = record.get('write_off_amount')||0;
+            var deposit_total_amount = parseFloat(transaction_amount-write_off_amount).toFixed(2);
+            record.set('deposit_total_amount',deposit_total_amount);
+        };
+    window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+        var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_transaction_return');
+        var return_id = $(ds_id).getAt(0).get('return_id');
+        var transaction_amount = $(ds_id).getAt(0).get('transaction_amount');
+        var this_return_amount = $(ds_id).getAt(0).get('this_return_amount');
+        var return_amount = $(ds_id).getAt(0).get('return_amount');
+        var write_off_amount = $(ds_id).getAt(0).get('write_off_amount');
+        var deposit_total_amount = $(ds_id).getAt(0).get('deposit_total_amount');
+        var check_amount = parseFloat(transaction_amount) - parseFloat(this_return_amount) - parseFloat(return_amount) - parseFloat(write_off_amount);
+        if (!return_id) {
+            Aurora.showMessage('提示', '请先保存再提交');
+            return;
+        }
+        if(this_return_amount >  parseFloat(deposit_total_amount)){
+            Aurora.showMessage('提示', '退款金额不能大于保证金余额！');
+            return;
+        }
+        var fin_amount = '${/model/fin_amount_check/record/@fin_amount}';   
+		if(check_amount < 0.1 * fin_amount){
+		    Aurora.showMessage('提示','退还后保证金不足融资余额10%！');
+		    return;
+		}
+        var detail_mask = $('${/parameter/@winid}').wrap;
+        Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+        Aurora.request({
+            url: $('csh560_start_wfl_link').getUrl(),
+            para: {
+                return_id: return_id
+            },
+            success: function(res) {
+                parent.Aurora.SideBar.enable = true;
+                parent.Aurora.SideBar.show({
+                    msg: '${l:HLS.SUBMIT_SUCCESS}',
+                    duration: 2000
+                });
+                Aurora.Masker.unmask(detail_mask);
+                $('${/parameter/@winid}').close();
+            },
+            error: function(res) {
+                Aurora.Masker.unmask(detail_mask);
+            },
+            faliure: function() {
+                Aurora.Masker.unmask(detail_mask);
+            },
+            scope: this
+        });
+    };
+    
+    window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record, bp_seq) {
+    	var link_function = '';
+        window['${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+        if (name == 'attch'){
+            link_function = '${/parameter/@layout_code}_csh_transaction_return_upload';
+            return '<a style="font-weight:bolder;font-size:1.2em" href="javascript:window[\'' + link_function + '\'](\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+        }
+    };
+    
+    window['${/parameter/@layout_code}_csh_transaction_return_upload'] = function(ds_id, id, name) {
+        var return_id = $(ds_id).getAt(0).get('return_id');
+        if (!return_id) {
+            Aurora.showMessage('提示', '请先保存再上传');
+            return;
+        }
+        var record = $(ds_id).findById(id);
+        // if (record.get('con_contract_id')) {
+        var url;
+        if ('${/parameter/@readonly_flag}' == 'Y'){
+             url = $('${/parameter/@layout_code}_csh560_cdd_downloadFile_id').getUrl() + '?table_name=CSH_TRANSACTION_RETURN&header_id=' + record.get('return_id');
+        }else{
+             url = $('${/parameter/@layout_code}_csh560_cdd_uploadFile_id').getUrl() + '?table_name=CSH_TRANSACTION_RETURN&header_id=' + record.get('return_id');
+        }
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '附件上传',
+                    id: '${/parameter/@layout_code}_attachtment_upload_id',
+                    width: 850,
+                    height: 400
+                });
+
+            };
+]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

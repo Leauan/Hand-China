@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: LR  
+    $Date: 2013-8-13 上午10:30:25  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure>
+        <!-- <a:model-query fetchAll="true" model="cont.CON542.con_contract_sys_role" rootPath="sys_role"/> -->
+        <a:model-query defaultWhereClause="t1.document_category=&apos;CONTRACT&apos;" fetchAll="true" model="basic.hls_document_type_for_lov" rootPath="CON542_document_type_path"/>
+        <a:model-query fetchAll="true" model="cont.CON301.con_contract_business_type_list" rootPath="CON542_business_type_list"/>
+        <a:model-query defaultWhereClause="(exists(select 1 from hls_lease_org_assign ha where ha.unit_id=t1.unit_id))" fetchAll="true" model="basic.exp_org_unit_manager_lov" rootPath="CON542_exp_org_unit_manager_path"/>
+    </a:init-procedure>
+    <a:view>
+        <!-- <a:link id="con_contract_closed_submit_link_id" model="cont.CON542.con_contract_cancel" modelaction="batch_update"/> -->
+        <a:link id="submit_finish_link" model="cont.CON542.contract_workflow_start" modelaction="batch_update"/>
+        <a:link id="con_contract_closed_link" model="cont.CON542.con_contract_closed" modelaction="batch_update"/>
+        <a:link id="con_contract_modify_link" url="${/request/@context_path}/modules/cont/CON505/con_contract_modify.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="wfl_readonly_pageLink_projectQueryScreen_update" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain_readonly.screen"/>
+        <script><![CDATA[
+
+			window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+			    debugger;
+                var records = $('CONTRACT_CANCEL_CREATE_CONTRACT_CANCEL_con_contract_ds').getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '只能选择一条合同进行终止操作！');
+                    return;
+                }
+                var cancel_status = records[0].get('cancel_status');
+                if(cancel_status=='APPROVING'){
+                    Aurora.showMessage('提示','已提交申请的合同不能重复提交');
+                    return;
+                }
+                var prams = [];
+                var data = {};
+                var records_reason = $('CONTRACT_CANCEL_CREATE_CANCEL_REASON__ds').getAt(0);
+                if (Aurora.isEmpty(records_reason.get('cancel_reason'))) {
+                    Aurora.showMessage('提示', '请维护合同终止原因！');
+                    return;
+                } else if (Aurora.isEmpty(records_reason.get('closed_date'))) {
+                    Aurora.showMessage('提示', '请维护合同终止日期！');
+                    return;
+                }
+                data['contract_id'] = records[0].get('contract_id');
+                data['cancel_reason'] = records_reason.get('cancel_reason');
+                data['closed_date'] = records_reason.get('closed_date');
+                data['_status'] = 'update';
+                prams[0] = data;
+                var detail_mask;
+                detail_mask = Ext.getBody();
+                Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                Aurora.request({
+                    url: $('submit_finish_link').getUrl(),
+                    para: prams,
+                    success: function() {
+                        $('CONTRACT_CANCEL_CREATE_CONTRACT_CANCEL_con_contract_ds').query();
+                        Aurora.Masker.unmask(detail_mask);
+                        Aurora.SideBar.show({
+                            msg: '操作成功',
+                            duration: 2000
+                        });
+                        var record1 = $('CONTRACT_CANCEL_CREATE_CANCEL_REASON__ds').getAt(0);
+                        record1.set('closed_date','');
+                        record1.set('cancel_reason','');
+                    },
+                    failure: function() {
+            			Aurora.Masker.unmask(detail_mask);
+                       },
+                    error: function() {
+            			Aurora.Masker.unmask(detail_mask);
+                       },
+                    scope: this
+                });
+            };   
+           
+            function winOpen_con_query(record_id,name) {
+                var record = $('CONTRACT_CANCEL_CREATE_CONTRACT_CANCEL_con_contract_ds').findById(record_id);
+                var param = record.data;
+                param['function_code'] = 'CON301';
+                param['function_usage'] = 'QUERY';
+                param['maintain_type'] = 'UPDATE';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_modify_link', 'CON542_contract_result_ds');
+            }
+           
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                var link_function = '';
+                window['${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                if (name == 'contract_number') {
+                    link_function = 'winOpen_con_query';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + value + '</a>';
+                } 
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

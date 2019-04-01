@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-5-24 下午03:50:31  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="CSH_PAYMENT_REQ_LN" needAccessControl="false">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    v.contract_id,
+                    v.cashflow_id,
+                    v.cashflow_id ref_doc_line_id,
+                    v.contract_id ref_doc_id,
+                    v.document_category ref_doc_category,
+                    v.contract_number,
+                    v.contract_name,
+                    v.project_name ,
+                    v.tenant_bp_id,
+                    v.bp_tenant_name,
+                    v.cf_description,
+                    v.due_amount,
+                    v.currency_code,
+                    v.currency_name,
+                    v.due_date,
+                    v.residual_amount,
+                    v.bp_id,
+                    v.bp_code bp_id_n,
+                    V.BP_ID_AGENT_N,
+                    v.bp_name,
+                    v.bp_code,
+                    v.applied_pay_amount,
+                    v.due_amount- NVL(v.applied_pay_amount,0) AS amount,
+                    v.bp_category_desc,
+                    v.search_term_1,
+                    v.bp_bank_account_id_n,
+                    v.bp_bank_account_id,
+                    v.BP_BANK_ACCOUNT_NUM,
+                    V.bank_full_name,
+                    v.irr,
+                    v.price
+                FROM
+                    (SELECT
+                        t.contract_id,
+                        f.cashflow_id,
+                        t.contract_number,
+                        t.contract_name,
+                        t.document_category,
+                        t.search_term_1,
+                        p.project_name ,
+                        t.bp_id_tenant tenant_bp_id,
+                        h.description cf_description,
+                        f.due_amount,
+                        t.currency currency_code,
+                        (SELECT
+                            t.bank_account_id
+                        FROM
+                            hls_bp_master_bank_account_v t
+                        WHERE
+                            t.bp_id       =NVL(${@payment_bp_id},csh_payment_req_pkg.get_bp_id(t.contract_id)) AND
+                            t.enabled_flag='Y' AND
+                            rownum        =1
+                        ) bp_bank_account_id,
+                        (SELECT
+                            t.bank_account_name
+                        FROM
+                            hls_bp_master_bank_account_v t
+                        WHERE
+                            t.bp_id       =NVL(${@payment_bp_id},csh_payment_req_pkg.get_bp_id(t.contract_id)) AND
+                            t.enabled_flag='Y' AND
+                            rownum        =1
+                        ) bp_bank_account_id_n,
+                        (SELECT
+                            t.BANK_ACCOUNT_NUM
+                        FROM
+                            hls_bp_master_bank_account_v t
+                        WHERE
+                            t.bp_id       =NVL(${@payment_bp_id},csh_payment_req_pkg.get_bp_id(t.contract_id)) AND
+                            t.enabled_flag='Y' AND
+                            rownum        =1
+                        ) BP_BANK_ACCOUNT_NUM,
+                        (SELECT
+                            t.bank_branch_name
+                        FROM
+                            hls_bp_master_bank_account_v t
+                        WHERE
+                            t.bp_id       =NVL(${@payment_bp_id},csh_payment_req_pkg.get_bp_id(t.contract_id)) AND
+                            t.enabled_flag='Y' AND
+                            rownum        =1
+                        ) bank_full_name,
+                        (SELECT
+                            gc.currency_name
+                        FROM
+                            gld_currency_v gc
+                        WHERE
+                            gc.currency_code = t.currency
+                        ) currency_name,
+                        TO_CHAR(f.due_date,'yyyy-mm-dd') due_date,
+                        NVL(f.due_amount,0)-NVL(f.received_amount,0) residual_amount,
+                        NVL(${@payment_bp_id},csh_payment_req_pkg.get_bp_id(t.contract_id)) bp_id,
+                        (SELECT
+                            b.bp_name
+                        FROM
+                            hls_bp_master b
+                        WHERE
+                            b.bp_id =NVL(${@payment_bp_id},csh_payment_req_pkg.get_bp_id(t.contract_id))
+                        ) bp_name,
+                        (SELECT
+                            b.bp_name
+                        FROM
+                            hls_bp_master b
+                        WHERE
+                            b.bp_id =NVL(${@payment_bp_id},csh_payment_req_pkg.get_bp_id(t.contract_id))
+                        ) BP_ID_AGENT_N,
+                        (SELECT hbm.bp_name FROM hls_bp_master hbm WHERE hbm.bp_id = t.bp_id_tenant
+                        ) bp_tenant_name,
+                        (SELECT
+                            b.bp_code
+                        FROM
+                            hls_bp_master b
+                        WHERE
+                            b.bp_id =NVL(${@payment_bp_id},csh_payment_req_pkg.get_bp_id(t.contract_id))
+                        ) bp_code,
+                        (SELECT
+                            b.bp_category_name
+                        FROM
+                            hls_bp_master_v b
+                        WHERE
+                            b.bp_id =NVL(${@payment_bp_id},csh_payment_req_pkg.get_bp_id(t.contract_id))
+                        ) bp_category_desc,
+                        ( NVL(
+                        (SELECT
+                            SUM(l.amount_paid)
+                        FROM
+                            csh_payment_req_ln l,
+                            csh_payment_req_hd h
+                        WHERE
+                            l.ref_doc_line_id       = f.cashflow_id AND
+                            l.payment_req_id        = h.payment_req_id AND
+                            h.submitted_flag        = 'Y' AND
+                            h.approval_status       = 'APPROVED' AND
+                            NVL(h.closed_flag, 'N') = 'Y'
+                        ), 0) + NVL(
+                        (SELECT
+                            SUM(l.amount)
+                        FROM
+                            csh_payment_req_ln l,
+                            csh_payment_req_hd h
+                        WHERE
+                            l.ref_doc_line_id        = f.cashflow_id AND
+                            l.payment_req_id         = h.payment_req_id AND
+                            h.submitted_flag         = 'Y' AND
+                            h.approval_status        = 'APPROVED' AND
+                            NVL(h.closed_flag, 'N') <> 'Y'
+                        ), 0) + NVL(
+                        (SELECT
+                            SUM(l.amount)
+                        FROM
+                            csh_payment_req_ln l,
+                            csh_payment_req_hd h
+                        WHERE
+                            l.ref_doc_line_id = f.cashflow_id AND
+                            l.payment_req_id  = h.payment_req_id AND
+                            h.submitted_flag  = 'Y' AND
+                            h.approval_status = 'APPROVING'
+                        ), 0) ) applied_pay_amount,
+                        t.irr,
+                        (SELECT
+                            vl.price
+                        FROM
+                            hls_lease_products_vl vl
+                        WHERE
+                            vl.lease_products_code =
+                            (SELECT
+                                l.item_frame_number
+                            FROM
+                                con_contract_lease_item l
+                            WHERE
+                                l.contract_id= t.contract_id
+                            )
+                        )price
+                    FROM
+                        con_contract t,
+                        con_contract_cashflow f,
+                        prj_project p,
+                        hls_cashflow_item h
+                    WHERE
+                        t.contract_id = f.contract_id AND
+                        t.project_id  = p.project_id(+) AND
+                        f.cf_item     =h.cf_item AND
+                        EXISTS
+                        (SELECT
+                            1
+                        FROM
+                            CSH_PAYMENT_CASHFLOW_ID_TEMP tmp
+                        WHERE
+                            tmp.session_id  =${/session/@session_id} AND
+                            tmp.cashflow_id =f.cashflow_id
+                        )
+                    ) v #WHERE_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

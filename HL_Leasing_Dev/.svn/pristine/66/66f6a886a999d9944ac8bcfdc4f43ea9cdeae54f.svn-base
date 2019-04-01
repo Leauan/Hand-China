@@ -1,0 +1,557 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang
+    $Date: 
+    $Revision: 1.0
+    $Purpose: 通联代扣接口
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.enabled_flag=&apos;Y&apos;" fetchAll="true" model="basic.csh_payment_method_for_lov" rootPath="payment_method_path"/>
+        <a:model-query defaultWhereClause="v.code=&apos;EBANK_CMB_TRS_STATUS&apos; and v.code_value in (&apos;NEW&apos;,&apos;CONFIRMED&apos;,&apos;SUBMIT_SUCCESS&apos;,&apos;SUBMIT_FAIL&apos;,&apos;PROCESSING&apos;,&apos;PROCESS_SUCCESS&apos;,&apos;PROCESS_FAIL&apos;,&apos;RECEIPT_SUCCESS&apos;,&apos;RECEIPT_FAIL&apos;,&apos;WRITE_OFF_SUCCESS&apos;,&apos;WRITE_OFF_FAIL&apos;)" fetchAll="true" model="basic.sys_code_default_value" rootPath="trs_status"/>
+        <a:model-query defaultWhereClause=" t1.cf_direction=&apos;INFLOW&apos;" fetchAll="true" model="hls.HLS005.hls_cashflow_item_v_lov" rootPath="cashflow_item"/>
+        <a:model-query defaultWhereClause="v.code=&apos;EBANK_CMB_TRS_STATUS&apos; and v.code_value = &apos;NEW&apos;" fetchAll="true" model="basic.sys_code_default_value" rootPath="default_trs_status"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="csh_transaction_receipt_query_link" url="${/request/@context_path}/modules/csh/CSH301/csh_transaction_receipt_detail.screen"/>
+        <!--     <a:link id="csh_transaction_receipt_query_link" url="${/request/@context_path}/modules/csh/CSH515/csh_transaction_receipt_detail.screen"/> -->
+        <a:link id="csh_write_off_detail_link" url="${/request/@context_path}/modules/csh/CSH301/csh_transaction_receipt_write_off_detail.screen"/>
+        <!-- <a:link id="csh_transaction_receipt_query_link" url="${/request/@context_path}/modules/csh/CSH301/csh_transaction_receipt_detail.screen"/> -->
+        <!-- pageLink_spilt_amount
+        <a:link id="csh_write_off_detail_link" url="${/request/@context_path}/modules/csh/CSH513/csh_transaction_receipt_write_off_detail.screen"/> -->
+        <a:link id="cux_ebank_cmb_agentrequest_log_link" url="${/request/@context_path}/modules/csh/CSH600/hls_ebank_agentrequest_log.screen"/>
+        <a:link id="pageLink_spilt_amount_link" url="${/request/@context_path}/modules/csh/CSH600/hls_ebank_spilt_amount.screen"/>
+        <a:link id="cux_ebank_cmb_agentrequest_confirm_link_id" model="csh.CSH600.hls_ebank_agentrequest_confirm" modelaction="batch_update"/>
+        <a:link id="cux_ebank_cmb_agentrequest_terminated_link_id" model="csh.CSH600.hls_ebank_agentrequest_terminated" modelaction="batch_update"/>
+        <a:link id="cux_post_ebank_data_link_id" url="${/request/@context_path}/modules/csh/CSH600/bill99.svc"/>
+        <a:link id="cux_resend_link_id" url="${/request/@context_path}/modules/csh/CSH600/hls_ebank_create.svc"/>
+        <a:link id="cux_create_ebank_data_link_id" model="csh.CSH600.hls_create_ebank_data" modelaction="execute"/>
+        <!-- modules/csh/CSH600/bill99.svc -->
+        <script><![CDATA[
+            function queryEbankInterface() {
+                $('hls_ebank_log_query').query();
+            }
+            
+            function resetQueryDs() {
+                $('cux_ebank_cmb_interface_query_ds').reset();
+            }
+            
+            function resultDsGridAdd() {
+                $('result_ds_grid').showEditorByRecord($('hls_ebank_log_query').create());
+            }
+            
+            function resultDsGridSave() {
+                var result_ds = $('hls_ebank_log_query');
+                if (result_ds.validate()) {
+                    result_ds.submit();
+                }
+            }
+            
+            //生成扣款
+            
+            function create_ebank_data() {
+                /*  var records = $('hls_ebank_log_query').getSelected();
+                 if (!records.length) {
+                 Aurora.showMessage('${l:PROMPT}', '请至少选择一条记录');
+                 return;
+                 }
+                 var param = new Object();
+                 var submitData = [];
+                 for (var i = 0;i < records.length;i++) {
+                 records[i].set('_status', 'update');
+                 submitData.push(records[i].data);
+                 }
+                 param['submitData'] = submitData; */
+                Aurora.showConfirm('${l:PROMPT}', '是否生成扣款?', function() {
+                    Aurora.request({
+                        url: $('cux_create_ebank_data_link_id').getUrl(),
+                        para: null,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '已生成扣款',
+                                duration: 2000
+                            });
+                            $('hls_ebank_log_query').query();
+                        },
+                        scope: this
+                    });
+                }, function() {
+                    return;
+                }, null, null);
+            }
+            
+            function resultDsGridConfirm() {
+                var records = $('hls_ebank_log_query').getSelected();
+                if (!records.length) {
+                    Aurora.showMessage('${l:PROMPT}', '请至少选择一条记录');
+                    return;
+                }
+                var submitData = [];
+                for (var i = 0;i < records.length;i++) {
+                    records[i].set('_status', 'update');
+                    submitData.push(records[i].data);
+                }
+                Aurora.showConfirm('${l:PROMPT}', '是否要确认?', function() {
+                    Aurora.request({
+                        url: $('cux_ebank_cmb_agentrequest_confirm_link_id').getUrl(),
+                        para: submitData,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '指令已确认',
+                                duration: 2000
+                            });
+                            $('hls_ebank_log_query').query();
+                        },
+                        scope: this
+                    });
+                }, function() {
+                    return;
+                }, null, null);
+            }
+            
+            function resultDsGridTerminated() {
+                var records = $('hls_ebank_log_query').getSelected();
+                if (!records.length) {
+                    Aurora.showMessage('${l:PROMPT}', '请至少选择一条记录');
+                    return;
+                }
+                var submitData = [];
+                for (var i = 0;i < records.length;i++) {
+                    records[i].set('_status', 'update');
+                    submitData.push(records[i].data);
+                }
+                Aurora.showConfirm('${l:PROMPT}', '是否要终止?', function() {
+                    Aurora.request({
+                        url: $('cux_ebank_cmb_agentrequest_terminated_link_id').getUrl(),
+                        para: submitData,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '指令已终止',
+                                duration: 2000
+                            });
+                            $('hls_ebank_log_query').query();
+                        },
+                        scope: this
+                    });
+                }, function() {
+                    return;
+                }, null, null);
+            }
+            
+            function rendererGrid(value, record, name) {
+                var url;
+                if (name == 'csh_transaction_num') {
+                    if (record.get('csh_transaction_id') && value) {
+                        url = $('csh_transaction_receipt_query_link').getUrl();
+                        return '<a href="javascript:openWindow(\'' + url + '\',\'' + record.get('csh_transaction_id') + '\');">' + value + '</a>';
+                    } else {
+                        return '';
+                    }
+                } else if (name == 'write_off_amount') {
+                    //&& record.get('trs_status') ='WRITE_OFF_FAIL'
+                    if (record.get('csh_transaction_id') && value >= 0) {
+                        url = $('csh_write_off_detail_link').getUrl() + '?transaction_id=' + record.get('csh_transaction_id') + '&transaction_type=RECEIPT';
+                        return '<a href="javascript:openWindow_writeoff(\'' + url + '\');">' + Aurora.formatMoney(value) + '</a>';
+                    } else {
+                        return '';
+                    }
+                } else if (name == 'log_detail') {
+                    if (!record.isNew) {
+                        return '<a href="javascript:openWindow_log(' + record.get('interface_id') + ');">日志</a>';
+                    }
+                    return '';
+                }
+            }
+            
+            function openWindow(url, id) {
+                var record = $('csh_transaction_id_ds').getAt(0);
+                record.set('transaction_id', id);
+                $('csh_transaction_result_ds').query();
+                new Aurora.Window({
+                    id: 'csh_transaction_receipt_link_winid',
+                    url: url,
+                    params: {
+                        winId: 'csh_transaction_receipt_link_winid'
+                    },
+                    title: '收款查询',
+                    fullScreen: true
+                });
+            }
+            
+            function openWindow_writeoff(url) {
+                new Aurora.Window({
+                    id: 'csh_write_off_reverse_detail_link_winid',
+                    url: url,
+                    params: {
+                        winId: 'csh_write_off_reverse_detail_link_winid'
+                    },
+                    title: '${l:CSH301.CSH_WRITE_OFF_DETAIL}',
+                    fullScreen: true
+                });
+            }
+            
+            function openWindow_log(interface_id) {
+                new Aurora.Window({
+                    id: 'cux_ebank_cmb_agentrequest_log_link_winid',
+                    url: $('cux_ebank_cmb_agentrequest_log_link').getUrl(),
+                    params: {
+                        interface_id: interface_id,
+                        winId: 'cux_ebank_cmb_agentrequest_log_link_winid'
+                    },
+                    title: '日志',
+                    width: 800,
+                    height: 550
+                });
+            
+            }
+            
+            function cuxEbankCmb_editorFunctionResultDsGrid(record, name) {
+                if (record.isNew) {
+                    if (name == 'contract_number') {
+                        return 'editor_contract_number_lov';
+                    } else if (name == 'accnbr') {
+                        return 'editor_accnbr_lov';
+                    } else if (name == 'dbtacc') {
+                        return 'editor_dbtacc_lov';
+                    } else if (name == 'priority') {
+                        return 'editor_priority_numberField';
+                    } else if (name == 'memo') {
+                        return 'editor_memo_textField';
+                    } else if (name == 'eptdat') {
+                        return 'editor_eptdat_datePicker';
+                    } else {
+                        return '';
+                    }
+                } else {
+                    if (record.get('trs_status') == 'NEW' || record.get('trs_status') == 'PROCESSING' || record.get('trs_status') == 'PROCESS_FAIL') {
+                        if (name == 'accnbr') {
+                            return 'editor_accnbr_lov';
+                        } else if (name == 'dbtacc') {
+                            return 'editor_dbtacc_lov';
+                        } else if (name == 'priority') {
+                            return 'editor_priority_numberField';
+                        } else if (name == 'memo') {
+                            return 'editor_memo_textField';
+                        } else if (name == 'eptdat') {
+                            return 'editor_eptdat_datePicker';
+                        } else {
+                            return '';
+                        }
+                    } else {
+                        return '';
+                    }
+                }
+            }
+            
+            function resultexport() {
+                $('result_ds_grid')._export();
+            }
+            
+            function on_beforetriggerclick(lov) {
+                var record = $('hls_ebank_log_query').getCurrentRecord();
+                var bp_id = record.get('bp_id');
+                record.getField('accnbr').setLovPara('bp_id', bp_id);
+            }
+            
+            function write_off() {
+                var records = $('hls_ebank_log_query').getSelected();
+                if (!records.length) {
+                    Aurora.showMessage('${l:PROMPT}', '请至少选择一条记录');
+                    return;
+                }
+            
+                Aurora.showConfirm('${l:PROMPT}', '是否进行收款核销?', function() {
+                    Aurora.Masker.mask(Ext.getBody(), '正在执行...');
+                    var interface_ids;
+                    interface_ids = records[0].get('interface_id');
+                    for (var i = 1;i < records.length;i++) {
+                        interface_ids = interface_ids + ',' + records[i].get('interface_id');
+                    }
+            
+                    var url_l = $('cux_post_ebank_data_link_id').getUrl();
+                    Aurora.request({
+                        url: url_l,
+                        para: {
+                            trs_status: 'PROCESSING',
+                            interface_id: '(' + interface_ids + ')'
+                        },
+                        success: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                            $('hls_ebank_log_query').query();
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                }, function() {
+                    return;
+                }, null, null);
+            
+            
+                /*  Aurora.Masker.mask(Ext.getBody(), '正在执行...');
+                 var interface_ids;
+                 interface_ids = records[0].get('interface_id');
+                 for (var i = 1;i < records.length;i++) {
+                 interface_ids = interface_ids + ',' + records[i].get('interface_id');
+                 }
+                 var url_l = $('cux_post_ebank_data_link_id').getUrl();
+                 Aurora.request({
+                 url: url_l,
+                 para: {
+                 trs_status: 'PROCESSING',
+                 interface_id: '(' + interface_ids + ')'
+                 },
+                 success: function() {
+                 Aurora.Masker.unmask(Ext.getBody());
+                 $('hls_ebank_log_query').query();
+                 },
+                 error: function() {
+                 Aurora.Masker.unmask(Ext.getBody());
+                 },
+                 failure: function() {
+                 Aurora.Masker.unmask(Ext.getBody());
+                 },
+                 scope: this
+                 }); */
+            }
+            
+            function process_fail() {
+                var records = $('hls_ebank_log_query').getSelected();
+                if (!records.length) {
+                    Aurora.showMessage('${l:PROMPT}', '请至少选择一条记录');
+                    return;
+                }
+                // var interface_ids='';
+                var para = [];
+                for (var i = 0;i < records.length;i++) {
+                    var data = {};
+                    var trs_status = records[i].get('trs_status');
+                    if (trs_status != 'PROCESSING' && trs_status != 'PROCESS_FAIL' && trs_status != 'RECEIPT_FAIL' && trs_status != 'WRITE_OFF_FAIL') {
+                        Aurora.showMessage('${l:PROMPT}', '只有失败状态的数据才能执行此操作！');
+                        return;
+                    } else {
+                        data['interface_id'] = records[i].get('interface_id');
+                        para.push(data);
+                    }
+                }
+                //interface_ids =interface_ids.substring(0,interface_ids.length-1);
+                var url_l = $('cux_resend_link_id').getUrl();
+                Aurora.request({
+                    url: url_l,
+                    para: para,
+                    success: function() {
+                        $('hls_ebank_log_query').query();
+                        // write_off();
+                    },
+                    scope: this
+                });
+            }
+            
+            function winOpen_spilt_amount(interface_id,amount,times,contract_number)
+			{ 
+			    new Aurora.Window({
+	                id: 'csh_bank_spilt_amount',
+	                url: $('pageLink_spilt_amount_link').getUrl(),
+	                params:{
+	                	interface_id:interface_id,
+	                	amount :amount,
+	                	contract_number : contract_number,
+	                	times : times
+	                },
+	                title: '金额拆分',
+	                width:600,
+	                height:340
+	            });
+			}
+			
+            function render_spilt_amount(value,record,name){
+				if(!record.isNew){	
+					var interface_id=record.get('interface_id');
+					var amount=record.get('trsamt');
+			    var times = record.get('times');
+			    var contract_number = record.get('contract_number');
+					return '<a href="javascript:winOpen_spilt_amount('+interface_id +','+amount+','+times+',\''+contract_number+'\')">'+Aurora.formatMoney(value)+'</a>';
+				}
+			}
+			
+			
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="payment_method_ds">
+                <a:datas dataSource="/model/payment_method_path"/>
+            </a:dataSet>
+            <a:dataSet id="trs_status_ds">
+                <a:datas dataSource="/model/trs_status"/>
+            </a:dataSet>
+            <a:dataSet id="cf_item_ds">
+                <a:datas dataSource="/model/cashflow_item"/>
+            </a:dataSet>
+            <a:dataSet id="con_write_off_flag_ds" lookupCode="CON_WRITE_OFF_FLAG"/>
+            <a:dataSet id="cux_ebank_cmb_interface_query_ds">
+                <a:fields>
+                    <a:field name="bp_name"/>
+                    <a:field name="dbtacc"/>
+                    <a:field name="contract_number"/>
+                    <a:field name="trs_status"/>
+                    <a:field name="trs_status_display" displayField="code_value_name" options="trs_status_ds" returnField="trs_status" valueField="code_value"/>
+                    <a:field name="due_date"/>
+                    <a:field name="write_off_flag_display" displayField="code_value_name" options="con_write_off_flag_ds" returnField="code_value" valueField="code_value"/>
+                    <a:field name="cf_item"/>
+                    <a:field name="cf_item_desc" displayField="cf_item_desc" options="cf_item_ds" returnField="cf_item" valueField="cf_item"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="hls_ebank_log_query" autoCount="true" autoQuery="true" fetchAll="false" model="csh.CSH600.hls_ebank_interface_v" pageSize="15" queryDataSet="cux_ebank_cmb_interface_query_ds" selectable="true" submitUrl="hls_ebank_agentrequest.svc">
+                <a:fields>
+                    <a:field name="interface_id"/>
+                    <a:field name="contract_id"/>
+                    <a:field name="contract_number" autoComplete="true" lovGridHeight="330" lovHeight="480" lovService="csh.CSH600.hls_ebank_contract_cashflow_lov" lovWidth="700" required="true">
+                        <a:mapping>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="yurref" to="yurref"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="times" to="times"/>
+                            <a:map from="cf_item_name" to="cf_item_desc"/>
+                            <a:map from="due_date" to="eptdat"/>
+                            <a:map from="due_amount" to="trsamt"/>
+                            <a:map from="cashflow_id" to="cashflow_id"/>
+                            <a:map from="bp_id_tenant" to="bp_id"/>
+                            <a:map from="currency_name" to="currency"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="yurref"/>
+                    <a:field name="bp_name"/>
+                    <a:field name="times"/>
+                    <a:field name="cf_item_desc"/>
+                    <a:field name="eptdat"/>
+                    <a:field name="trsamt"/>
+                    <a:field name="cashflow_id"/>
+                    <a:field name="priority" defaultValue="1"/>
+                    <a:field name="memo" defaultValue="手工新增"/>
+                    <a:field name="manual_flag" defaultValue="Y"/>
+                    <a:field name="trs_status_display" defaultValue="新增"/>
+                    <a:field name="dbtacc" lovGridHeight="350" lovHeight="550" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="850" required="true">
+                        <a:mapping>
+                            <a:map from="bank_account_num" to="dbtacc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="accnbr" lovGridHeight="250" lovHeight="420" lovService="basic.hls_bp_master_bank_account_v_for_lov" lovWidth="450" required="true">
+                        <a:mapping>
+                            <a:map from="bank_account_num" to="accnbr"/>
+                            <a:map from="bank_account_name" to="cltnam"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="csh_transaction_id_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="transaction_id"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="csh_transaction_result_ds" autoQuery="false" model="csh.CSH301.csh_transaction_query" queryDataSet="csh_transaction_id_ds"/>
+            <a:dataSet id="csh_transaction_receipt_return_maintain_ds" autoQuery="true" model="csh.CSH515.csh_transaction_receipt_return_query" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="payment_method_display" displayField="description" options="payment_method_ds" returnField="payment_method_id" valueField="payment_method_id"/>
+                    <a:field name="bank_account_code" autoComplete="true" autoCompleteField="bank_account_num" lovGridHeight="350" lovHeight="550" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="precision" to="precision"/>
+                            <a:map from="bank_account_id" to="bank_account_id"/>
+                            <a:map from="bank_account_num" to="bank_account_num"/>
+                            <a:map from="bank_account_name" to="bank_account_name"/>
+                            <a:map from="bank_account_code" to="bank_account_code"/>
+                            <a:map from="currency_code" to="currency_code"/>
+                            <a:map from="currency_name" to="currency_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_bank_account_code" autoComplete="true" autoCompleteField="bank_account_num" lovGridHeight="350" lovHeight="550" lovLabelWidth="90" lovService="basic.hls_bp_master_bank_account_v_for_lov?enabled_flag=Y&amp;bp_enabled_flag=Y" lovWidth="580" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_id" to="bp_bank_account_id"/>
+                            <a:map from="bank_account_num" to="bp_bank_account_num"/>
+                            <a:map from="bank_account_name" to="bp_bank_account_name"/>
+                            <a:map from="bank_account_code" to="bp_bank_account_code"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="queryEbankInterface" text="HLS.QUERY"/>
+                <a:gridButton click="resetQueryDs" text="HAP_RESET"/>
+                <a:gridButton click="create_ebank_data" text="扣款"/>
+                <a:gridButton id="resultexport_id" click="resultexport" text="导出"/>
+                <a:gridButton click="resultDsGridSave" text="HLS.SAVE"/>
+                <a:gridButton click="write_off" text="手工收款核销"/>
+                <a:gridButton click="process_fail" text="处理失败重置"/>
+            </a:screenTopToolbar>
+            <a:form LabelWidth="120" column="4" marginWidth="30" title="HAP_QUERY_TITLE">
+                <a:textField name="contract_number" bindTarget="cux_ebank_cmb_interface_query_ds" prompt="合同编号">
+                    <a:events>
+                        <a:event name="enterdown" handler="queryEbankInterface"/>
+                    </a:events>
+                </a:textField>
+                <a:textField name="bp_name" bindTarget="cux_ebank_cmb_interface_query_ds" prompt="客户名">
+                    <a:events>
+                        <a:event name="enterdown" handler="queryEbankInterface"/>
+                    </a:events>
+                </a:textField>
+                <a:textField name="dbtacc" bindTarget="cux_ebank_cmb_interface_query_ds" prompt="收款账号">
+                    <a:events>
+                        <a:event name="enterdown" handler="queryEbankInterface"/>
+                    </a:events>
+                </a:textField>
+                <a:comboBox name="trs_status_display" bindTarget="cux_ebank_cmb_interface_query_ds" prompt="发送状态">
+                    <a:events>
+                        <a:event name="enterdown" handler="queryEbankInterface"/>
+                    </a:events>
+                </a:comboBox>
+                <a:datePicker name="due_date_f" bindTarget="cux_ebank_cmb_interface_query_ds" prompt="预定收款时间从">
+                    <a:events>
+                        <a:event name="enterdown" handler="queryEbankInterface"/>
+                    </a:events>
+                </a:datePicker>
+                <a:datePicker name="due_date_t" bindTarget="cux_ebank_cmb_interface_query_ds" prompt="至">
+                    <a:events>
+                        <a:event name="enterdown" handler="queryEbankInterface"/>
+                    </a:events>
+                </a:datePicker>
+                <a:comboBox name="cf_item_desc" bindTarget="cux_ebank_cmb_interface_query_ds" prompt="性质">
+                    <a:events>
+                        <a:event name="enterdown" handler="queryEbankInterface"/>
+                    </a:events>
+                </a:comboBox>
+                <a:comboBox name="write_off_flag_display" bindTarget="cux_ebank_cmb_interface_query_ds" prompt="核销状态">
+                    <a:events>
+                        <a:event name="enterdown" handler="queryEbankInterface"/>
+                    </a:events>
+                </a:comboBox>
+            </a:form>
+            <a:grid id="result_ds_grid" bindTarget="hls_ebank_log_query" marginHeight="180" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" align="center" editorFunction="cuxEbankCmb_editorFunctionResultDsGrid" lock="true" prompt="合同编号" width="140"/>
+                    <a:column name="bp_name" align="left" prompt="客户名" width="120"/>
+                    <a:column name="company_name" prompt="公司" width="120"/>
+                    <a:column name="times" align="center" prompt="期数" width="60"/>
+                    <a:column name="bank_short_name" prompt="银行" width="80"/>
+                    <a:column name="bbknbr_desc" prompt="代扣账户类型" width="100"/>
+                    <a:column name="cf_item_desc" align="center" prompt="性质" width="70"/>
+                    <a:column name="eptdat" align="center" prompt="预定收款时间" renderer="Aurora.formatDate" width="90"/>
+                    <a:column name="trsamt" align="right" prompt="金额" renderer="render_spilt_amount" width="100"/>
+                    <a:column name="accnbr" align="left" prompt="扣款账号" width="160"/>
+                    <a:column name="cltnam" align="left" prompt="户名" width="90"/>
+                    <a:column name="dbtacc" align="left" editorFunction="cuxEbankCmb_editorFunctionResultDsGrid" prompt="收款账号" width="160"/>
+                    <a:column name="protocol_number" prompt="协议号" width="150"/>
+                    <a:column name="ebank_protocol_status_n" prompt="协议状态" width="100"/>
+                    <a:column name="currency" align="center" prompt="币种" width="70"/>
+                    <a:column name="trs_status_display" align="center" prompt="处理状态" width="100"/>
+                    <a:column name="write_off_flag_display" align="center" prompt="核销状态" width="100"/>
+                    <a:column name="submit_date" align="center" prompt="实际发送日期" width="140"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

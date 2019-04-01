@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-12-16 上午11:01:10  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:view>
+        <a:link id="tre_loan_contract_repayment_dtl_readonly_link_id" url="${/request/@context_path}/modules/tre/TRE508/tre_loan_contract_repayment_dtl_readonly.screen"/>
+        <a:link id="tre_loan_con_repayment_review_link_id" url="${/request/@context_path}/modules/tre/TRE522/tre_loan_con_repayment_reverse.svc"/>
+        <script><![CDATA[
+            function repayment_query() {
+                $('loan_contract_repayment_ds').query();
+            }
+            
+            function repayment_reset() {
+                $('repayment_query_ds').reset();
+            }
+            
+            function repayment_goback() {
+                window.history.go(-1);
+            }
+            
+            function viewDetails(value, record, name) {
+                return '<a href="javascript:repaymentDetailWin(' + record.get('repayment_id') + ')">' + value + '</a>';
+            }
+            
+            function repaymentDetailWin(rid) {
+                window.location.href = $('tre_loan_contract_repayment_dtl_readonly_link_id').getUrl() + '?repayment_id=' + rid+'&loan_contract_id='+'${/parameter/@loan_contract_id}';
+            }
+            
+            function lock_detail_current_window() {
+                Aurora.Masker.mask(document.documentElement, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_detail_current_window() {
+                Aurora.Masker.unmask(document.documentElement);
+            }
+            //复核
+            
+            function repaymentReturn() {
+                Aurora.showConfirm('${l:HLS.PROMPT}', '${l:CSH514.REVERSE_SURE}', repayment_reverse, function() {
+                    return;
+                });
+            }
+            
+            function repayment_reverse() {
+                //反冲时间不能为空
+                if (!$('reversed_date_ds').validate()) {
+                    return;
+                }
+            
+                lock_detail_current_window();
+                var ds = $('loan_contract_repayment_ds');
+                var pr = ds.getSelected();
+                if (pr.length == 0) {
+                    Aurora.showMessage('${l:TRE502.ALERT.MESSAGE}', '${l:TRE502.ALERT.PLEASE_SELECT_DATA}');
+                    unlock_detail_current_window();
+                    return;
+                }
+                var pd = [];
+                for (var i = 0,
+                    l = pr.length;i < l;i++) {
+                    pr[i].set('reversed_date', $('reversed_date_ds').getCurrentRecord().get('reversed_date'));
+                    pd.push(pr[i].data);
+                }
+                Aurora.request({
+                    url: $('tre_loan_con_repayment_review_link_id').getUrl(),
+                    para: pd,
+                    success: function() {
+                        unlock_detail_current_window();
+                        ds.query(ds.currentPage);
+                    },
+                    failure: function() {
+                        unlock_detail_current_window();
+                    },
+                    error: function() {
+                        unlock_detail_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            function loan_contract_repayment_ds_query(ds, qpara) {
+                qpara['reversed_flag'] = 'N';
+                qpara['status']='REVIEWED';
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="reversed_date_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="reversed_date" required="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="repayment_type_ds" lookupCode="TRE502_REPAYMENT_TYPE"/>
+            <a:dataSet id="yes_no_ds" lookupCode="YES_NO"/>
+            <a:dataSet id="repayment_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="loan_contract_number" defaultValue="${/parameter/@loan_contract_number}" readOnly="true"/>
+                    <a:field name="loan_contract_id" defaultValue="${/parameter/@loan_contract_id}"/>
+                    <a:field name="repayment_type_desc" displayField="code_value_name" options="repayment_type_ds" returnField="repayment_type" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="loan_contract_repayment_ds" autoQuery="true" model="tre.tre503.tre_loan_contract_repayment" queryDataSet="repayment_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="repayment_number" readOnly="true"/>
+                    <a:field name="repayment_type"/>
+                    <a:field name="posted_flag" defaultValue="N"/>
+                    <a:field name="posted_flag_desc" displayField="code_value_name" options="yes_no_ds" returnField="posted_flag" valueField="code_value"/>
+                    <a:field name="repayment_type_desc" displayField="code_value_name" options="repayment_type_ds" required="true" returnField="repayment_type" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="query" handler="loan_contract_repayment_ds_query"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="repaymentReturn" text="HLS.REVERSE"/>
+                <a:gridButton click="repayment_query" text="HAP_QUERY"/>
+                <a:gridButton click="repayment_reset" text="HAP_RESET"/>
+                <a:gridButton click="repayment_goback" text="HAP_BACK"/>
+            </a:screenTopToolbar>
+            <a:form column="5" title="HLS.QUERY_TITLE">
+                <a:textField name="loan_contract_number" bindTarget="repayment_query_ds" prompt="TRE_LOAN_CONTRACT.LOAN_CONTRACT_NUMBER"/>
+                <a:textField name="repayment_number" bindTarget="repayment_query_ds" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_NUMBER"/>
+                <a:comboBox name="repayment_type_desc" bindTarget="repayment_query_ds" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_TYPE"/>
+                <a:datePicker name="repayment_date_from" bindTarget="repayment_query_ds" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_DATE_FROM"/>
+                <a:datePicker name="repayment_date_to" bindTarget="repayment_query_ds" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_DATE_TO"/>
+            </a:form>
+            <a:box style="border:solid 1px #cdd">
+                <a:datePicker name="reversed_date" bindTarget="reversed_date_ds" prompt="HLS.REVERSE_DATE"/>
+            </a:box>
+            <a:grid bindTarget="loan_contract_repayment_ds" marginHeight="200" marginWidth="100" navBar="true">
+                <a:columns>
+                    <a:column name="repayment_number" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_NUMBER" renderer="viewDetails" width="180"/>
+                    <a:column name="repayment_date" align="center" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_DATE" renderer="Aurora.formatDate"/>
+                    <a:column name="repayment_amount" align="right" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <!-- <a:column name="repayment_type_desc" align="center" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_TYPE"/> -->
+                    <a:column name="status_name" align="center" prompt="TRE_LOAN_CONTRACT_WITHDRAW.POSTED_FLAG"/>
+                    <a:column name="user_description" align="center" prompt="TRE_LOAN_CONTRACT_WITHDRAW.POSTED_BY"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

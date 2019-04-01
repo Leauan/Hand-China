@@ -1,0 +1,455 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-10-2 上午10:10:21  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <!-- <a:model-query defaultWhereClause="t1.project_id =${/parameter/@project_id}" fetchAll="true" model="prj.PRJ501.prj_project_v" rootPath=""/> -->
+        <!-- <a:model-query defaultWhereClause="is_show =&apos;Y&apos;" fetchAll="true" model="prj.PRJ509.prj_fsn_config" queryOrderBy="order_seq" rootPath="dataset_submit_list"/> -->
+        <!-- <a:model-query defaultWhereClause="is_show =&apos;Y&apos;" fetchAll="true"  model="prj.PRJ509.prj_fsn_config"  rootPath="dataset_submit_list"/> --><![CDATA[
+        
+        
+        
+   
+    ]]></a:init-procedure>
+    <a:view package="aurora.ui.std" template="default">
+        <a:link id="prj_project_statement_note_link" url="${/request/@context_path}/modules/prj/PRJ509/prj_project_statement_note.screen"/>
+        <a:link id="prj_project_statement_note_selected_link" url="${/request/@context_path}/modules/prj/PRJ509/prj_project_statement_note_selected.screen"/>
+        <a:link id="get_config_link" model="prj.PRJ509.prj_fsn_config_selected" modelaction="query"/>
+        <a:link id="prj_fsn_curr_ast_tab_link" url="${/request/@context_path}/modules/prj/PRJ509/prj_fsn_curr_ast_tab.screen"/>
+        <a:link id="prj_fsn_non_curr_ast_tab_link" url="${/request/@context_path}/modules/prj/PRJ509/prj_fsn_non_curr_ast_tab.screen"/>
+        <a:link id="prj_fsn_curr_liab_tab_link" url="${/request/@context_path}/modules/prj/PRJ509/prj_fsn_curr_liab_tab.screen"/>
+        <a:link id="prj_fsn_non_curr_liab_tab_link" url="${/request/@context_path}/modules/prj/PRJ509/prj_fsn_non_curr_liab_tab.screen"/>
+        <a:link id="prj_fsn_equity_tab_link" url="${/request/@context_path}/modules/prj/PRJ509/prj_fsn_equity_tab.screen"/>
+        <a:link id="prj_fsn_income_statement_tab_link" url="${/request/@context_path}/modules/prj/PRJ509/prj_fsn_income_statement_tab.screen"/>
+        <a:link id="prj_fsn_excel_id" url="${/request/@context_path}/modules/prj/PRJ509/prj_fsn_excel_output.screen"/>
+        <div/>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <script><![CDATA[
+            var fin_statement_id='';//, fiscal_year_change_flag = 'N';
+            //共用
+            //计算营业收入及成本（产品） ：主营业务毛利
+            function calculate_main_biz_profit(record) {
+                var array = new Array();
+                var main_biz_profit = 0;
+                array[0] = record.get('main_biz_income');
+                array[1] = -record.get('main_biz_cost');
+                for (var i = 0;i < array.length;i++) {
+                    if (array[i] == 'NAN' || array[i] == 'undefined' || array[i] == null || array[i] == '' || isNaN(array[i])) {
+                        array[i] = 0;
+                    }
+                    main_biz_profit = plus(main_biz_profit, array[i]);
+                }
+            
+                record.set('main_biz_profit', main_biz_profit);
+            }
+            
+            function calculate_balance(record) {
+                var array = new Array();
+                var balance = 0;
+                array[0] = record.get('opening_bal');
+                array[1] = record.get('current_acquisition');
+                array[2] = record.get('transfer_from_cip');
+                array[3] = -record.get('fixed_ast_disposal');
+                array[4] = -record.get('current_depreciation');
+                array[5] = -record.get('provision_impairment');
+                for (var i = 0;i < array.length;i++) {
+                    if (array[i] == 'NAN' || array[i] == 'undefined' || array[i] == null || array[i] == '' || isNaN(array[i])) {
+                        array[i] = 0;
+                    }
+                    balance = plus(balance, array[i]);
+                }
+                record.set('balance', balance);
+            }
+            
+            function calculate_intgbl_ast_balance(record) {
+                var array = new Array();
+                var balance = 0;
+                array[0] = record.get('opening_bal');
+                array[1] = record.get('current_acquisition');
+                array[2] = -record.get('intangible_ast_disposal');
+                array[3] = -record.get('current_amortization');
+                array[4] = -record.get('provision_impairment');
+                for (var i = 0;i < array.length;i++) {
+                    if (array[i] == 'NAN' || array[i] == 'undefined' || array[i] == null || array[i] == '' || isNaN(array[i])) {
+                        array[i] = 0;
+                    }
+                    balance = plus(balance, array[i]);
+                }
+                record.set('balance', balance);
+            }
+            
+            function calculate_totals(datas, name) {
+                var sum = 0;
+                for (var i = 0;i < datas.length;i++) {
+                    var r = datas[i];
+                    var d = r.get(name);
+                    var n = parseFloat(d);
+                    if (!isNaN(n)) {
+                        sum = plus(sum, n);
+                    }
+                }
+                var total = (typeof(sum) == 'undefined' ? '' : parseFloat(sum));
+                return total;
+            }
+            
+            function sumFunction_desc(datas, name) {
+                var total;
+                if (name == 'item_detail_desc') {
+                    total = '${l:PRJ509.TOTAL}';
+                    return '<font>' + total + '</font>';
+                } else if (name == 'ratio') {
+                    return '<font>' + Aurora.formatMoney(1) + '</font>';
+                }
+                
+            }
+            
+            function sumFunction(datas, name) {
+                var total = calculate_totals(datas, name);
+                return '<font>' + Aurora.formatMoney(total) + '</font>';
+            }
+            
+            
+            function beforeremove_grid(ds, records) {
+                for (var i = 0;i < records.length;i++) {
+                    if (records[i].get('item_detail') == 'TOTAL') {
+                        return false;
+                    }
+                }
+            }
+            
+            function update_calculate_totals(total_record, lineRecords, name) {
+                var current_amount, amount, i, lineRecord;
+                amount = 0;
+                for (i = 0;i < lineRecords.length;i++) {
+                    lineRecord = lineRecords[i];
+                    if (lineRecord.get('item_detail') == 'TOTAL') {
+                        break;
+                    }
+                    current_amount = lineRecord.get(name);
+                    if (current_amount == 'NAN' || current_amount == 'undefined' || current_amount == null || current_amount == '') {
+                        current_amount = 0;
+                    }
+                    amount = plus(amount, current_amount);
+                }
+                total_record.set(name, amount);
+            }
+            
+            
+            function update_calculate_ratio(dataSet, records, name) {
+                for (var i = 0;i < records.length;i++) {
+            
+                    var total = calculate_totals(records, name);
+                    var ratio = div(records[i].get(name), total);
+                    if (isNaN(ratio)) {
+                        records[i].set('ratio', '');
+                    } else {
+                        records[i].set('ratio', ratio);
+                    }
+                }
+            }
+            
+            function onUpdate_item_detail_common(dataSet, record, name, value, oldValue) {
+                var lineRecords = dataSet.getAll();
+                var total_record = dataSet.find('item_detail', 'TOTAL');
+                var ratio_flag = Ext.isDefined(record.fields['ratio']);
+                if (name == 'balance') {
+                    if (ratio_flag) {
+                        update_calculate_ratio(dataSet, lineRecords, 'balance');
+                    }
+                } else if (name == 'current_amt') {
+                    if (ratio_flag) {
+                        update_calculate_ratio(dataSet, lineRecords, 'current_amt');
+                    }
+                } else if (name == 'income_from_oper') {
+                    if (ratio_flag) {
+                        update_calculate_ratio(dataSet, lineRecords, 'income_from_oper');
+                    }
+                } else if (name == 'main_biz_income' || name == 'main_biz_cost') {
+                    calculate_main_biz_profit(record);
+                } else if (name == 'transfer_from_cip' || name == 'fixed_ast_disposal' || name == 'current_depreciation') {
+            
+                    calculate_balance(record);
+                } else if (name == 'intangible_ast_disposal' || name == 'current_amortization') {
+                    calculate_intgbl_ast_balance(record);
+                } else if (name == 'opening_bal' || name == 'current_acquisition' || name == 'provision_impairment') {
+                    var id = dataSet.id;
+                    if (id == 'fixed_ast_ds') {
+            
+                        calculate_balance(record);
+                    } else {
+                        calculate_intgbl_ast_balance(record);
+                    }
+                }
+            
+            }
+            
+            
+            
+            function remove_item_detail_common(dataSet, record, index) {
+                var lineRecords = dataSet.getAll();
+                var item_detail = record.get('item_detail');
+                var total_record = dataSet.find('item_detail', 'TOTAL');
+                var ratio_flag = Ext.isDefined(record.fields['ratio']);
+                if (Ext.isDefined(record.fields['balance'])) {
+                    if (ratio_flag) {
+                        update_calculate_ratio(dataSet, lineRecords, 'balance');
+                    }
+                }if (Ext.isDefined(record.fields['current_amt'])) {
+                    if (ratio_flag) {
+                        update_calculate_ratio(dataSet, lineRecords, 'current_amt');
+                    }
+                }if (Ext.isDefined(record.fields['income_from_oper'])) {
+            
+                    if (ratio_flag) {
+                        update_calculate_ratio(dataSet, lineRecords, 'income_from_oper');
+                    }
+                }
+            }
+            
+            function grid_add(id, ds) {
+                var index_flag = ds.indexOf('prj_fsn');
+                var fsn_item_name;
+                var order_seq;
+                var dataSet = $(ds);
+                var records = dataSet.getAll();
+                if (records.length == 0) {
+                    if (index_flag == -1) {
+                        fsn_item_name = ds.substring(0, ds.length - 3).toUpperCase();
+                    } else {
+                        fsn_item_name = ds.substring(8, ds.length - 3).toUpperCase();
+                    }
+            
+                    Aurora.request({
+                        url: $('get_config_link').getUrl(),
+                        para: {
+                            fin_statement_id: fin_statement_id,
+                            fsn_item: fsn_item_name
+                        },
+                        success: function(args) { 
+                            var record = args.result.record;
+                            if (!record) {
+                                Aurora.showWarningMessage('', '${l:PRJ509.DATA_NOT_BACK}', null, 200, 100);
+                                return;
+                            }
+                            var data = {
+                                order_seq: 1,
+                                fin_statement_id: record.fin_statement_id,
+                                config_id: record.config_id,
+                                fsn_item: record.fsn_item
+                            };
+                            $(id).showEditorByRecord($(ds).create(data));
+                        },
+                        scope: this
+                    });
+                } else {
+                    var record = dataSet.getAt(records.length - 1);
+                    order_seq = record.get('order_seq');
+                    var data = {
+                        order_seq: order_seq + 1,
+                        fin_statement_id: record.get('fin_statement_id'),
+                        config_id: record.get('config_id'),
+                        fsn_item: record.get('fsn_item')
+                    };
+                    $(id).showEditorByRecord($(ds).create(data));
+                }
+            }
+            
+            function noteQueryScreen_save() {
+                Aurora.Masker.mask(parent.document.documentElement, '${l:HLS.SAVING}');
+                $('QueryScreen_paraDs').submit();
+             
+            }
+            
+            function submitsuccess_paraDs(ds,res){
+                Aurora.Masker.unmask(parent.document.documentElement);
+            }
+            
+            function stetement_note_back() {
+                if ('${/parameter/@winid}') {
+                (parent == top ? self : parent)['$']('${/parameter/@winid}').close();}
+                else{
+                    history.go(-1);
+                }
+            }
+            function rsc303_handle_changeRate_back() {
+                (parent == top ? self : parent)['$']('${/parameter/@winid}').close();
+            }
+            
+            
+            
+            function noteQueryScreen_add() {
+                if (Ext.isEmpty(fin_statement_id)) {
+                    
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:PRJ509.CHOOSE_DATE}');
+                } else {
+                    new Aurora.Window({
+                        id: 'prj_project_statement_note_selected_window',
+                        url: $('prj_project_statement_note_selected_link').getUrl(),
+                        params: {
+                            fin_statement_id: fin_statement_id,
+                            winid: 'prj_project_statement_note_selected_window'
+                        },
+                        title: '${l:PRJ509.REPORT_SELECTION}',
+            
+                        width: 800,
+                        height: 500
+                    });
+                }
+            }
+            
+            
+            function statement_note_select_back() {
+                $('prj_project_statement_note_selected_window').close();
+            }
+            
+            
+            function grid_remove(grid, ds) {
+                var dataSet = $(ds);
+                var gridObject = $(grid);
+                var lineRecords = dataSet.getSelected();
+                for (var i = 0;i < lineRecords.length;i++) {
+                    if (Ext.isEmpty(lineRecords[i].get('item_detail'))) {
+                        dataSet.remove(lineRecords[i]);
+                    }
+                }
+            
+            }
+            
+            
+            //重新获取tab的ref
+            
+            function get_tab_link(tab, fin_statement_id) {
+                var ref0 = $('prj_fsn_curr_ast_tab_link').getUrl() + '?fin_statement_id=' + fin_statement_id + '&fsn_type=CURR_AST';
+                var ref1 = $('prj_fsn_non_curr_ast_tab_link').getUrl() + '?fin_statement_id=' + fin_statement_id + '&fsn_type=NON_CURR_AST';
+                var ref2 = $('prj_fsn_curr_liab_tab_link').getUrl() + '?fin_statement_id=' + fin_statement_id + '&fsn_type=CURR_LIAB';
+                var ref3 = $('prj_fsn_non_curr_liab_tab_link').getUrl() + '?fin_statement_id=' + fin_statement_id + '&fsn_type=NON_CURR_LIAB';
+                var ref4 = $('prj_fsn_equity_tab_link').getUrl() + '?fin_statement_id=' + fin_statement_id + '&fsn_type=EQUITY';
+                var ref5 = $('prj_fsn_income_statement_tab_link').getUrl() + '?fin_statement_id=' + fin_statement_id + '&fsn_type=INCOME_STATEMENT';
+                // tab.items[0].ref = ref0;
+                // tab.items[1].ref = ref1;
+                // tab.items[2].ref = ref2;
+                // tab.items[3].ref = ref3;
+                // tab.items[4].ref = ref4;
+                // tab.items[5].ref = ref5;
+            	tab.setURL(0,ref0);
+            	tab.setURL(1,ref1);
+            	tab.setURL(2,ref2);
+            	tab.setURL(3,ref3);
+            	tab.setURL(4,ref4);
+            	tab.setURL(5,ref5);
+            }
+            
+            // var tab_loaded_data = [];
+            
+            // function set_tab_loaded_data(index) {
+                // tab_loaded_data.push({
+                    // index: true
+                // });
+            // }
+            
+            function onUpdate_paraDs(dataSet, record, name, value, oldValue) {
+                if (name == 'fiscal_year') {
+                    fin_statement_id = record.get('fin_statement_id');
+            
+                    // if (value != oldValue) {
+                        // fiscal_year_change_flag = 'Y';
+                    // }
+                    var obj = $('tabPanel_id');
+            
+                    get_tab_link(obj, fin_statement_id);
+                    // var ref0 = $('prj_fsn_curr_ast_tab_link').getUrl() + '?fin_statement_id=' + fin_statement_id + '&fsn_type=CURR_AST';
+                    // tab_loaded_data = [];
+                    // set_tab_loaded_data(0);
+                    // $('tabPanel_id').reloadTab(0, ref0);
+                }
+
+            }
+            
+            
+            // function beforeselect_tab(tab, index) {
+                // if (fiscal_year_change_flag == 'Y' && !tab_loaded_data[index]) {
+                    // set_tab_loaded_data(index);
+                    // $('tabPanel_id').reloadTab(index, tab.items[index].ref);
+                    // return false;
+                // } else {
+                    // return true;
+                // }
+            // }
+            
+            function do_excel() {
+                var url = $('prj_fsn_excel_id').getUrl()+ '?fin_statement_id=' + fin_statement_id;
+               //window.open(url);
+               window.location.href=url;
+                
+                
+            }
+          
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="QueryScreen_paraDs" autoQuery="true" model="prj.PRJ509.prj_project_statement_note_query" queryUrl="${/request/@context_path}/autocrud/prj.PRJ509.prj_project_statement_note_query/query?bp_id=${/parameter/@bp_id}" submitUrl="${/request/@context_path}/modules/prj/PRJ509/prj_fsn_submit.svc">
+                <a:fields>
+                    <a:field name="project_number" readOnly="true"/>
+                    <a:field name="project_name" readOnly="true"/>
+                    <a:field name="bp_code" readOnly="true"/>
+                    <a:field name="bp_name" readOnly="true"/>
+                    <a:field name="rsc_fin_statement_id_desc"/>
+                    <a:field name="fiscal_year" lovGridHeight="300" lovHeight="450" lovLabelWidth="120" lovService="prj.PRJ509.prj_project_statement_fiscal_year_lov?bp_id=${/parameter/@bp_id}" lovWidth="550" prompt="HLS.BP_CODE" title="PRJ509.FISCAL_YEAR">
+                        <a:mapping>
+                            <a:map from="fin_statement_id" to="fin_statement_id"/>
+                            <a:map from="fin_statement_templet_name" to="fin_statement_templet_name"/>
+                            <a:map from="fiscal_year" to="fiscal_year"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_paraDs"/>
+                    <a:event name="submitsuccess" handler="submitsuccess_paraDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="stetement_note_back" text="HLS.BACK"/>
+                <a:gridButton click="noteQueryScreen_add" text="PRJ509.SHOW_PROJECT"/>
+                <a:gridButton click="noteQueryScreen_save" text="HLS.SAVE"/>
+                <a:gridButton click="do_excel" text="HLS.WORD_EXPORT"/>
+            </a:screenTopToolbar>
+            <a:form column="3" labelWidth="120" marginWidth="30" title="PRJ509.REPORT">
+                <a:lov name="project_number" bindTarget="QueryScreen_paraDs" prompt="HLS.PROJECT_NUMBER"/>
+                <a:textField name="project_name" bindTarget="QueryScreen_paraDs" prompt="HLS.PROJECT_NAME"/>
+                <a:lov name="fiscal_year" bindTarget="QueryScreen_paraDs" prompt="PRJ509.FISCAL_YEAR"/>
+                <a:lov name="bp_code" bindTarget="QueryScreen_paraDs" prompt="HLS.BP_CODE"/>
+                <a:textField name="bp_name" bindTarget="QueryScreen_paraDs" prompt="HLS.BP_NAME"/>
+            </a:form>
+            <a:tabPanel id="tabPanel_id" marginHeight="180" marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="PRJ509.CURR_AST" width="110"><![CDATA[
+                       
+                    ]]></a:tab>
+                    <a:tab prompt="PRJ509.NON_CURR_AST" width="110"><![CDATA[
+                        
+                    ]]></a:tab>
+                    <a:tab prompt="PRJ509.CURR_LIAB" width="110"><![CDATA[
+                        
+                    ]]></a:tab>
+                    <a:tab prompt="PRJ509.NON_CURR_LIAB" width="110"><![CDATA[
+                        
+                    ]]></a:tab>
+                    <a:tab prompt="PRJ509.EQUITY" width="110"><![CDATA[
+                        
+                    ]]></a:tab>
+                    <a:tab prompt="PRJ509.INCOME_STATEMENT" width="110"><![CDATA[
+                        
+                    ]]></a:tab>
+                </a:tabs>
+                <!-- <a:events>
+                    <a:event name="beforeselect" handler="beforeselect_tab"/>
+                </a:events> -->
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hand  
+    $Date: 2016-5-16 下午1:46:20  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <s:server-script import="con_print_path.js"><![CDATA[
+            set_parameter_file_path();
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="hls_doc_file_batch_create_print_link_id" url="${/request/@context_path}/modules/hls/HLS811/hls_doc_file_batch_create.svc"/>
+        <a:link id="hls_doc_batch_download_pdf_print_link_id" url="${/request/@context_path}/modules/hls/HLS811/hls_doc_batch_download_pdf.svc"/>
+        <a:link id="hls_doc_file_content_v_link_id" model="hls.HLS811.hls_doc_file_content_v" modelaction="batch_update"/>
+        <script><![CDATA[
+            function lock_current_window() {
+                Aurora.Masker.mask(Ext.getBody(), '正在下载...');
+            }
+            
+            function download_renderer2(document_id, content_id) {
+                debugger;
+                var url_l = $('hls_doc_batch_download_pdf_print_link_id').getUrl() + '?content_id=' + content_id + '&download_file_flag=Y&file_path=${/parameter/@file_path}&source_type=COMMON&type=SIN&fnd_atm_flag=Y';
+                window.open(href = url_l, target = "_self");
+            }
+            
+            function download_renderer(value, record, name) {
+                debugger;
+                var document_id = record.get('document_id');
+                var content_id = record.get('content_id');
+            
+                // var content_print_flag = record.get('content_print_flag');
+                //  if (content_print_flag == 'Y') {
+                return '<input id="button_i" type="button" value="下载" style="border:none;color:blue;cursor:pointer;" onmouseover="this.style.color=\'red\'" onmouseout="this.style.color=\'blue\'"   onclick = "download_renderer2(' + document_id + ',' + content_id + ')"/>';
+                // return '<a href="javascript:download_uploadfile_win(\'' + content_id + '\')">下载</a>';
+                //   } else {
+                //       return '';
+                //   }
+            }
+            
+            function con_print_detail_create() {
+                Aurora.request({
+                    url: $('hls_doc_file_batch_create_print_link_id').getUrl(),
+                    para: {
+                        document_id: '${/parameter/@document_id}',
+                        document_table: '${/parameter/@document_table}',
+                        batch_flag: 'Y',
+                        source_type: 'COMMON'
+                    },
+                    success: function(res) {
+                        var result_ds = $('hls_doc_file_content_v_result_ds');
+                        //result_ds.query(result_ds.currentPage);
+                        result_ds.query();
+                        //unlock_current_window();
+                    },
+                    error: function() {
+                        //  unlock_current_window();
+                    },
+                    failure: function() {
+                        // unlock_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            function all_download_detail() {
+                var url_l = $('hls_doc_batch_download_pdf_print_link_id').getUrl() + '?document_id=' + ${/parameter/@document_id} + '&document_table=' + '${/parameter/@document_table}' + '&batch_flag=Y' + '&download_file_flag=Y&file_path=${/parameter/@file_path}&source_type=COMMON&type=ZIP&fnd_atm_flag=Y';
+                window.open(href = url_l, target = "_self");
+            }
+            
+            function delete_detail_create() {
+                Aurora.showConfirm('确认', '确认删除合同文本？', function() {
+                    var records = $('hls_doc_file_content_v_result_ds').getAll();
+                    if (records.length < 1) {
+                        Aurora.showMessage('${l:PROMPT}', '无记录！');
+                        return;
+                    }
+                    var datas = [];
+                    for (var i = 0;i < records.length;i++) {
+                        var obj = {};
+                        obj['content_id'] = records[i].get('content_id');
+                        obj['_status'] = 'delete';
+                        datas[i] = obj;
+                    }
+                    Aurora.request({
+                        url: $('hls_doc_file_content_v_link_id').getUrl(),
+                        para: datas,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '操作成功',
+                                duration: 2000
+                            });
+                            $('hls_doc_file_content_v_result_ds').query();
+                        },
+                        scope: this
+                    });
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="hls_doc_file_content_v_result_ds" autoQuery="true" model="hls.HLS811.hls_doc_file_content_v" queryUrl="${/request/@context_path}/autocrud/hls.HLS811.hls_doc_file_content_v/query?document_id=${/parameter/@document_id}&amp;document_table=${/parameter/@document_table}">
+                <a:fields>
+                    <a:field name="content_id"/>
+                    <a:field name="document_id"/>
+                    <a:field name="document_table"/>
+                    <a:field name="clause_usage"/>
+                    <a:field name="templet_id"/>
+                    <a:field name="templet_code"/>
+                    <a:field name="templet_name"/>
+                    <a:field name="templet_usage"/>
+                    <a:field name="clause_usage_name"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar style="width:1100px">
+                <a:gridButton click="con_print_detail_create" text="生成合同文本"/>
+                <a:gridButton click="delete_detail_create" text="删除"/>
+                <a:gridButton click="all_download_detail" text="一键下载"/>
+            </a:screenTopToolbar>
+            <a:grid id="hls_doc_file_print_grid_id" bindTarget="hls_doc_file_content_v_result_ds" height="400" navBar="true" width="1280">
+                <a:toolBar>
+                    <a:button type="excel"/>
+                    <a:button type="clear"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="templet_name" prompt="合同条款模板" width="100"/>
+                    <a:column name="clause_usage_name" prompt="合同用途" width="100"/>
+                    <a:column name="download" align="center" prompt="下载" renderer="download_renderer" width="200"/>
+                </a:columns>
+            </a:grid>
+            <a:hBox/>
+        </a:screenBody>
+    </a:view>
+</a:screen>

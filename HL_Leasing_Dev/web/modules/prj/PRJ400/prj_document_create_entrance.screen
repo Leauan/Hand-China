@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-6-28 上午10:30:18  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.role_id=${/session/@role_id} and t1.company_id=${/session/@company_id}" fetchAll="true" model="hls.HLS109.hls_default_parameter" rootPath="hls_default_parameter_path"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+            var mask_flag = 'N';
+            Aurora.Masker.mask(Ext.get(document.documentElement), '${l:HLS.LOADING}');
+            
+            function on_prj_doc_create_entrance_load(ds) {
+                mask_flag = 'Y';
+                var head_record = ds.getAt(0);
+                var default_record = $('hls_document_type_ds').find('document_type', '${/model/hls_default_parameter_path/record/@lease_chance_type}');
+                head_record.set('company_id', '${/model/hls_default_parameter_path/record/@company_id}');
+                head_record.set('company_id_n', '${/model/hls_default_parameter_path/record/@company_short_name}');
+                head_record.set('document_category', '${/parameter/@document_category}');
+                head_record.set('lease_organization', '${/model/hls_default_parameter_path/record/@lease_organization}');
+                head_record.set('lease_organization_n', '${/model/hls_default_parameter_path/record/@lease_organization_name}');
+                head_record.set('unit_id', '${/model/hls_default_parameter_path/record/@unit_id}');
+                head_record.set('unit_id_n', '${/model/hls_default_parameter_path/record/@unit_name}');
+                if (default_record) {
+                    head_record.set('document_type', '${/model/hls_default_parameter_path/record/@lease_chance_type}');
+                    head_record.set('document_type_n', default_record.get('document_type_desc'));
+                    head_record.set('business_type', default_record.get('business_type'));
+                    head_record.set('business_type_n', default_record.get('business_type_desc'));
+                }
+                head_record.set('division', '${/model/hls_default_parameter_path/record/@division}');
+                head_record.set('division_n', '${/model/hls_default_parameter_path/record/@division_desc}');
+                head_record.set('employee_id', '${/model/hls_default_parameter_path/record/@employee_id}');
+                head_record.set('employee_id_n', '${/model/hls_default_parameter_path/record/@employee_name}');
+                $('employee_id_of_manager_n_ds').setQueryParameter('lease_organization', '${/model/hls_default_parameter_path/record/@lease_organization}');
+                $('employee_id_of_manager_n_ds').query();
+            }
+            
+            function on_prj_doc_create_entrance_update(ds, record, name, value, oldvalue) {
+                if (name == 'lease_organization') {
+                    if (value != oldvalue) {
+                        record.set('employee_id_of_manager_n', '');
+                        record.set('employee_id_of_manager', '');
+                        $('employee_id_of_manager_n_ds').setQueryParameter('lease_organization', value);
+                        $('employee_id_of_manager_n_ds').query();
+                    }
+                }
+            }
+            
+            function on_employee_id_of_manager_n_load(ds) {
+                var head_record = $('prj_document_create_entrance_ds').getAt(0);
+                var totalCount = ds.totalCount;
+                if (totalCount == 1) {
+                    head_record.set('employee_id_of_manager_n', ds.getAt(0).get('mgr_employee_name'));
+                    head_record.set('employee_id_of_manager', ds.getAt(0).get('mgr_employee_id'));
+                }
+                Aurora.Masker.unmask(Ext.get(document.documentElement));
+            }
+            
+            function on_document_lov_focus(obj) {
+                var record = $('prj_document_create_entrance_ds').getCurrentRecord();
+                record.getField('company_id_n').setLovPara('lease_organization', record.get('lease_organization'));
+            }
+            
+            function on_document_obj_focus(obj) {
+                var record = $('prj_document_create_entrance_ds').getCurrentRecord();
+                var combobox_ds = $('lease_organization_name_ds');
+                combobox_ds.setQueryParameter('company_id', record.get('company_id'));
+                combobox_ds.query();
+            }
+            Aurora.onReady(function() {
+                var head_record = $('prj_document_create_entrance_ds').getAt(0);
+                head_record.set('declare_flag', 'Y');
+                if (mask_flag == 'N') {
+                    Aurora.Masker.unmask(Ext.get(document.documentElement));
+                }
+            });
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="employee_id_of_manager_n_ds" queryUrl="${/request/@context_path}/autocrud/basic.exp_org_unit_manager_lov/query">
+                <a:events>
+                    <a:event name="load" handler="on_employee_id_of_manager_n_load"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="lease_organization_name_ds" fetchAll="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="division_desc_ds" fetchAll="true" loadData="true" model="basic.hls_division_for_lov"/>
+            <a:dataSet id="lease_channel_desc_ds" fetchAll="true" loadData="true" model="basic.hls_lease_channel_for_lov"/>
+            <a:dataSet id="hls_document_type_ds" fetchAll="true" loadData="true" model="basic.hls_document_type_v_lov"/>
+            <a:dataSet id="prj_document_create_entrance_ds" autoCreate="true">
+                <a:datas dataSource="/model/hls_default_parameter_path"/>
+                <a:fields>
+                    <a:field name="company_id_n" lovGridHeight="350" lovHeight="500" lovService="fnd.fnd_companies_lov" lovWidth="500" required="true" title="HLS.COMPANY">
+                        <a:mapping>
+                            <a:map from="company_id" to="company_id"/>
+                            <a:map from="company_short_name" to="company_id_n"/>
+                            <a:map from="unit_id" to="unit_id"/>
+                            <a:map from="unit_name" to="unit_id_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="company_id"/>
+                    <a:field name="unit_id" required="true"/>
+                    <a:field name="lease_organization_n" displayField="description" options="lease_organization_name_ds" required="true" returnField="lease_organization" valueField="lease_organization">
+                        <a:mapping>
+                            <a:map from="unit_id" to="unit_id"/>
+                            <a:map from="unit_name" to="unit_id_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="document_type_n" displayField="document_type_desc" options="hls_document_type_ds" required="true" returnField="document_type" valueField="document_type">
+                        <a:mapping>
+                            <a:map from="business_type" to="business_type"/>
+                            <a:map from="business_type_desc" to="business_type_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="business_type"/>
+                    <a:field name="division_n" displayField="description" options="division_desc_ds" required="true" returnField="division" valueField="division"/>
+                    <a:field name="lease_channel_n" displayField="description" options="lease_channel_desc_ds" required="true" returnField="lease_channel" valueField="lease_channel"/>
+                    <a:field name="layout_code_n" lovGridHeight="350" lovHeight="500" lovService="hls.HLS030.hls_doc_layout_for_lov?enabled_flag=Y" lovWidth="500" prompt="HLS.LAYOUT_CODE" title="HLS.LAYOUT_CODE">
+                        <a:mapping>
+                            <a:map from="layout_code" to="layout_code"/>
+                            <a:map from="description" to="layout_code_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="employee_id_n" lovGridHeight="350" lovHeight="500" lovService="basic.hls_salesman_v_for_lov" lovWidth="500" required="true" title="HLS.SALESMAN">
+                        <a:mapping>
+                            <a:map from="employee_id" to="employee_id"/>
+                            <a:map from="name" to="employee_id_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="employee_id"/>
+                    <a:field name="employee_id_of_manager_n" displayField="mgr_employee_name" options="employee_id_of_manager_n_ds" returnField="employee_id_of_manager" valueField="mgr_employee_id"/>
+                    <a:field name="employee_id_of_manager"/>
+                    <a:field name="business_type_n" readOnly="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="on_prj_doc_create_entrance_load"/>
+                    <a:event name="update" handler="on_prj_doc_create_entrance_update"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form id="prj_document_create_entrance_form_id" column="2" labelWidth="100" title=" " width="600">
+                <a:comboBox name="document_type_n" bindTarget="prj_document_create_entrance_ds" prompt="HLS.DOCUMENT_TYPE_DESC"/>
+                <a:lov name="company_id_n" bindTarget="prj_document_create_entrance_ds" prompt="HLS.COMPANY">
+                    <a:events>
+                        <a:event name="focus" handler="on_document_lov_focus"/>
+                    </a:events>
+                </a:lov>
+                <a:textField name="business_type_n" bindTarget="prj_document_create_entrance_ds" prompt="HLS.BUSINESS_TYPE_DESC"/>
+                <a:comboBox name="lease_organization_n" bindTarget="prj_document_create_entrance_ds" prompt="HLS.LEASE_ORGANIZATION">
+                    <a:events>
+                        <a:event name="focus" handler="on_document_obj_focus"/>
+                    </a:events>
+                </a:comboBox>
+                <a:lov name="employee_id_n" bindTarget="prj_document_create_entrance_ds" prompt="HLS.SALESMAN"/>
+                <a:comboBox name="lease_channel_n" bindTarget="prj_document_create_entrance_ds" prompt="HLS.LEASE_CHANNEL"/>
+                <a:comboBox name="employee_id_of_manager_n" bindTarget="prj_document_create_entrance_ds" prompt="HLS.UNIT_MANAGER"/>
+                <a:comboBox name="division_n" bindTarget="prj_document_create_entrance_ds" prompt="HLS.DIVISION"/>
+            </a:form>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zengyuxuan
+    $Date: 2016-11-16 上午10:30:00  
+    $Revision: 1.0  
+    $Purpose: 产品方案定义
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure><![CDATA[
+		
+	]]></a:init-procedure>
+    <a:view>
+        <a:link id="copy_product_link_id" model="hls.HLS051.copy_product" modelaction="update"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="hls_plan_to_grant_link" url="${/request/@context_path}/modules/hls/HLS051/hls_plan_to_grant.screen"/>
+        <a:link id="hls_car_and_dis_link" url="${/request/@context_path}/modules/hls/HLS051/hls_product_car_dis.screen"/>
+        <a:link id="hls_plan_no_gps_link" url="${/request/@context_path}/modules/hls/HLS051/hls_product_no_gps_condition.screen"/>
+        <a:link id="hls_plan_car_link" url="${/request/@context_path}/modules/hls/HLS051/hls_product_car_discount.screen"/>
+        <a:link id="get_special_fields_link_id" model="cont.CON500.con_contract_get_special_fields" modelaction="update"/>
+        <script><![CDATA[
+        	//超链接
+        	window['${/parameter/@bp_seq}${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record, bp_seq) {
+                var link_function = '';
+                var product_plan_id = record.get('product_plan_id');
+                window['${/parameter/@bp_seq}${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                if (name == 'to_grant') {
+                    return '<a href="javascript:grant_window_open(\'' + product_plan_id + '\',\'' + record.id + '\',\'' + record.ds.id + '\');">' + config_record.get('prompt') + '</a>';
+                }
+                else if(name == 'no_gps'){
+                	return '<a href="javascript:gps_window_open(\'' + record.id + '\',\'' + record.ds.id + '\');">' + config_record.get('prompt') + '</a>';
+                }
+                else if(name == 'car_type_and_discount'){
+                    if(record.get('discount_method')=='NO_DISCOUNT'){
+                        return '';
+                    }else{
+                        debugger;
+	                    return '<a href="javascript:car_discount_open(\'' + product_plan_id + '\',\'' + record.id + '\',\'' + record.ds.id + '\');">'+ '贴息上限定义' +'</a>';
+                    }
+                }
+                else if (name == 'car_series') {
+                    return '<a  href="javascript:car_type_and_discount_window_open(\'' + product_plan_id + '\',\'' + record.id + '\',\'' + record.ds.id + '\')">' + '车系' + '</a>';
+                }
+            };
+            
+            function car_type_and_discount_window_open(id,record_id,ds_id){
+    	    	if (Ext.isEmpty(id) || id == 'undefined') {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先点击保存!');
+                } else {
+                    var win = new Aurora.Window({
+                        id: 'hls_grant_car_window',
+                        url: $('hls_plan_car_link').getUrl(),
+                        params: {
+                            winId: 'hls_grant_car_window',
+                            product_plan_id: id,
+                            ds_id:ds_id
+                        },
+                        title: '车系授权',
+                        height: 700,
+                        width: 550
+                    });
+                }
+    		}
+            
+            function grant_window_open(id, record_id, ds_id) {
+                if (Ext.isEmpty(id) || id == 'undefined') {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先点击保存!');
+                } else {
+                    var record=$(ds_id).findById(record_id);
+	    	    	var param = record.data;
+	                param['function_code'] = 'HLS051D';
+	                //param['url_title'] = 'TO_GRANT';
+					//修改为对应的产品名称
+					param['url_title'] =record.get('product_name_write');
+	            	hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'hls_plan_to_grant_link',ds_id);
+                }
+            }
+            
+            function gps_window_open(record_id,ds_id){
+    	    	var record=$(ds_id).findById(record_id);
+	    	    var param = record.data;
+	                param['function_code'] = 'HLS051C';
+	                //param['url_title'] = 'NO_GPS_CONDITION';
+					//修改为对应的产品名称
+					param['url_title'] =record.get('product_name_write');
+	            	hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'hls_plan_no_gps_link',ds_id);
+    		}
+    		
+    		function car_discount_open(id, record_id, ds_id) {
+                debugger;
+                if (Ext.isEmpty(id) || id == 'undefined') {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先点击保存!');
+                } else {
+                    var record=$(ds_id).findById(record_id);
+	    	    	var param = record.data;
+	                param['function_code'] = 'HLS051G';
+	                //param['url_title'] = 'TO_GRANT';
+					//修改为对应的产品名称
+					param['url_title'] =record.get('product_name_write');
+	            	hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'hls_car_and_dis_link',ds_id);
+                }
+            }
+            
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+            	debugger;
+            	var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_product_plan_definition');
+            	if (ds_id == ds.id){
+            	    if(name=='btb_int_rate_implicit'||name=='discount_rate'||name=='lease_charge_ratio'||name=='discount_method'){
+            	        debugger;
+            	        var btb_int_rate_implicit = record.get('btb_int_rate_implicit')||0;
+            			var discount_rate = record.get('discount_rate')||0;
+            			var lease_charge_ratio = record.get('lease_charge_ratio')||0;
+            			var discount_method = record.get('discount_method');
+            			if(discount_method){
+            			    if(discount_method=='DISCOUNT'){
+	            				record.set('int_rate_display',(btb_int_rate_implicit-discount_rate-lease_charge_ratio));
+            			        record.getField('discount_rate').setReadOnly(false);
+            			    }
+            			    if(discount_method=='NO_DISCOUNT'){
+            	    			record.set('discount_rate',0);
+            					record.getField('discount_rate').setReadOnly(true);
+            					record.set('int_rate_display',(btb_int_rate_implicit-discount_rate-lease_charge_ratio));
+            			    }
+            			}
+            	    }
+            	    if(name=='discount_method'){
+            	    	var discount_method = record.get('discount_method');
+            	    	if(discount_method=='NO_DISCOUNT'){
+            	    		record.set('discount_rate',0);
+            				record.getField('discount_rate').setReadOnly(true);
+               			}
+               			if(discount_method=='DISCOUNT'){
+               			    record.getField('discount_rate').setReadOnly(false);
+               			}
+            		}
+            	}
+               };
+               
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_load'] = function(ds, record, config_records, bp_seq) {
+            	var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_product_plan_definition');
+            	if (ds_id == ds.id){
+            	    var dataset=ds.getAll();
+            	    for(var i=0;i<dataset.length;i++){
+            	    	var discount_method = dataset[i].get('discount_method');
+            	    	if(discount_method=='NO_DISCOUNT'){
+            				dataset[i].getField('discount_rate').setReadOnly(true);
+               			}
+               			if(discount_method=='DISCOUNT'){
+               			   	dataset[i].getField('discount_rate').setReadOnly(false);
+               			}
+            		}
+            	}
+            	//如果存在的话，进行校验逻辑  排除掉联系人校验
+                if ((ds.id).indexOf('hls_product_plan_definition') != -1) {
+                    //原利率校验
+                    if (ds.fields.primary_rate) {
+                        ds.fields.primary_rate.pro.validator = primary_rate_validate;
+                    }
+                    //智慧利率校验
+                    if (ds.fields.btb_int_rate_implicit) {
+                        ds.fields.btb_int_rate_implicit.pro.validator = btb_int_rate_implicit_validate;
+                    }
+                }
+         	};
+            //新增时调用(grid,table,gridBox)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_add'] = function(ds, record, config_records, bp_seq) {
+                //如果存在的话，进行校验逻辑  排除掉联系人校验
+                if ((ds.id).indexOf('hls_product_plan_definition') != -1) {
+                    //原利率校验
+                    if (ds.fields.primary_rate) {
+                        ds.fields.primary_rate.pro.validator = primary_rate_validate;
+                    }
+                    //智慧利率校验
+                    if (ds.fields.btb_int_rate_implicit) {
+                        ds.fields.btb_int_rate_implicit.pro.validator = btb_int_rate_implicit_validate;
+                    }
+                }
+            };
+            
+            function primary_rate_validate(record, name, value) {
+				var btb_int_rate_implicit = record.get('btb_int_rate_implicit');
+				if(value > btb_int_rate_implicit){
+				    Aurora.showMessage('提示','原利率不能大于智慧利率！');
+				    return '原利率不能大于智慧利率';
+				}     
+                return true;
+            }
+            
+            function btb_int_rate_implicit_validate(record, name, value) {
+				var primary_rate = record.get('primary_rate');   
+				if(primary_rate > value){
+				    Aurora.showMessage('提示','原利率不能大于智慧利率！');
+				    return '原利率不能大于智慧利率';
+				}     
+                return true;
+            }
+            
+            window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function(ds, record) {
+                debugger;
+                var result_ds = $('PRODUCT_DEFINITION_F_PRODUCT_QUERY_hls_product_plan_definition_ds');
+                var records = result_ds.getSelected();
+                var product_plan_id = records[0].get('product_plan_id');
+                if (records.length == 0) {
+                    Aurora.showMessage("提示", "请至少选择一条数据");
+                    return;
+                } else if (records.length > 1) {
+                    Aurora.showMessage("提示", "请选择单条数据进行复制");
+                    return;
+                } else {
+                    Aurora.request({
+                    url: $('copy_product_link_id').getUrl(),
+                    para: {
+                        product_plan_id: product_plan_id
+                    },
+                    success: function(res) {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        $('PRODUCT_DEFINITION_F_PRODUCT_QUERY_hls_product_plan_definition_ds').query();
+                    },
+                    error: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    failure: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    sync: true,
+                    scope: this
+                });
+                }
+                    // $('PRODUCT_DEFINITION_F_PRODUCT_QUERY_hls_product_plan_definition_layout_grid_id').showEditorByRecord($('PRODUCT_DEFINITION_F_PRODUCT_QUERY_hls_product_plan_definition_ds').create());
+                // }
+                    // var select_record = ds.getSelected()[0];
+                    // for (var name in select_record.data) {
+                        // record.set(name, select_record.get(name));
+                        // record.set('product_plan_id', null);
+               		// }
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

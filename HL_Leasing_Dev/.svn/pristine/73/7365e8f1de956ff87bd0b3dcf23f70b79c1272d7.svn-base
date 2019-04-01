@@ -1,0 +1,399 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-2-26 下午2:37:49  
+    $Revision: 1.0  
+    $Purpose: 凭证模板行字段高级设置
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="v.code=&apos;GLD104_VALUE_SOURCE_TYPE&apos; and (${/parameter/@is_loop} = &apos;Y&apos; or v.code_value != &apos;LOOP_ID&apos;)" model="basic.sys_code_default_value" rootPath="value_source_type_list"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+        
+        window['${/parameter/@page_identifier}Config_lovCommit'] = function (record)
+        {
+            $('${/parameter/@lovid}').commit(record);
+        };
+        
+        window['${/parameter/@page_identifier}Config_lovReturn'] = function (obj)
+        {
+            var record = $('${/parameter/@page_identifier}Config_lovReturnDs').getAt(0);
+            for (var prop in obj)
+            {
+                record.set(prop,obj[prop]);
+            }
+            window['${/parameter/@page_identifier}Config_lovCommit'](record);
+        };
+        
+        window['${/parameter/@page_identifier}Config_pageMask'] = function ()
+        {
+            Aurora.Masker.mask($('${/parameter/@lovid}').win.wrap,'${l:HLS.SAVING}');
+        };
+        
+        window['${/parameter/@page_identifier}Config_pageUnmask'] = function ()
+        {
+            Aurora.Masker.unmask($('${/parameter/@lovid}').win.wrap);
+        };
+        
+        window['${/parameter/@page_identifier}Config_whereDs_grid_add'] = function () {
+            $('${/parameter/@page_identifier}Config_whereDs_grid').showEditorByRecord($('${/parameter/@page_identifier}Config_whereDs').create());
+        };
+        
+        window['${/parameter/@page_identifier}Config_whereDs_grid_remove'] = function () {
+            $('${/parameter/@page_identifier}Config_whereDs_grid').remove();
+        };
+        
+        window['${/parameter/@page_identifier}Config_getRecordNameValue'] = function (record,name)
+        {
+            var desc=record.get(name);
+            if(!Ext.isEmpty(desc))
+            {
+                return desc;
+            }
+            else
+            {
+                return '';
+            }
+        };
+        
+        window['onSubmitSuccess_${/parameter/@page_identifier}Config_columnDs'] = function (ds,res)
+        {
+            window['${/parameter/@page_identifier}Config_pageUnmask']();
+            
+            var record=ds.getAt(0);
+            
+            window['${/parameter/@page_identifier}Config_lovReturn']({
+            	'config_id':record.get('config_id'),
+            	'config_desc':record.get('config_desc'),
+            	'account_config_type':record.get('account_config_type'),
+            	'usage_code':record.get('usage_code')
+            });
+        };
+        window['onSubmitfailed_${/parameter/@page_identifier}Config_columnDs'] = function (ds,res)
+        {
+            window['${/parameter/@page_identifier}Config_pageUnmask']();
+        };
+        
+        
+        window['onUpdate_${/parameter/@page_identifier}Config_columnDs'] = function (ds,record,name,value,oldvalue)
+        {
+            
+            if(name=='table_name')
+            {
+                for(var i=1;i<=3;i++)
+	            {
+	                record.set('table_column_'+i,'');
+	                record.set('table_column_'+i+'_desc','');
+	                record.set('tab_col_desc_format_'+i,'');
+	                
+	                record.getField('table_column_'+i+'_desc').setLovPara('table_name',value);
+	            }
+	            record.getField('table_name_desc').setPropertity('tooltip', record.get('table_name'));
+            }
+            else if(name=='table_column_1')
+            {
+                record.getField('table_column_1_desc').setPropertity('tooltip', record.get('table_column_1'));
+            }
+            else if(name=='table_column_2')
+            {
+                record.getField('table_column_2_desc').setPropertity('tooltip', record.get('table_column_2'));
+            }
+            else if(name=='table_column_3')
+            {
+                record.getField('table_column_3_desc').setPropertity('tooltip', record.get('table_column_3'));
+            }
+            
+        };
+        
+        window['editorFunction_${/parameter/@page_identifier}Config_whereDs_grid'] = function (record,name)
+        {
+            var field=record.getField(name);
+            
+            if(name=='condition_value_type_desc')
+            {
+                if(record.get('calulate_symbol')=='IS NULL' || record.get('calulate_symbol')=='IS NOT NULL')
+                {
+                    field.setRequired(false);
+                    return '';
+                }
+                else
+                {
+                    field.setRequired(true);
+                    return '${/parameter/@page_identifier}Config_whereDs_grid_comb';
+                }
+                
+            }
+            else if(name=='condition_value')
+            {
+                if(record.get('calulate_symbol')=='IS NULL' || record.get('calulate_symbol')=='IS NOT NULL')
+                {
+                    field.setRequired(false);
+                    return '';
+                }
+                else
+                {
+                    var type=record.get('condition_value_type');
+		            if(Ext.isEmpty(type)||type=='LOOP_ID')
+		            {
+		                field.setRequired(false);
+		                return '';
+		            }
+		            else if(type=='INPUT')
+		            {
+		                field.setRequired(true);
+		                return '${/parameter/@page_identifier}Config_whereDs_grid_tf';
+		            }
+		            else if(type=='PARAMETER')
+		            {
+		                field.setLovService('gld.GLD104.gld_je_trx_parameters_for_lov');
+		            	field.setMapping([{
+	                	    from:'parameter_code', 
+	                	    to: name
+	                	}]);
+		            	field.setLovPara('je_transaction_code','${/parameter/@je_transaction_code}');
+		            	field.setRequired(true);
+		            	return '${/parameter/@page_identifier}Config_whereDs_grid_lov';
+		            }
+		            else if(type=='COLUMN_VALUE')
+		            {
+		                field.setLovService('gld.GLD104.gld_je_trx_tab_columns_v_for_lov');
+		            	field.setMapping([{
+	                	    from:'tab_col_format', 
+	                	    to: name
+	                	}]);
+		            	field.setLovPara('je_transaction_code','${/parameter/@je_transaction_code}');
+		            	field.setRequired(true);
+		            	return '${/parameter/@page_identifier}Config_whereDs_grid_lov';
+		            }
+		            else
+		            {
+		                return '';
+		            }
+                }
+            }
+        };
+        
+        window['onUpdate_${/parameter/@page_identifier}Config_whereDs'] = function (ds,record,name,value,oldvalue)
+        {
+            if(name=='condition_value_type')
+            {
+                record.set('condition_value','');
+            }
+            if(name=='calulate_symbol')
+            {
+                if(value=='IS NULL'||value=='IS NOT NULL')
+                {
+                    record.set('condition_value','');
+                    record.set('condition_value_type','');
+                    record.set('condition_value_type_desc','');
+                }
+            }
+            if(name=='condition_table_desc')
+            {
+                record.getField('condition_table_desc').setPropertity('tooltip', record.get('condition_table')+'.'+record.get('condition_column'));
+                record.getField('condition_column_desc').setPropertity('tooltip', record.get('condition_table')+'.'+record.get('condition_column'));
+            }
+        };
+        
+        window['onLoad_${/parameter/@page_identifier}Config_whereDs'] = function (ds) {
+            var records = ds.getAll();
+            for (var i = 0;i < records.length;i++) {
+                var record = records[i];
+                record.getField('condition_table_desc').setPropertity('tooltip', record.get('condition_table')+'.'+record.get('condition_column'));
+            	record.getField('condition_column_desc').setPropertity('tooltip', record.get('condition_table')+'.'+record.get('condition_column'));
+            }
+        };
+        
+        window['${/parameter/@page_identifier}Config_getConfigDesc'] = function (record)
+        {
+            var config_desc='';
+            var name_list=['function_symbol','mutil_row_function_symbol','tab_col_desc_format'];
+            for (var i=1;i<=3;i++)
+            {
+                for (var j=0;j<name_list.length;j++)
+                {
+                    config_desc=config_desc + window['${/parameter/@page_identifier}Config_getRecordNameValue'](record,name_list[j]+'_'+i);
+                }
+            }
+            return config_desc;
+        };
+        
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="${/parameter/@page_identifier}_functionSymbolDs" lookupCode="GLD_JE_TEMPLATE_FUNCTION_SYMBOL"/>
+            <a:dataSet id="${/parameter/@page_identifier}_aggregationFunSymbolDs" lookupCode="GLD_JE_TEMPLATE_MUTIL_ROW_FUNCTION_SYMBOL"/>
+            <a:dataSet id="${/parameter/@page_identifier}_calculateSymbolDs" lookupCode="GLD104_CALCULATE_SYMBOL"/>
+            <a:dataSet id="${/parameter/@page_identifier}_templateValueTypeDs">
+                <a:datas dataSource="/model/value_source_type_list"/>
+            </a:dataSet>
+            <a:dataSet id="${/parameter/@page_identifier}Config_lovReturnDs" autoCreate="true">
+                <a:fields>
+                    <a:field name="config_id"/>
+                    <a:field name="config_desc"/>
+                    <a:field name="account_config_type"/>
+                    <a:field name="usage_code"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="${/parameter/@page_identifier}Config_columnDs" loadData="true" model="gld.GLD107.gld_je_template_dtl_con_hd" submitUrl="${/parameter/@submit_url}">
+                <a:fields>
+                    <a:field name="je_transaction_code"/>
+                    <a:field name="config_desc"/>
+                    <a:field name="function_symbol_1_desc" displayField="code_value_name" options="${/parameter/@page_identifier}_functionSymbolDs" returnField="function_symbol_1" valueField="code_value"/>
+                    <a:field name="function_symbol_2_desc" displayField="code_value_name" options="${/parameter/@page_identifier}_functionSymbolDs" returnField="function_symbol_2" valueField="code_value"/>
+                    <a:field name="function_symbol_3_desc" displayField="code_value_name" options="${/parameter/@page_identifier}_functionSymbolDs" returnField="function_symbol_3" valueField="code_value"/>
+                    <a:field name="mutil_row_function_symbol_1_desc" displayField="code_value_name" options="${/parameter/@page_identifier}_aggregationFunSymbolDs" returnField="mutil_row_function_symbol_1" valueField="code_value"/>
+                    <a:field name="mutil_row_function_symbol_2_desc" displayField="code_value_name" options="${/parameter/@page_identifier}_aggregationFunSymbolDs" returnField="mutil_row_function_symbol_2" valueField="code_value"/>
+                    <a:field name="mutil_row_function_symbol_3_desc" displayField="code_value_name" options="${/parameter/@page_identifier}_aggregationFunSymbolDs" returnField="mutil_row_function_symbol_3" valueField="code_value"/>
+                    <a:field name="table_name"/>
+                    <a:field name="table_name_desc" lovGridHeight="300" lovHeight="450" lovService="gld.GLD104.gld_je_trx_tables_for_lov?je_transaction_code=${/parameter/@je_transaction_code}" lovWidth="600" required="true" title="GLD107.LOV_TITLE.COLUMN">
+                        <a:mapping>
+                            <a:map from="table_name" to="table_name"/>
+                            <a:map from="table_desc" to="table_name_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="table_column_1_desc" lovGridHeight="450" lovHeight="650" lovService="gld.GLD104.gld_je_trx_tab_columns_v_for_lov_filter_table?je_transaction_code=${/parameter/@je_transaction_code}" lovWidth="850" lovpagesize="50" required="true" title="GLD107.LOV_TITLE.COLUMN">
+                        <a:mapping>
+                            <a:map from="table_column" to="table_column_1"/>
+                            <a:map from="column_desc" to="table_column_1_desc"/>
+                            <a:map from="tab_col_desc_format" to="tab_col_desc_format_1"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="table_column_2_desc" lovGridHeight="450" lovHeight="650" lovService="gld.GLD104.gld_je_trx_tab_columns_v_for_lov_filter_table?je_transaction_code=${/parameter/@je_transaction_code}" lovWidth="850" lovpagesize="50" title="GLD107.LOV_TITLE.COLUMN">
+                        <a:mapping>
+                            <a:map from="table_column" to="table_column_2"/>
+                            <a:map from="column_desc" to="table_column_2_desc"/>
+                            <a:map from="tab_col_desc_format" to="tab_col_desc_format_2"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="table_column_3_desc" lovGridHeight="450" lovHeight="650" lovService="gld.GLD104.gld_je_trx_tab_columns_v_for_lov_filter_table?je_transaction_code=${/parameter/@je_transaction_code}" lovWidth="850" lovpagesize="50" title="GLD107.LOV_TITLE.COLUMN">
+                        <a:mapping>
+                            <a:map from="table_column" to="table_column_3"/>
+                            <a:map from="column_desc" to="table_column_3_desc"/>
+                            <a:map from="tab_col_desc_format" to="tab_col_desc_format_3"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_${/parameter/@page_identifier}Config_columnDs"/>
+                    <a:event name="submitsuccess" handler="onSubmitSuccess_${/parameter/@page_identifier}Config_columnDs"/>
+                    <a:event name="submitfailed" handler="onSubmitfailed_${/parameter/@page_identifier}Config_columnDs"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="${/parameter/@page_identifier}Config_whereDs" autoQuery="true" bindName="where_info" bindTarget="${/parameter/@page_identifier}Config_columnDs" model="gld.GLD107.gld_je_template_dtl_con_ln" queryUrl="${/request/@context_path}/autocrud/gld.GLD107.gld_je_template_dtl_con_ln/query?config_id=${/parameter/@config_id}&amp;je_transaction_code=${/parameter/@je_transaction_code}" selectable="true">
+                <a:fields>
+                    <a:field name="config_id"/>
+                    <a:field name="condition_table"/>
+                    <a:field name="condition_table_desc"/>
+                    <a:field name="condition_column"/>
+                    <a:field name="condition_column_desc" lovGridHeight="300" lovHeight="500" lovService="gld.GLD104.gld_je_trx_tab_columns_v_for_lov?je_transaction_code=${/parameter/@je_transaction_code}" lovWidth="850" required="true" title="GLD107.LOV_TITLE.COLUMN">
+                        <a:mapping>
+                            <a:map from="table_name" to="condition_table"/>
+                            <a:map from="table_desc" to="condition_table_desc"/>
+                            <a:map from="table_column" to="condition_column"/>
+                            <a:map from="column_desc" to="condition_column_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="calulate_symbol"/>
+                    <a:field name="calulate_symbol_desc" displayField="code_value_name" options="${/parameter/@page_identifier}_calculateSymbolDs" required="true" returnField="calulate_symbol" valueField="code_value"/>
+                    <a:field name="condition_value_type"/>
+                    <a:field name="condition_value_type_desc" displayField="code_value_name" options="${/parameter/@page_identifier}_templateValueTypeDs" required="true" returnField="condition_value_type" valueField="code_value"/>
+                    <a:field name="condition_value" lovGridHeight="300" lovHeight="500" lovWidth="850" title="GLD104.LOV_TITLE.CONDITION_VALUE"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_${/parameter/@page_identifier}Config_whereDs"/>
+                    <a:event name="load" handler="onLoad_${/parameter/@page_identifier}Config_whereDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form title=" " width="852">
+                <a:switch test="/parameter/@column_mode">
+                    <a:case value="SIMPLE">
+                        <a:hBox>
+                            <a:lov name="table_name_desc" bindTarget="${/parameter/@page_identifier}Config_columnDs"/>
+                            <a:lov name="table_column_1_desc" bindTarget="${/parameter/@page_identifier}Config_columnDs"/>
+                        </a:hBox>
+                    </a:case>
+                    <a:case value="*">
+                        <a:hBox>
+                            <a:lov name="table_name_desc" bindTarget="${/parameter/@page_identifier}Config_columnDs"/>
+                        </a:hBox>
+                        <a:hBox>
+                            <a:comboBox name="function_symbol_1_desc" bindTarget="${/parameter/@page_identifier}Config_columnDs" prompt="GLD107.GLD_JE_TEMPLATE_DTL_CON_HD.FUNCTION_SYMBOL"/>
+                            <a:comboBox name="mutil_row_function_symbol_1_desc" bindTarget="${/parameter/@page_identifier}Config_columnDs" prompt="GLD107.GLD_JE_TEMPLATE_DTL_CON_HD.MUTIL_ROW_FUNCTION_SYMBOL"/>
+                            <a:lov name="table_column_1_desc" bindTarget="${/parameter/@page_identifier}Config_columnDs"/>
+                        </a:hBox>
+                        <a:accordionPanel height="95" singleMode="false" style="width:100%;">
+                            <a:accordions>
+                                <a:accordion prompt="" selected="false">
+                                    <a:hBox style="margin-top:5px;">
+                                        <a:comboBox name="function_symbol_2_desc" bindTarget="${/parameter/@page_identifier}Config_columnDs" prompt="GLD107.GLD_JE_TEMPLATE_DTL_CON_HD.FUNCTION_SYMBOL"/>
+                                        <a:comboBox name="mutil_row_function_symbol_2_desc" bindTarget="${/parameter/@page_identifier}Config_columnDs" prompt="GLD107.GLD_JE_TEMPLATE_DTL_CON_HD.MUTIL_ROW_FUNCTION_SYMBOL"/>
+                                        <a:lov name="table_column_2_desc" bindTarget="${/parameter/@page_identifier}Config_columnDs"/>
+                                    </a:hBox>
+                                    <a:hBox>
+                                        <a:comboBox name="function_symbol_3_desc" bindTarget="${/parameter/@page_identifier}Config_columnDs" prompt="GLD107.GLD_JE_TEMPLATE_DTL_CON_HD.FUNCTION_SYMBOL"/>
+                                        <a:comboBox name="mutil_row_function_symbol_3_desc" bindTarget="${/parameter/@page_identifier}Config_columnDs" prompt="GLD107.GLD_JE_TEMPLATE_DTL_CON_HD.MUTIL_ROW_FUNCTION_SYMBOL"/>
+                                        <a:lov name="table_column_3_desc" bindTarget="${/parameter/@page_identifier}Config_columnDs"/>
+                                    </a:hBox>
+                                </a:accordion>
+                            </a:accordions>
+                        </a:accordionPanel>
+                    </a:case>
+                </a:switch>
+            </a:form>
+            <a:hBox>
+                <a:button click="${/parameter/@page_identifier}Config_whereDs_grid_add" text="HLS.NEW"/>
+                <a:button click="${/parameter/@page_identifier}Config_whereDs_grid_remove" text="HLS.REMOVE"/>
+            </a:hBox>
+            <a:grid id="${/parameter/@page_identifier}Config_whereDs_grid" bindTarget="${/parameter/@page_identifier}Config_whereDs" height="240" navBar="true" width="850">
+                <a:columns>
+                    <a:column name="condition_table_desc" prompt="GLD104.GLD_JE_TRX_TABLES.TABLE_NAME" width="150"/>
+                    <a:column name="condition_column_desc" editor="${/parameter/@page_identifier}Config_whereDs_grid_lov" prompt="GLD104.GLD_JE_TRX_TAB_COLUMNS.TABLE_COLUMN" width="150"/>
+                    <a:column name="calulate_symbol_desc" editor="${/parameter/@page_identifier}Config_whereDs_grid_comb" prompt="GLD104.GLD_JE_TRX_TAB_WHERE_CLAUSE.CALULATE_SYMBOL" width="100"/>
+                    <a:column name="condition_value_type_desc" editorFunction="editorFunction_${/parameter/@page_identifier}Config_whereDs_grid" prompt="GLD104.GLD_JE_TRX_TAB_WHERE_CLAUSE.CONDITION_VALUE_TYPE" width="100"/>
+                    <a:column name="condition_value" editorFunction="editorFunction_${/parameter/@page_identifier}Config_whereDs_grid" prompt="GLD104.GLD_JE_TRX_TAB_WHERE_CLAUSE.CONDITION_VALUE" width="300"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="${/parameter/@page_identifier}Config_whereDs_grid_tf"/>
+                    <a:comboBox id="${/parameter/@page_identifier}Config_whereDs_grid_comb"/>
+                    <a:lov id="${/parameter/@page_identifier}Config_whereDs_grid_lov"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+        <script><![CDATA[
+        (
+        function ()
+        {
+            //如果没找到记录，那么新增一条
+            var ds=$('${/parameter/@page_identifier}Config_columnDs');
+            var record=ds.getAt(0);
+            if (Ext.isEmpty(record))
+            {
+                ds.create();
+            }
+            
+            record=ds.getAt(0);
+            //必须参数
+            record.set('source_type','${/parameter/@source_type}',true);
+            record.set('source_column','${/parameter/@source_column}',true);
+            record.set('source_id','${/parameter/@source_id}',true);
+            record.set('je_transaction_code','${/parameter/@je_transaction_code}',true);
+            
+            for(var i=1;i<=3;i++)
+            {
+                record.getField('table_column_'+i+'_desc').setLovPara('table_name',record.get('table_name'));
+            }
+            
+            record.getField('table_name_desc').setPropertity('tooltip', record.get('table_name'));
+            record.getField('table_column_1_desc').setPropertity('tooltip', record.get('table_column_1'));
+            record.getField('table_column_2_desc').setPropertity('tooltip', record.get('table_column_2'));
+            record.getField('table_column_3_desc').setPropertity('tooltip', record.get('table_column_3'));
+            
+            
+        })();
+        ]]></script>
+    </a:view>
+</a:screen>

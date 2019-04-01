@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ZLF  
+    $Date: 2014-12-31 上午11:20:14  
+    $Revision: 1.0  
+    $Purpose:佣金确认
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure><![CDATA[
+		
+	]]></a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_rebate_month_update_link" model="cont.CON578.con_contract_rebate_month_update" modelaction="update"/>
+        <a:link id="con_contract_other_fee2_update_link" model="cont.CON578.con_contract_other_fee2_update" modelaction="batch_update"/>
+        <script><![CDATA[
+            function con578_reset() {
+                $('con578_commission_query_ds').reset();
+            }
+            
+            function con578_query() {
+                $('con578_commission_result_ds').query();
+            }
+            
+            function con578_save_bak() {
+                var records = $('con578_commission_result_ds').getAll();
+                var datas = [];
+                for (var i = 0;i < records.length;i++) {
+                    var obj = {};
+                    obj['contract_id'] = records[i].get('contract_id');
+                    obj['rebate_month'] = records[i].get('rebate_month');
+                    obj['commission_confirm_flag'] = records[i].get('commission_confirm_flag');
+                    obj['commission_amount'] = records[i].get('commission_amount');
+                    obj['_status'] = 'update';
+                    datas[i] = obj;
+                }
+                Aurora.showConfirm('确认', '您确定保存？', function() {
+                    Aurora.request({
+                        url: $('con_contract_other_fee2_update_link').getUrl(),
+                         para:datas,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '保存成功',
+                                duration: 2000
+                            });
+                            $('con578_commission_result_ds').query();
+                        },
+                        scope: this
+                    });
+                });
+            }
+            
+            function check_commission_rebate_month(datas){
+                debugger;
+                for(var i=0;i<datas.length;i++){
+                    if(Ext.isEmpty(datas[i]['rebate_month'])){
+                        return i;
+                    }
+                }
+                return -1;
+            }
+            
+            function con578_save() {
+                var records = $('con578_commission_result_ds').getSelected();
+                if(records.length < 1){
+                    Aurora.showWarningMessage('提示','请至少选择一条数据进行佣金确认！');
+                    return ;
+                }
+                var datas = [];
+                for (var i = 0;i < records.length;i++) {
+                    var obj = {};
+                    obj['contract_id'] = records[i].get('contract_id');
+                    obj['rebate_month'] = records[i].get('rebate_month');
+                    //obj['commission_confirm_flag'] = records[i].get('commission_confirm_flag');
+                    obj['commission_confirm_flag'] = 'Y';
+                    obj['commission_amount'] = records[i].get('commission_amount');
+                    obj['_status'] = 'update';
+                    datas[i] = obj;
+                }
+                var res = check_commission_rebate_month(datas);
+                if(res !== -1){
+                    Aurora.showConfirm('提示','勾选的第'+(res+1)+'行数据返利月份未填写，是否继续佣金确认？',function(){
+                        confirm_rebate(datas);
+                    });
+                }else{
+                    Aurora.showConfirm('确认', '您确定进行佣金确认？', function() {
+                    	confirm_rebate(datas);
+                	});
+                }
+            }
+            
+            function confirm_rebate(datas){
+                Aurora.request({
+	                url: $('con_contract_other_fee2_update_link').getUrl(),
+	                para:datas,
+	                success: function() {
+	                	Aurora.SideBar.show({
+	                    	msg: '确认成功',
+	                    	duration: 3000
+	                   	});
+	            		$('con578_commission_result_ds').query();
+	           		},
+	            	scope: this
+                });
+            }
+            
+            function commission_result_renderer_func(value, record, name)　 {
+                if (name === 'commission_amount') {
+                    // if (record.get('lease_term') == 1) {
+                        // value = record.get('sum_amount') * 0.011;
+                    // } else {
+                        // value = record.get('sum_amount') * 0.013;
+                    // }
+                    return Aurora.formatNumber(value, 2);
+                }else if(name === 'lease_term'){
+                    return Ext.isEmpty(value)?'':(value + '年');
+                }
+            }
+            
+            function con_contract_commission_confirm_edit_func(record,name){
+                if(name === 'rebate_month_n'){
+                    if(record.get('commission_confirm_flag') !== 'Y'){
+                        return 'commission_result_grid_cb';
+                    }
+                }
+                return '';
+            }
+            
+            function con578_commission_result_select_func(record){
+                if(record.get('commission_confirm_flag') === 'Y'){
+                    return false;
+                }
+                return true;
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="con578_unit_name_ds" loadData="true" model="basic.exp_org_unit_name_lov"/>
+            <a:dataSet id="con505_lease_organization_name_ds" loadData="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="confirm_ds">
+                <a:datas>
+                    <a:record name="是" value="Y"/>
+                    <a:record name="否" value="N"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="sys_month_ds" lookupCode="SYS_MONTH"/>
+            <a:dataSet id="con578_commission_query_ds">
+                <a:fields>
+                    <a:field name="contract_number" autoComplete="true" autoCompleteField="contract_number" lovGridHeight="300" lovHeight="450" lovService="cont.CON578.contract_number_lov" lovWidth="500" title="HLS.CONTRACT_NUMBER">
+                        <a:mapping>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="contract_name" to="contract_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="commission_confirm_flag" defaultValue="N"/>
+                    <a:field name="commission_flag_desc" defaultValue="否" displayField="name" options="confirm_ds" returnField="commission_confirm_flag" valueField="value"/>
+                    <a:field name="contract_name"/>
+                    <a:field name="inception_of_lease"/>
+                    <a:field name="unit_name" displayField="unit_name" options="con578_unit_name_ds" returnField="unit_id" valueField="unit_id"/>
+                    <a:field name="unit_id"/>
+                    <a:field name="unit_id_desc"/>
+                    <a:field name="bp_code" autoComplete="true" lovGridHeight="350" lovHeight="500" lovLabelWidth="100" lovService="basic.hls_bp_master_v_for_lov?bp_category=TENANT" lovWidth="550" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_id" to="bp_id_tenant"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <!-- <a:field name="owner_user_id_desc" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="basic.sys_user_for_lov" lovWidth="500" title="员工">
+                        <a:mapping>
+                            <a:map from="user_id" to="owner_user_id"/>
+                            <a:map from="description" to="owner_user_id_desc"/>
+                        </a:mapping>
+                    </a:field> -->
+                    <a:field name="bp_id_tenant"/>
+                    <a:field name="bp_name"/>
+                    <!-- <a:field name="owner_user_id"/> -->
+                    <a:field name="lease_organization"/>
+                    <a:field name="lease_organization_desc" displayField="description" options="con505_lease_organization_name_ds" returnField="lease_organization" valueField="lease_organization"/>
+                    <a:field name="other_fee2"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con578_commission_result_ds" autoPageSize="true" autoQuery="true" model="cont.CON578.con_contract_commission_info" queryDataSet="con578_commission_query_ds" selectFunction="con578_commission_result_select_func" selectable="true">
+                <a:fields>
+                    <a:field name="rebate_month"/>
+                    <a:field name="rebate_month_n" displayField="code_value_name" options="sys_month_ds" returnField="rebate_month" valueField="code_value"/>
+                    <a:field name="commission_amount"/>
+                    <a:field name="commission_confirm_flag" checkedValue="Y" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="con578_reset" text="重置"/>
+                <a:gridButton click="con578_query" text="HLS.QUERY"/>
+                <a:gridButton click="con578_save" text="佣金确认"/>
+            </a:screenTopToolbar>
+            <a:form column="4" marginWidth="30" title="查询条件">
+                <a:lov name="contract_number" bindTarget="con578_commission_query_ds" prompt="合同编号"/>
+                <a:textField name="contract_name" bindTarget="con578_commission_query_ds" prompt="合同名"/>
+                <a:datePicker name="inception_of_lease" bindTarget="con578_commission_query_ds" prompt="起租日"/>
+                <a:comboBox name="unit_name" bindTarget="con578_commission_query_ds" prompt="供应商"/>
+                <a:lov name="bp_code" bindTarget="con578_commission_query_ds" prompt="HLS.TENANT_CODE"/>
+                <a:textField name="bp_name" bindTarget="con578_commission_query_ds" prompt="HLS.TENANT_NAME"/>
+                <!-- <a:lov name="owner_user_id_desc" bindTarget="con578_commission_query_ds" prompt="金融经理"/> -->
+                <a:comboBox name="lease_organization_desc" bindTarget="con578_commission_query_ds" prompt="HLS.LEASE_ORGANIZATION"/>
+                <a:comboBox name="commission_flag_desc" bindTarget="con578_commission_query_ds" prompt="是否确认"/>
+            </a:form>
+            <a:grid id="commission_result_grid" bindTarget="con578_commission_result_ds" marginHeight="180" marginWidth="30" navBar="true">
+                <a:toolBar>
+                    <a:button type="excel"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="contract_number" lock="true" prompt="合同编号" width="150"/>
+                    <a:column name="contract_name" prompt="合同名称" showTitle="true" width="150"/>
+                    <a:column name="inception_of_lease" align="center" prompt="起租日" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="unit_id_desc" prompt="供应商" showTitle="true" width="150"/>
+                    <a:column name="bp_name" prompt="承租人名称" showTitle="true" width="150"/>
+                    <a:column name="employee_name" prompt="融资区域经理" width="100"/>
+                    <a:column name="sale_consultant" prompt="销售顾问" width="100"/>
+                    <a:column name="lease_organization_desc" align="center" prompt="业务部" width="120"/>
+                    <a:column name="sum_amount" align="right" prompt="实际租金概算本金" width="100"/>
+                    <a:column name="lease_term" align="center" prompt="租赁期限" renderer="commission_result_renderer_func" width="60"/>
+                    <a:column name="commission_amount" align="right" prompt="拟定佣金" renderer="Aurora.formatMoney" width="100"/>
+                    <!-- <a:column name="real_commission_amount" align="right" prompt="实际佣金" renderer="Aurora.formatMoney" width="100"/> -->
+                    <a:column name="rebate_month_n" align="center" editorFunction="con_contract_commission_confirm_edit_func" prompt="返利月份" width="80"/>
+                    <a:column name="commission_confirm_flag" align="center" prompt="是否确认" width="60"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="commission_result_grid_nf" allowDecimals="false" allowNegative="false"/>
+                    <!-- <a:checkBox id="commission_result_grid_cb"/> -->
+                    <a:comboBox id="commission_result_grid_cb"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    pci.cdd_item,
+                    pci.cdd_item_id,
+                    pp.check_id,
+                    pci.description cdd_item_desc,
+                    (SELECT
+                        COUNT(1)
+                    FROM
+                        fnd_atm_attachment_multi fam,
+                        fnd_atm_attachment faa
+                    WHERE
+                        fam.table_name     = 'PRJ_CDD_ITEM_CHECK' AND
+                        fam.table_pk_value = pp.check_id AND
+                        fam.attachment_id  = faa.attachment_id
+                    ) atm_num
+                FROM
+                    (SELECT
+                        pcf.check_id,
+                        pcf.document_id,
+                        pcf.document_table,
+                        pck.cdd_item_id,
+                        pck.send_flag,
+                        pck.paper_required,
+                        pck.attachment_required,
+                        pck.not_applicable
+                    FROM
+                        prj_cdd_item_doc_ref pcf,
+                        prj_cdd_item_check pck
+                    WHERE
+                        pcf.document_table = 'CON_CONTRACT' AND
+                        pcf.document_id    = ${/parameter/@contract_id} AND
+                        pck.check_id       = pcf.check_id
+                    ) pp,
+                    prj_cdd_item pci,
+                    prj_cdd_item_list_grp_tab lgt,
+                    prj_cdd_item_tab_group tg,
+                    (SELECT
+                        sg.tab_group_id
+                    FROM
+                        prj_cdd_item_tab_sub_group sg START
+                    WITH sg.parent_tab_group_id =
+                        (SELECT
+                            t.tab_group_id
+                        FROM
+                            prj_cdd_item_tab_group t
+                        WHERE
+                            t.tab_group                    = 'CONTRACT'
+                        ) CONNECT BY prior sg.tab_group_id = sg.parent_tab_group_id
+                    UNION
+                    SELECT
+                        t.tab_group_id
+                    FROM
+                        prj_cdd_item_tab_group t
+                    WHERE
+                        t.tab_group = 'CONTRACT'
+                    ) sg,
+                    con_contract cct
+                WHERE
+                    pci.cdd_item_id  = lgt.cdd_item_id AND
+                    lgt.tab_group_id = tg.tab_group_id AND
+                    lgt.tab_group_id = sg.tab_group_id AND
+                    lgt.enabled_flag = 'Y' AND
+                    tg.enabled_flag  = 'Y' AND
+                    pci.cdd_item_id  = pp.cdd_item_id(+) AND
+                    pci.cdd_list_id  = cct.cdd_list_id AND
+                    lgt.cdd_list_id  = pci.cdd_list_id AND
+                    pci.enabled_flag = 'Y' AND
+                    cct.contract_id  = ${/parameter/@contract_id}
+                ORDER BY
+                    lgt.seq_num ASC
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="cdd_item" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CDD_ITEM"/>
+        <bm:field name="cdd_item_id" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CDD_ITEM_ID"/>
+        <bm:field name="check_id" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CHECK_ID"/>
+        <bm:field name="atm_num" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="ATM_NUM"/>
+        <bm:field name="cdd_item_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CDD_ITEM_DESC"/>
+    </bm:fields>
+</bm:model>

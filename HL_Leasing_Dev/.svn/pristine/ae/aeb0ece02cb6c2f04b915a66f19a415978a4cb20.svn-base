@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    2014-10-21  create bu xuls for 变更申请-支付期调整 
+    
+ -->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="con_contract_modify_link" url="${/request/@context_path}/modules/cont/CON505/con_contract_modify.screen"/>
+        <a:link id="con_contract_change_link" url="${/request/@context_path}/modules/cont/CON753/con_contract_change_in_detail.screen"/>
+        <a:link id="con731_create_change_link" model="cont.CON731.create_change_req" modelaction="execute"/>
+        <script><![CDATA[
+            var new_recs = []; //任务数组
+            var total_index = 0;
+            var current_index = 0;
+            var file_path = '${/parameter/@file_path}';
+            var download_arr = [];
+            
+            
+            function open_contract_win(ds_id, record_id) {
+                var record = $(ds_id).findById(record_id);
+                var param = record.data;
+                param['function_code'] = 'CON301';
+                param['function_usage'] = 'QUERY';
+                param['maintain_type'] = 'UPDATE';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_modify_link', ds_id);
+            }
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                if (name == 'contract_number' && value) {
+                    return '<a href="javascript:open_contract_win(\'' + record.ds.id + '\',\'' + record.id + '\')">' + value + '</a>';
+                }
+                return value;
+            };
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract');
+                var prj_project_result_ds = $(ds_id);
+                var records = prj_project_result_ds.getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+                Aurora.showConfirm('${l:HLS.PROMPT}', '<font color="red">该操作将导致合同在变更期间无法进行后续操作，请谨慎操作！！！</font>', function() {
+                    var record = records[0];
+            
+                    var head_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_change_req');
+                    var head_record = $(head_ds_id).getAt(0);
+                    if ($(head_ds_id).validate()) {
+                        var contract = record.get('contract_id');
+                        var ccr_document_type = head_record.get('ccr_document_type');
+                        var req_date = head_record.get('req_date');
+                        var description = head_record.get('description');
+                        Aurora.Masker.mask(Ext.getBody());
+                        Aurora.request({
+                            url: $('con731_create_change_link').getUrl(),
+                            para: {
+                                simulation_flag: 'N',
+                                contract_id: record.get('contract_id'),
+                                req_type: ccr_document_type,
+                                req_date: req_date,
+                                description: description
+                            },
+                            success: function(res) {
+                                var param = record.data;
+                                param['change_req_id'] = res.result.change_req_id;
+                                param['contract_id'] = res.result.change_req_id;
+                                param['function_code'] = 'CON753D';
+                                param['url_title'] = '变更申请-合同变更(内部)';
+                                param['function_usage'] = 'MODIFY';
+                                param['maintain_type'] = 'UPDATE';
+                                param['document_type'] = ccr_document_type;
+                                param['winid'] = 'con753_change_in_win';
+                                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_change_link', ds_id);
+                            },
+                            failure: function() {
+                                Aurora.Masker.unmask(Ext.getBody());
+                            },
+                            error: function() {
+                                Aurora.Masker.unmask(Ext.getBody());
+                            },
+                            scope: this
+                        });
+                    }
+                });
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

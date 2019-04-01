@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-12-19 上午09:39:25  
+    $Revision: 1.0  
+    $Purpose: 还款计划查询
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="basic.hls_business_type_for_lov" rootPath="business_type"/>
+        <a:model-query defaultWhereClause="t.code=&apos;TRE502_REPAYMENT_TYPE&apos;" fetchAll="true" model="sys.sys_code_values_v" rootPath="repayment_type_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="tre_working_capital_loan_readonly_link_id" url="${/request/@context_path}/modules/tre/TRE311/tre_working_capital_loan_readonly.screen"/>
+        <a:link id="tre_factoring_contract_readonly_link_id" url="${/request/@context_path}/modules/tre/TRE311/tre_factoring_contract_readonly.screen"/>
+        <a:link id="tre_entrustment_loan_contract_readonly_link_id" url="${/request/@context_path}/modules/tre/TRE311/tre_entrustment_loan_contract_readonly.screen"/>
+        <a:link id="tre_other_contract_readonly_link_id" url="${/request/@context_path}/modules/tre/TRE311/tre_other_contract_readonly.screen"/>
+        <a:link id="tre_loan_contract_repayment_review_detail_link_id" url="${/request/@context_path}/modules/tre/TRE313/tre_loan_con_repayment_detail_query.screen"/>
+        <a:link id="tre_loan_contract_repayment_plan_calc_interest_link" url="${/request/@context_path}/modules/tre/TRE314/tre_loan_contract_repayment_plan_calc_interest.screen"/>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <script><![CDATA[
+            var loanConTypeLink = {
+                'WORKING_CAPITAL_LOAN': $('tre_working_capital_loan_readonly_link_id').getUrl() + '?loan_contract_id=',
+                //流动资金借款合同  	
+                'FACTORING': $('tre_factoring_contract_readonly_link_id').getUrl() + '?business_type=FACTORING&loan_contract_id=',
+                //公开型无追索权保理合同
+                'ENTRUSTMENT_LOAN': $('tre_entrustment_loan_contract_readonly_link_id').getUrl() + '?loan_contract_id=',
+                //委托债权合同
+                'OTHERS': $('tre_other_contract_readonly_link_id').getUrl() + '?loan_contract_id=' //其它合同
+            };
+            
+            function tre314_loan_query() {
+                $('loan_contract_ds').query();
+            }
+            
+            function tre314_loan_reset() {
+                $('loan_contract_query_ds').reset();
+            }
+            
+            function repayment_details_render(value, record, name) {
+                return '<a href="javascript:openRepaymentWin(' + record.get('loan_contract_id') + ',\'' + record.get('loan_contract_number') + '\');">${l:TRE502.REPAYMENT_DETAILS}</a>';
+            }
+            
+            function openRepaymentWin(id, number) {
+                window.location.href = $('tre_loan_contract_repayment_review_detail_link_id').getUrl() + '?loan_contract_id=' + id + '&loan_contract_number=' + number;
+            }
+            
+            function loanConRender(value, record, name) {
+                return '<a href="' + loanConTypeLink[record.get('business_type')] + record.get('loan_contract_id') + '">' + value + '</a>';
+            }
+            
+            function intPayableRender(value, record, name) {
+                return '<a href="#">' + Aurora.formatMoney(value) + '</a>';
+            }
+            
+            function lock_current_list_window() {
+                Aurora.Masker.mask(document.documentElement, '${l:HLS.SAVING}');
+            }
+            
+            function unlock_current_list_window() {
+                Aurora.Masker.unmask(document.documentElement);
+            }
+            
+            function tre314_loan_save() {
+                lock_current_list_window();
+                if ($('loan_contract_ds').validate()) {
+                    $('loan_contract_ds').submit();
+                } else {
+                    unlock_current_list_window();
+                }
+            }
+            
+            function on_loan_contract_ds_submitsuccess(ds, res) {
+                unlock_current_list_window();
+            }
+            
+            function on_loan_contract_ds_submitfailed(ds, res) {
+                unlock_current_list_window();
+            }
+            
+            function tre314_loan_calc_interest(){
+                var new_win=new Aurora.Window({
+                    id:'tre_loan_contract_repayment_plan_calc_interest_win',
+                    url:$('tre_loan_contract_repayment_plan_calc_interest_link').getUrl(),
+                    title:'计算利息',
+                    params:{
+                        winid:'tre_loan_contract_repayment_plan_calc_interest_win'
+                    },
+                    width:400,
+                    height:230
+                });
+                new_win.on('close',function (){
+                    $('loan_contract_ds').query();
+                });
+            }
+            function sumFunction(datas, name) {
+                
+                var sum = 0;
+                for (var i = 0;i < datas.length;i++) {
+                    var r = datas[i];
+                    var d = r.get(name);
+                    var n = parseFloat(d);
+                    if (!isNaN(n)) {
+                        sum = plus(sum, n);
+                    }
+                }
+                var total = (typeof(sum) == 'undefined' ? '' : parseFloat(sum));
+                return '<font>' + Aurora.formatMoney(total) + '</font>';
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="business_type_ds">
+                <a:datas dataSource="/model/business_type"/>
+            </a:dataSet>
+            <a:dataSet id="repayment_type_ds">
+                <a:datas dataSource="/model/repayment_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="loan_contract_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="bank_branch_name" lovGridHeight="350" lovHeight="510" lovLabelWidth="90" lovService="basic.csh_bank_branch_for_lov" lovWidth="580" title="HLS.BANK_BRANCH_NAME">
+                        <a:mapping>
+                            <a:map from="bank_branch_id" to="bank_branch_id"/>
+                            <a:map from="bank_branch_name" to="bank_branch_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="repayment_type_desc" displayField="code_value_name" options="repayment_type_ds" returnField="repayment_type" valueField="code_value"/>
+                    <a:field name="bank_branch_id"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="loan_contract_ds" autoPageSize="true" autoQuery="true" model="tre.TRE314.tre_loan_contract_repayment_plan_handle" queryDataSet="loan_contract_query_ds">
+                <a:fields>
+                    <a:field name="business_type_desc" displayField="description" options="business_type_ds" returnField="business_type" valueField="business_type"/>
+                    <a:field name="repayment_type_desc" displayField="code_value_name" options="repayment_type_ds" returnField="repayment_type" valueField="code_value"/>
+                    <a:field name="repayment_date" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="on_loan_contract_ds_submitsuccess"/>
+                    <a:event name="submitfailed" handler="on_loan_contract_ds_submitfailed"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="tre314_loan_query" text="HLS.QUERY"/>
+                <a:gridButton click="tre314_loan_reset" text="HLS.RESET"/>
+                <a:gridButton click="tre314_loan_save" text="HLS.SAVE"/>
+                <a:gridButton click="tre314_loan_calc_interest" text="计算利息"/>
+            </a:screenTopToolbar>
+            <a:form column="4" title="HLS.QUERY_TITLE">
+                <a:textField name="loan_contract_number" bindTarget="loan_contract_query_ds" prompt="TRE_LOAN_CONTRACT.LOAN_CONTRACT_NUMBER"/>
+                <a:lov name="bank_branch_name" bindTarget="loan_contract_query_ds" prompt="HLS.BANK_BRANCH_NAME"/>
+                <a:datePicker name="repayment_date_form" bindTarget="loan_contract_query_ds" prompt="TRE503.REPAYMENT_DATE_FORM"/>
+                <a:datePicker name="repayment_date_to" bindTarget="loan_contract_query_ds" prompt="TRE503.REPAYMENT_DATE_TO"/>
+                <a:comboBox name="repayment_type_desc" bindTarget="loan_contract_query_ds" prompt="TRE503.REPAYMENT_TYPE"/>
+            </a:form>
+            <a:grid id="loan_contract_grid_id" bindTarget="loan_contract_ds" marginHeight="170" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="loan_contract_number" prompt="TRE_LOAN_CONTRACT.LOAN_CONTRACT_NUMBER" renderer="loanConRender" width="180"/>
+                    <a:column name="bank_branch_name" prompt="HLS.BANK_BRANCH_NAME" width="200"/>
+                    <a:column name="business_type_desc" prompt="TRE503.BUSINESS_TYPE" width="130"/>
+                    <a:column name="bank_account_code" prompt="账户代码" width="150"/>
+                    <a:column name="repayment_type_desc" align="center" prompt="TRE503.REPAYMENT_TYPE"/>
+                    <a:column name="times" align="center" prompt="HLS.PERIOD_NUMBER"/>
+                    <a:column name="repayment_date" align="center" editor="loan_contract_grid_datepicker_id" prompt="TRE503.REPAYMENT_DATE" renderer="Aurora.formatDate"/>
+                    <a:column name="amount" align="right" footerRenderer="sumFunction" prompt="TRE503.AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="principal" align="right" footerRenderer="sumFunction" prompt="TRE503.PRINCIPAL" renderer="Aurora.formatMoney"/>
+                    <a:column name="interest" align="right" footerRenderer="sumFunction" prompt="TRE502.REPAYMENT_INTEREST" renderer="Aurora.formatMoney"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="loan_contract_grid_numberfield_id" allowNegative="false"/>
+                    <a:datePicker id="loan_contract_grid_datepicker_id"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-5-21 下午07:36:37  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="csh.CSH511.csh_transaction_default_exchange_rate_type" rootPath="default_exchange_rate_type_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="csh_transaction_receipt_write_off_detail_link" url="${/request/@context_path}/modules/csh/CSH522/csh_deposit_reverse_off_detail.screen"/>
+        <a:link id="csh522_transaction_receipt_id" url="${/request/@context_path}/modules/csh/CSH520/csh_transaction_receipt.screen"/>
+        <a:link id="get_period_name_id" model="csh.CSH511.csh_transaction_get_period_name" modelaction="query"/>
+        <script><![CDATA[
+        	function csh522_receipt_ref_con_query(){
+        	    $('csh522_deposit_result_ds').query();
+        	}
+        	function csh522_receipt_ref_con_reset(){
+        	    $('csh522_deposit_header_ds').reset();
+        	}
+			
+			function openWindow(url) {
+                var win=new Aurora.Window({
+                    id: 'csh_write_off_reverse_detail_link_winid',
+                    params: {
+                        winId: 'csh_write_off_reverse_detail_link_winid'
+                    },
+                    url: url,
+                    title: '${l:CSH514.CSH_WRITE_OFF_DETAIL}',
+                    fullScreen: true
+                });
+                win.on('close', function() {                           
+                                $('csh522_deposit_result_ds').query();});
+            }
+			
+			function reverse_off_detail_render(value, record, name)
+			{
+			    if (record.get('transaction_id')) {
+                    url = $('csh_transaction_receipt_write_off_detail_link').getUrl() + '?transaction_id=' + record.get('transaction_id') + '&contract_id=' + record.get('contract_id')+ '&cashflow_id=' + record.get('cashflow_id');
+                    return '<a href="javascript:openWindow(\'' + url + '\');">' + value + '</a>';
+                }
+			}
+   		]]></script>
+        <a:dataSets>
+            <a:dataSet id="csh522_deposit_header_ds">
+                <a:fields>
+                    <a:field name="contract_number" lovGridHeight="350" lovHeight="500" lovService="csh.CSH520.con_contract_lov" lovWidth="500" title="合同">
+                        <a:mapping>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="contract_number" to="contract_number"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_id_agent_level1"/>
+                    <a:field name="bp_id_agent_desc" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov?bp_category=AGENT" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id_agent_level1"/>
+                            <a:map from="bp_name" to="bp_id_agent_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_id_tenant"/>
+                    <a:field name="bp_id_tenant_desc" lovGridHeight="350" lovHeight="500" lovLabelWidth="120" lovService="basic.hls_bp_master_v_for_lov?bp_category=TENANT" lovWidth="520">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id_tenant"/>
+                            <a:map from="bp_name" to="bp_id_tenant_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="due_date_from"/>
+                    <a:field name="due_date_to"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="csh522_deposit_result_ds" autoQuery="true" model="csh.CSH522.csh_transaction" pageSize="15" queryDataSet="csh522_deposit_header_ds" queryUrl="${/request/@context_path}/autocrud/csh.CSH522.csh_transaction/query?reversed_flag=N" selectable="true" selectionModel="single"><![CDATA[
+			]]></a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="csh522_receipt_ref_con_query" text="HLS.QUERY"/>
+                <a:gridButton click="csh522_receipt_ref_con_reset" text="HLS.RESET"/>
+            </a:screenTopToolbar>
+            <a:form column="3" labelWidth="110" title="CSH513.WRITE_OFF_OBJECT_QUERY" width="1240">
+                <a:lov name="contract_number" bindTarget="csh522_deposit_header_ds" prompt="合同编号"/>
+                <a:datePicker name="due_date_from" bindTarget="csh522_deposit_header_ds" prompt="预定支付日从"/>
+                <a:datePicker name="due_date_to" bindTarget="csh522_deposit_header_ds" prompt="预定支付日到"/>
+                <a:lov name="bp_id_tenant_desc" bindTarget="csh522_deposit_header_ds" prompt="承租人"/>
+                <a:textField name="deposit_amount_from" bindTarget="csh522_deposit_header_ds" prompt="保证金金额从"/>
+                <a:textField name="deposit_amount_to" bindTarget="csh522_deposit_header_ds" prompt="保证金金额到"/>
+                <!--<a:lov name="bp_id_agent_desc" bindTarget="csh522_deposit_header_ds" prompt="经销商"/>-->
+            </a:form>
+            <a:grid bindTarget="csh522_deposit_result_ds" height="440" navBar="true" width="1240">
+                <a:columns>
+                    <a:column name="transaction_num" prompt="现金事物编号" renderer="reverse_off_detail_render" width="130"/>
+                    <a:column name="received_amount" align="right" prompt="抵扣金额" renderer="Aurora.formatMoney"/>
+                    <a:column name="full_write_off_date" align="center" prompt="抵扣日期" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="contract_number" prompt="合同编号" width="130"/>
+                    <!--<a:column name="bp_id_agent_n" prompt="经销商" width="180"/>-->
+                    <a:column name="bp_id_tenant_desc" prompt="承租人" width="180"/>
+                    <a:column name="cf_item_desc" prompt="抵扣项目"/>
+                    <a:column name="due_amount" align="right" prompt="金额" renderer="Aurora.formatMoney"/>
+                    <a:column name="due_date" align="center" prompt="预定支付日" renderer="Aurora.formatDate" width="120"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	$author:DJ
+	$date:2013/05/06
+	$purpose:银行账户
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="currency_code"/>
+        <model-query fetchAll="true" model="csh.CSH101.csh_responsibility_centers_lov" rootPath="responsibility_centers"/>
+        <model-query defaultWhereClause="company_id = ${/session/@company_id}" fetchAll="true" model="fnd.fnd_companies" rootPath="fnd_companies"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="csh101_spd_trans_txds70_check_link_id" model="csh.CSH101N.spd_transaction_txds70_2" modelaction="execute"/>
+        <a:link id="csh101_spd_trans_update_pub_link_id" model="csh.CSH101N.update_rd_ebank_spd_pub" modelaction="execute"/>
+        <script><![CDATA[
+        	
+        	function accountScreen_close() {
+            	$('csh_bank_account').close();
+        	}
+        
+	        function accountDs_grid_query() {
+	            $('accountDs').query();
+	        }
+	    	
+	        function accountDs_grid_add() {
+	            $('accountDs_grid').showEditorByRecord($('accountDs').create());
+	        }
+	        
+	        function accountDs_grid_clear() {
+	            $('accountDs_grid').clear();
+	        }
+	        
+	        function accountDs_grid_save() {
+	            var result_ds = $('accountDs');
+	            if (result_ds.validate()) {
+	                result_ds.submit();
+	            }
+	        }
+        	
+			function onUpdate_accountDs(ds,record,name,value,oldValue){
+			    if(name=='is_company_account')
+			    {
+			        if(value=='N')
+			        {
+			            record.set('responsibility_center_name','');
+			            record.set('responsibility_center_id','');
+			            record.set('cash_account_code','');
+			            record.set('cash_account_id','');
+			        }
+			    }
+			}
+			
+			function editFunction_accountDs_grid(record,name)
+			{
+			   
+				if(record.isNew)
+				{
+				    var config={
+				    	bank_account_type_name:'accountDs_grid_editor_comb',
+				    	currency_name:'accountDs_grid_editor_comb',
+				    	bank_account_code:'accountDs_grid_editor_tf_upper',
+				    	is_company_account:'accountDs_grid_editor_check',
+				    	company_short_name :'accountDs_grid_editor_lov'
+				    };
+					var editor=config[name];
+				    if(!Ext.isEmpty(editor))
+				    {
+				        return editor;
+				    }
+				}
+				
+				if(name=='responsibility_center_name'||name=='cash_account_code')
+				{
+				    
+			    	if(record.get('is_company_account')=='Y')
+			    	{
+				        record.getField(name).setRequired(true);
+				        
+				        var config={
+					    	responsibility_center_name:'accountDs_grid_editor_comb',
+					    	cash_account_code:'accountDs_grid_editor_lov'
+			    		};
+				        return config[name];
+			    	}
+			    	else
+			    	{
+			    	    record.getField(name).setRequired(false);
+			        	return '';
+			    	}
+				}
+				if (name == 'spd_project_name' || name == 'spd_project_number' || name == 'spd_feeno' || name == 'spd_payment_flag' || name == 'spd_receipt_flag') {
+                    if (record.get('bank_account_type') == 'SPD-BANK-CORPORATE') {
+                        if (name != 'spd_payment_flag' || name != 'spd_receipt_flag'){
+                            record.getField(name).setRequired(true);
+                        }
+            
+                        config = {
+                            spd_project_name: 'accountDs_grid_editor_tf',
+                            spd_project_number: 'accountDs_grid_editor_tf',
+                            spd_feeno: 'accountDs_grid_editor_tf',
+                            spd_receipt_flag: 'accountDs_grid_editor_check',
+                            spd_payment_flag: 'accountDs_grid_editor_check'
+                        };
+            
+                        return config[name];
+                    } else {
+                        record.getField(name).setRequired(false);
+                        return '';
+                    }
+                }
+				return '';
+			}		
+		function onAdd_accountDs(ds,record){
+			    record.set('company_id','${/session/@company_id}');
+			    record.set('company_short_name','${/model/fnd_companies/record/@company_short_name}')
+			}
+			
+			//子界面锁屏
+            function lock_current_window() {
+                //Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+                var detail_mask;
+                if ('${/parameter/@winid}') {
+                    if (parent.$A.CmpManager.get('${/parameter/@winid}')) {
+                        detail_mask = parent.$('${/parameter/@winid}').wrap;
+                        parent.Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                    } else {
+                        detail_mask = $('${/parameter/@winid}').wrap;
+                        Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                    }
+                } else {
+                    detail_mask = Ext.getBody();
+                    Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                }
+            
+            
+            }
+            //子界面解锁
+            function unlock_current_window() {
+                //Aurora.Masker.unmask(Ext.getBody());
+                var detail_mask;
+                if ('${/parameter/@winid}') {
+                    if (parent.$A.CmpManager.get('${/parameter/@winid}')) {
+                        detail_mask = parent.$('${/parameter/@winid}').wrap;
+                        parent.Aurora.Masker.unmask(detail_mask);
+                    } else {
+                        detail_mask = $('${/parameter/@winid}').wrap;
+                        Aurora.Masker.unmask(detail_mask);
+                    }
+                } else {
+                    detail_mask = Ext.getBody();
+                    Aurora.Masker.unmask(detail_mask);
+                }
+            
+            }
+			
+			/*************************************************	
+             //add by yulong.yuan 20151216
+             //校验账号是否签约
+             ****************************************************/
+            
+            function check_account_sign() {
+                var record, bank_account_type, spd_payment_flag, spd_receipt_flag, bank_account_num;
+                var records = $('accountDs').getSelected();
+                if (records.length <= 0) {
+                    Aurora.showMessage('错误', '至少选择一行！');
+                    return;
+                }
+                for (var i = 0;i < records.length;i++) {
+                    lock_current_window();
+                    record = records[i];
+                    bank_account_type = record.get('bank_account_type');
+            
+                    if (bank_account_type == 'SPD-BANK-CORPORATE') {
+                        spd_payment_flag = record.get('spd_payment_flag');
+                        spd_receipt_flag = record.get('spd_receipt_flag');
+                        spd_project_name = record.get('spd_project_name');
+                        spd_project_number = record.get('spd_project_number');
+                        bank_account_num = record.get('bank_account_num');
+                        spd_feeno = record.get('spd_feeno');
+            
+                        if (spd_payment_flag == 'N' && spd_receipt_flag == 'N') {
+                            Aurora.showMessage('错误', '当账户类型为银企直连时，代扣标志未选择，请修改！');
+                            //Aurora.showMessage('错误', '当账户类型为银企直连时，代付标志和代扣标志至少选择一个，请修改！');
+                            return false;
+                        }
+            
+                        //发起签约查询，校验所填签约信息是否正确
+                        var params = {
+                            acctno: bank_account_num,
+                            projectname: spd_project_name,
+                            projectnumber: spd_project_number,
+                            feeno: spd_feeno,
+                            payment_flag: spd_payment_flag,
+                            receipt_flag: spd_receipt_flag
+                        };
+                        var url = $('csh101_spd_trans_txds70_check_link_id').getUrl();
+                        
+                        Aurora.request({
+                            para: params,
+                            url: url,
+                            success: function(res) {
+                                unlock_current_window();
+                                if (res.result.return_value == 'N') {
+                                    record.set('bank_account_num', '');
+                                    Aurora.showMessage('${l:HLS.PROMPT}', '账号' + bank_account_num + '签约信息不匹配，请确保已签约并输入正确签约信息！');
+                                } else if (res.result.return_value == 'R') {
+                                    record.set('bank_account_num', '');
+                                    Aurora.showMessage('${l:HLS.PROMPT}', '同一公司，银企直连接口只支持一个代收账号！');
+                                }
+                                 // else if (res.result.return_value == 'P') {
+                                    // record.set('bank_account_num', '');
+                                    // Aurora.showMessage('${l:HLS.PROMPT}', '同一公司，银企直连接口只支持一个代付账号！');
+                                // }
+                                else{
+                                     lock_current_window();
+                                     Aurora.request({
+				                        url: $('csh101_spd_trans_update_pub_link_id').getUrl(),
+				                        success: function() {
+				                            unlock_current_window();
+				                            Aurora.showMessage('${l:HLS.PROMPT}', '账号签约校验成功，谢谢！');
+				                        },
+				                        failure: function() {
+				                            unlock_current_window();
+				                        },
+				                        error: function() {
+				                            unlock_current_window();
+				                      }
+                   					 });
+                                }
+                            },
+                            failure: function() {
+                                unlock_current_window();
+                                Aurora.showMessage('${l:HLS.PROMPT}', '账号' + bank_account_num + '签约校验失败，请联系管理员！');
+                            },
+                            error: function() {
+                                unlock_current_window();
+                                Aurora.showMessage('${l:HLS.PROMPT}', '账号' + bank_account_num + '签约校验异常，请联系管理员！');
+                            },
+                            sync:false
+                        });
+                    }
+                }
+            }
+		]]></script>
+        <a:dataSets>
+            <a:dataSet id="bank_account_type_ds" lookupCode="CSH101_ACCOUNT_TYPE"/>
+            <a:dataSet id="currency_code_ds">
+                <a:datas dataSource="/model/currency_code"/>
+            </a:dataSet>
+            <a:dataSet id="responsibility_centers_ds">
+                <a:datas dataSource="/model/responsibility_centers"/>
+            </a:dataSet>
+            <a:dataSet id="bankAccountHeadDs" loadData="true" model="csh.CSH101.csh_get_csh_bank">
+                <a:fields>
+                    <a:field name="bank_short_name" readOnly="true"/>
+                    <a:field name="bank_branch_name" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="accountDs" autoQuery="true" model="csh.CSH101N.csh_bank_account_new" queryUrl="${/request/@context_path}/autocrud/csh.CSH101N.csh_bank_account_new/query?bank_branch_id=${/parameter/@bank_branch_id}" selectable="true">
+                <a:fields>
+                    <a:field name="is_company_account" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="bank_branch_id" defaultValue="${/parameter/@bank_branch_id}"/>
+                    <a:field name="bank_account_type_name" displayField="code_value_name" options="bank_account_type_ds" required="true" returnField="bank_account_type" valueField="code_value"/>
+                    <a:field name="bank_account_code" required="true"/>
+                    <a:field name="bank_account_name" required="true"/>
+                    <a:field name="bank_account_num" required="true"/>
+                    <a:field name="currency_name" displayField="currency_name" options="currency_code_ds" required="true" returnField="currency_code" valueField="currency_code"/>
+                    <a:field name="responsibility_center_name" displayField="responsibility_center_name" options="responsibility_centers_ds" returnField="responsibility_center_id" valueField="responsibility_center_id"/>
+                    <a:field name="cash_account_code" lovGridHeight="300" lovHeight="450" lovService="gld.gld_company_accounts_vl_lov" lovWidth="500" title="CSH101.CSH_BANK_ACCOUNT.CASH_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="account_id" to="cash_account_id"/>
+                            <a:map from="account_code" to="cash_account_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="settlement_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="repayment_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="loan_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="company_short_name" lovGridHeight="300" lovHeight="450" lovService="hls.HLS801.fnd_companies_for_lov" lovWidth="500" title="">
+                        <a:mapping>
+                            <a:map from="company_id" to="company_id"/>
+                            <a:map from="company_code" to="company_code"/>
+                            <a:map from="company_short_name" to="company_short_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="spd_project_name"/>
+                    <a:field name="spd_project_number"/>
+                    <a:field name="spd_feeno"/>
+                    <a:field name="spd_payment_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="spd_receipt_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_accountDs"/>
+                    <a:event name="add" handler="onAdd_accountDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="accountScreen_close" text="HLS.CLOSE"/>
+                <a:gridButton click="accountDs_grid_query" text="HLS.QUERY"/>
+                <a:gridButton click="accountDs_grid_add" text="HLS.NEW"/>
+                <a:gridButton click="accountDs_grid_clear" text="HLS.CLEAR"/>
+                <a:gridButton click="accountDs_grid_save" text="HLS.SAVE"/>
+                <a:gridButton click="check_account_sign" text="签约校验"/>
+            </a:screenTopToolbar>
+            <a:form column="2" title="HLS.BANK_INFORMATION">
+                <a:textField name="bank_short_name" bindTarget="bankAccountHeadDs"/>
+                <a:textField name="bank_branch_name" bindTarget="bankAccountHeadDs"/>
+            </a:form>
+            <a:grid id="accountDs_grid" bindTarget="accountDs" height="300" navBar="true" width="1280">
+                <a:columns>
+                    <a:column name="bank_account_type_name" editor="accountDs_grid_editor_comb" width="80"/>
+                    <a:column name="is_company_account" editorFunction="editFunction_accountDs_grid" width="70"/>
+                    <a:column name="bank_account_code" editor="accountDs_grid_editor_tf_upper" width="100"/>
+                    <a:column name="bank_account_name" editor="accountDs_grid_editor_tf" width="170"/>
+                    <a:column name="bank_account_num" editor="accountDs_grid_editor_tf" width="170"/>
+                    <a:column name="currency_name" editorFunction="editFunction_accountDs_grid" width="60"/>
+                    <a:column name="company_short_name" editor="accountDs_grid_editor_lov" prompt="HLS.COMPANY_CODE"/>
+                    <a:column name="responsibility_center_name" editorFunction="editFunction_accountDs_grid" width="90"/>
+                    <a:column name="cash_account_code" editorFunction="editFunction_accountDs_grid" width="110"/>
+                    <a:column name="spd_project_name" editorFunction="editFunction_accountDs_grid" prompt="签约项目名称" width="120"/>
+                    <a:column name="spd_project_number" editorFunction="editFunction_accountDs_grid" prompt="签约项目编号" width="120"/>
+                    <a:column name="spd_feeno" editorFunction="editFunction_accountDs_grid" prompt="费项代码" width="60"/>
+                    <!-- <a:column name="spd_payment_flag" editorFunction="editFunction_accountDs_grid" prompt="代付标志" width="60"/> -->
+                    <a:column name="spd_receipt_flag" editorFunction="editFunction_accountDs_grid" prompt="代扣标志" width="60"/>
+                    <a:column name="enabled_flag" align="center" editor="accountDs_grid_editor_check" width="60"/>
+                    <a:column name="settlement_flag" align="center" editor="accountDs_grid_editor_check" width="60"/>
+                    <a:column name="repayment_flag" align="center" editor="accountDs_grid_editor_check" width="60"/>
+                    <a:column name="loan_flag" align="center" editor="accountDs_grid_editor_check" width="60"/>
+                </a:columns>
+                <a:editors>
+                    <a:comboBox id="accountDs_grid_editor_comb"/>
+                    <a:datePicker id="accountDs_grid_editor_dp"/>
+                    <a:textField id="accountDs_grid_editor_tf"/>
+                    <a:checkBox id="accountDs_grid_editor_check"/>
+                    <a:textField id="accountDs_grid_editor_tf_upper"/>
+                    <a:lov id="accountDs_grid_editor_lov"/>
+                </a:editors>
+            </a:grid>
+            <!--  <script><![CDATA[
+            alert(${/session/@company_id});
+            ]]></script> -->
+        </a:screenBody>
+    </a:view>
+</a:screen>

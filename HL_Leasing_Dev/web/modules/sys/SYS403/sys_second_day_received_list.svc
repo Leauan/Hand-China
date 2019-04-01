@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: yuanyang  
+    $Date: 2017-06-13
+    $Revision: 1.0  
+    $Purpose:收到还款第二日（发送客户）
+-->
+<a:service xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            importPackage(java.io);
+            importPackage(Packages.cn.emay);
+            //系统做个配置功能 ，配置服务端密码，不用在jar里写死
+            //获取密码
+            var pwd_bm = $bm('sys.SYS403.sys_sms_server');
+            var pwd_result = pwd_bm.queryAsMap().getChildren();
+            var pwd = pwd_result[0].password;
+            //还款日前三天的合同
+            var contract_second_pay = $bm('sys.SYS403.sys_second_day_received_list');
+            var contract_result = contract_second_pay.queryAsMap();
+            var contract_list = contract_result.getChildren();
+            //1.合同起租后，短信发送给客户
+            for (var i = 0;i < contract_list.length;i++) {
+                //插入短信发送表(sys_sms_list)
+                contract_second_pay.update({
+                    contract_id: contract_list[i].contract_id
+                });
+                //根据sms_id查询短信发送列表，发送短信
+                var sms_list_bm = $bm('sys.SYS403.sys_immediate_sms_list');
+                var sms_result = sms_list_bm.queryAsMap({
+                    sms_id: $ctx.parameter.sms_id
+                });
+                var sms_list = sms_result.getChildren();
+                phone = sms_list[0].phone_number;
+                var content = sms_list[0].text;
+            
+                try {
+                    var result = new Example.setSingleSms(pwd, content, phone);
+                } catch (e) {
+                    println("错误信息" + e);
+                }
+                //短信发送后 插入短信历史表，并修改原短信状态
+                sms_list_bm.update({
+                    sms_id: $ctx.parameter.sms_id,
+                    sendResult: result
+                });
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:view>
+        <a:link id="prj501DF_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="prj501DF_query_entrance_link" url="${/request/@context_path}/modules/prj/PRJ501DF/prj_project_query_entrance.screen"/>
+        <a:link id="prj501DF_import_upload_link" url="${/request/@context_path}/modules/prj/PRJ501DF/prj_car_import_upload.screen"/>
+        <a:link id="prj501DF_import_save_data_link" url="${/request/@context_path}/modules/prj/PRJ501DF/prj_car_import_save.svc"/>
+        <a:link id="prj501DF_import_save_link" model="prj.PRJ501DF.prj_df_import_get_status" modelaction="execute"/>
+        <a:link id="prj501DF_import_delete_link" model="prj.PRJ501DF.prj_df_import_get_status" modelaction="delete"/>
+        <script><![CDATA[
+            var flag = 0;
+            
+            function lock_detail_current_window() {
+                Aurora.Masker.mask(document.documentElement, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_detail_current_window() {
+                Aurora.Masker.unmask(document.documentElement);
+            }
+            
+            function go_back() {
+                $('car_import_back_id').disable();
+               lock_detail_current_window();
+               Aurora.request({
+                    url: $('prj501DF_import_delete_link').getUrl(),
+                    success: function() {
+                        unlock_detail_current_window();
+                        window.location.href = $('prj501DF_query_entrance_link').getUrl() + '?layout_code=PROJECT_QUERY_ENTRANCE_DFF&function_code=PRJ501DF';
+                    },
+                    failure: function() {
+                        $('car_import_back_id').enable();
+                        unlock_detail_current_window();
+                    },
+                    error: function() {
+                        $('car_import_back_id').enable();
+                        unlock_detail_current_window();
+                    },
+                    scope: this
+                });
+                
+            }
+            
+            function loadData() {
+                $('car_import_load_id').disable();
+                var win = new Aurora.Window({
+                    id: 'car_import_upload_winid',
+                    url: $('prj501DF_import_upload_link').getUrl(),
+                    title: '保理申请导入',
+                    width: 420,
+                    height: 275
+                });
+                win.on('close', function() {
+                    $('car_import_load_id').enable();
+                });
+            }
+            
+            function submitData() {
+                $('car_import_submit_id').disable();
+                lock_detail_current_window();
+                
+                var ds = $('prj_df_car_info_grid_ds');
+                var records = ds.getAll();
+                if (records.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '请先导入数据！');
+                    unlock_detail_current_window();
+                    $('car_import_submit_id').enable();
+                    return;
+                }
+                
+                for (var i = 0; i< records.length; i++){
+                    if (typeof(records[i].get('error_message')) != 'undefined'&& !Ext.isEmpty(records[i].get('error_message'))){
+                        flag = flag + 1;
+                    }
+                }
+                
+                if (flag != 0) {
+                    Aurora.showMessage('${l:PROMPT}', '导入的数据有错误，请重新导入，谢谢！');
+                    unlock_detail_current_window();
+                    $('car_import_submit_id').enable();
+                    return;
+                } else {
+                    Aurora.request({
+                        url: $('prj501DF_import_save_link').getUrl(),
+                        success: function() {
+                            unlock_detail_current_window();
+                            $('prj_df_car_info_grid_ds').query();
+                            Aurora.SideBar.show({
+                                msg: '创建申请成功',
+                                duration: 2000
+                            });
+                            $('car_import_submit_id').enable();
+                            go_back();
+                        },
+                        failure: function() {
+                            $('car_import_submit_id').enable();
+                            unlock_detail_current_window();
+                        },
+                        error: function() {
+                            $('car_import_submit_id').enable();
+                            unlock_detail_current_window();
+                        },
+                        scope: this
+                    });
+                }
+            }
+            
+            function clearData() {
+                $('car_import_clear_id').disable();
+                lock_detail_current_window();
+                Aurora.request({
+                    url: $('prj501DF_import_delete_link').getUrl(),
+                    success: function() {
+                        unlock_detail_current_window();
+                        Aurora.SideBar.show({
+                            msg: '清空成功',
+                            duration: 2000
+                        });
+                        $('prj_df_car_info_grid_ds').query();
+                        $('car_import_clear_id').enable();
+                    },
+                    failure: function() {
+                        $('car_import_clear_id').enable();
+                        unlock_detail_current_window();
+                    },
+                    error: function() {
+                        $('car_import_clear_id').enable();
+                        unlock_detail_current_window();
+                    },
+                    scope: this
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="prj_df_car_info_grid_ds" autoPageSize="true" autoQuery="true" model="prj.PRJ501DF.prj_project_df_car_info">
+                <a:fields>
+                    <a:field name="error_message" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form id="success_form" height="480" marginWidth="40" title="THE_IMPORTED_DATA">
+                <a:screenTopToolbar>
+                    <a:toolbarButton id="car_import_load_id" click="loadData" text="PROMPT.IMPORT" width="80"/>
+                    <a:toolbarButton id="car_import_clear_id" click="clearData" text="PROMPT.CLEAR" width="80"/>
+                    <a:toolbarButton id="car_import_submit_id" click="submitData" text="PROMPT.SUBMIT" width="80"/>
+                    <a:toolbarButton id="car_import_back_id" click="go_back" text="HLS.BACK" width="80"/>
+                </a:screenTopToolbar>
+                <a:grid id="prj_df_car_info_grid_id" bindTarget="prj_df_car_info_grid_ds" marginHeight="200" marginWidth="40" navBar="true">
+                    <a:columns>
+                        <a:column name="error_message" align="left" editor="prj_df_car_info_grid_editor_ta" prompt="错误信息" width="180"/>
+                        <a:column name="order_seq" align="right" prompt="序号" width="60"/>
+                        <a:column name="finance_com_code" align="left" prompt="融资机构代码" width="120"/>
+                        <a:column name="main_fac_num" align="left" prompt="主机厂编号" width="120"/>
+                        <a:column name="manu_code" align="left" prompt="制造商代号" width="120"/>
+                        <a:column name="dealer_code" align="left" prompt="经销商代码" width="100"/>
+                        <a:column name="dealer_name" align="left" prompt="经销商名称" width="200"/>
+                        <a:column name="model_code" align="left" prompt="车型代码" width="100"/>
+                        <a:column name="color_code" align="left" prompt="颜色编码" width="80"/>
+                        <a:column name="car_price" align="left" prompt="车辆售价" renderer="Aurora.formatMoney" width="100"/>
+                        <a:column name="finance_amount" align="left" prompt="融资金额" renderer="Aurora.formatMoney" width="100"/>
+                        <a:column name="son_code" align="left" prompt="SON号" width="150"/>
+                        <a:column name="item_frame_number" align="left" prompt="VIN码" width="150"/>
+                        <a:column name="item_engine_number" align="left" prompt="发动机号" width="150"/>
+                        <a:column name="qualified_number" align="left" prompt="合格证号" width="150"/>
+                        <a:column name="sch_departure_date" align="left" prompt="计划发车日期" renderer="Aurora.formatDate" width="100"/>
+                        <a:column name="expected_arrival_date" align="left" prompt="预计抵达日期" renderer="Aurora.formatDate" width="100"/>
+                    </a:columns>
+                    <a:editors>
+                        <a:textArea id="prj_df_car_info_grid_editor_ta"/>
+                    </a:editors>
+                </a:grid>
+            </a:form>
+        </a:screenBody>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

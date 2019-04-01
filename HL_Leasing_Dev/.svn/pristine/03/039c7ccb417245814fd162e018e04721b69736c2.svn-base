@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-11-18 下午05:18:51  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootPath="parent_default_value_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="sys_service_welcome_link" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="con_contract_update_link_id" url="${/request/@context_path}/modules/cont/CON500/con_contract_update.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="con_contract_change_req_data_link_id" model="cont.CON751.con_contract_change_req_data" modelaction="update"/>
+        <script><![CDATA[
+            
+            function con751_contract_change_req_exit() {
+                location.href = $('sys_service_welcome_link').getUrl();
+                parent.shMenu('show');
+            }
+            
+            function con751_lock_current_window() {
+                Aurora.Masker.mask(document.documentElement, '${l:HLS.EXECUTING}');
+            }
+            
+            function con751_unlock_current_window() {
+                Aurora.Masker.unmask(document.documentElement);
+            }
+            
+            function con751_contract_change_req_confirm() {
+                con751_lock_current_window();
+                var ds = $('con_contract_change_req_ds');
+                if (ds.validate()) {
+                    var current_record = ds.getCurrentRecord();
+                    Aurora.request({
+                        url: $('con_contract_change_req_data_link_id').getUrl(),
+                        para: current_record.data,
+                        success: function(res) {
+                            if (res.result.change_req_id) {
+                                $('new_con_contract_ds').setQueryParameter('contract_id', res.result.change_req_id);
+                                $('new_con_contract_ds').query();
+                            }
+                        },
+                        error: function(res) {
+                            con751_unlock_current_window();
+                        },
+                        faliure: function() {
+                            con751_unlock_current_window();
+                        },
+                        scope: this
+                    });
+                } else {
+                    con751_unlock_current_window();
+                }
+            }
+            
+            function on_new_con_contract_load(ds) {
+                var record = ds.getCurrentRecord();
+                var param = record.data;
+                param['document_id'] = record.get('contract_id');
+                con751_param_set_value(param);
+            }
+            
+            function con751_param_set_value(param) {
+                con751_unlock_current_window();
+                param['function_code'] = 'CON751';
+                param['function_usage'] = 'MODIFY';
+                param['maintain_type'] = 'UPDATE';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_update_link_id');
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=CONTRACT&amp;function_code=CON751"/>
+        <a:dataSets>
+            <a:dataSet id="new_con_contract_ds" queryUrl="${/request/@context_path}/autocrud/cont.CON500.con_contract/query">
+                <a:events>
+                    <a:event name="load" handler="on_new_con_contract_load"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="con_contract_change_req_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="contract_number" lovGridHeight="350" lovHeight="550" lovService="basic.con_contract_for_lov?change_req_flag=Y" lovWidth="500" required="true" title="HLS.CONTRACT_NUMBER">
+                        <a:mapping>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="contract_name" to="contract_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_name" lovGridHeight="350" lovHeight="550" lovService="basic.con_contract_for_lov?change_req_flag=Y" lovWidth="500" required="true" title="HLS.CONTRACT_NUMBER">
+                        <a:mapping>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="contract_name" to="contract_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="req_date" defaultValue="${/model/parent_default_value_path/record/@now_time}" required="true"/>
+                    <a:field name="change_quotation" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="change_lease_item" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="change_bp" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="description" required="true"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="con751_contract_change_req_exit" text="HLS.EXIT"/>
+                <a:gridButton click="con751_contract_change_req_confirm" text="HLS.CONFIRM"/>
+            </a:screenTopToolbar>
+            <a:form marginWidth="550" title="CON751.CONTRACT_CHANGE_REQ_CREATE">
+                <a:box width="800">
+                    <a:box column="3" labelWidth="120">
+                        <a:lov name="contract_number" bindTarget="con_contract_change_req_ds" prompt="HLS.CONTRACT_NUMBER" width="150">
+                            <a:events>
+                                <a:event name="focus" handler="on_std_focus"/>
+                            </a:events>
+                        </a:lov>
+                        <a:lov name="contract_name" bindTarget="con_contract_change_req_ds" prompt="HLS.CONTRACT_NAME" width="150">
+                            <a:events>
+                                <a:event name="focus" handler="on_std_focus"/>
+                            </a:events>
+                        </a:lov>
+                        <a:datePicker name="req_date" bindTarget="con_contract_change_req_ds" prompt="HLS.REQ_DATE" width="150"/>
+                        <a:textArea name="description" bindTarget="con_contract_change_req_ds" colspan="3" height="50" prompt="CON751.CONTRACT_CHANGE_REQ_CREATE_DESC" width="702"/>
+                    </a:box>
+                    <a:box column="1">
+                        <a:checkBox name="change_quotation" bindTarget="con_contract_change_req_ds" prompt="CON751.CONTRACT_CHANGE_REQ_CREATE_QUOTE"/>
+                        <a:checkBox name="change_bp" bindTarget="con_contract_change_req_ds" prompt="HLS.BP_TITLE"/>
+                        <a:checkBox name="change_lease_item" bindTarget="con_contract_change_req_ds" prompt="HLS.LEASE_ITEM"/>
+                    </a:box>
+                </a:box>
+            </a:form>
+        </a:screenBody>
+    </a:view>
+</a:screen>

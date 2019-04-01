@@ -1,0 +1,727 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-6-24 下午07:14:16  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.enabled_flag=&apos;Y&apos;" fetchAll="true" model="hls.HLS030.hls_doc_layout_config_grid_field" rootPath="layout_config_nodisplay_path"/>
+        <a:model-query defaultWhereClause="t1.enabled_flag(+)=&apos;Y&apos; and t1.display_flag(+)=&apos;Y&apos;" fetchAll="true" model="hls.HLS030.hls_doc_layout_config_field" rootPath="layout_config_path"/>
+        <a:model-query defaultWhereClause="t1.tab_code=${/parameter/@form_tab_code} and t1.enabled_flag=&apos;Y&apos;" fetchAll="true" model="prj.PRJ500.prj_hls_doc_layout_tab_query" rootPath="tab_layout_detail_path"/>
+        <a:model-query defaultWhereClause="t1.tab_code=${/parameter/@form_tab_code} and t1.enabled_flag=&apos;Y&apos; and t1.display_flag=&apos;Y&apos;" fetchAll="true" model="hls.HLS030.hls_doc_layout_doc_tab_button" rootPath="layout_form_button_path"/>
+        <!-- <s:server-script><![CDATA[
+        	var m=$ctx.get('/model/layout_form_button_path');
+        	println(m.toXML());
+        ]]></s:server-script> -->
+    </a:init-procedure>
+    <a:view>
+        <a:link id="${/parameter/@bp_seq}${/parameter/@form_tab_code}_rsc_fin_change_rate_link_id" url="${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_import_change_rate.screen"/>
+        <a:link id="${/parameter/@bp_seq}${/parameter/@form_tab_code}_rsc_fin_handle_query_link_id" url="${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_import_handle_query.screen"/>
+        <a:link id="${/parameter/@bp_seq}${/parameter/@form_tab_code}_rsc_fin_handle_formula_link_id" url="${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_import_handle_formula.screen"/>
+        <a:link id="${/parameter/@bp_seq}${/parameter/@form_tab_code}_prj_project_statement_note_link_id" url="${/request/@context_path}/modules/prj/PRJ509/prj_project_statement_note.screen"/>
+        <a:link id="${/parameter/@bp_seq}${/parameter/@form_tab_code}_rsc_fin_statement_prj_import_cashflow_forecast_link_id" url="${/request/@context_path}/modules/rsc/RSC304/rsc_fin_statement_prj_import_cashflow_forecast.screen"/>
+        <script><![CDATA[
+            function on_con_header_form_submitfailed(ds) {
+                parent.Aurora.Masker.unmask(parent.$('${/parameter/@winid}').wrap);
+            }
+            
+            window['${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_con_header_form_init'] = function(ds) {
+                var head_record = ds.getCurrentRecord() || ds.create();
+                head_record.set('bp_seq', '${/parameter/@bp_seq}');
+                head_record.set('project_id', '${/parameter/@document_id}', true);
+                head_record.set('project_id_n', '${/model/tab_layout_detail_path/record/@project_name}', true);
+                head_record.set('bp_category', '${/model/tab_layout_detail_path/record/@query_bp_category}', true);
+                head_record.set('bp_category_n', '${/model/tab_layout_detail_path/record/@query_bp_category_name}', true);
+                head_record.set('declare_flag', '${/parameter/@declare_flag}', true);
+                if (!'${/parameter/@document_id}' && '${/parameter/@default_value_dsid}') {
+                    var default_record = (parent == top ? self : parent)['$']('${/parameter/@default_value_dsid}').getCurrentRecord();
+                    for (var name in head_record.data) {
+                        if (!Ext.isEmpty(default_record.get(name))) {
+                            head_record.set(name, default_record.get(name));
+                        }
+                    }
+                }
+                var config_records = $('${/parameter/@bp_seq}${/parameter/@form_tab_code}_con_layout_config_ds').getAll();
+                for (var i = 0;i < config_records.length;i++) {
+                    var config_record = config_records[i],
+                        validation_type = config_record.get('validation_type'),
+                        column_name = config_record.get('column_name'),
+                        display_name = column_name + '_n';
+                    if (validation_type == 'LOV' || validation_type == 'LOV_C' || validation_type == 'TREE' || validation_type == 'TREE_C') {
+                        var documentMapping;
+                        if (config_record.get('lov_return_vcode') == 'Y') {
+                            documentMapping = [{
+                                from: 'value_code',
+                                to: column_name
+                            }, {
+                                from: 'value_code',
+                                to: config_record.get('column_name')
+                            }];
+                            head_record.getField(config_record.get('column_name')).setMapping(documentMapping);
+                        } else {
+                            documentMapping = [{
+                                from: 'value_code',
+                                to: column_name
+                            }, {
+                                from: 'value_name',
+                                to: display_name
+                            }];
+                            head_record.getField(display_name).setMapping(documentMapping);
+                        }
+                    } else if (validation_type == 'COMBOBOX' || validation_type == 'COMBOBOX_C') {
+                        var combobox_ds = '${/parameter/@bp_seq}${/parameter/@form_tab_code}' + '_' + column_name + '_combobox_ds';
+                        var combobox_field;
+                        combobox_ds = $(combobox_ds);
+                        if (config_record.get('lov_return_vcode') == 'Y') {
+                            combobox_field = head_record.getField(column_name);
+                            combobox_field.setPropertity('displayfield', 'value_code');
+                        } else {
+                            combobox_field = head_record.getField(display_name);
+                            combobox_field.setPropertity('displayfield', 'value_name');
+                        }
+                    }
+                }
+                window['${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_con_update_dymanic'](ds, head_record);
+                $A.Masker.unmask(Ext.get(document.documentElement));
+            };
+            
+            window['${/parameter/@bp_seq}${/parameter/@form_tab_code}_prj_form_processfunction'] = function(datas) {
+                for (var i = 0;i < datas.length;i++) {
+                    var temp = datas[i];
+                    for (var name in temp.data) {
+                        var temp_record = $('${/parameter/@bp_seq}${/parameter/@form_tab_code}_con_layout_config_ds').find('column_name', name);
+                        if (temp_record) {
+                            if (temp_record.get('validation_type') == 'NUMBERFIELD') {
+                                temp.data[name] = isNaN(temp.data[name]) == true ? temp.data[name] : parseFloat(parseFloat(temp.data[name]).toFixed(temp_record.get('precision')));
+                            }
+                        }
+                    }
+                }
+                return datas;
+            };
+            
+            window['${/parameter/@bp_seq}${/parameter/@form_tab_code}_temp_processfunction'] = function(datas) {
+                var ds = $('${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds'),
+                    f = $('temp_ds').fields;
+                for (var name in f) {
+                    var query_name = get_config_column_name(name),
+                        display_name = query_name + '_n';
+                    var config_record = $('${/parameter/@bp_seq}${/parameter/@form_tab_code}_con_layout_config_ds').find('column_name', query_name);
+                    if (config_record) {
+                        var validation_type = config_record.get('validation_type');
+                        if (validation_type == 'LOV' || validation_type == 'LOV_C' || validation_type == 'TREE' || validation_type == 'TREE_C') {
+                            if (config_record.get('lov_return_vcode') == 'Y') {
+                                documentMapping = [{
+                                    from: 'value_code',
+                                    to: query_name
+                                }, {
+                                    from: 'value_code',
+                                    to: query_name
+                                }];
+                            } else {
+                                documentMapping = [{
+                                    from: 'value_code',
+                                    to: query_name
+                                }, {
+                                    from: 'value_name',
+                                    to: display_name
+                                }];
+                            }
+                            f[name].setMapping(documentMapping);
+                        } else if (validation_type == 'COMBOBOX' || validation_type == 'COMBOBOX_C') {
+                            var combobox_ds = '${/parameter/@bp_seq}${/parameter/@form_tab_code}' + '_' + query_name + '_combobox_ds',
+                                combobox_field = f[name];
+                            combobox_ds = $(combobox_ds);
+                            if (config_record.get('lov_return_vcode') == 'Y') {
+                                combobox_field.setPropertity('displayfield', 'value_code');
+                            } else {
+                                combobox_field.setPropertity('displayfield', 'value_name');
+                            }
+                        }
+                        ds.addField(f[name].pro);
+                        var record = ds.getCurrentRecord(),
+                            df = f[name].pro['defaultvalue'];
+                        if (record && record.isNew && !Ext.isEmpty(df)) {
+                            record.set(name, df, true);
+                        }
+                    }
+                }
+                return datas;
+            };
+            
+            function temp_load() {
+                $('temp_ds').destroy();
+                if ('${/model/tab_layout_detail_path/record/@parent_tab_code_flag}' == 'N') {
+                    $A.Masker.unmask(Ext.get(document.documentElement));
+                }
+            }
+            
+            function on_form_combobox_focus(combobox) {
+                if (!combobox.isOptionLoaded) {
+                    combobox.isOptionLoaded = true;
+                    combobox.optionDataSet.query();
+                }
+            }
+            
+            window['${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_focus'] = function(object) {
+                var config_ds = $('${/parameter/@bp_seq}${/parameter/@form_tab_code}_con_layout_config_ds'),
+                    name = get_config_column_name(object.binder.name),
+                    display_name = object.binder.name,
+                    record = object.record || object.binder.ds.create();
+                var config_record = config_ds.find('column_name', name);
+                var lov_cascade_para1 = config_record.get('lov_cascade_para1'),
+                    lov_cascade_para2 = config_record.get('lov_cascade_para2'),
+                    lov_cascade_para3 = config_record.get('lov_cascade_para3'),
+                    field = record.getField(display_name);
+                if (object instanceof $A.Lov) {
+                    if (config_record.get('validation_type') == 'LOV' || config_record.get('validation_type') == 'LOV_C') {
+                        field.setLovPara('column_name', name);
+                        field.setLovPara('tab_code', config_record.get('tab_code'));
+                        field.setLovPara('layout_code', config_record.get('layout_code'));
+                    }
+                    setObjectPara('LOV', '', field, lov_cascade_para1, record);
+                    setObjectPara('LOV', '', field, lov_cascade_para2, record);
+                    setObjectPara('LOV', '', field, lov_cascade_para3, record);
+                } else if (object instanceof $A.ComboBox) {
+                    var combobox_ds = object.optionDataSet;
+                    combobox_ds.setQueryParameter('column_name', name);
+                    combobox_ds.setQueryParameter('tab_code', config_record.get('tab_code'));
+                    combobox_ds.setQueryParameter('layout_code', config_record.get('layout_code'));
+                    setObjectPara('COMBOBOX', combobox_ds, field, lov_cascade_para1, record);
+                    setObjectPara('COMBOBOX', combobox_ds, field, lov_cascade_para2, record);
+                    setObjectPara('COMBOBOX', combobox_ds, field, lov_cascade_para3, record);
+                    combobox_ds.query();
+                }
+            };
+            window['${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_beforecommit'] = function(object, record, lov_record) {
+                var display_name = object.binder.name,
+                    field = record.getField(display_name),
+                    mapping = field.get('mapping'),
+                    exists_flag = false;
+                for (var name in lov_record.data) {
+                    exists_flag = false;
+                    for (var i = 0,
+                        mapping_length = mapping.length;i < mapping_length;i++) {
+                        if ((exists_flag = (name == mapping[i]['from']))) {
+                            break;
+                        }
+                    }
+                    if (!exists_flag) {
+                        mapping.push({
+                            from: name,
+                            to: name
+                        });
+                    }
+                }
+                field.setMapping(mapping);
+            };
+        ]]></script>
+        <a:screen-include screen="modules/prj/PRJ500/prj_project_create_dynamic.screen?tab_code=${/parameter/@form_tab_code}&amp;layout_code=${/parameter/@layout_code}&amp;function_code=${/parameter/@function_code}&amp;winid=${/parameter/@winid}&amp;bp_seq=${/parameter/@bp_seq}&amp;base_table=${/model/tab_layout_detail_path/record/@base_table}&amp;ref_tab_code=${/model/tab_layout_detail_path/record/@ref_tab_code}&amp;document_id=${/parameter/@document_id}&amp;project_id_n=${/model/tab_layout_detail_path/record/@project_name}&amp;document_category=${/parameter/@document_category}"/>
+        <a:dataSets>
+            <a:placeHolder id="dynamicFormDataSet_Form_id"/>
+            <a:dataSet id="${/parameter/@bp_seq}${/parameter/@form_tab_code}_con_layout_config_ds">
+                <a:datas dataSource="/model/layout_config_nodisplay_path"/>
+            </a:dataSet>
+            <a:freeMarker><![CDATA[
+            	<#if model.getObject("/model/tab_layout_detail_path").getChilds()??>
+            		<#if model.getObject("/model/tab_layout_detail_path/record/@parent_tab_code_flag")=='N'>
+	            		<a:dataSet id="temp_ds" processFunction="${model.getObject('/parameter/@bp_seq')!""}${model.getObject("/parameter/@form_tab_code")!""}_temp_processfunction">
+	                		<a:fields>
+		                		<#if model.getObject("/model/layout_config_nodisplay_path").getChilds()??>
+		                			<#list model.getObject('/model/layout_config_nodisplay_path').getChilds() as item>
+	        							<#if item.getString('validation_type') =='LOV_C'>
+	        								<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}" lovGridHeight="350" lovHeight="500" lovService="cont.CON500.con_parameters_lov" lovWidth="560" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}">
+	        									<a:mapping>
+            										<a:map from="value_code" to="${item.getString('column_name')}"/>
+            									</a:mapping>
+	        								</a:field>
+	                    				<#elseif item.getString('validation_type') =='LOV'>
+	        								<a:field name="${item.getString('column_name')}_n" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value_name')!""}" lovGridHeight="350" lovHeight="500" lovService="cont.CON500.con_parameters_lov" lovWidth="560" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}">
+	        									<a:mapping>
+            										<a:map from="value_code" to="${item.getString('column_name')}"/>
+            										<a:map from="value_name" to="${item.getString('column_name')}_n"/>
+            									</a:mapping>
+	        								</a:field>
+	                    					<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}"/>
+	                    				<#elseif item.getString('validation_type') =='TREE_C'>
+	        								<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}" lovGridHeight="350" lovHeight="500" lovUrl='${r"${/request/@context_path}"}/modules/cont/CON500/con_contract_update_lov_tree.screen?tab_code=${model.getObject("/parameter/@form_tab_code")}&amp;layout_code=${model.getObject("/parameter/@layout_code")}&amp;column_name=${item.getString("column_name")}' lovWidth="500" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}">
+	        									<a:mapping>
+            										<a:map from="value_code" to="${item.getString('column_name')}"/>
+            									</a:mapping>
+	        								</a:field>
+	                    				<#elseif item.getString('validation_type') =='TREE'>
+	        								<a:field name="${item.getString('column_name')}_n" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value_name')!""}" lovGridHeight="350" lovHeight="500" lovUrl='${r"${/request/@context_path}"}/modules/cont/CON500/con_contract_update_lov_tree.screen?tab_code=${model.getObject("/parameter/@form_tab_code")}&amp;layout_code=${model.getObject("/parameter/@layout_code")}&amp;column_name=${item.getString("column_name")}' lovWidth="500" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}">
+	        									<a:mapping>
+            										<a:map from="value_code" to="${item.getString('column_name')}"/>
+            										<a:map from="value_name" to="${item.getString('column_name')}_n"/>
+            									</a:mapping>
+	        								</a:field>
+	                    					<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}"/>
+	        							<#elseif item.getString('validation_type') =='COMBOBOX_C'>
+	        								<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" displayField="value_code" returnField="${item.getString('column_name')}" valueField="value_code" defaultValue="${item.getString('default_value')!""}" options="${model.getObject('/parameter/@bp_seq')!""}${model.getObject('/parameter/@form_tab_code')}_${item.getString('column_name')}_combobox_ds" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}"/>
+	        							<#elseif item.getString('validation_type') =='COMBOBOX'>
+	        								<a:field name="${item.getString('column_name')}_n" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" displayField="value_name" returnField="${item.getString('column_name')}" valueField="value_code" defaultValue="${item.getString('default_value_name')!""}" options="${model.getObject('/parameter/@bp_seq')!""}${model.getObject('/parameter/@form_tab_code')}_${item.getString('column_name')}_combobox_ds" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}"/>
+	                    					<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}"/>
+	        							<#elseif item.getString('validation_type') =='CHECKBOX'>
+	        								<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" checkedValue="Y" defaultValue="${item.getString('default_value')!""}" uncheckedValue="N"/>
+	        							<#elseif item.getString('validation_type') =='DATEPICKER'>
+		            						<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" datatype="java.util.Date" defaultValue="${item.getString('default_value')!""}" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}"/>
+	        							<#elseif item.getString('validation_type') =='DIV'>
+	        							<#else>
+	        							    <a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}"/>
+	        							</#if>
+	                                  </#list>
+                                </#if>
+	                		</a:fields>
+	                		<a:datas>
+            					<a:record name="temp"/>
+            				</a:datas>
+	                		<a:events>
+	                			<a:event name="load" handler="temp_load" />
+	                		</a:events>
+	                	</a:dataSet>
+            		<#else>
+	            			<#if model.getObject("/model/tab_layout_detail_path/record/@parent_table_flag")=='N'>
+	            				<a:dataSet id="${model.getObject('/parameter/@bp_seq')!""}${model.getObject('/parameter/@form_tab_code')!""}_${model.getObject('/model/tab_layout_detail_path/record/@base_table')}_ds" fetchAll="true" processFunction="${model.getObject('/parameter/@bp_seq')!""}${model.getObject('/parameter/@form_tab_code')!""}_prj_form_processfunction" queryUrl='${r"${/request/@context_path}"}/modules/prj/PRJ500/prj_project_base_query.svc?document_category=${model.getObject("/parameter/@document_category")!""}&amp;document_type=${model.getObject("/parameter/@document_type")!""}&amp;tab_code=${model.getObject("/parameter/@form_tab_code")!""}&amp;layout_code=${model.getObject("/parameter/@layout_code")!""}&amp;bp_seq=${model.getObject("/parameter/@bp_seq")!""}&amp;bp_category=${model.getObject("/model/tab_layout_detail_path/record/@query_bp_category")!""}' submitUrl='${r"${/request/@context_path}"}/modules/prj/PRJ500/prj_project_save.svc?base_table=${model.getObject("/model/tab_layout_detail_path/record").getString("base_table")}&amp;query_only=${model.getObject("/model/tab_layout_detail_path/record/@query_only")!""}&amp;root_tree_code=${model.getObject("/model/tab_layout_detail_path/record").getString("root_tree_code")}&amp;tab_code=${model.getObject("/parameter").getString("form_tab_code")}&amp;number_of_tenant=${model.getObject("/parameter/@number_of_tenant")!""}&amp;number_of_guarantor=${model.getObject("/parameter/@number_of_guarantor")!""}&amp;number_of_actual_controller=${model.getObject("/parameter/@number_of_actual_controller")!""}&amp;number_of_quotation=${model.getObject("/parameter/@number_of_quotation")!""}&amp;document_id=${model.getObject("/parameter/@document_id")!""}&amp;document_category=${model.getObject("/parameter/@document_category")!""}&amp;document_type=${model.getObject("/parameter/@document_type")!""}&amp;parent_table=${model.getObject("/model/tab_layout_detail_path/record").getString("parent_table")!""}&amp;parent_base_table_pk=${model.getObject("/model/tab_layout_detail_path/record").getString("parent_base_table_pk")!""}&amp;function_code=${model.getObject("/parameter/@function_code")!""}&amp;function_usage=${model.getObject("/parameter/@function_usage")!""}'>
+	            					<a:fields>
+		            					<#if model.getObject("/model/layout_config_nodisplay_path").getChilds()??>
+		            						<#list model.getObject('/model/layout_config_nodisplay_path').getChilds() as item>
+		            							<#if item.getString('validation_type') =='LOV'>
+		            								<a:field name="${item.getString('column_name')}_n" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value_name')!""}" lovGridHeight="350" lovHeight="500" lovService="cont.CON500.con_parameters_lov" lovWidth="560" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}"/>
+	                            					<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}"/>
+		            							<#elseif item.getString('validation_type') =='LOV_C'>
+		            								<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}" lovGridHeight="350" lovHeight="500" lovService="cont.CON500.con_parameters_lov" lovWidth="560" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}"/>
+		            							<#elseif item.getString('validation_type') =='TREE_C'>
+		            								<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}" lovGridHeight="350" lovHeight="500" lovUrl='${r"${/request/@context_path}"}/modules/cont/CON500/con_contract_update_lov_tree.screen?tab_code=${model.getObject("/parameter/@form_tab_code")}&amp;layout_code=${model.getObject("/parameter/@layout_code")}&amp;column_name=${item.getString("column_name")}' lovWidth="500" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}"/>
+		            							<#elseif item.getString('validation_type') =='TREE'>
+		            								<a:field name="${item.getString('column_name')}_n" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value_name')!""}" lovGridHeight="350" lovHeight="500" lovUrl='${r"${/request/@context_path}"}/modules/cont/CON500/con_contract_update_lov_tree.screen?tab_code=${model.getObject("/parameter/@form_tab_code")}&amp;layout_code=${model.getObject("/parameter/@layout_code")}&amp;column_name=${item.getString("column_name")}' lovWidth="500" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}"/>
+	                            					<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}"/>
+		            							<#elseif item.getString('validation_type') =='COMBOBOX_C'>
+		            								<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" returnField="${item.getString('column_name')}" valueField="value_code" defaultValue="${item.getString('default_value')!""}" options="${model.getObject('/parameter/@bp_seq')!""}${model.getObject('/parameter/@form_tab_code')}_${item.getString('column_name')}_combobox_ds" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}"/>
+		            							<#elseif item.getString('validation_type') =='COMBOBOX'>
+		            								<a:field name="${item.getString('column_name')}_n" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" returnField="${item.getString('column_name')}" valueField="value_code" defaultValue="${item.getString('default_value_name')!""}" options="${model.getObject('/parameter/@bp_seq')!""}${model.getObject('/parameter/@form_tab_code')}_${item.getString('column_name')}_combobox_ds" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}"/>
+	                            					<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}"/>
+		            							<#elseif item.getString('validation_type') =='CHECKBOX'>
+		            								<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" checkedValue="Y" defaultValue="${item.getString('default_value')!""}" uncheckedValue="N"/>
+		            							<#elseif item.getString('validation_type') =='DATEPICKER'>
+		            								<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" datatype="java.util.Date" defaultValue="${item.getString('default_value')!""}" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}"/>
+		            							<#elseif item.getString('validation_type') =='DIV'>
+		            							<#else>
+		            							    <a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}"/>
+		            							</#if>
+		                                    </#list>
+		                                </#if>
+	                                </a:fields>
+	                                <a:events>
+	                					<a:event name="load" handler="window['${model.getObject("/parameter/@bp_seq")!""}${model.getObject('/parameter/@form_tab_code')!""}_on_con_header_form_init']"/>
+	                					<a:event name="add" handler="window['${model.getObject("/parameter/@bp_seq")!""}${model.getObject('/parameter/@form_tab_code')!""}_on_con_header_form_init']"/>
+	                					<a:event name="submitfailed" handler="on_con_header_form_submitfailed"/>
+	                					<a:event name="update" handler="window['${model.getObject('/parameter/@bp_seq')!""}${model.getObject("/parameter/@form_tab_code")!""}_on_con_doc_update']"/>
+	                				</a:events>
+                            	</a:dataSet>
+                            	<script>
+                            		(function(){
+                            		    var base_ds=$('${model.getObject('/parameter/@bp_seq')!""}${model.getObject('/parameter/@form_tab_code')!""}_${model.getObject('/model/tab_layout_detail_path/record/@base_table')}_ds');
+	                            		if(!'${model.getObject("/parameter/@document_id")!""}'){
+	                            			base_ds.create();
+	                            		}else{
+	                            		    base_ds.setQueryParameter('${model.getObject('/model/tab_layout_detail_path/record/@parent_base_table_pk')!""}','${model.getObject("/parameter/@document_id")!""}');
+	                            		    base_ds.query();
+	                            		    base_ds.on('load',function(){
+                            		        if(!base_ds.getAll().length){
+                            		            base_ds.create();
+                            		        }
+                            		    });
+	                            		}
+                            		})();
+                            	</script>
+                            <#else>
+                                 <a:dataSet id="${model.getObject('/parameter/@bp_seq')!""}${model.getObject('/parameter/@form_tab_code')!""}_${model.getObject('/model/tab_layout_detail_path/record/@base_table')}_ds" fetchAll="true" processFunction="${model.getObject('/parameter/@bp_seq')!""}${model.getObject('/parameter/@form_tab_code')!""}_prj_form_processfunction" bindName="${model.getObject('/parameter/@bp_seq')!""}${model.getObject('/parameter/@form_tab_code')}_${model.getObject('/model/tab_layout_detail_path/record/@base_table')}" queryUrl='${r"${/request/@context_path}"}/modules/prj/PRJ500/prj_project_base_query.svc?document_id=${model.getObject("/parameter/@document_id")!""}&amp;document_category=${model.getObject("/parameter/@document_category")!""}&amp;document_type=${model.getObject("/parameter/@document_type")!""}&amp;tab_code=${model.getObject("/parameter/@form_tab_code")!""}&amp;layout_code=${model.getObject("/parameter/@layout_code")!""}&amp;bp_seq=${model.getObject("/parameter/@bp_seq")!""}&amp;bp_category=${model.getObject("/model/tab_layout_detail_path/record/@query_bp_category")!""}'  bindTarget="${model.getObject('/model/tab_layout_detail_path/record/@repeat_bp_seq')!""}${model.getObject('/model/tab_layout_detail_path/record/@parent_table_tab_code')!""}_${model.getObject('/model/tab_layout_detail_path/record/@parent_table')}_ds" submitUrl='${r"${/request/@context_path}"}/modules/prj/PRJ500/prj_project_save.svc?base_table=${model.getObject("/model/tab_layout_detail_path/record").getString("base_table")}&amp;query_only=${model.getObject("/model/tab_layout_detail_path/record/@query_only")!""}&amp;root_tree_code=${model.getObject("/model/tab_layout_detail_path/record").getString("root_tree_code")}&amp;tab_code=${model.getObject("/parameter").getString("form_tab_code")}&amp;number_of_tenant=${model.getObject("/parameter/@number_of_tenant")!""}&amp;number_of_guarantor=${model.getObject("/parameter/@number_of_guarantor")!""}&amp;number_of_actual_controller=${model.getObject("/parameter/@number_of_actual_controller")!""}&amp;number_of_quotation=${model.getObject("/parameter/@number_of_quotation")!""}&amp;document_id=${model.getObject("/parameter/@document_id")!""}&amp;document_category=${model.getObject("/parameter/@document_category")!""}&amp;document_type=${model.getObject("/parameter/@document_type")!""}&amp;parent_table=${model.getObject("/model/tab_layout_detail_path/record").getString("parent_table")!""}&amp;parent_base_table_pk=${model.getObject("/model/tab_layout_detail_path/record").getString("parent_base_table_pk")!""}&amp;function_code=${model.getObject("/parameter/@function_code")!""}&amp;function_usage=${model.getObject("/parameter/@function_usage")!""}'>
+	            					<a:fields>
+		            					<#if model.getObject("/model/layout_config_nodisplay_path").getChilds()??>
+		            						<#list model.getObject('/model/layout_config_nodisplay_path').getChilds() as item>
+		            							<#if item.getString('validation_type') =='LOV'>
+		            								<a:field name="${item.getString('column_name')}_n" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value_name')!""}" lovGridHeight="350" lovHeight="500" lovService="cont.CON500.con_parameters_lov" lovWidth="560" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}"/>
+	                            					<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}"/>
+	                            				<#elseif item.getString('validation_type') =='LOV_C'>
+		            								<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}" lovGridHeight="350" lovHeight="500" lovService="cont.CON500.con_parameters_lov" lovWidth="560" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}"/>
+	                            				<#elseif item.getString('validation_type') =='TREE_C'>
+		            								<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}" lovGridHeight="350" lovHeight="500" lovUrl='${r"${/request/@context_path}"}/modules/cont/CON500/con_contract_update_lov_tree.screen?tab_code=${model.getObject("/parameter/@form_tab_code")}&amp;layout_code=${model.getObject("/parameter/@layout_code")}&amp;column_name=${item.getString("column_name")}' lovWidth="500" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}"/>
+	                            				<#elseif item.getString('validation_type') =='TREE'>
+		            								<a:field name="${item.getString('column_name')}_n" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value_name')!""}" lovGridHeight="350" lovHeight="500" lovUrl='${r"${/request/@context_path}"}/modules/cont/CON500/con_contract_update_lov_tree.screen?tab_code=${model.getObject("/parameter/@form_tab_code")}&amp;layout_code=${model.getObject("/parameter/@layout_code")}&amp;column_name=${item.getString("column_name")}' lovWidth="500" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}"/>
+	                            					<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}"/>
+		            							<#elseif item.getString('validation_type') =='COMBOBOX_C'>
+		            								<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" returnField="${item.getString('column_name')}" valueField="value_code" defaultValue="${item.getString('default_value')!""}" options="${model.getObject('/parameter/@bp_seq')!""}${model.getObject('/parameter/@form_tab_code')}_${item.getString('column_name')}_combobox_ds" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}"/>
+		            							<#elseif item.getString('validation_type') =='COMBOBOX'>
+		            								<a:field name="${item.getString('column_name')}_n" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" returnField="${item.getString('column_name')}" valueField="value_code" defaultValue="${item.getString('default_value_name')!""}" options="${model.getObject('/parameter/@bp_seq')!""}${model.getObject('/parameter/@form_tab_code')}_${item.getString('column_name')}_combobox_ds" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" title="${item.getString('prompt')!''}"/>
+	                            					<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}"/>
+		            							<#elseif item.getString('validation_type') =='CHECKBOX'>
+		            								<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}" checkedValue="Y" defaultValue="${item.getString('default_value')!""}" uncheckedValue="N"/>
+		            							<#elseif item.getString('validation_type') =='DATEPICKER'>
+		            								<a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" datatype="java.util.Date" defaultValue="${item.getString('default_value')!""}" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}"/>
+		            							<#elseif item.getString('validation_type') =='DIV'>
+		            							<#else>
+		            							    <a:field name="${item.getString('column_name')}" requiredMessage="${model.getObject("/model/tab_layout_detail_path/record/@tab_desc")!""}${item.getString('prompt')!''}${buildSession.getLocalizedPrompt('HLS.NOT_NULL')}" defaultValue="${item.getString('default_value')!""}" readOnly="${item.getString('readonly_input_mode')}" required="${item.getString('required_input_mode')}"/>
+		            							</#if>
+		                                    </#list>
+		                                </#if>
+	                                </a:fields>
+	                                <a:events>
+	                					<a:event name="load" handler="window['${model.getObject('/parameter/@bp_seq')!""}${model.getObject("/parameter/@form_tab_code")!""}_on_con_header_form_init']"/>
+	                					<a:event name="add" handler="window['${model.getObject('/parameter/@bp_seq')!""}${model.getObject("/parameter/@form_tab_code")!""}_on_con_header_form_init']"/>
+	                					<a:event name="submitfailed" handler="on_con_header_form_submitfailed"/>
+	                					<a:event name="update" handler="window['${model.getObject('/parameter/@bp_seq')!""}${model.getObject("/parameter/@form_tab_code")!""}_on_con_doc_update']"/>
+	                				</a:events>
+                            	</a:dataSet>
+                            	<script>
+                            	    (function(){
+	                        	        var base_ds=$('${model.getObject('/parameter/@bp_seq')!""}${model.getObject('/parameter/@form_tab_code')!""}_${model.getObject('/model/tab_layout_detail_path/record/@base_table')}_ds');
+	                        	        if(!'${model.getObject("/parameter/@document_id")!""}'){
+	                            			base_ds.create();
+	                            		}else{
+	                            		    (function(callback){
+	                            		        var parent_ds=$('${model.getObject('/model/tab_layout_detail_path/record/@repeat_bp_seq')!""}${model.getObject('/model/tab_layout_detail_path/record/@parent_table_tab_code')!""}_${model.getObject('/model/tab_layout_detail_path/record/@parent_table')}_ds');
+		                        		    	if(!parent_ds.getAll().length){
+			                        		    	parent_ds.on('indexchange',function(){
+			                            		        callback(parent_ds);
+			                        		    	});
+		                        		    	}else{
+		                        		    	      	callback(parent_ds);
+		                        		    	}
+	                            		    })(function(parent_ds){
+		                            	        base_ds.setQueryParameter('${model.getObject('/model/tab_layout_detail_path/record/@parent_base_table_pk')!""}',parent_ds.getCurrentRecord().get('${model.getObject('/model/tab_layout_detail_path/record/@parent_base_table_pk')!""}'));
+	                        		    		base_ds.query();
+		                        		    	global_indexchange_flag='N';
+		                        		    	base_ds.on('load',function(){
+		                            		    	if(!base_ds.getAll().length){
+		                            		            base_ds.create();
+		                        		        	}
+			                            		});
+		                            	    });
+	                            		}
+                            	    })();
+                            	</script>
+	            			</#if>
+            		</#if>
+            	</#if>
+            ]]></a:freeMarker>
+        </a:dataSets>
+        <a:hBox>
+            <a:placeHolder id="prj_dynamicFormButton_id"/>
+        </a:hBox>
+        <a:switch test="/model/tab_layout_detail_path/record/@show_box">
+            <a:case value="Y">
+                <a:form marginWidth="${/model/tab_layout_detail_path/record/@margin_width}" row="${/model/tab_layout_detail_path/record/@row_count}" title="${/model/tab_layout_detail_path/record/@tab_desc}" width="${/model/tab_layout_detail_path/record/@width}" wrapperAdjust="false">
+                    <div style="width:${/model/tab_layout_detail_path/record/@box_width}px">
+                        <a:box column="${/model/tab_layout_detail_path/record/@column_count}" labelSeparator=" " labelWidth="${/model/tab_layout_detail_path/record/@label_width}" width="${/model/tab_layout_detail_path/record/@box_width}">
+                            <a:placeHolder id="dynamicHeadFormBox_id"/>
+                        </a:box>
+                    </div>
+                </a:form>
+            </a:case>
+            <a:case value="N">
+                <a:form column="${/model/tab_layout_detail_path/record/@column_count}" labelSeparator=" " labelWidth="${/model/tab_layout_detail_path/record/@label_width}" marginWidth="${/model/tab_layout_detail_path/record/@margin_width}" row="${/model/tab_layout_detail_path/record/@row_count}" title="${/model/tab_layout_detail_path/record/@tab_desc}" wrapperAdjust="false">
+                    <a:placeHolder id="dynamicHeadForm_id"/>
+                </a:form>
+            </a:case>
+        </a:switch>
+        <script><![CDATA[
+            if (Ext.isIE || Ext.isIE9 || Ext.isIE10) {
+                Aurora.onReady(function() {
+                    var input = document.createElement('input');
+                    document.body.appendChild(input);
+                    Ext.fly(input).moveTo(-10000, -10000);
+                    input.focus();
+                    setTimeout(function() {
+                        Ext.fly(input).remove();
+                    }, 1000);
+                });
+            }
+        ]]></script>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="prj_dynamicFormButton_id">
+            <p:loop source="/model/layout_form_button_path">
+                <p:switch test="@button_code">
+                    <p:case value="SAVE">
+                        <c:process-config>
+                            <a:button click="parent.prj500_project_save" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="EXIT">
+                        <c:process-config>
+                            <a:button click="parent.prj500_project_exit" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="SAVE_EXIT">
+                        <c:process-config>
+                            <a:button click="parent.prj500_project_save_exit" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="LI_SAVE">
+                        <c:process-config>
+                            <a:button click="${/parameter/@bp_seq}${/parameter/@form_tab_code}_prj500_project_item_save" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="LI_ADD">
+                        <c:process-config>
+                            <a:button click="${/parameter/@bp_seq}${/parameter/@form_tab_code}_prj500_project_item_add" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="MO_SAVE">
+                        <c:process-config>
+                            <a:button click="${/parameter/@bp_seq}${/parameter/@form_tab_code}_prj500_project_item_save" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="MO_ADD">
+                        <c:process-config>
+                            <a:button click="${/parameter/@bp_seq}${/parameter/@form_tab_code}_prj500_project_item_add" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicFormDataSet_Form_id">
+            <p:loop source="/model/layout_config_nodisplay_path">
+                <p:switch test="@validation_type">
+                    <p:case value="COMBOBOX">
+                        <c:process-config>
+                            <a:dataSet id="${/parameter/@bp_seq}${/parameter/@form_tab_code}_${@column_name}_combobox_ds" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/cont.CON500.con_parameters_lov/query"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="COMBOBOX_C">
+                        <c:process-config>
+                            <a:dataSet id="${/parameter/@bp_seq}${/parameter/@form_tab_code}_${@column_name}_combobox_ds" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/cont.CON500.con_parameters_lov/query"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicHeadForm_id">
+            <p:loop source="/model/layout_config_path">
+                <p:switch test="@validation_type">
+                    <p:case value="NUMBERFIELD">
+                        <c:process-config>
+                            <a:numberField name="${@column_name}" allowDecimals="${@allow_decimal}" allowFormat="${@allow_format}" allowPad="${@zero_fill}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" decimalPrecision="${@precision}" prompt="${@prompt}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="PERCENTFIELD">
+                        <c:process-config>
+                            <a:percentField name="${@column_name}" allowDecimals="${@allow_decimal}" allowFormat="${@allow_format}" allowPad="${@zero_fill}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" decimalPrecision="${@precision}" prompt="${@prompt}" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="LINK">
+                        <c:process-config>
+                            <a:label name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" prompt=" " renderer="${/parameter/@bp_seq}${/parameter/@form_tab_code}_link_render" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="BUTTON">
+                        <c:process-config>
+                            <a:label name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" prompt=" " renderer="${/parameter/@bp_seq}${/parameter/@form_tab_code}_link_render" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="LOV_C">
+                        <c:process-config>
+                            <a:lov name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" prompt="${@prompt}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}">
+                                <a:events>
+                                    <a:event name="focus" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_focus&apos;]"/>
+                                    <a:event name="beforecommit" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_beforecommit&apos;]"/>
+                                </a:events>
+                            </a:lov>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="LOV">
+                        <c:process-config>
+                            <a:lov name="${@column_name}_n" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" prompt="${@prompt}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}">
+                                <a:events>
+                                    <a:event name="focus" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_focus&apos;]"/>
+                                    <a:event name="beforecommit" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_beforecommit&apos;]"/>
+                                </a:events>
+                            </a:lov>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TREE_C">
+                        <c:process-config>
+                            <a:lov name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" prompt="${@prompt}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}">
+                                <a:events>
+                                    <a:event name="focus" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_focus&apos;]"/>
+                                    <a:event name="beforecommit" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_beforecommit&apos;]"/>
+                                </a:events>
+                            </a:lov>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TREE">
+                        <c:process-config>
+                            <a:lov name="${@column_name}_n" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" prompt="${@prompt}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}">
+                                <a:events>
+                                    <a:event name="focus" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_focus&apos;]"/>
+                                    <a:event name="beforecommit" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_beforecommit&apos;]"/>
+                                </a:events>
+                            </a:lov>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="COMBOBOX_C">
+                        <c:process-config>
+                            <a:comboBox name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" prompt="${@prompt}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}">
+                                <a:events>
+                                    <a:event name="focus" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_focus&apos;]"/>
+                                </a:events>
+                            </a:comboBox>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="COMBOBOX">
+                        <c:process-config>
+                            <a:comboBox name="${@column_name}_n" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" prompt="${@prompt}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}">
+                                <a:events>
+                                    <a:event name="focus" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_focus&apos;]"/>
+                                </a:events>
+                            </a:comboBox>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="DATEPICKER">
+                        <c:process-config>
+                            <a:datePicker name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" prompt="${@prompt}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TEXTFIELD">
+                        <c:process-config>
+                            <a:textField name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" prompt="${@prompt}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TEXTAREA">
+                        <c:process-config>
+                            <div>
+                                <div><![CDATA[${@prompt}]]></div>
+                                <a:textArea name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" height="${@height}" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                            </div>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="CHECKBOX">
+                        <c:process-config>
+                            <a:checkBox name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" prompt="${@prompt}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="DIV">
+                        <c:process-config>
+                            <div prompt=" " style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicHeadFormBox_id">
+            <p:loop source="/model/layout_config_path">
+                <p:switch test="@validation_type">
+                    <p:case value="NUMBERFIELD">
+                        <c:process-config>
+                            <a:numberField name="${@column_name}" allowDecimals="${@allow_decimal}" allowFormat="${@allow_format}" allowPad="${@zero_fill}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" decimalPrecision="${@precision}" prompt="${@prompt}" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="PERCENTFIELD">
+                        <c:process-config>
+                            <a:percentField name="${@column_name}" allowDecimals="${@allow_decimal}" allowFormat="${@allow_format}" allowPad="${@zero_fill}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" decimalPrecision="${@precision}" prompt="${@prompt}" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="LINK">
+                        <c:process-config>
+                            <a:label name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" prompt=" " renderer="${/parameter/@bp_seq}${/parameter/@form_tab_code}_link_render" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="BUTTON">
+                        <c:process-config>
+                            <a:label name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" prompt=" " renderer="${/parameter/@bp_seq}${/parameter/@form_tab_code}_link_render" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="LOV_C">
+                        <c:process-config>
+                            <a:lov name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" prompt="${@prompt}" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}">
+                                <a:events>
+                                    <a:event name="focus" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_focus&apos;]"/>
+                                    <a:event name="beforecommit" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_beforecommit&apos;]"/>
+                                </a:events>
+                            </a:lov>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="LOV">
+                        <c:process-config>
+                            <a:lov name="${@column_name}_n" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" prompt="${@prompt}" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}">
+                                <a:events>
+                                    <a:event name="focus" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_focus&apos;]"/>
+                                    <a:event name="beforecommit" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_beforecommit&apos;]"/>
+                                </a:events>
+                            </a:lov>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TREE_C">
+                        <c:process-config>
+                            <a:lov name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" prompt="${@prompt}" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}">
+                                <a:events>
+                                    <a:event name="focus" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_focus&apos;]"/>
+                                    <a:event name="beforecommit" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_beforecommit&apos;]"/>
+                                </a:events>
+                            </a:lov>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TREE">
+                        <c:process-config>
+                            <a:lov name="${@column_name}_n" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" prompt="${@prompt}" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}">
+                                <a:events>
+                                    <a:event name="focus" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_focus&apos;]"/>
+                                    <a:event name="beforecommit" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_beforecommit&apos;]"/>
+                                </a:events>
+                            </a:lov>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="COMBOBOX_C">
+                        <c:process-config>
+                            <a:comboBox name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" prompt="${@prompt}" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}">
+                                <a:events>
+                                    <a:event name="focus" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_focus&apos;]"/>
+                                </a:events>
+                            </a:comboBox>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="COMBOBOX">
+                        <c:process-config>
+                            <a:comboBox name="${@column_name}_n" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" prompt="${@prompt}" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}">
+                                <a:events>
+                                    <a:event name="focus" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@form_tab_code}_on_form_object_focus&apos;]"/>
+                                </a:events>
+                            </a:comboBox>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="DATEPICKER">
+                        <c:process-config>
+                            <a:datePicker name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" prompt="${@prompt}" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TEXTFIELD">
+                        <c:process-config>
+                            <a:textField name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" prompt="${@prompt}" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="CHECKBOX">
+                        <c:process-config>
+                            <a:checkBox name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" colspan="${@colspan}" prompt="${@prompt}" rowspan="${@rowspan}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TEXTAREA">
+                        <c:process-config>
+                            <div colspan="${@colspan}" rowspan="${@rowspan}">
+                                <div><![CDATA[${@prompt}]]></div>
+                                <a:textArea name="${@column_name}" bindTarget="${/parameter/@bp_seq}${/model/tab_layout_detail_path/record/@form_binder_tab_code}_${/model/tab_layout_detail_path/record/@base_table}_ds" height="${@height}" style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                            </div>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="DIV">
+                        <c:process-config>
+                            <div prompt=" " style="margin-top:${/model/tab_layout_detail_path/record/@margin_top}px;margin-bottom:${/model/tab_layout_detail_path/record/@margin_top}px" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

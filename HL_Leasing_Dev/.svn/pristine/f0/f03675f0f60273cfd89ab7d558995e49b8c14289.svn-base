@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure participants="aurora.service.exception.ExceptionHandler">
+        <a:model-query model="sys.sys_user_logins_query" rootPath="timeout_history"/>
+        <a:model-query model="sys.sys_timeout_get_user_info" rootPath="user_info"/>
+        <p:exception-handles>
+            <p:catch Exception="*">
+                <p:action name="HandleException"/>
+                <p:action name="CreateErrorResponse"/>
+            </p:catch>
+        </p:exception-handles>
+    </a:init-procedure>
+    <a:view template="empty">
+        <script><![CDATA[
+   			var loginTime = 0;
+   			
+   			function goToLoginScreen()
+   			{
+   			    var url = '${/request/@context_path}/login.screen';
+                        
+                if (top.opener)
+                {
+                    top.opener.location.href = url;
+                    top.close();
+                }
+                else
+                {
+                    top.location.href = url;
+                }
+   			}
+   			
+   			
+   			function loginTimeOut(){
+   				if(loginTime < 3)
+   				{
+   					$('user_info_ds').submit();
+   					loginTime++;
+   				}
+   				else
+   				{
+   					var win = Aurora.showInfoMessage('${l:PROMPT}','${l:TIMEOUT_UNLOCK_OVER_THREE_TIMES}');
+   					win.on('close',function(){
+   					    goToLoginScreen();
+   					});
+   				}
+   			}
+   				
+   			function loginComplete(dataset){
+   				var res = dataset.getAt(0).data;
+   				if(res){
+   				    var jsid = res['encryted_session_id'];
+   					if(jsid == 'ERROR')
+   					{
+						var win = Aurora.showInfoMessage('${l:PROMPT}','${l:HAP_TIMEOUT_LOGIN_FAILED}');
+						win.on('close',function(){
+   					    	goToLoginScreen();
+   						});
+	            	}
+	            	else
+	            	{
+	            		window.jsid = jsid;
+	            		var record = $('user_info_ds').getAt(0);
+			        	Aurora.setCookie('USERNAME',record.get('user_name'),30);
+		        		Aurora.setCookie('LANG',record.get('language'),30);
+		        		Aurora.setCookie('JSID',jsid);
+		        		window.mainScreen_refreshMainContent();
+	            		$('login_timeout').close();
+	            	}
+   				}
+   			}	
+   			
+   		]]></script>
+        <a:dataSets>
+            <a:dataSet id="user_info_ds" submitUrl="login_timeout.svc">
+                <a:datas dataSource="/model/user_info"/>
+                <a:fields>
+                    <a:field name="user_name" prompt="HAP_USERNAME" readOnly="true"/>
+                    <a:field name="role_name" prompt="HAP_ROLENAME" readOnly="true"/>
+                    <a:field name="user_id" readOnly="true"/>
+                    <a:field name="role_id" readOnly="true"/>
+                    <a:field name="company_id" readOnly="true"/>
+                    <a:field name="top_biz_company_id" readOnly="true"/>
+                    <a:field name="password" prompt="HAP_PASSWORD" required="true"/>
+                    <a:field name="language" readOnly="true"/>
+                    <a:field name="language_display" prompt="HAP_LANGUAGE" readOnly="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="loginComplete"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:box style="margin-left:75px;margin-top:30px;">
+            <a:textField name="user_name" bindTarget="user_info_ds" style="margin-top:10px;"/>
+            <a:textField name="role_name" bindTarget="user_info_ds" style="margin-top:10px;"/>
+            <a:textField name="language_display" bindTarget="user_info_ds" style="margin-top:10px;"/>
+            <a:passWord name="password" bindTarget="user_info_ds" style="margin-top:10px;">
+                <a:events>
+                    <a:event name="enterdown" handler="loginTimeOut"/>
+                </a:events>
+            </a:passWord>
+        </a:box>
+        <a:hBox style="margin-left:185px;margin-top:10px;">
+            <a:button click="loginTimeOut" text="HAP_LOGIN"/>
+        </a:hBox>
+    </a:view>
+</a:screen>

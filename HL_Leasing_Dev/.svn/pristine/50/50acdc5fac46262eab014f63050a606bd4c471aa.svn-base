@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-8-29 下午6:56:07  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                 SELECT
+                (select decode(count(1),0,'N','Y') from con_contract_lease_item a,con_contract_item_detail b,
+                ast_car_gps c where a.contract_id=t.contract_id
+                and b.contract_lease_item_id=a.contract_lease_item_id
+                and b.item_detail_id=c.item_detail_id
+                and c.enabled_flag='Y') gps_flag,
+                 (select decode(count(1),0,'N','Y') from con_contract_lease_item a,con_contract_item_detail b,
+                ast_car_license li where a.contract_id=t.contract_id
+                and b.contract_lease_item_id=a.contract_lease_item_id
+                and b.item_detail_id=li.item_detail_id
+                and li.mortgage_flag='Y' and li.enabled_flag='Y') license_flag,
+                    t.contract_id,
+                    f.cashflow_id,
+                    t.contract_number,
+                    t.contract_name,
+                    p.project_name,
+                    t.bp_id_tenant tenant_bp_id,
+                    b.bp_name bp_tenant_name,
+                    h.description cf_description,
+                    to_char(f.due_amount,'999,999,990.99') due_amount,
+                    t.currency currency_code,
+                    f.due_date,
+                    to_char(NVL(f.due_amount, 0) - NVL(f.received_amount, 0),'999,999,990.99') residual_amount,
+                    l.bp_id,
+                    (SELECT m.bp_code FROM hls_bp_master m WHERE m.bp_id = l.bp_id
+                    ) bp_code,
+                    (SELECT
+                        m.bp_name
+                    FROM
+                        hls_bp_master m
+                    WHERE
+                        m.bp_id = l.bp_id
+                    ) bp_name,
+                    to_char(l.amount,'999,999,990.99') amount,
+                    to_char(NVL2(f.estimated_due_amount,f.due_amount,0),'999,999,990.99') virtual_amount,
+                    to_char(NVL(f.estimated_due_amount, f.due_amount),'999,999,990.99')  estimated_due_amount,
+                    l.apply_pay_date,
+                    l.payment_req_id,
+                    l.payment_req_ln_id,
+                    NVL(
+                    (SELECT
+                        'N'
+                    FROM
+                        dual
+                    WHERE
+                        EXISTS
+                        (SELECT
+                            1
+                        FROM
+                            prj_cdd_item_doc_ref pcf,
+                            prj_cdd_item_check pck,
+                            con_contract_payment_terms t,
+                            con_contract_payment_t_check c
+                        WHERE
+                            pcf.document_table                = 'CON_CONTRACT' AND
+                            pcf.document_id                   = t.contract_id AND
+                            pck.check_id                      = pcf.check_id AND
+                            NVL(pck.attachment_required,'N') <> 'Y' AND
+                            pck.cdd_item_id                   = t.cdd_item_id AND
+                            t.cashflow_id                     = f.cashflow_id AND
+                            t.cdd_item_id                     =c.cdd_item_id(+) AND
+                            NVL(c.confirm_flag,'N')           ='N'
+                        )
+                    ), 'Y') payment_terms_flag,
+                    (SELECT
+                        DECODE(cf.write_off_flag,'FULL','Y','N')
+                    FROM
+                        con_contract_cashflow cf
+                    WHERE
+                        cf.cf_item     =51 AND
+                        cf.times       =0 AND
+                        cf.contract_id =t.contract_id
+                    ) AS cf_item_5_flag,
+                    (SELECT
+                        DECODE(COUNT(*),0,'N','Y')
+                    FROM
+                        con_contract_cashflow cf
+                    WHERE
+                        cf.write_off_flag ='FULL' AND
+                        cf.cf_item       IN (3,4) AND
+                        cf.times          =0 AND
+                        cf.contract_id    =t.contract_id
+                    ) AS cf_item_3_4_flag
+                FROM
+                    con_contract t,
+                    con_contract_cashflow f,
+                    prj_project p,
+                    hls_cashflow_item h,
+                    hls_bp_master b,
+                    csh_payment_req_ln l
+                WHERE
+                    t.contract_id     = f.contract_id AND
+                    t.project_id      = p.project_id(+) AND
+                    t.bp_id_tenant    = b.bp_id(+) AND
+                    f.cf_item         = h.cf_item AND
+                    l.ref_doc_id      = t.contract_id AND
+                    l.ref_doc_line_id = f.cashflow_id AND
+                    to_char(l.payment_req_id)  in (${:@payment_req_id})
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

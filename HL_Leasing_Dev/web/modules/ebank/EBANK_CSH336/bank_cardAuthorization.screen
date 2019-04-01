@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hand  
+    $Date: 2016-6-27 下午6:36:11  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="ebank_csh336_send_spd_auth_link" url="${/request/@context_path}/modules/ebank/EBANK_CSH336/send_spd_auth.svc"/>
+        <a:link id="ebank_csh336_send_spd_regain_auth_link" url="${/request/@context_path}/modules/ebank/EBANK_CSH336/send_spd_regain_auth.svc"/>
+        <a:link id="ebank_csh336_save_spd_remark_link" url="${/request/@context_path}/modules/ebank/EBANK_CSH336/save_remark.svc"/>
+        <script><![CDATA[
+            //锁表
+            
+            function lock_current_window() {
+                Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+            }
+            
+            //解锁
+            
+            function unlock_current_window() {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            
+            function query() {
+                $('bank_cardAuthorization_result_ds').query();
+            }
+            
+            function send_auth_fun() {
+                lock_current_window();
+                var records = $('bank_cardAuthorization_result_ds').getSelected();
+                if (records.length < 1) {
+                    unlock_current_window();
+                    Aurora.showMessage('${l:PROMPT}', '请选择数据！');
+                    return;
+                }
+                var datas = [];
+                for (i = 0;i < records.length;i++) {
+                    if (records[i].get('send_spd_auth') == 'SEND' || records[i].get('send_spd_auth') == 'CHANGE') {
+                        unlock_current_window();
+                        Aurora.showMessage('${l:PROMPT}', '发起授权只能选择未发起授权数据！请重新选择');
+                        return;
+                    }
+                }
+                for (i = 0;i < records.length;i++) {
+                    var param = {};
+                    param.contract_id = records[i].get('contract_id');
+                    param.account_name = records[i].get('dd_bank_account_name');
+                    param.account_num = records[i].get('dd_bank_account_num');
+                    param.remark = records[i].get('remark');
+                    datas.push(param);
+                }
+            
+                Aurora.request({
+                    para: datas,
+                    url: $('ebank_csh336_send_spd_auth_link').getUrl(),
+                    success: function() {
+                        unlock_current_window();
+                        query();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            function send_change_auth_fun() {
+                lock_current_window();
+                var records = $('bank_cardAuthorization_result_ds').getSelected();
+                if (records.length < 1) {
+                    unlock_current_window();
+                    Aurora.showMessage('${l:PROMPT}', '请选择数据！');
+                    return;
+                }
+                var datas = [];
+                for (i = 0;i < records.length;i++) {
+                    if (records[i].get('send_spd_auth') == 'NONE') {
+                        Aurora.showMessage('${l:PROMPT}', '发起变更授权只能选择已发起授权或已变更数据！请重新选择');
+                        unlock_current_window();
+                        return;
+                    }
+                }
+                for (i = 0;i < records.length;i++) {
+                    var param = {};
+                    param.contract_id = records[i].get('contract_id');
+                    param.account_name = records[i].get('dd_bank_account_name');
+                    param.account_num = records[i].get('dd_bank_account_num');
+                    param.remark = records[i].get('remark');
+                    datas.push(param);
+                }
+            
+                Aurora.request({
+                    para: datas,
+                    url: $('ebank_csh336_send_spd_auth_link').getUrl(),
+                    success: function() {
+                        unlock_current_window();
+                        query();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            function auth_assign() {
+            
+               }
+            
+            function regain_change_auth() {
+                lock_current_window();
+                var records = $('bank_cardAuthorization_result_ds').getSelected();
+                if (records.length < 1) {
+                    unlock_current_window();
+                    Aurora.showMessage('${l:PROMPT}', '请选择数据！');
+                    return;
+                }
+            
+                var datas = [];
+                for (i = 0;i < records.length;i++) {
+                    var param = {};
+                    param.contract_id = records[i].get('contract_id');
+                    datas.push(param);
+                }
+                
+                Aurora.showConfirm('${l:PROMPT}', '确认撤回变更授权？', function() {
+                    Aurora.request({
+                        para: datas,
+                        url: $('ebank_csh336_send_spd_regain_auth_link').getUrl(),
+                        success: function() {
+                            unlock_current_window();
+                            query();
+                        },
+                        failure: function() {
+                            unlock_current_window();
+                        },
+                        error: function() {
+                            unlock_current_window();
+                        },
+                        scope: this
+                    });
+                });
+                unlock_current_window();
+            }
+            
+            function regain_auth() {
+                lock_current_window();
+                var records = $('bank_cardAuthorization_result_ds').getSelected();
+                if (records.length < 1) {
+                    unlock_current_window();
+                    Aurora.showMessage('${l:PROMPT}', '请选择数据！');
+                    return;
+                }
+            
+                var datas = [];
+                for (i = 0;i < records.length;i++) {
+                    var param = {};
+                    param.contract_id = records[i].get('contract_id');
+                    datas.push(param);
+                }
+                //console.log(datas);
+                Aurora.showConfirm('${l:PROMPT}', '确认撤回授权？', function() {
+                    Aurora.request({
+                        para: datas,
+                        url: $('ebank_csh336_send_spd_regain_auth_link').getUrl(),
+                        success: function() {
+                            unlock_current_window();
+                            query();
+                        },
+                        failure: function() {
+                            unlock_current_window();
+                        },
+                        error: function() {
+                            unlock_current_window();
+                        },
+                        scope: this
+                    });
+                });
+                unlock_current_window();
+            }
+            
+            function save_remark(){
+                lock_current_window();
+                var records = $('bank_cardAuthorization_result_ds').getSelected();
+                if (records.length < 1) {
+                    unlock_current_window();
+                    Aurora.showMessage('${l:PROMPT}', '请选择数据！');
+                    return;
+                }
+                var datas = [];
+                // for (i = 0;i < records.length;i++) {
+                    // if (records[i].get('send_spd_auth') == 'NONE') {
+                        // unlock_current_window();
+                        // Aurora.showMessage('${l:PROMPT}', '请先发起授权！');
+                        // return;
+                    // }
+                // }
+                for (i = 0;i < records.length;i++) {
+                    var param = {};
+                    param.contract_id = records[i].get('contract_id');
+                    param.remark = records[i].get('remark');
+                    datas.push(param);
+                }
+                
+                Aurora.showConfirm('${l:PROMPT}', '确认保存备注？', function() {
+                    Aurora.request({
+                        para: datas,
+                        url: $('ebank_csh336_save_spd_remark_link').getUrl(),
+                        success: function() {
+                            unlock_current_window();
+                            query();
+                        },
+                        failure: function() {
+                            unlock_current_window();
+                        },
+                        error: function() {
+                            unlock_current_window();
+                        },
+                        scope: this
+                    });
+                });
+                unlock_current_window();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="ebank_csh336_spd_ddaccount_auth_ds" lookupCode="SPD_DDACCOUNT_AUTH"/>
+            <a:dataSet id="ebank_csh336_spd_ddaccount_auth_status_ds" lookupCode="SPD_DDACCOUNT_AUTH_STATUS"/>
+            <a:dataSet id="ebank_csh336_withhold_ways_ds" lookupCode="WITHHOLD_WAYS"/>
+            <a:dataSet id="bank_cardAuthorization_query_ds">
+                <a:fields>
+                    <a:field name="contract_number"/>
+                    <a:field name="project_number"/>
+                    <a:field name="invoice_agent_desc"/>
+                    <a:field name="bp_name"/>
+                    <a:field name="send_spd_auther"/>
+                    <a:field name="change_spd_auther"/>
+                    <a:field name="id_card_no"/>
+                    <a:field name="send_spd_auth_name" displayField="code_value_name" options="ebank_csh336_spd_ddaccount_auth_ds" returnField="send_spd_auth" valueField="code_value"/>
+                    <a:field name="spd_auth_status_name" displayField="code_value_name" options="ebank_csh336_spd_ddaccount_auth_status_ds" returnField="spd_auth_status" valueField="code_value"/>
+                    <a:field name="withhold_way_name" displayField="code_value_name" options="ebank_csh336_withhold_ways_ds" returnField="withhold_way" valueField="code_value"/>
+                    <a:field name="send_spd_auth_date_from"/>
+                    <a:field name="send_spd_auth_date_to"/>
+                    <a:field name="spd_auth_date_from"/>
+                    <a:field name="spd_auth_date_to"/>
+                    <a:field name="change_spd_auth_date_from"/>
+                    <a:field name="change_spd_auth_date_to"/>
+                </a:fields>
+            </a:dataSet>
+            <!--selectionModel="multiple" -->
+            <a:dataSet id="bank_cardAuthorization_result_ds" autoPageSize="true" autoQuery="true" model="ebank.EBANK_CSH336.rd_ebank_spd_ddaccounts" queryDataSet="bank_cardAuthorization_query_ds" selectable="true"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="query" text="查询"/>
+                <a:gridButton click="send_auth_fun" text="发起授权"/>
+                <a:gridButton click="regain_auth" text="撤回授权"/>
+                <a:gridButton click="send_change_auth_fun" text="变更授权"/>
+                <!-- <a:gridButton click="auth_assign" text="授权匹配"/> -->
+                <a:gridButton click="regain_change_auth" text="撤回变更授权"/>
+                <a:gridButton click="save_remark" text="保存备注"/>
+            </a:screenTopToolbar>
+            <a:form column="4" marginWidth="30" title="查询">
+                <a:textField name="contract_number" bindTarget="bank_cardAuthorization_query_ds" prompt="合同编号"/>
+                <a:textField name="project_number" bindTarget="bank_cardAuthorization_query_ds" prompt="申请编号"/>
+                <a:textField name="invoice_agent_desc" bindTarget="bank_cardAuthorization_query_ds" prompt="经销商"/>
+                <a:textField name="bp_name" bindTarget="bank_cardAuthorization_query_ds" prompt="承租人"/>
+                <a:textField name="send_spd_auther" bindTarget="bank_cardAuthorization_query_ds" prompt="发起人"/>
+                <a:textField name="change_spd_auther" bindTarget="bank_cardAuthorization_query_ds" prompt="变更人"/>
+                <a:textField name="id_card_no" bindTarget="bank_cardAuthorization_query_ds" prompt="身份证"/>
+                <a:comboBox name="send_spd_auth_name" bindTarget="bank_cardAuthorization_query_ds" prompt="发起授权"/>
+                <a:comboBox name="spd_auth_status_name" bindTarget="bank_cardAuthorization_query_ds" prompt="授权状态"/>
+                <a:comboBox name="withhold_way_name" bindTarget="bank_cardAuthorization_query_ds" prompt="代扣方式"/>
+                <a:dateTimePicker name="send_spd_auth_date_from" bindTarget="bank_cardAuthorization_query_ds" prompt="发起日期从"/>
+                <a:dateTimePicker name="send_spd_auth_date_to" bindTarget="bank_cardAuthorization_query_ds" prompt="发起日期到"/>
+                <a:dateTimePicker name="change_spd_auth_date_from" bindTarget="bank_cardAuthorization_query_ds" prompt="变更日期从"/>
+                <a:dateTimePicker name="change_spd_auth_date_to" bindTarget="bank_cardAuthorization_query_ds" prompt="变更日期到"/>
+                <a:dateTimePicker name="spd_auth_date_from" bindTarget="bank_cardAuthorization_query_ds" prompt="授权日期从"/>
+                <a:dateTimePicker name="spd_auth_date_to" bindTarget="bank_cardAuthorization_query_ds" prompt="授权日期到"/>
+                <!-- <a:datePicker name="send_spd_auth_date_from" bindTarget="bank_cardAuthorization_query_ds" prompt="发起日期从"/>
+                <a:datePicker name="send_spd_auth_date_to" bindTarget="bank_cardAuthorization_query_ds" prompt="发起日期到"/>
+                <a:datePicker name="spd_auth_date_from" bindTarget="bank_cardAuthorization_query_ds" prompt="授权日期从"/>
+                <a:datePicker name="spd_auth_date_to" bindTarget="bank_cardAuthorization_query_ds" prompt="授权日期到"/> -->
+            </a:form>
+            <a:grid id="grid_id" bindTarget="bank_cardAuthorization_result_ds" marginHeight="210" marginWidth="30" navBar="true">
+                <a:toolBar>
+                    <a:button type="excel"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="contract_number" prompt="合同编号" width="150"/>
+                    <a:column name="project_number" prompt="申请编号" width="100"/>
+                    <a:column name="invoice_agent_desc" prompt="经销商" width="180"/>
+                    <a:column name="bp_name" prompt="承租人" width="100"/>
+                    <a:column name="inception_of_lease" prompt="起租日" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="dd_bp_name" prompt="扣款对象" width="100"/>
+                    <a:column name="id_card_no" prompt="身份证" width="130"/>
+                    <a:column name="direct_debit_bank_id_n" prompt="扣款银行" width="100"/>
+                    <a:column name="dd_bank_branch_name" prompt="扣款支行" width="100"/>
+                    <a:column name="dd_bank_account_num" prompt="扣款账号" width="100"/>
+                    <a:column name="dd_bank_account_name" prompt="扣款账号名" width="100"/>
+                    <a:column name="dd_remark" prompt="大额行号" width="100"/>
+                    <a:column name="send_spd_auth_name" prompt="发起授权" width="100"/>
+                    <a:column name="withhold_way_name" prompt="代扣方式" width="100"/>
+                    <a:column name="spd_auth_status_name" prompt="授权状态" width="100"/>
+                    <a:column name="cell_phone" prompt="联系方式" width="100"/>
+                    <a:column name="remark" editor="ta_id" prompt="备注" width="200"/>
+                    <a:column name="send_spd_auther" prompt="发起人" width="150"/>
+                    <a:column name="send_spd_auth_date" prompt="发起日期" renderer="Aurora.formatDateTime" width="130"/>
+                    <a:column name="change_spd_auther" prompt="变更人" width="150"/>
+                    <a:column name="change_spd_auth_date" prompt="变更日期" renderer="Aurora.formatDateTime" width="130"/>
+                    <a:column name="spd_auth_date" prompt="授权日期" renderer="Aurora.formatDateTime" width="130"/>
+                    <a:column name="spd_auth_feedback" prompt="授权反馈" width="150"/>
+                </a:columns>
+                <a:editors>
+                    <a:textArea id="ta_id"/>
+                </a:editors>
+            </a:grid>
+            <a:hBox/>
+        </a:screenBody>
+    </a:view>
+</a:screen>

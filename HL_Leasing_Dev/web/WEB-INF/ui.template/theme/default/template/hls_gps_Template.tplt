@@ -1,0 +1,213 @@
+<script src="http://maps.google.com/maps/api/js?sensor=false" type="text/javascript"></script>
+<style>
+	ul{
+	 list-style:none;
+	}
+	.main{
+	 clear:both;
+	 padding:8px;
+	}
+	.menu0 li{
+	 display:block;
+	 float: left;
+	 padding: 4px 0;
+	 width:50%;
+	 text-align: center;
+	 cursor:pointer;
+	 background: #D1E5FD;
+	}
+	.menu0 li.hover{
+	 background: #FFF;
+	}
+	#main0 ul{
+	 display: none;
+	}
+	#main0 ul.block{
+	 display: block;
+	}
+</style>
+ </head>
+ <body>
+	<script> 
+	   var geocoder;	
+	   var map; 
+	   var elevator;
+	   var infoWindow;
+	   var lon;
+	   var lat;
+	   function init_map(arr){
+	   	    var latlng;
+	   	    var zoom_pam;
+	   	    geocoder = new google.maps.Geocoder();
+	   	    elevator = new google.maps.ElevationService();
+	   	    infoWindow = new google.maps.InfoWindow();
+	   		//地图中心坐标
+	   		if(arr.length == 1){
+	   	    	latlng = new google.maps.LatLng(arr[0].get('latitude'),arr[0].get('longitude'));
+	   	    	zoom_pam = 16;
+	   	    }else{
+	   	    	latlng = new google.maps.LatLng(34.075651,107.868527);
+	   	    	zoom_pam = 4;
+	   	    }
+		    var myOptions = {
+		       		zoom: zoom_pam,                  
+			   		mapTypeId: google.maps.MapTypeId.ROADMAP,                  
+			   		center:latlng,
+			   		scaleControl: true               
+			   		}; 
+		   	//生成google地图                
+	   	    map = new google.maps.Map(document.getElementById('map'),myOptions); 
+			setMarckers(arr);  
+	   		//Ext.get("img_id").remove(); 
+	   } 
+	   
+	   function setMarckers(locations){
+	   		for(var i = 0;i < locations.length;i++){
+	   			var machine_number = locations[i].get('machine_number');
+	   		    var longitude = locations[i].get('longitude');
+	   		    var latitude = locations[i].get('latitude');
+	   			
+	   			var mylatlng = new google.maps.LatLng(latitude,longitude);
+	   			var title = '当前机号:<a onClick="machine_link(\''+machine_number+'\')">' + machine_number + '</a><br/>经度：'+longitude+'<br/>纬度：'+latitude+'<br/>海拔：';
+				    
+				var marker = new google.maps.Marker({                    
+	       			position: mylatlng,                    
+		   			map: map                 
+	   			});
+				set_event(mylatlng,marker,title,longitude,latitude);    
+		   	}	
+	   }
+	  
+	  function set_event(mylatlng,marker,title,longitude,latitude){
+				google.maps.event.addListener(marker,'click',function() {	
+					lon = longitude;
+					lat = latitude;
+					getElecation(mylatlng,title,marker);
+		   		}); 
+		}    
+		//获取海拔
+		function getElecation(mylatlng,title,marker){
+			 var locations = [mylatlng];
+			 var positionalRequest = {'locations': locations};
+			 elevator.getElevationForLocations(positionalRequest, function(results, status) {
+			 	 if (status == google.maps.ElevationStatus.OK) {
+			 		if (results[0]) {
+			 		    var elevation = (results[0].elevation*0.3048).toFixed(2);
+			 		    title = title + elevation + '(米)<br/>地址：';
+			 		    getAddress(mylatlng,title,marker);
+			 		}
+			 	 }
+			 });	
+		}
+		
+		//获取地址
+		function getAddress(mylatlng,title,marker){
+			 geocoder.geocode({'latLng': mylatlng}, function(results, status) {
+						 var contentString = '<div style="width:85%;">'+
+					  			 '<ul class="menu0" id="menu0">'+
+								  '<li onclick="setTab(0,0)" class="hover">基本信息</li>'+
+								  '<li onclick="setTab(0,1)">天气情况</li>'+
+								 '</ul>'+
+								 '<div class="main" id="main0">'+
+								  '<ul class="block"><li>'+title + results[0].formatted_address+'</li></ul>'+
+								  '<ul><li id="tianqi_id"></li></ul>'+
+								 '</div>'+
+					  			'</div>';
+					      if (status == google.maps.GeocoderStatus.OK) {
+					      	  	//获取详细地址信息
+								infoWindow.setContent(contentString);
+								infoWindow.open(map,marker);
+					      } else {
+					        alert("Geocoder failed due to: " + status);
+					      }
+					    });
+		}
+		
+		function setTab(m,n){
+			 var tli=document.getElementById("menu"+m).getElementsByTagName("li");
+			 var mli=document.getElementById("main"+m).getElementsByTagName("ul");
+			 for(i=0;i<tli.length;i++){
+			  tli[i].className=i==n?"hover":"";
+			  mli[i].style.display=i==n?"block":"none";
+			 }
+			 if(n == 1){
+			    var weather_info = getWeather(lat,lon);
+			 	var tianqi_id = document.getElementById("tianqi_id");
+				tianqi_id.innerHTML = weather_info;		 	
+			 }
+		}
+		
+		//获取天气	
+		function getWeather(latitude,longitude){
+		   	   var title;
+		   	   Aurora.request({
+		   	   		url:'get_google_weather.svc',
+		   	   		para:{latitude:latitude,longitude:longitude},
+		   	   		success: function(args) {
+                       var low = args.result.low;
+                       var humidity = args.result.humidity;
+                       var windCondition = args.result.windCondition;
+                       var week = args.result.week;
+                       var high = args.result.high;
+                       var condition = args.result.condition;
+                       var exceptionMs = args.result.exceptionMs;
+                       if(exceptionMs != null){
+                       	  title = exceptionMs+'&nbsp;&nbsp;<a onClick="setTab(0,1)">刷新</a>';
+                       }else{
+                       	  title = week+"&nbsp;&nbsp;"+low+"~"+high+"&nbsp;&nbsp;"+condition+"<br/>"+humidity+"<br/>"+windCondition;
+                       }
+                    },
+                    sync:true,
+                    scope: this
+		   	   });
+		   	   return title;
+	   }
+		
+	   function initialize(arr) { 
+			var myLatLng = new google.maps.LatLng(arr[arr.length-1].get('latitude'),arr[arr.length-1].get('longitude'));  
+			var myOptions = {    
+				zoom: 10,    
+				center: myLatLng,    
+				mapTypeId: google.maps.MapTypeId.ROADMAP  
+				};  
+			var _map = new google.maps.Map(document.getElementById("_map_id"),myOptions);  
+			var flightPlanCoordinates = [];
+			for(var i=0;i<arr.length;i++){
+				var title = '信号:'+arr[i].get('signal_time');
+				var latlang = new google.maps.LatLng(arr[i].get('latitude'),arr[i].get('longitude'));
+				flightPlanCoordinates.push(latlang);
+				var marker = new google.maps.Marker({                    
+	       			position: latlang,                    
+		   			map: _map,
+		   			icon:'/hls_install/images/distance.png'                 
+	   			});
+				map_distance_event(_map,marker,title,latlang);
+			}       
+
+			var flightPath = new google.maps.Polyline({    
+				path: flightPlanCoordinates,    
+				strokeColor: "#11B0D9",    
+				strokeOpacity: 0.5,    
+				strokeWeight: 5  
+				});
+				
+				flightPath.setMap(_map);
+	   }
+	   
+	   function map_distance_event(_map,marker,title,latlang){
+	   		google.maps.event.addListener(marker,'click',function() {	
+						geocoder.geocode({'latLng': latlang}, function(results, status) {
+					      if (status == google.maps.GeocoderStatus.OK) {
+					      	  	//获取详细地址信息
+				   				new google.maps.InfoWindow({                    
+		        					content: title +'<br/>地址:'+ results[0].formatted_address                
+								}).open(_map,marker);  
+					      } else {
+					        alert("Geocoder failed due to: " + status);
+					      }
+					    });
+		   		});    
+	   }	
+	   
+	</script>    
+	<div id="map" style="height:100%;"></div>

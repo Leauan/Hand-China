@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ZLF  
+    $Date: 2014-12-31 上午11:19:45  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:fields>
+        <bm:field name="contract_id"/>
+        <bm:field name="contract_number" forDisplay="true" forQuery="true"/>
+        <bm:field name="contract_name" forDisplay="true" forQuery="true"/>
+        <bm:field name="inception_of_lease" databaseType="DATE" datatype="java.util.Date"/>
+        <bm:field name="unit_id"/>
+        <bm:field name="unit_id_desc"/>
+        <bm:field name="bp_id_tenant"/>
+        <bm:field name="bp_name"/>
+        <!-- <bm:field name="owner_user_id"/>
+        <bm:field name="owner_user_id_desc"/> -->
+        <bm:field name="lease_organization"/>
+        <bm:field name="lease_organization_desc"/>
+        <bm:field name="other_fee2"/>
+        <bm:field name="rebate_month"/>
+        <bm:field name="rebate_month_n"/>
+        <bm:field name="commission_confirm_flag"/>
+        <bm:field name="sum_amount"/>
+        <bm:field name="lease_times"/>
+        <bm:field name="lease_term"/>
+        <bm:field name="sale_consultant"/>
+        <bm:field name="employee_id"/>
+        <bm:field name="employee_name"/>
+        <bm:field name="lease_channel"/>
+        <bm:field name="commission_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="real_commission_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field field="rebate_month" queryOperator="="/>
+        <bm:query-field field="contract_id" queryOperator="="/>
+        <bm:query-field field="contract_number" queryOperator="like"/>
+        <bm:query-field field="contract_name" queryExpression="t1.contract_name like &apos;%&apos; || ${@contract_name} || &apos;%&apos;"/>
+        <bm:query-field field="inception_of_lease" queryOperator="="/>
+        <bm:query-field field="unit_id" queryOperator="="/>
+        <bm:query-field field="bp_id_tenant" queryOperator="="/>
+        <bm:query-field field="bp_name" queryExpression="t1.bp_name like &apos;%&apos; || ${@bp_name} || &apos;%&apos;"/>
+        <bm:query-field field="lease_organization" queryOperator="="/>
+        <!-- <bm:query-field field="lease_organization_desc" queryOperator="like"/> -->
+        <bm:query-field name="commission_confirm_flag" queryExpression="nvl(t1.commission_confirm_flag,&apos;N&apos;)=${@commission_confirm_flag}"/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter name="query" enforceOperations="query" expression="sum_amount != 0"/>
+        <bm:data-filter name="query" expression="not exists (select *　from con_contract_cashflow cc where cc.contract_id=t1.contract_id and cc.billing_status in (&apos;PARTIAL&apos;,&apos;NOT&apos;) and cc.cf_item in (109,99,62) ) and lease_channel not in(&apos;00&apos;,&apos;02&apos;) and t1.contract_status in (&apos;INCEPT&apos;) and t1.data_class = &apos;NORMAL&apos;"/>
+    </bm:data-filters>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        lv.lease_channel,
+                        lv.contract_id,
+                        lv.contract_number,
+                        lv.contract_name,
+                        lv.inception_of_lease,
+                        lv.unit_id,
+                        (SELECT u.description FROM exp_org_unit_vl u WHERE u.unit_id = lv.unit_id) AS unit_id_desc,
+                        lv.bp_id_tenant,
+                        lv.bp_name,
+                        lv.employee_id,
+                        lv.employee_name,
+                        (SELECT pp.sale_consultant FROM prj_project pp WHERE pp.project_id=lv.project_id) sale_consultant,
+                        lv.lease_organization,
+                        lv.lease_organization_desc,
+                        lv.other_fee2,
+                        lv.rebate_month,
+                        (select code_value_name from sys_code_values_v where lv.rebate_month = code_value and code = 'SYS_MONTH') rebate_month_n,
+                        lv.commission_confirm_flag,
+                        lv.lease_times,
+                        lv.contract_status,
+                        lv.data_class,
+                        lv.lease_term,
+                        lv.other_fee2 real_commission_amount,
+                        (SELECT SUM(cv.due_amount)-lv.down_payment FROM con_contract_cashflow_all_v cv WHERE lv.contract_id=cv.contract_id AND cv.cf_item IN (109,99,62)) sum_amount,
+                        (SELECT SUM(cv.due_amount)-lv.down_payment FROM con_contract_cashflow_all_v cv WHERE lv.contract_id=cv.contract_id AND cv.cf_item IN (109,99,62))*decode(lease_term,1,0.011,0.013) commission_amount
+                    FROM
+                        con_contract_v lv
+                    ) t1 #WHERE_CLAUSE#
+                    order by t1.contract_number
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

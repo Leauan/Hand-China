@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hand  
+    $Date: 2016-6-24 上午10:13:05  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" alias="t1" baseTable="CON_PERSONS_DISTRICT_AREA" needAccessControl="false">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    fp.province_code area_id,
+                    NULL parent_area_id,
+                    'PROVINCE' area_type,
+                    fp.description area_desc,
+                    DECODE(
+                    (SELECT
+                        COUNT(*) FROM CON_PERSONS_DISTRICT_AREA ar WHERE ar.province_id = fp.province_id AND
+                        ar.staff_id                                             =${/parameter/@staff_id}
+                    ),0,'N','Y') checked
+                FROM
+                    fnd_province fp
+                WHERE
+                    fp.enabled_flag = 'Y'
+                    and EXISTS (SELECT 1
+          FROM con_collection_persons cp,
+               con_collection_group   cg,
+               con_district_area      cda
+         WHERE cp.staff_id = ${/parameter/@staff_id}
+           AND cp.group_id = cg.group_id
+           and cg.group_id = cda.group_id
+           and cda.province_id = fp.province_id)
+                UNION ALL
+                SELECT
+                    fc.city_code area_id,
+                    fp.province_code parent_area_id,
+                    'CITY' area_type,
+                    fc.description area_desc,
+                    DECODE(
+                    (SELECT
+                        COUNT(*) FROM CON_PERSONS_DISTRICT_AREA ar WHERE ar.province_id = fp.province_id AND
+                        ar.city_id                                                      = fc.city_id AND
+                        ar.staff_id                                             =${/parameter/@staff_id}
+                    ),0,'N','Y') checked
+                FROM
+                    fnd_city fc,
+                    fnd_province fp
+                WHERE
+                    fc.province_id    = fp.province_id AND
+                    fp.enabled_flag   = 'Y' AND
+                    fc.enabled_flag   = 'Y' AND
+                    fc.city_code NOT IN('110000','120000','500000','310000')
+                     AND EXISTS (SELECT 1
+          FROM con_collection_persons cp,
+               con_collection_group   cg,
+               con_district_area      cda
+         WHERE cp.staff_id =${/parameter/@staff_id}
+           AND cp.group_id = cg.group_id
+           and cg.group_id = cda.group_id
+           and cda.city_id = fc.city_id)
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

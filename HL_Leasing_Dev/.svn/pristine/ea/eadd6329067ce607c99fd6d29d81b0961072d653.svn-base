@@ -1,0 +1,530 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-12-3 上午11:18:39  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.document_category = &apos;JE&apos;" fetchAll="true" model="basic.hls_document_type_for_lov" queryOrderBy="document_type desc" rootPath="hls_document_type_path"/>
+        <a:model-query fetchAll="true" model="hls.HLS301.get_sbo_limit" rootPath="get_limit"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="welcome_link_id" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="hls_journal_con_contract_update_link_id" url="${/request/@context_path}/modules/cont/CON500/con_contract_update.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="check_link" url="${/request/@context_path}/modules/hls/HLS530/hls_journal_check.svc"/>
+        <a:link id="export_jum_link" model="hls.HLS301.hls_journal_post_to_nc" modelaction="batch_update"/>
+        <a:link id="gh_nc_je_log_link" url="${/request/@context_path}/modules/nc/NC100/hls_nc_bp_log_query.screen"/>
+        <a:link id="hls_sap_transafer_link" model="sap.hls_sap_transfer" modelaction="batch_update"/>
+        <a:link id="hls_sap_send_link" model="sap.submit_process_accounts" modelaction="batch_update"/>
+        <a:link id="hls301_send_data" url="${/request/@context_path}/modules/hls/HLS301/hls_journal_send.svc"/>
+        <a:link id="hls301_send_data_splice_id" model="hls.HLS301.hls_journal_post_to_sbo" modelaction="update"/>
+        <a:link id="hls301_send_bp_to_sbo" model="hls.HLS301.hls_bp_post_to_sbo" modelaction="update"/>
+        <script><![CDATA[
+            function lock_current_window2(msg) {
+                Aurora.Masker.mask(Ext.getBody(), msg);
+            }
+            
+            function lock_current_window() {
+                Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_current_window() {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            //查询按钮
+            
+            function hls301_journal_query() {
+                $('hls_journal_header_result_ds').query();
+            }
+            //重置按钮
+            
+            function hls301_journal_reset() {
+                $('hls_journal_header_query').reset();
+            }
+            //退出按钮
+            
+            function hls301_journal_exit() {
+                location.href = $('welcome_link_id').getUrl();
+                parent.shMenu('show');
+            }
+            
+            function construct_from_to() {
+                var config = ['responsibility_center_code', 'responsibility_center_name', 'account_code', 'account_name'];
+                var pattern = ['_from', '_to'];
+                var obj = {};
+                for (var i = 0,
+                    j = config.length;i < j;i++) {
+                    for (var m = 0,
+                        n = pattern.length;m < n;m++) {
+                        obj[config[i] + pattern[m]] = config[i] + pattern[n - 1 - m];
+                    }
+                }
+                return obj;
+            }
+            
+            function onUpdate_para_journalQueryDs(ds, record, name, value, oldvalue) {
+                var from_to = construct_from_to();
+                var opposite_name = from_to[name];
+                if (!Ext.isEmpty(opposite_name)) {
+                    var opposite_value = record.get(opposite_name);
+                    if (!Ext.isEmpty(value) && Ext.isEmpty(opposite_value)) {
+                        record.set(opposite_name, value);
+                    }
+                }
+            
+            }
+            
+            function hls301_link_dynamic(reocrd_id, journal_header_id) {
+            
+                var maintain_type = 'READONLY';
+                var record = $('hls_journal_header_result_ds').findById(reocrd_id);
+            
+            
+                var param = record.data;
+                param['function_code'] = 'HLS301';
+                param['document_id'] = journal_header_id;
+                param['document_category'] = 'JE';
+                param['function_usage'] = 'QUERY';
+                param['maintain_type'] = maintain_type;
+                param['url_title'] = '${l:HLS530.JOURNAL_LINE_QUERY}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'hls_journal_con_contract_update_link_id');
+            }
+            
+            function export_jum(journal_header_id) {
+                Aurora.request({
+                    url: $('export_jum_link').getUrl(),
+                    para: {
+                        journal_header_id: journal_header_id
+                    },
+                    success: function(res) {
+                        $('hls_journal_header_result_ds').query();
+                    },
+                    failure: function() {
+                        f_hls.winNoMask();
+                    },
+                    error: function() {
+                        f_hls.winNoMask();
+                    },
+                    scope: this
+                });
+            }
+            
+            function journal_import(datas) {
+                lock_current_window();
+                Aurora.request({
+                    url: $('export_jum_link').getUrl(),
+                    para: datas,
+                    success: function(res) {
+                        unlock_current_window();
+                        $('hls_journal_header_result_ds').query();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            function hls301_journal_import() {
+                var ds = $('hls_journal_header_result_ds');
+                var records = ds.getSelected();
+                if (records.length == 0) {
+                    Aurora.showMessage('提示', '请选择一条数据进行操作！');
+                    return;
+                }
+                var datas = [];
+                for (var i = 0;i < records.length;i++) {
+                    var obj = {};
+                    obj['journal_header_id'] = records[i].get('journal_header_id');
+            
+                    obj['_status'] = 'execute';
+                    datas[i] = obj;
+                }
+                journal_import(datas);
+            }
+            
+            function hls301_journal_num_render(value, record, name) {
+                if (name == 'journal_num') {
+                    return '<a href="javascript:hls301_link_dynamic(' + record.id + ',' + record.get('journal_header_id') + ');">' + value + '</a>';
+                }
+                if (name == 'export') {
+                    if (record.get('post_gl_status') != 'Y') {
+                        return '<a href="javascript:export_jum(' + record.get('journal_header_id') + ');">' + '导入' + '</a>';
+                    }
+                }
+                if (name == 'nc_log') {
+                    if (record.get('result_id')) {
+                        return '<a href="javascript:openLogPage(\'' + record.get('result_id') + '\')";>日志</a>';
+                    }
+                }
+            }
+            
+            function openLogPage(result_id) {
+                new Aurora.Window({
+                    id: 'hls_nc_bp_log_window',
+                    url: $('gh_nc_je_log_link').getUrl() + '?result_id=' + result_id,
+                    title: '日志信息',
+                    height: 450,
+                    width: 700
+                });
+            }
+            
+            function on_loan_journal_header_query(ds, qpara) {
+                qpara['gld_flag'] = 'N';
+            }
+            
+            function select_check_box(record) {
+                if (record.get('post_gl_status') == 'Y' || record.get('post_gl_status') == 'PROCESSING') {
+                    return false;
+                } else {
+                    return true;
+                }
+            }
+            
+            function hls301_sap_transafer() {
+                var detail_mask = Ext.getBody();
+                var ds = $('hls_journal_header_result_ds');
+                var records = ds.getSelected();
+                if (records.length == 0) {
+                    return;
+                }
+                var datas = [];
+                for (var i = 0;i < records.length;i++) {
+                    var obj = {};
+                    obj['journal_header_id'] = records[i].get('journal_header_id');
+                    obj['_status'] = 'update';
+                    datas[i] = obj;
+                }
+                Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                Aurora.request({
+                    url: $('hls_sap_transafer_link').getUrl(),
+                    para: datas,
+                    success: function(res) {
+                        Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 2000
+                        });
+                        Aurora.Masker.unmask(detail_mask);
+                    },
+                    failure: function() {
+                        Aurora.Masker.unmask(detail_mask);
+                    },
+                    error: function() {
+                        Aurora.Masker.unmask(detail_mask);
+                    },
+                    scope: this
+                });
+            }
+            
+            function hls301_sap_send() {
+                var detail_mask = Ext.getBody();
+                var ds = $('hls_journal_header_result_ds');
+                var records = ds.getSelected();
+                if (records.length == 0) {
+                    return;
+                }
+                var datas = [];
+                for (var i = 0;i < records.length;i++) {
+                    var obj = {};
+                    obj['journal_header_id'] = records[i].get('journal_header_id');
+                    obj['_status'] = 'update';
+                    datas[i] = obj;
+                }
+                Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                Aurora.request({
+                    url: $('hls_sap_send_link').getUrl(),
+                    para: datas,
+                    success: function(res) {
+                        Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 2000
+                        });
+                        $('hls_journal_header_result_ds').query($('hls_journal_header_result_ds').currentPage);
+                        Aurora.Masker.unmask(detail_mask);
+                    },
+                    failure: function() {
+                        Aurora.Masker.unmask(detail_mask);
+                    },
+                    error: function() {
+                        Aurora.Masker.unmask(detail_mask);
+                    },
+                    scope: this
+                });
+            }
+            //手动传输凭证
+            function hls301_journal_send() {
+                var je_detail_count = 0;
+                var count = 0;
+                var batch_flag;
+                var records = $('hls_journal_header_result_ds').getSelected();
+                var limit = '${get_limit/record/@sbo_limit}';
+                if  (isNaN(limit)){
+                    Aurora.showMessage('${l:HLS.PROMPT}', '传输上限获取失败，请联系管理员！');
+                    return;
+                }
+                if (records.length < 1) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请选择至少一条数据');
+                    return;
+                }
+                var datas = [];
+            
+                for (var i = 0;i < records.length;i++) {
+                    if (records[i].get('post_gl_status') == 'Y' || records[i].get('post_gl_status') == 'PROCESSING') {
+                        Aurora.showMessage('${l:HLS.PROMPT}', '该凭证已传输至SBO系统');
+                        return;
+                    }
+                    je_detail_count = Number(records[i].get('je_detail_count'));
+                    count = je_detail_count + Number(count);
+                    var data = {
+                        journal_header_id: records[i].get('journal_header_id')
+                    };
+                    datas.push(data);
+                }
+                if (count > limit) {
+                    batch_flag = 'Y';
+                } else {
+                    batch_flag = 'N';
+                }
+                var queryParams = new Object();
+                queryParams['details'] = datas;
+                queryParams['batch_flag'] = batch_flag;
+                if (count > limit) {
+                    Aurora.showConfirm('提示', '由于凭证行数超过'+limit+'行，传输至SBO后不能立即得到返回结果，您确定继续吗？', function() {
+                        //lock_current_window();
+                        lock_current_window2('正在传送，请勿离开当前界面。。。');
+                        Aurora.request({
+                            url: $('hls301_send_data').getUrl(),
+                            para: queryParams,
+                            success: function() {
+                                Aurora.SideBar.show({
+                                    msg: '已提交请求',
+                                    duration: 3000
+                                });
+                                unlock_current_window();
+                                $('hls_journal_header_result_ds').query();
+                            },
+                            failure: function() {
+                                unlock_current_window();
+                            },
+                            error: function() {
+                                unlock_current_window();
+                            },
+                            scope: this
+                        });
+                    });
+                } else {
+                    lock_current_window2('正在传送，请勿离开当前界面。。。');
+                    Aurora.request({
+                        url: $('hls301_send_data').getUrl(),
+                        para: queryParams,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '已提交请求',
+                                duration: 3000
+                            });
+                            unlock_current_window();
+                            $('hls_journal_header_result_ds').query();
+                        },
+                        failure: function() {
+                            unlock_current_window();
+                        },
+                        error: function() {
+                            unlock_current_window();
+                        },
+                        scope: this
+                    });
+                }
+            
+            }
+            
+            function hls301_bp_send() {
+                Aurora.showConfirm('提示', '商业伙伴（项目已创建合同）同步至SBO，（上限400）您确定继续吗？', function() {
+                        lock_current_window();
+                        Aurora.request({
+                            url: $('hls301_send_bp_to_sbo').getUrl(),
+                            success: function() {
+                                Aurora.SideBar.show({
+                                    msg: '提交成功',
+                                    duration: 3000
+                                });
+                                unlock_current_window();
+                                //$('hls_journal_header_result_ds').query();
+                            },
+                            failure: function() {
+                                unlock_current_window();
+                            },
+                            error: function() {
+                                unlock_current_window();
+                            },
+                            scope: this
+                        });
+                    });
+            }
+            
+            function hls_journal_header_result_func(record, name) {
+                if (name == 'post_gl_log') {
+                    return 'hls_journal_headers_grid_textArea_id';
+                }
+                return '';
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:dataSets>
+            <a:dataSet id="hls301_yes_no_ds" lookupCode="YES_NO"/>
+            <a:dataSet id="hls_document_type_ds">
+                <a:datas dataSource="/model/hls_document_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="post_gl_status_ds" lookupCode="SUBSYSTEM_POST_GL_FLAG"/>
+            <a:dataSet id="hls_journal_header_query">
+                <a:fields>
+                    <a:field name="journal_num"/>
+					 <a:field name="desc"/>
+                    <a:field name="category_code_desc" displayField="description" options="hls_document_type_ds" returnField="category_code" valueField="document_type"/>
+                    <a:field name="journal_date_from"/>
+                    <a:field name="journal_date_to"/>
+                    <a:field name="total_amount_dr_from"/>
+                    <a:field name="total_amount_dr_to"/>
+                    <a:field name="period_name"/>
+                    <a:field name="external_journal_num"/>
+                    <a:field name="bp_id_tenant"/>
+                    <a:field name="bp_id_tenant_desc" lovGridHeight="350" lovHeight="550" lovService="basic.hls_bp_master_v_for_lov?bp_category=TENANT" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="bp_name" to="bp_id_tenant_desc"/>
+                            <a:map from="bp_id" to="bp_id_tenant"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="source_table"/>
+                    <a:field name="reference1"/>
+                    <a:field name="je_transaction_code"/>
+                    <a:field name="je_transaction_desc" lovGridHeight="420" lovHeight="550" lovPageSize="20" lovService="gld.GLD104.gld_je_transaction_for_lov" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="je_transaction_code" to="je_transaction_code"/>
+                            <a:map from="je_transaction_desc" to="je_transaction_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="post_gl_status"/>
+                    <a:field name="post_gl_status_desc" displayField="code_value_name" options="post_gl_status_ds" returnField="post_gl_status" valueField="code_value"/>
+                    <a:field name="responsibility_center_name_from" lovHeight="500" lovLabelWidth="100" lovService="fnd.FND2110.fnd_responsibility_centers_lov" lovWidth="550" title="HLS.RESPONSIBILITY_CENTER_NAME">
+                        <a:mapping>
+                            <a:map from="responsibility_center_id" to="responsibility_center_id"/>
+                            <a:map from="responsibility_center_code" to="responsibility_center_code_from"/>
+                            <a:map from="responsibility_center_name" to="responsibility_center_name_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="responsibility_center_name_to" lovHeight="500" lovLabelWidth="100" lovService="fnd.FND2110.fnd_responsibility_centers_lov" lovWidth="550" title="HLS.RESPONSIBILITY_CENTER_NAME">
+                        <a:mapping>
+                            <a:map from="responsibility_center_code" to="responsibility_center_code_to"/>
+                            <a:map from="responsibility_center_name" to="responsibility_center_name_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="account_code_from" autoComplete="true" lovHeight="500" lovLabelWidth="100" lovService="hls.HLS301.hls_journal_account_for_lov" lovWidth="500" title="HLS530.ACCOUNT_NAME">
+                        <a:mapping>
+                            <a:map from="account_code" to="account_code_from"/>
+                            <a:map from="description" to="account_name_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="account_code_to" autoComplete="true" lovHeight="600" lovLabelWidth="100" lovUrl="${/request/@context_path}/modules/hls/HLS530/gld_company_account_tree.screen" lovWidth="550" title="HLS530.ACCOUNT_NAME">
+                        <a:mapping>
+                            <a:map from="account_code" to="account_code_to"/>
+                            <a:map from="description" to="account_name_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="company_short_name" lovHeight="500" lovLabelWidth="100" lovService="fnd.fnd_companies_lov" lovWidth="550" title="HLS530.JOURNAL_COMPANY">
+                        <a:mapping>
+                            <a:map from="company_id" to="je_company_id"/>
+                            <a:map from="company_short_name" to="company_short_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="currency_code" lovHeight="500" lovLabelWidth="100" lovService="basic.gld_currency_v_lov" lovWidth="550">
+                        <a:mapping>
+                            <a:map from="currency_code" to="currency_code"/>
+                            <a:map from="currency_name" to="currency_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_number"/>
+                    <a:field name="external_journal_num"/>
+                    <a:field name="merge_parent_flag_desc" defaultValue="否" displayField="code_value_name" options="hls301_yes_no_ds" returnField="merge_parent_flag" valueField="code_value"/>
+                    <a:field name="merge_parent_flag" defaultValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_para_journalQueryDs"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="hls_journal_header_result_ds" autoPageSize="true" autoQuery="true" model="hls.HLS301.hls_journal_header_v" queryDataSet="hls_journal_header_query" selectFunction="select_check_box" selectable="true">
+                <a:events>
+                    <a:event name="query" handler="on_loan_journal_header_query"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:toolbarButton click="hls301_journal_exit" text="HLS.EXIT"/>
+                <a:toolbarButton click="hls301_journal_reset" text="HLS.RESET"/>
+                <a:toolbarButton click="hls301_journal_query" text="HLS.QUERY"/>
+                <a:toolbarButton click="hls301_journal_send" text="凭证传输"/>
+                <a:toolbarButton click="hls301_bp_send" text="商业伙伴传输"/>
+                <!--<a:toolbarButton click="hls301_journal_import" text="批量导入"/>
+                <a:toolbarButton click="hls301_sap_transafer" text="转换为SAP凭证"/>
+                <a:toolbarButton click="hls301_sap_send" text="发送SAP凭证"/> -->
+            </a:screenTopToolbar>
+            <a:form column="4" labelSeparator=" " labelWidth="100" marginWidth="40" title="HAP_QUERY_TITLE">
+                <!-- <a:lov name="account_code_from" bindTarget="hls_journal_header_query" prompt="HLS530.ACCOUNT_NAME_FROM"/>
+                <a:lov name="account_code_to" bindTarget="hls_journal_header_query" prompt="HLS530.ACCOUNT_NAME_TO"/> -->
+                <a:comboBox name="merge_parent_flag_desc" bindTarget="hls_journal_header_query" prompt="合并凭证"/>
+                <!-- <a:lov name="responsibility_center_name_from" bindTarget="hls_journal_header_query" prompt="HLS530.RESPONSIBILITY_CENTER_NAME_FROM"/> -->
+                <!-- <a:lov name="responsibility_center_name_to" bindTarget="hls_journal_header_query" prompt="HLS530.RESPONSIBILITY_CENTER_NAME_TO"/> -->
+                <!-- <a:lov name="company_short_name" bindTarget="hls_journal_header_query" prompt="HLS530.JOURNAL_COMPANY"/> -->
+                <a:datePicker name="journal_date_from" bindTarget="hls_journal_header_query" prompt="HLS530.JOURNAL_DATE_FROM"/>
+                <a:datePicker name="journal_date_to" bindTarget="hls_journal_header_query" prompt="HLS530.JOURNAL_DATE_TO"/>
+                <a:numberField name="total_amount_dr_from" allowFormat="true" bindTarget="hls_journal_header_query" prompt="HLS530.TOTAL_AMOUNT_DR_FROM"/>
+                <a:numberField name="total_amount_dr_to" allowFormat="true" bindTarget="hls_journal_header_query" prompt="HLS530.TOTAL_AMOUNT_DR_TO"/>
+                <!-- <a:textField name="project_name" bindTarget="hls_journal_header_query" prompt="HLS.PROJECT_NAME"/> -->
+                <a:lov name="je_transaction_desc" bindTarget="hls_journal_header_query" prompt="HLS530.JE_TRANSACTION"/>
+                <!-- <a:lov name="currency_code" bindTarget="hls_journal_header_query" prompt="HLS.CURRENCY"/> -->
+                <a:lov name="bp_id_tenant_desc" bindTarget="hls_journal_header_query" prompt="HLS.TENANT_CODE"/>
+                <a:comboBox name="post_gl_status_desc" bindTarget="hls_journal_header_query" prompt="HLS530.IS_POSTED"/>
+                <!-- <a:textField name="external_journal_num" bindTarget="hls_journal_header_query" prompt="HLS530.EXTERNAL_JOURNAL_NUM"/> -->
+                <!-- <a:textField name="reference1" bindTarget="hls_journal_header_query" prompt="HLS530.REFERENCE1"/> -->
+                <a:textField name="contract_number" bindTarget="hls_journal_header_query" prompt="合同编号"/>
+                <a:textField name="journal_num" bindTarget="hls_journal_header_query" prompt="HLS530.JOURNAL_NUM"/>
+                <a:textField name="sbo_num" bindTarget="hls_journal_header_query" prompt="SBO凭证号"/>
+                <a:textField name="sbo_req_number" bindTarget="hls_journal_header_query" prompt="SBO请求批次号"/>
+				 <a:textField name="desc" bindTarget="hls_journal_header_query" prompt="凭证摘要"/>
+
+            </a:form>
+            <a:grid id="hls_journal_headers_grid" bindTarget="hls_journal_header_result_ds" marginHeight="250" marginWidth="40" navBar="true">
+                <a:toolBar>
+                    <a:button type="excel"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="journal_num" lock="true" prompt="HLS530.JOURNAL_NUM" renderer="hls301_journal_num_render" width="120"/>
+                    <a:column name="sbo_num" align="center" prompt="SBO凭证号" width="130"/>
+                    <a:column name="js_company_short_name" prompt="HLS530.JOURNAL_COMPANY" width="80"/>
+                    <a:column name="period_name" align="center" prompt="HLS530.PERIOD_NAME" width="80"/>
+                    <a:column name="journal_date" align="center" prompt="HLS530.JOURNAL_DATE" renderer="Aurora.formatDate" width="80"/>
+                    <!-- <a:column name="total_amount_dr" align="right" prompt="HLS530.TOTAL_AMOUNT_DR" renderer="Aurora.formatMoney" width="120"/>-->
+                    <a:column name="currency_desc" align="center" prompt="HLS.CURRENCY" width="80"/>
+                    <a:column name="total_amount_fuc_dr" align="right" prompt="金额" renderer="Aurora.formatMoney" width="80"/>
+                    <a:column name="je_transaction_desc" prompt="HLS530.JE_TRANSACTION" width="150"/>
+                    <a:column name="post_gl_status_desc" align="center" prompt="HLS.STATUS" width="80"/>
+                    <a:column name="description" prompt="HLS530.JOURNAL_DESCRIPTION" width="130"/>
+                    <a:column name="je_detail_count" prompt="凭证行数量" width="50"/>
+                    <a:column name="post_gl_log" editorFunction="hls_journal_header_result_func" prompt="传输信息" width="150"/>
+                    <a:column name="sbo_req_number" align="center" prompt="SBO请求批次号" width="130"/>
+                    <!-- <a:column name="export" prompt="导入" width="50"  align="center"  renderer="hls301_journal_num_render"/> -->
+                    <!-- <a:column name="nc_log" align="center" prompt="NC导入日志" renderer="hls301_journal_num_render" width="70"/> -->
+                </a:columns>
+                <a:editors>
+                    <a:textArea id="hls_journal_headers_grid_textArea_id" readOnly="true"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

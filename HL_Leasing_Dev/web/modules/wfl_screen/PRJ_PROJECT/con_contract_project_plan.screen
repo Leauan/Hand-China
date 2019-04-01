@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-6-12 下午02:21:03  
+    $Revision: 1.0  
+    $Purpose: 项目方案
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query model="cont.CON751.con_contract_v_query" rootPath="con_contract_rp"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="uploadfile_link" url="${/request/@context_path}/uploadFile.screen"/>
+        <!-- <a:link id="print_project_application_id" url="${/request/@context_path}/modules/prj/PRJ501/print_project_application.screen"/> -->
+        <script><![CDATA[
+            function cdd_editorFunction(record, name) {
+                if (name == 'description') {
+                    if (record.get('sys_flag') == 'Y') {
+                        return '';
+                    }
+                    return 'cdd_tf_id';
+                } else if (name == 'paper_required' || name == 'attachment_required' || name == 'not_applicable') {
+                    return 'cdd_ck_id';
+                } else if (name == 'note') {
+                    return 'cdd_tf_id';
+                } else if (name == 'attachment_tab_group' && record.isNew) {
+                    return 'cdd_lov_id';
+                } else {
+                    return '';
+                }
+            }
+            
+            function set_guar_type(ds) {
+                // ds = $('guar_ds').getAll();
+                // var value = '';
+                // for (i = 0;i < ds.length;i++) {
+                    // value = value + (i + 1) + '.' + ds[i].get('names') + ds[i].get('all_type') + '\n';
+            
+                // }
+                // $('types').setValue(value);
+                $('rates').setValue('每天按未偿付租金的千分之一');
+            }
+            
+            function doloading_application() {
+                location.href = $('print_project_application_id').getUrl() + "?project_id=${/parameter/@project_id}";
+            }
+            
+            
+            
+            
+            function update_attachment_renderer(value, record, name) {
+                var attach_count = record.get('attach_count');
+                var content_id = record.get('content_id');
+                if (content_id && attach_count > 0) {
+                    return '<a href="javascript:open_uploadfile_win(' + content_id + ')"><div style="color:red">附件</div></a>';
+                } else if (content_id) {
+                    return '<a href="javascript:open_uploadfile_win(' + content_id + ')">附件</a>';
+                }
+            }
+            
+            function open_uploadfile_win(content_id) {
+                var win=new Aurora.Window({
+                    url: $('uploadfile_link').getUrl(),
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    params: {
+                        'table_name': 'CON_CONTRACT_CONTENT_WORKFLOW',
+                        'header_id': content_id
+                    },
+                    width: 850,
+                    height: 400
+                });
+                win.on('close',function(){
+                    $('con_contract_update_print_detail_line_ds').query();
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="con_insurance_ds" autoQuery="true" queryUrl="${/request/@context_path}/autocrud/cont.CON511.con_contract_insurance/query?contract_id=${/parameter/@contract_id}"/>
+            <a:dataSet id="less_item_ds" autoQuery="true" queryUrl="${/request/@context_path}/autocrud/prj.PRJ501.survey_less_item/query?project_id=${/parameter/@project_id}"><![CDATA[
+            ]]></a:dataSet>
+            <a:dataSet id="ca_culator_ds" autoQuery="true" queryUrl="${/request/@context_path}/autocrud/prj.PRJ501.project_calculator_hd/query?project_id=${/parameter/@project_id}"><![CDATA[
+              ]]></a:dataSet>
+            <a:dataSet id="guar_ds" autoQuery="true" queryUrl="${/request/@context_path}/autocrud/prj.PRJ501.guar_type/query?project_id=${/parameter/@project_id}">
+                <a:events>
+                    <a:event name="load" handler="set_guar_type"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="con_contract_update_print_detail_header_ds" loadData="true" model="cont.CON500.con_contract_v">
+                <a:fields>
+                    <a:field name="contract_number" readOnly="true"/>
+                    <a:field name="contract_name" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con_contract_update_print_detail_line_ds" loadData="true" model="cont.CON500.con_contract_content_v" queryUrl="${/request/@context_path}/autocrud/cont.CON500.con_contract_content_v/query?contract_id=${/parameter/@contract_id}" selectable="true">
+                <a:fields>
+                    <a:field name="clause_usage_name" required="true"/>
+                    <a:field name="clause_usage"/>
+                    <a:field name="templet_name" lovGridHeight="350" lovHeight="500" lovService="basic.con_clause_templet_for_lov" lovWidth="500" required="true" title="CON505.CON_CONTENT_TEMPLET_NAME">
+                        <a:mapping>
+                            <a:map from="templet_id" to="templet_id"/>
+                            <a:map from="description" to="templet_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="content_number" required="true"/>
+                    <a:field name="available_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:tabPanel height="360" width="1200">
+                <a:tabs>
+                    <a:tab prompt="项目方案" width="100">
+                        <a:form width="1150">
+                            <a:hBox labelWidth="100">
+                                <a:textField name="tenant_name" bindTarget="less_item_ds" prompt="承租人" readOnly="true" span="2" width="408"/>
+                                <a:textField name="business_type_name" bindTarget="less_item_ds" prompt="租赁方式" readOnly="true"/>
+                                <a:numberField name="finance_amount" allowFormat="true" bindTarget="ca_culator_ds" prompt="租赁本金" readOnly="true"/>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:textField name="lease_subject" bindTarget="less_item_ds" prompt="租赁物" readOnly="true" span="2" width="408"/>
+                                <a:textField name="lease_get_method" bindTarget="less_item_ds" prompt="租赁物取得方式" readOnly="true"/>
+                                <!-- <a:numberField name="original_asset_value_1" allowFormat="true" bindTarget="less_item_ds" prompt="租赁物原值" readOnly="true"/> -->
+                                <a:numberField name="net_asset_value_1" allowFormat="true" bindTarget="less_item_ds" prompt="租赁物净值" readOnly="true"/>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:textField name="lease_term" bindTarget="ca_culator_ds" prompt="租赁期限" readOnly="true"/>
+                                <a:textField name="pay_type" bindTarget="ca_culator_ds" prompt="还租方式" readOnly="true"/>
+                                <a:percentField name="orginal_int_rate_display" bindTarget="ca_culator_ds" prompt="租赁利率" readOnly="true"/>
+                                <a:numberField name="residual_value" allowFormat="true" bindTarget="ca_culator_ds" prompt="留购价" readOnly="true"/>
+                                <!-- <a:textField name="business_type_name" bindTarget="less_item_ds" prompt="租赁方式" readOnly="true"/>
+                                    <a:numberField name="finance_amount" allowFormat="true" bindTarget="ca_culator_ds" prompt="租赁本金" readOnly="true"/> -->
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:percentField name="down_payment_ratio" bindTarget="ca_culator_ds" prompt="首付款比例" readOnly="true"/>
+                                <a:percentField name="lease_charge_ratio" bindTarget="ca_culator_ds" prompt="手续费比例" readOnly="true"/>
+                                <a:percentField name="deposit_ratio" bindTarget="ca_culator_ds" prompt="保证金比例" readOnly="true"/>
+                                <a:percentField name="btb_finance_ratio" bindTarget="ca_culator_ds" prompt="预估融资额比例" readOnly="true"/>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:numberField name="down_payment" allowFormat="true" bindTarget="ca_culator_ds" prompt="首付款" readOnly="true"/>
+                                <a:numberField name="lease_charge" allowFormat="true" bindTarget="ca_culator_ds" prompt="手续费" readOnly="true"/>
+                                <a:numberField name="deposit" allowFormat="true" bindTarget="ca_culator_ds" prompt="保证金" readOnly="true"/>
+                                <a:numberField name="btb_finance_amount" allowFormat="true" bindTarget="ca_culator_ds" prompt="预估融资额" readOnly="true"/>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:numberField name="project_income" allowFormat="true" bindTarget="ca_culator_ds" prompt="项目收入" readOnly="true"/>
+                                <a:numberField name="porject_cost" allowFormat="true" bindTarget="ca_culator_ds" prompt="预估项目成本" readOnly="true"/>
+                                <a:numberField name="project_tax" allowFormat="true" bindTarget="ca_culator_ds" prompt="增值税及附加" readOnly="true"/>
+                                <a:percentField name="btb_int_rate" bindTarget="ca_culator_ds" prompt="预估融资利率" readOnly="true"/>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:numberField name="project_profit_net" allowFormat="true" bindTarget="ca_culator_ds" prompt="预估项目净利" readOnly="true"/>
+                                <a:percentField name="orginal_irr" bindTarget="ca_culator_ds" prompt="IRR" readOnly="true"/>
+                                <a:percentField name="hd_user_col_n07" bindTarget="ca_culator_ds" prompt="预估项目ROE" readOnly="true"/>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:textArea name="risk_measure" bindTarget="less_item_ds" height="60" prompt="风险措施" readOnly="true" width="920"/>
+                            </a:hBox>
+                        </a:form>
+                    </a:tab>
+                    <a:tab prompt="合同文本附件" width="100">
+                        <a:form column="2" title="合同文本信息" width="952">
+                            <a:textField name="contract_number" bindTarget="con_contract_update_print_detail_header_ds" prompt="HLS.CONTRACT_NUMBER"/>
+                            <a:textField name="contract_name" bindTarget="con_contract_update_print_detail_header_ds" prompt="HLS.CONTRACT_NAME" width="330"/>
+                        </a:form>
+                        <a:grid id="con_contract_update_print_detail_grid_id" bindTarget="con_contract_update_print_detail_line_ds" height="200" width="950">
+                            <a:columns>
+                                <a:column name="clause_usage_name" prompt="HLS.CONTRACT_USAGE"/>
+                                <a:column name="bp_name" prompt="HLS.BP_NAME" width="200"/>
+                                <a:column name="bp_category_desc" prompt="HLS.BP_CATEGORY"/>
+                                <a:column name="bp_class_desc" prompt="HLS.BP_CLASS"/>
+                                <!-- <a:column name="asset_detail" align="center" prompt="CON505.CON_CONTENT_ASSET_DETAIL" renderer="see_asset_detail_renderer"/> -->
+                                <a:column name="content_number" prompt="CON505.CON_CONTENT_NUMBER" width="200"/>
+                                <a:column name="attachment" align="center" prompt="HLS.ATTACHMENT" renderer="update_attachment_renderer" width="50"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:lov id="print_detail_grid_lov_id">
+                                    <a:events>
+                                        <a:event name="focus" handler="on_print_detail_lov_focus"/>
+                                    </a:events>
+                                </a:lov>
+                                <a:comboBox id="print_detail_grid_combobox_id"/>
+                                <a:textField id="print_detail_grid_textfield_id"/>
+                                <a:checkBox id="print_detail_grid_checkbox_id"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

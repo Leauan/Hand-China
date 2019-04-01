@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ZLF  
+    $Date: 2014-12-11 下午3:41:07  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure><![CDATA[
+	]]></a:init-procedure>
+    <a:view>
+        <a:link id="con571_new_cdd_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="con571_submit_link" model="cont.CON571.con_contract_add_submit" modelaction="update"/>
+        <a:link id="con571_additional_apply_link" url="${/request/@context_path}/modules/cont/CON571/con_contract_additional_apply.screen"/>
+        <a:link id="con571_new_cdd_query_link" url="${/request/@context_path}/autocrud/cont.CON572.con_add_atm_query/query"/>
+        <a:link id="con571_validate_contract_add_apply" model="cont.CON571.con_contract_add_apply_validate" modelaction="query"/>
+        <a:link id="con571_get_cdd_list_by_apply_id" model="cont.CON571.con_contract_add_apply" modelaction="query"/>
+        <script><![CDATA[
+    		function con571_save() {
+    		    if(!$('contract_info_ds').validate()||!$('add_apply_info_ds').validate()) {
+    		        return;
+    		    } else {
+	    			$('add_apply_info_ds').submit();
+	    		}
+	    		       		    
+    		}
+    		
+    		function con571_add_apply_submit() {
+    		    var record=$('add_apply_info_ds').getCurrentRecord();
+    		    if(Aurora.isEmpty(record.get('apply_id'))) {
+    		        Aurora.showMessage('提示','请先保存！');
+    		        return;
+    		    }
+    		    var apply_id=record.get('apply_id');
+    		    Aurora.showConfirm('确认','您确定提交吗？',function(){
+	    		    Aurora.request({
+	    		        url:$('con571_submit_link').getUrl(),
+	    		        para:{
+	    		            apply_id:apply_id
+	    		        },
+			         	success: function() {
+	                        Aurora.SideBar.show({
+	                            msg: '提交成功',
+	                            duration: 2000
+	                        });
+	                        Aurora.go($('con571_additional_apply_link').getUrl());
+	                    },
+	                    scope: this   		        
+	    		    });
+    		    });
+    		}
+    		
+    		window['con571_new_cdd_attachment_render'] = function(value, record, name) {
+                //debugger;
+                //var credit_status = $('con555_detail_ds').getCurrentRecord().get('credit_status');
+                var check_id = record.get('check_id');
+                var file_name = record.get('file_name');
+                var record_id = record.id;
+                //&& credit_status != 'BACK1'
+                if (!record.isNew && check_id ) {
+                    return '<a href="javascript:window[\'con571_new_cdd_attachtment_upload\'](\'' + record.get('check_id') + '\',\'' + file_name + '\',\'' + record_id + '\')">${l:HLS.ATTACHMENT}</a>';
+                }
+            };
+            
+            window['con571_new_cdd_attachtment_upload'] = function(check_id, file_name, record_id) {
+                //debugger;
+                var url = $('con571_new_cdd_uploadFile_id').getUrl() + '?table_name=PRJ_CDD_ITEM_CHECK&header_id=' + check_id;
+                var record = $('con571_add_atm_result_new_ds').getCurrentRecord();
+                var oldvalue = file_name ? file_name : null;
+                var apply_id = $('add_apply_info_ds').getCurrentRecord().get('apply_id');
+                paras = {
+                    apply_id: apply_id
+                };
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'con571_new_cdd_uploadFile_screen_id',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {
+                    //debugger;
+                    Aurora.request({
+                        url: $('con571_new_cdd_query_link').getUrl(),
+                        para: paras,
+                        success: function(data) {
+                            //debugger;
+                            $('con571_add_atm_result_new_ds').setQueryParameter('apply_id',$('add_apply_info_ds').getCurrentRecord().get('apply_id'));                          
+                            $('con571_add_atm_result_new_ds').query();
+            
+                            //var newvalue = $('con555_detail_result_ds').findById(record_id).get('file_name');
+                        },
+                        sync: true
+                    });           
+                });
+            
+            };
+            
+            window['con571_new_link_render'] = function(value, record, name) {
+                if (value != null) {
+                    var link = '${/request/@context_path}/atm_download.svc?attachment_id=';
+                    var str = value.split(';;');
+                    var url = '';
+                    for (var i = 0;i < str.length;i++) {
+                        var temp = str[i].split('--');
+                        if (!Aurora.isEmpty(temp[0])) {
+                            url = url + '<a href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                        }
+                    }
+                    return url; 
+                }
+            }; 
+            
+            
+            function atm_new_add_handler(ds,record,index) {
+                if(Aurora.isEmpty($('add_apply_info_ds').getCurrentRecord().get('apply_id'))) {
+                    Aurora.showMessage('提示','请先保存再添加附件！');
+                    $('con571_add_atm_result_new_ds').remove();
+                    return;
+                }
+                record.set('document_id',$('add_apply_info_ds').getCurrentRecord().get('apply_id'));
+                Aurora.request({
+                    url:$('con571_get_cdd_list_by_apply_id').getUrl(),
+                    para:{
+                        apply_id:$('add_apply_info_ds').getCurrentRecord().get('apply_id')
+                    },
+                    success:function(res) {
+                        record.set('cdd_list_id',res.result.record['cdd_list_id']);
+                    }
+                });
+            }
+            
+            function contract_info_updateHandler(ds,record,name,value,oldvalue) {
+                if(name == "contract_id") {
+                    Aurora.request({
+	    		        url:$('con571_validate_contract_add_apply').getUrl(),
+	    		        para:{
+	    		            contract_id:value
+	    		        },
+	    		        success:function(res) {
+	    		            var count=res.result.record['new_apply_num'];
+	    		            if(count>0) {
+	    		                Aurora.showMessage('提示','该合同已存在新建状态的申请，请勿重复申请！');
+	    		                ds.remove();
+	    		                return;
+	    		            } else {
+	    		                $('add_apply_info_ds').getCurrentRecord().set('contract_id',record.get('contract_id'));
+	    		    			$('add_apply_info_ds').getCurrentRecord().set('apply_status','NEW');
+	    		            }
+	    		        }
+	    		    });
+                }
+            }
+    	]]></script>
+        <a:dataSets>
+            <a:dataSet id="con571_add_atm_result_new_ds" model="cont.CON572.con_add_atm_query" pageSize="10" selectable="true">
+                <a:fields>
+                    <a:field name="document_table"/>
+                    <a:field name="document_id"/>
+                    <a:field name="paper_required" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="sign_required_flag" checkedValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="paper_required" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="attachment_required" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="sys_flag" defaultValue="N"/>
+                    <a:field name="cdd_list_id"/>
+                    <a:field name="note"/>
+                    <a:field name="note2"/>
+                    <a:field name="note3"/>
+                    <a:field name="note4"/>
+                    <a:field name="note5"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="atm_new_add_handler"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="contract_info_ds" autoCreate="true" loadData="true">
+                <a:fields>
+                    <a:field name="bp_name"/>
+                    <a:field name="bp_id_tenant"/>
+                    <a:field name="contract_number" autoComplete="true" autoCompleteField="contract_number" lovGridHeight="300" lovHeight="450" lovService="cont.CON500.con_contract_v_for_add" lovWidth="500" required="true" title="HLS.CONTRACT_NUMBER">
+                        <a:mapping>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="contract_name" to="contract_name"/>
+                            <a:map from="bp_id_tenant" to="bp_id_tenant"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_id"/>
+                    <a:field name="contract_name"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="contract_info_updateHandler"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="add_apply_info_ds" autoCreate="true" model="cont.CON571.con_contract_add_apply">
+                <a:fields>
+                    <a:field name="apply_desc" required="true"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="con571_save" text="保存"/>
+                <a:gridButton click="con571_add_apply_submit" text="提交"/>
+            </a:screenTopToolbar>
+            <a:form column="3" marginWidth="60" title="合同信息">
+                <a:lov name="contract_number" bindTarget="contract_info_ds" prompt="HLS.CONTRACT_NUMBER"/>
+                <a:textField name="contract_name" bindTarget="contract_info_ds" prompt="HLS.CONTRACT_NAME"/>
+                <a:textField name="bp_name" bindTarget="contract_info_ds" prompt="HLS.TENANT_NAME"/>
+            </a:form>
+            <a:tabPanel marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="申请说明">
+                        <a:form height="300" marginWidth="60" title="申请说明">
+                            <a:textArea name="apply_desc" bindTarget="add_apply_info_ds" height="250" prompt="申请说明" width="700"/>
+                        </a:form>
+                    </a:tab>
+                    <a:tab prompt="附件">
+                        <a:grid id="con571_add_atm_result_new_grid" bindTarget="con571_add_atm_result_new_ds" height="280" marginWidth="60" navBar="true">
+                            <a:toolBar>
+                                <a:button type="add"/>
+                                <a:button type="save"/>
+                                <a:button type="delete"/>
+                            </a:toolBar>
+                            <a:columns>
+                                <a:column name="description" editor="con571_cdd_tf_id1" lock="true" prompt="HLS.DOCUMENT_NAME" width="200"/>
+                                <a:column name="attachment" align="center" lock="true" prompt="附件" renderer="con571_new_cdd_attachment_render" width="60"/>
+                                <a:column name="file_name" align="center" lock="true" prompt="附件名" renderer="con571_new_link_render" width="400"/>
+                                <a:column name="note" editor="con571_cdd_tf_id1" prompt="备注" width="200"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:textField id="con571_cdd_tf_id1"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

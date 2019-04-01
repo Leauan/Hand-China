@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	&author:DJ
+	$date:2013/05/08
+	$purpose:银行定义
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query model="csh.CSH101.csh_bank_type_default_value" rootPath="default_bank_type"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="pageLink_bank_account" url="${/request/@context_path}/modules/csh/CSH101N/csh_bank_account_new.screen"/>
+        <a:link id="pageLink_contact_person" url="${/request/@context_path}/modules/csh/CSH101/csh_bank_contact_person.screen"/>
+        <a:link id="csh101N_file_type_link" url="${/request/@context_path}/modules/csh/CSH101N/csh_bank_file_type.screen"/>
+        <script><![CDATA[
+	        function bankDs_grid_query() {
+	            $('bankDs').query();
+	        }
+	        
+	        function bankDs_grid_add() {
+	            $('bankDs_grid').showEditorByRecord($('bankDs').create());
+	        }
+	        
+	        function bankBranchDs_grid_add() {
+	            var bankDs=$('bankDs');
+	            var record=bankDs.getCurrentRecord();
+	            if(Ext.isEmpty(record))
+	            {
+	                return ;
+	            }
+	            else if(record.isNew)
+	            {
+	                Aurora.showMessage('${l:HLS.PROMPT}','请先保存银行，才能新增分行');
+	                return ;
+	            }
+	        	$('bankBranchDs_grid').showEditorByRecord($('bankBranchDs').create({
+	        	    bank_id:record.get('bank_id'),
+	        	    bank_code:record.get('bank_code')
+	        	}));
+	        	
+	        }
+	        
+	        function bankDs_grid_clear() {
+	            $('bankDs_grid').clear();
+	        }
+	        
+	        function bankBranchDs_grid_clear() {
+	            $('bankBranchDs_grid').clear();
+	        }
+	        
+	        function bankDs_grid_save() {
+	            var result_ds = $('bankDs');
+	            if (result_ds.validate()) {
+	                result_ds.submit();
+	            }
+	        }
+	        
+			function editorFunction_bankDs_grid(record,name){
+				if(record.isNew){
+					if(name=='bank_type_name'){
+						return 'bankDs_grid_editor_comb';
+					}
+					if(name=='bank_code'){
+						return 'bankDs_grid_editor_tf_upper';
+					}
+				}
+				return '';
+			}
+			
+			function editorFunction_bankBranchDs_grid(record,name){
+				if(record.isNew){
+					return 'bankBranchDs_grid_editor_tf_upper';
+				}
+				return '';
+			}
+			function render_contact_person(value,record,name){
+				if(!record.isNew){	
+					var bank_branch_id=record.get("bank_branch_id");
+					return '<a href="javascript:winOpen_contact_person(' + bank_branch_id + ')">${l:CSH101.LINK.CONTACT_PERSON}</a>';
+				}
+			}
+			
+			function winOpen_contact_person(bank_branch_id)
+			{
+			    new Aurora.Window({
+	                id: 'csh_bank_contact_person',
+	                url: $('pageLink_contact_person').getUrl(),
+	                params:{
+	                	bank_branch_id:bank_branch_id
+	                },
+	                title: '${l:CSH101.WIN_TITLE.CONTACT_PERSON}',
+	                width:800,
+	                height:500
+	            });
+			}
+			
+			
+			function render_bank_account(value,record,name){
+				if(!record.isNew){
+					var bank_branch_id=record.get("bank_branch_id");
+					return '<a href="javascript:winOpen_bankAccount(' + bank_branch_id + ')">${l:CSH101.LINK.BANK_ACCOUNT}</a>';
+				}
+			}
+			
+			function winOpen_bankAccount(bank_branch_id)
+			{
+			    new Aurora.Window({
+	                id: 'csh_bank_account',
+	                url: $('pageLink_bank_account').getUrl(),
+	                params:{
+	                	bank_branch_id:bank_branch_id
+	                },
+	                title: '${l:CSH101.WIN_TITLE.BANK_ACCOUNT}',
+	                width:1300,
+	                height:500
+	            });
+			}
+			
+			function winOpen_fileType(bank_id){
+			    new Aurora.Window({
+	                id: 'csh101N_file_type_win',
+	                url: $('csh101N_file_type_link').getUrl(),
+	                params:{
+	                	bank_id:bank_id
+	                },
+	                title: '指令文件类型定义',
+	                width:500,
+	                height:350
+	            });
+			}
+			
+			function ddFileTypeDefine(value,record,name){
+				var bank_id=record.get("bank_id");
+				return '<a href="javascript:winOpen_fileType(' + bank_id + ')">扣款指令文件</a>';
+			}
+			
+		]]></script>
+        <a:dataSets>
+            <a:dataSet id="bank_type_ds" lookupCode="BANK_TYPE"/>
+            <a:dataSet id="bankDs" autoQuery="true" fetchAll="true" model="csh.CSH101.csh_bank" selectable="true" selectionModel="single" submitUrl="${/request/@context_path}/modules/csh/CSH101/csh_bank.svc">
+                <a:fields>
+                    <a:field name="bank_code" required="true"/>
+                    <a:field name="bank_short_name" required="true"/>
+                    <a:field name="bank_type" defaultValue="${/model/default_bank_type/record/@code_value}"/>
+                    <a:field name="bank_type_name" defaultValue="${/model/default_bank_type/record/@code_value_name}" displayField="code_value_name" options="bank_type_ds" required="true" returnField="bank_type" valueField="code_value"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="zero_amounts_allowed" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="bankBranchDs" bindName="branch_info" bindTarget="bankDs" fetchAll="true" model="csh.CSH101.csh_bank_branch" queryUrl="${/request/@context_path}/autocrud/csh.CSH101.csh_bank_branch/query?bank_code=${/parameter/@bank_code}" selectable="true">
+                <a:fields>
+                    <a:field name="bank_code"/>
+                    <a:field name="bank_branch_code" required="true"/>
+                    <a:field name="bank_branch_name" required="true"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="bankDs_grid_add" text="CSH101.BUTTON.BANK_ADD"/>
+                <a:gridButton click="bankDs_grid_clear" text="CSH101.BUTTON.BANK_CLEAR"/>
+                <a:gridButton click="bankDs_grid_query" text="HLS.QUERY"/>
+                <a:gridButton click="bankBranchDs_grid_add" text="CSH101.BUTTON.BRANCH_ADD"/>
+                <a:gridButton click="bankBranchDs_grid_clear" text="CSH101.BUTTON.BRANCH_CLEAR"/>
+                <a:gridButton click="bankDs_grid_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:grid id="bankDs_grid" bindTarget="bankDs" marginHeight="250" marginWidth="30">
+                <a:columns>
+                    <a:column name="bank_code" editorFunction="editorFunction_bankDs_grid" width="150"/>
+                    <a:column name="bank_short_name" editor="bankDs_grid_editor_tf" width="200"/>
+                    <a:column name="bank_full_name" editor="bankDs_grid_editor_tf" width="300"/>
+                    <a:column name="bank_type_name" align="center" editorFunction="editorFunction_bankDs_grid" width="100"/>
+                    <a:column name="enabled_flag" align="center" editor="bankDs_grid_editor_check" width="100"/>
+                    <a:column name="zero_amounts_allowed" align="center" editor="bankDs_grid_editor_check" width="100"/>
+                    <!-- <a:column name="dd_file_name_prefix" align="left" editor="bankDs_grid_editor_tf" width="120"/>
+                    <a:column align="center" prompt="扣款指令文件" renderer="ddFileTypeDefine" width="120"/> -->
+                    <a:column name="cup_pin" editor="bankDs_grid_editor_tf" prompt="银联PIN码" width="100"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="bankDs_grid_editor_tf_upper" maxLength="30" typeCase="upper"/>
+                    <a:textField id="bankDs_grid_editor_tf"/>
+                    <a:comboBox id="bankDs_grid_editor_comb"/>
+                    <a:checkBox id="bankDs_grid_editor_check"/>
+                </a:editors>
+            </a:grid>
+            <a:grid id="bankBranchDs_grid" bindTarget="bankBranchDs" height="150" marginWidth="30">
+                <a:columns>
+                    <a:column name="bank_code"/>
+                    <a:column name="bank_branch_code" editor="bankBranchDs_grid_editor_tf_upper"/>
+                    <a:column name="bank_branch_name" editor="bankBranchDs_grid_editor_tf" width="200"/>
+                    <a:column name="contact_person" align="center" prompt="CSH101.LINK.CONTACT_PERSON" renderer="render_contact_person" width="80"/>
+                    <a:column name="bank_account" align="center" prompt="CSH101.LINK.BANK_ACCOUNT" renderer="render_bank_account" width="80"/>
+                    <a:column name="address" editor="bankBranchDs_grid_editor_tf" width="200"/>
+                    <a:column name="contact_name" editor="bankBranchDs_grid_editor_tf"/>
+                    <a:column name="e_mail_address" editor="bankBranchDs_grid_editor_tf" width="150"/>
+                    <a:column name="phone" editor="bankBranchDs_grid_editor_tf"/>
+                    <a:column name="enabled_flag" align="center" editor="bankBranchDs_grid_editor_check" width="60"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="bankBranchDs_grid_editor_tf_upper" maxLength="30" typeCase="upper"/>
+                    <a:textField id="bankBranchDs_grid_editor_tf"/>
+                    <a:comboBox id="bankBranchDs_grid_editor_comb"/>
+                    <a:checkBox id="bankBranchDs_grid_editor_check"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

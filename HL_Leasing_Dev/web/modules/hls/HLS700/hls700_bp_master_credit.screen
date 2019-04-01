@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhuxianfei
+    $Date: 2017年11月23日 下午1:34:27  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="hls.HLS700.get_modify_user" rootPath="modify_user"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="bp_credit_create_link" model="hls.HLS700.hls700_bp_master_credit_limit" modelaction="insert"/>
+        <a:link id="bp_credit_modify_link" url="${/request/@context_path}/modules/hls/HLS700/hls700_bp_master_credit_modify.screen"/>
+        <a:link id="bp_credit_details_link" url="${/request/@context_path}/modules/hls/HLS700/hls700_bp_master_credit_detail.screen"/>
+        <a:link id="hls700_credit_hd_update_link" model="hls.HLS700.hls700_bp_master_credit_limit" modelaction="batch_update"/>
+        <a:link id="bp_credit_details_query_link" url="${/request/@context_path}/modules/hls/HLS700/hls700_bp_master_credit_detail_query.screen"/>
+        <script><![CDATA[
+            function hls700_credit_add() {
+                $('hls700_credit_grid_ds').showEditorByRecord($('hls700_credit_result_ds').create());
+            
+            }
+            function hls700_credit_query() {
+                $('hls700_credit_result_ds').query();
+            
+            }
+           
+            function hls700_credit_reset() {
+                $('hls700_credit_query_ds').reset();
+            }
+            
+            function hls700_credit_save() {
+                var ds = $('hls700_credit_result_ds');
+                var records = ds.getAll();
+                var param;
+                var param_list = [];
+                for (var i = 0;i < records.length;i++) {
+                    param = {
+                        'bp_credit_hd_id': records[i].get('bp_credit_hd_id'),
+                        'bp_id': records[i].get('bp_id'),
+                        '_status': 'update'
+                    };
+                    param_list.push(param);
+                }            
+                Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+                Aurora.request({
+                    url: $('hls700_credit_hd_update_link').getUrl(),
+                    para: param_list,
+                    success: function(res) {
+                        Aurora.Masker.unmask(Ext.getBody());
+                        Aurora.SideBar.show({
+                            msg: '保存成功',
+                            duration: 2000
+                        });
+                        $('hls700_credit_result_ds').query();
+                    },
+                    failure: function() {
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    error: function() {
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    scope: this
+                });
+            }
+            
+           function hls700_grid_update(id) {
+
+                var record = $('hls700_credit_result_ds').findById(id);
+                var bp_id = record.get('bp_id');
+                var bp_name = record.get('bp_name');
+                //var project_id=record.get('project_id');
+            	var check_flag = 'N'; //默认初始值为N
+
+            	// if (typeof(bp_credit_hd_id) != 'undefined' && !Ext.isEmpty(bp_credit_hd_id)) {
+            	    // check_flag = 'Y';
+            	// }else{
+            	    // Aurora.request({
+	                    // url: $('bp_credit_create_link').getUrl(),
+	                    // para: {
+	                        // bp_id: record.get('bp_id')
+	                    // },
+	                    // success: function(res) {
+	                        // debugger;
+	                        // bp_credit_hd_id = res.result.bp_credit_hd_id;
+	                        // check_flag = 'Y';
+	                    // },
+	                    // error: function() {
+	                    // },
+	                    // failure: function() {
+	                    // },
+	                    // scope: this,
+	                    // sync: true
+	                // });
+            	// }
+            	
+            	// if (check_flag == 'Y'){
+            	// }
+            	
+            	var url ;
+            	if('${/model/modify_user/record/@flag}' == 'Y'){
+            	    url =$('bp_credit_details_link').getUrl();
+            	}else{
+            	    url =$('bp_credit_details_query_link').getUrl(); 
+            	}
+            	
+            	var parent_flag='N';
+            	if(record.get('bp_id')==record.get('parent_id')){
+            	    parent_flag='Y';
+            	}
+            	
+            	    var win = new Aurora.Window({
+	                    id: 'bp_credit_details_window',
+	                    url: url,
+	                    params: {
+	                        //project_id: project_id,
+	                       // bp_credit_hd_id: bp_credit_hd_id,
+	                        bp_id: bp_id,
+	                        parent_flag:parent_flag,
+	                        bp_name: bp_name,
+	                        winId: 'bp_credit_details_window'
+	                    },
+	                    title: '授信额度界面',
+	                    fullScreen: true
+	                });
+	                win.on('close', function() {
+	                    $('hls700_credit_result_ds').query();
+	                });
+            }
+
+            //添加超链接
+            function hld700_bp_code(value, record, name) {
+            
+                return '<a href="javascript:hls700_grid_update(' + record.id + ')">' + value + '</a>';
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="hls700_bp_credit_ds" lookupCode="BP_CATEGORY"/>
+            <a:dataSet id="hls700_credit_query_ds">
+                <a:fields>
+                    <a:field name="bp_code" lovHeight="480" lovLabelWidth="120" lovService="hls.HLS700.hls700_bp_master_lov?bp_category=AGENT" lovWidth="650" title="商业伙伴选择">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="project_id" to="project_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="parent_code" lovHeight="480" lovLabelWidth="120" lovService="hls.HLS700.hls700_bp_master_lov?bp_category=AGENT" lovWidth="650" title="商业伙伴选择">
+                        <a:mapping>
+                            <a:map from="bp_id" to="parent_id"/>
+                            <a:map from="bp_code" to="parent_code"/>
+                            <a:map from="bp_name" to="parent_name"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="hls700_credit_result_ds" autoPageSize="true" autoQuery="true" model="hls.HLS700.hls700_bp_master_credit_limit" queryDataSet="hls700_credit_query_ds" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="bp_code" lovHeight="500" lovService="hls.HLS700.hls700_bp_master_lov" lovWidth="700" required="true" title="商业伙伴选择">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="credit_total_amount"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="hls700_credit_query" text="HLS.QUERY"/>
+                <a:gridButton click="hls700_credit_reset" text="HLS.RESET"/>
+                <a:gridButton bind="hls700_credit_grid_ds" type="excel"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="150" marginWidth="70" title="HAP_QUERY_TITLE">
+                <a:lov name="bp_code" bindTarget="hls700_credit_query_ds" prompt="经销商编码" width="130"/>
+                <a:textField name="bp_name" bindTarget="hls700_credit_query_ds" prompt="经销商名称" width="220"/>
+                <a:lov name="parent_code" bindTarget="hls700_credit_query_ds" prompt="上级经销商编码" width="130"/>
+                <a:textField name="parent_name" bindTarget="hls700_credit_query_ds" prompt="上级经销商名称" width="220"/>
+            </a:form>
+            <a:grid id="hls700_credit_grid_ds" bindTarget="hls700_credit_result_ds" marginHeight="200" marginWidth="50" navBar="true">
+                <a:columns>
+                    <a:column name="bp_code" prompt="经销商编码" renderer="hld700_bp_code"/>
+                    <a:column name="bp_name" prompt="经销商名称" width="220"/>
+                    <!--modify by lara 11355 20181225 DF系统中商业伙伴对应多个项目 -->
+                    <!-- <a:column name="project_id" prompt="库融申请编号" width="280"/> -->
+                    <!--end modify by lara 11355 20181225-->
+                    <a:column name="bp_category_n" align="center" prompt="商业伙伴类别"/>
+                    <a:column name="credit_total_amount" align="right" prompt="授信总额度" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="used_amount" align="right" prompt="已使用额度" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="last_amount" align="right" prompt="剩余额度" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="parent_total_amount" align="right" prompt="集团额度" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="parent_used_amount" align="right" prompt="集团已使用额度" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="parent_last_amount" align="right" prompt="集团剩余额度" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="parent_name" prompt="上级经销商" width="220"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="tf_editor"/>
+                    <a:currencyField id="creditDs_grid_editor_tx"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

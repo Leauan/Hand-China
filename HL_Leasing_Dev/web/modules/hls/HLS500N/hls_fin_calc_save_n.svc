@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            // println($ctx.parameter.toXML());
+            
+            function recursive_dynamic_save(root, base_table) {
+                if (!root || !base_table) return;
+                var children = root.getChildren();
+                if (!children.length) return;
+                $ctx.dynamic_base_table = base_table;
+                var bm;
+                if (base_table == 'HLS_FIN_CALCULATOR_LN_FORMULA') {
+                    bm = $bm('hls.HLS500N.hls_fin_calculator_common_no_pk');
+                } else {
+                    bm = $bm('hls.HLS500N.hls_fin_calculator_common');
+                }
+                var pk = $ctx.pkmap[base_table];
+                for (var i = 0;i < children.length;i++) {
+                    var _status = children[i]._status;
+                    try {
+                        bm.option = {
+                            updatePassedFieldOnly: 'true'
+                        }
+                        if (base_table == 'HLS_FIN_CALCULATOR_HD' && !children[i].company_id) {
+                            children[i].company_id = $ctx.session.company_id;
+                        }
+                        bm[_status](children[i]);
+                        if (base_table == 'HLS_FIN_CALCULATOR_HD') {
+                            if (_status == 'insert') {
+                                $ctx.parameter.operation_flag = 'INSERT';
+                            } else if (_status == 'update') {
+                                $ctx.parameter.operation_flag = 'UPDATE';
+                            } else {
+                                $ctx.parameter.operation_flag = '';
+                            }
+                            $ctx.parameter.calc_session_id = children[i][pk];
+                            $ctx.parameter.recreate_H_formula = children[i]['recreate_H_formula'];
+                            $ctx.parameter.recreate_L_formula = children[i]['recreate_L_formula'];
+                        }
+                    } catch (e) {
+                        raise_app_error('HLS_TABLE_UNIQUE.' + base_table.toUpperCase());
+                    }
+            
+                    function hls_calc_child_save(sub_root, table_name) {
+                        if (sub_root && pk) {
+                            var sub_children = sub_root.getChildren();
+                            for (var m = 0;m < sub_children.length;m++) {
+                                sub_children[m][pk] = children[i][pk];
+                            }
+                            recursive_dynamic_save(sub_root, table_name);
+                        }
+                    }
+                    if (base_table == 'HLS_FIN_CALCULATOR_HD') {
+                        hls_calc_child_save(children[i].getChild('hd_calc_formula_bind_name'), 'HLS_FIN_CALCULATOR_HD_FORMULA');
+                        hls_calc_child_save(children[i].getChild('ln_calc_bind_name'), 'HLS_FIN_CALCULATOR_LN');
+                        hls_calc_child_save(children[i].getChild('ln_calc_formula_bind_name'), 'HLS_FIN_CALCULATOR_LN_FORMULA');
+                    } else if (base_table == 'HLS_FIN_CALCULATOR_LN' && _status == 'insert') {
+                        var v_root = new CompositeMap("v_root");
+                        v_root.addChild(children[i]);
+                        hls_calc_child_save(v_root, 'HLS_FIN_CALCULATOR_LN_FORMULA');
+                    }
+                }
+            }
+            
+            function recursive_dynamic_check_before_save() {
+                var before_check_bm = $bm('hls.HLS500.hls_fin_calc_document_check');
+                before_check_bm.update({
+                    document_id: $ctx.parameter.document_id,
+                    document_category: $ctx.parameter.document_category,
+                });
+            }
+            
+            function recursive_dynamic_finnal_calc() {
+                var calc_bm = $bm('hls.HLS500N.hls_fin_calculator_n');
+                calc_bm.update({
+                    calc_session_id: $ctx.parameter.calc_session_id,
+                    recreate_H_formula: $ctx.parameter.recreate_H_formula,
+                    recreate_L_formula: $ctx.parameter.recreate_L_formula
+                });
+            }
+            
+            recursive_dynamic_check_before_save();
+            recursive_dynamic_save($ctx.parameter, $ctx.parameter.base_table);
+            if ($ctx.parameter.operation_flag == 'INSERT') {
+                recursive_dynamic_finnal_calc();
+            }
+            //println($this.getObjectContext().toXML());
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:service-output output="/parameter"/>
+</a:service>

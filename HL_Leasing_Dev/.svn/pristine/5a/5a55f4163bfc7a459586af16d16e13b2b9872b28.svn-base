@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-2-21 上午11:54:02  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="currency"/>
+        <a:model-query defaultWhereClause="bp_id=${/parameter/@bp_id}" fetchAll="true" model="basic.hls_bp_master_v_for_lov" rootPath="hls_bp_master"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="rsc_fin_statement_prj_ipt_line_id" url="${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_ipt_line.screen"/>
+        <script><![CDATA[
+            
+            function rsc303_handle_return() {
+                $('rsc_fin_statement_prj_import_handle_winid').close();
+            }
+            
+            function rsc303_handle_import() {
+                $('rsc303_handle_import_id').disable();
+                if (!$('fin_statement_head_ds').validate()) {
+                    $('rsc303_handle_import_id').enable();
+                    return;
+                }
+                var head_record = $('fin_statement_head_ds').getAt(0);
+                var win = new Aurora.Window({
+                    id: 'rsc_fin_statement_prj_ipt_line_winid',
+                    params:{
+                       fin_statement_templet_id: head_record.get('fin_statement_templet_id'),
+                       bp_id:head_record.get('bp_id'),
+                       unit_code:head_record.get('unit_code'),
+                       currency_code:head_record.get('currency_code'),
+                       winid:'${/parameter/@winid}',
+                       winid1:'rsc_fin_statement_prj_ipt_line_winid'
+                    },
+                    url: $('rsc_fin_statement_prj_ipt_line_id').getUrl(),
+                    title: '${l:FIA_LINE_DATA_IMPORT}',
+                    width: 420,
+                    height: 275
+                });
+                win.on('close', function() {
+                    if($A.CmpManager.get('rsc303_handle_import_id')){
+                    	$('rsc303_handle_import_id').enable();
+                    }
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="currency_ds">
+                <a:datas dataSource="/model/currency"/>
+            </a:dataSet>
+            <a:dataSet id="prj_unit_ds">
+                <a:datas>
+                    <a:record name="元" value="YUAN"/>
+                    <a:record name="万元" value="TEN_THOUSNAND_YUAN"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="fin_statement_head_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="fin_statement_prj_unit_desc" displayField="name" options="prj_unit_ds" required="true" returnField="unit_code" valueField="value"/>
+                    <a:field name="bp_code" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov" lovWidth="500" prompt="HLS.BP_CODE" required="true" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_name" prompt="HLS.BP_NAME" readOnly="true"/>
+                    <a:field name="bp_id"/>
+                    <a:field name="fin_statement_templet_code" lovGridHeight="350" lovHeight="500" lovService="rsc.RSC302.rsc_fin_statement_tmplt_hds_for_lov" lovWidth="500" prompt="RSC_FIN_STATEMENT_TMPLT_HDS.FIN_STATEMENT_TEMPLET_CODE" required="true" title="财务报表模板">
+                        <a:mapping>
+                            <a:map from="fin_statement_templet_id" to="fin_statement_templet_id"/>
+                            <a:map from="fin_statement_templet_code" to="fin_statement_templet_code"/>
+                            <a:map from="fin_statement_templet_name" to="fin_statement_templet_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="fin_statement_templet_name" prompt="RSC_FIN_STATEMENT_TMPLT_HDS.FIN_STATEMENT_TEMPLET_NAME" readOnly="true"/>
+                    <a:field name="fin_statement_templet_id"/>
+                    <a:field name="currency_name" displayField="currency_name" options="currency_ds" required="true" returnField="currency_code" valueField="currency_code"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form column="2" labelWidth="120" title="STATEMENTS_BUSINESS_DATA_IMPORT" width="900">
+                <a:lov name="bp_code" bindTarget="fin_statement_head_ds" prompt="HLS.BP_CODE"/>
+                <a:textField name="bp_name" bindTarget="fin_statement_head_ds" prompt="HLS.BP_NAME"/>
+                <a:lov name="fin_statement_templet_code" bindTarget="fin_statement_head_ds" prompt="FIN_STATEMENT_TMPLT_CODE"/>
+                <a:textField name="fin_statement_templet_name" bindTarget="fin_statement_head_ds" prompt="FIN_STATEMENT_TMPLT_NAME"/>
+                <a:comboBox name="fin_statement_prj_unit_desc" bindTarget="fin_statement_head_ds" prompt="RSC_FIN_STATEMENT_TMPLT_LNS.REPORTING_UNIT"/>
+                <a:comboBox name="currency_name" bindTarget="fin_statement_head_ds" prompt="RSC_FIN_STATEMENT_TMPLT_HDS.STATEMENT_CURRENCY"/>
+            </a:form>
+            <a:screenTopToolbar>
+                <a:gridButton click="rsc303_handle_return" text="HLS.RETURN"/>
+                <a:gridButton id="rsc303_handle_import_id" click="rsc303_handle_import" text="HLS.IMPORT"/>
+            </a:screenTopToolbar>
+        </a:screenBody>
+        <script><![CDATA[
+        
+        	
+        	function load_complete(){
+        	   
+                if('${/parameter/@bp_id}'){
+                $('fin_statement_head_ds').getAt(0).set('bp_code','${/model/hls_bp_master/record/@bp_code}');
+                $('fin_statement_head_ds').getAt(0).set('bp_id','${/parameter/@bp_id}');
+                $('fin_statement_head_ds').getAt(0).set('bp_name','${/model/hls_bp_master/record/@bp_name}');
+                $('fin_statement_head_ds').getAt(0).getField('bp_code').setReadOnly(true);
+                $('fin_statement_head_ds').getAt(0).set('fin_statement_prj_unit_desc','万元');
+                $('fin_statement_head_ds').getAt(0).set('unit_code','TEN_THOUSNAND_YUAN');
+                $('fin_statement_head_ds').getAt(0).set('currency_name','人民币');
+                $('fin_statement_head_ds').getAt(0).set('currency_code','CNY');
+                if('${/model/hls_bp_master/record/@bp_class}'=='ORG'){
+                   $('fin_statement_head_ds').getAt(0).set('fin_statement_templet_code','STD_FS'); 
+                   $('fin_statement_head_ds').getAt(0).set('fin_statement_templet_name','财务报表财务模板');
+                   $('fin_statement_head_ds').getAt(0).set('fin_statement_templet_id',4000);
+                }
+                if('${/model/hls_bp_master/record/@bp_class}'=='HOS'){
+                   $('fin_statement_head_ds').getAt(0).set('fin_statement_templet_code','STD_FS_PI'); 
+                   $('fin_statement_head_ds').getAt(0).set('fin_statement_templet_name','医院财务报表模板');
+                   $('fin_statement_head_ds').getAt(0).set('fin_statement_templet_id',7);
+                }
+                }
+                
+            }
+            load_complete();
+        ]]></script>
+    </a:view>
+</a:screen>

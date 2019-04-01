@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: LR  
+    $Date: 2013-7-22 下午06:35:25  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT s.code_value authority_usage,
+				       s.code_value_name authority_usage_desc,
+				       NVL(a.check_authority, 'N') check_authority,
+				       NVL(a.ref_v05,'N') ref_v05,
+				       a.ref_n01
+				  FROM sys_code_values_v s, aut_company_authority_setup a
+				 WHERE s.code = 'AUTHORITY_USAGE'
+				   AND s.code_enabled_flag = 'Y'
+				   AND s.code_value_enabled_flag = 'Y'
+				   AND a.authority_usage(+) = s.code_value
+				   AND a.company_id(+) = ${/session/@company_id}
+				UNION ALL
+				SELECT h.document_category authority_usage,
+				       h.description authority_usage_desc,
+				       NVL(a.check_authority, 'N') check_authority,
+				       NVL(a.ref_v05,'N') ref_v05,
+				       a.ref_n01
+				  FROM hls_document_category h, aut_company_authority_setup a
+				 WHERE h.enabled_flag = 'Y'
+				   AND h.document_category = a.authority_usage(+)
+				   AND a.company_id(+) = ${/session/@company_id}
+				 ORDER BY ref_n01
+
+            ]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+                BEGIN
+                    UPDATE
+                        aut_company_authority_setup a
+                    SET
+                        a.check_authority  = ${@check_authority},
+                        a.last_updated_by  = ${/session/@user_id},
+                        a.last_update_date = sysdate
+                    WHERE
+                        a.company_id                       = ${/session/@company_id} AND
+                        a.authority_usage                  = ${@authority_usage} ;
+                    IF sql%notfound AND ${@check_authority}='Y' THEN
+                        INSERT
+                        INTO
+                            aut_company_authority_setup
+                            (
+                                company_id,
+                                authority_usage,
+                                check_authority,
+                                created_by,
+                                creation_date,
+                                last_updated_by,
+                                last_update_date
+                            )
+                            VALUES
+                            (
+                                ${/session/@company_id},
+                                ${@authority_usage},
+                                ${@check_authority},
+                                ${/session/@user_id},
+                                sysdate,
+                                ${/session/@user_id},
+                                sysdate
+                            );
+                    END IF;
+                END;
+            ]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="authority_usage" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="AUTHORITY_USAGE"/>
+        <bm:field name="authority_usage_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="AUTHORITY_USAGE_DESC"/>
+        <bm:field name="check_authority" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CHECK_AUTHORITY"/>
+    </bm:fields>
+</bm:model>

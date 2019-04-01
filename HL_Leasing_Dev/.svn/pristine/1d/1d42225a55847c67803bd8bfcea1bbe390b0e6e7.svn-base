@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            importPackage(java.util.zip);
+            importPackage(java.io);
+            function writeFile(zos, fn, fp) {
+                var ze = new ZipEntry(fn);
+                //zos.setEncoding("UTF-8");//如果是org.apache.tools.zip需要追加字符集
+                zos.putNextEntry(ze);
+                var fis = new FileInputStream(fp);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    zos.write(b, 0, len);
+                }
+                fis.close();
+            }
+            
+            function transfer(file, os) {
+                var fis = new FileInputStream(file);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    os.write(b, 0, len);
+                }
+                fis.close();
+            }
+            
+            
+            function getdate() {
+                var now = new Date()
+                y = now.getFullYear()
+                m = now.getMonth() + 1
+                d = now.getDate()
+                m = m < 10 ? "0" + m : m
+                d = d < 10 ? "0" + d : d
+                return y + "" + m + "" + d
+            }
+            $ctx["__request_type__"] = 'file'; //to indicate this request is not a JSON_REQUEST
+            var resp = $ctx['_instance.javax.servlet.http.HttpServletResponse'];
+            resp.setHeader("Pragma", "No-cache");
+            resp.setHeader("Cache-Control", "no-cache, must-revalidate");
+            var date_str = getdate();
+            var doc_code = 'psbc_entrust_file'
+            var type = $ctx.parameter.type;
+            var zip_filename = doc_code + '-' + date_str + ".zip";
+            var file_path;
+            var fnd_atm_flag = $ctx.parameter.fnd_atm_flag;
+            resp.setDateHeader("Expires", 0);
+            resp.setContentType("application/x-msdownload");
+            try {
+                var attachment_batch_dl = $bm('ebank.BOC1401.psbc_entrust_file_download');
+                var result = attachment_batch_dl.queryAsMap();
+                var arr = result.getChildren();
+                println(arr.length);
+                if (arr.length >= 1) {
+                        resp.setHeader("Content-disposition", "attachment; filename=" + encodeURI(zip_filename));
+                        var zos = new ZipOutputStream(resp.getOutputStream());
+                        var file_exist_list = {};
+                        for (var i = 0;i < arr.length;i++) {
+                            var f = arr[i];
+                            println(f.file_name2);
+                            if (f.file_path) {
+                                println(f.file_path);
+                                writeFile(zos, f.file_name2, f.file_path);
+                            }
+                        }
+                        zos.close();
+                }
+            } catch (e) {
+                var logger = $logger("server-script");
+                logger.severe(e.message);
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

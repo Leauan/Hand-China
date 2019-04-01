@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-8-1 下午04:16:45  
+    $Revision: 1.0  
+    $Purpose: 项目报告维护入口界面
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:view>
+        <a:link id="${/parameter/@layout_code}${/parameter/@pre_layout}zj_wfl_approve_history_check" url="${/request/@context_path}/modules/zjwfl/zj_wfl_approve_history_check.screen"/>
+        <a:link id="prj_project_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="prj_project_modify_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_create_tree_n.screen"/>
+        <a:link id="prj_project_bp_parameter_link" url="${/request/@context_path}/modules/prj/PRJ501/prj_project_bp_parameter.screen"/>
+        <a:link id="car_modify_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain_readonly.screen"/>
+        <a:link id="car_modify_mananger_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain_manager.screen"/>
+        <a:link id="prj_project_close_link_id" model="prj.PRJ501.prj_project_close" modelaction="update"/>
+        <a:link id="car_modify_special_link" url="${/request/@context_path}/modules/prj/PRJ500N/prj_project_create_special.screen"/>
+        <a:link id="document_history_query_link_id" url="${/request/@context_path}/modules/prj/PRJ502N/prj_document_history_query.screen"/>
+        <script><![CDATA[
+            function open_project_modify_win(record_id, ds_id) {
+                debugger;
+                var record = $(ds_id).findById(record_id);
+                //项目类layout_code
+                if (record.get('document_type') == 'PRJ') {
+                    var maintain_type = 'QUERY';
+                    var param = record.data;
+                    param['document_id'] = record.get('project_id');
+                    param['function_code'] = 'PRJ502D';
+                    param['function_usage'] = 'QUERY';
+                    param['bp_class'] = 'NP';
+                    param['maintain_type'] = maintain_type;
+                    param['url_title'] = '${l:HLS.PROJECT_MAITAIN}';
+                    hls_doc_get_layout_code('prj_project_get_layout_code_link_id', param, 'prj_project_modify_link', ds_id);
+                } else if (record.get('document_type') == 'CARLS') {
+                    if (record.get('special_permit_flag') == 'Y') {
+                        //零售特批
+                        maintain_type = 'QUERY';
+                        param = record.data;
+                        param['document_id'] = record.get('project_id');
+                        param['function_code'] = 'PRJ502D_SPECIAL';
+                        param['function_usage'] = 'MODIFY';
+                        param['maintain_type'] = maintain_type;
+                        param['url_title'] = '${l:HLS.PROJECT_MAITAIN}';
+                        hls_doc_get_layout_code('prj_project_get_layout_code_link_id', param, 'car_modify_special_link', ds_id);
+                    } else if (record.get('lease_channel') == '02') {
+                        //管理人员
+                        maintain_type = 'QUERY';
+                        param = record.data;
+                        param['document_id'] = record.get('project_id');
+                        param['function_code'] = 'PRJ502D';
+                        param['function_usage'] = 'MODIFY';
+                        param['maintain_type'] = maintain_type;
+                        param['url_title'] = '${l:HLS.PROJECT_MAITAIN}';
+                        hls_doc_get_layout_code('prj_project_get_layout_code_link_id', param, 'car_modify_mananger_link', ds_id);
+                    } else {
+                        maintain_type = 'QUERY';
+                        param = record.data;
+                        param['document_id'] = record.get('project_id');
+                        param['function_code'] = 'PRJ501Q';
+                        param['function_usage'] = 'MODIFY';
+                        param['maintain_type'] = maintain_type;
+                        param['url_title'] = '${l:HLS.PROJECT_MAITAIN}';
+                        hls_doc_get_layout_code('prj_project_get_layout_code_link_id', param, 'car_modify_link', ds_id);
+                    }
+                }
+            }
+            
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+            
+                if (name == 'project_number' && value) {
+                    return '<a href="javascript:open_project_modify_win(\'' + record.id + '\',\'' + record.ds.id + '\')">' + value + '</a>';
+                }
+                return value;
+            };
+            
+            var ajax_flag = 'N';
+            
+            //交涉记录
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                var prj_project_result_ds = $(ds_id);
+                var records = prj_project_result_ds.getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+                var record = records[0];
+                var win = new Aurora.Window({
+                    id: 'document_history_query_window',
+                    url: $('document_history_query_link_id').getUrl(),
+                    params: {
+                        project_id: record.get('project_id')
+                    },
+                    title: '交涉记录',
+                    fullScreen: true
+                });
+                win.on('close', function() {
+                    prj_project_result_ds.query(prj_project_result_ds.currentPage);
+                });
+            };
+            
+            //商业伙伴参数修改
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                var prj_project_result_ds = $(ds_id);
+                var records = prj_project_result_ds.getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+                var record = records[0];
+                var win = new Aurora.Window({
+                    id: 'prj_project_bp_parameter_window',
+                    url: $('prj_project_bp_parameter_link').getUrl(),
+                    params: {
+                        project_id: record.get('project_id')
+                    },
+                    title: '${l:HLS.PROJECT_PARAMETER_UPDATE}',
+                    fullScreen: true
+                });
+                win.on('close', function() {
+                    prj_project_result_ds.query(prj_project_result_ds.currentPage);
+                });
+            };
+            
+            //单据跟踪  add by Harry 9952 2017/1/4
+            window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function() {
+                debugger;
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                var prj_project_result_ds = $(ds_id);
+                var records = prj_project_result_ds.getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+                var instance_id = records[0].get('wfl_instance_id');
+                var win = new Aurora.Window({
+                    id: 'history_check',
+                    url: $('${/parameter/@layout_code}${/parameter/@pre_layout}zj_wfl_approve_history_check').getUrl(),
+                    params: {
+                        instance_id: instance_id
+                    },
+                    title: '单据历史查看',
+                    height: 500,
+                    width: 860,
+                    fullScreen: true
+                });
+            };
+            
+            window['${/parameter/@layout_code}_on_layout_dynamic_grid_query'] = function(ds, qpara, bp_seq) {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+            
+                if (ds == $(ds_id)) {
+                    aut_authority_list_validate_query(ds, qpara);
+            
+                }
+            };
+            
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                var grid_id = ds_id.replace('ds', 'layout_grid_id');
+                $(grid_id)._export();
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=PROJECT&amp;function_code=PRJ501"/>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

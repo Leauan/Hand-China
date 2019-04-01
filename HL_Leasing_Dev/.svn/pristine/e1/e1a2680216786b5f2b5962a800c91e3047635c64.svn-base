@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-6-21 下午3:20:32  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    t.contract_amount,
+                    t.down_payment,
+                    t.finance_amount,
+                    t.total_interest,
+                    t.residual_value,
+                    t.deposit,
+                    t.contract_id,
+                    (SELECT
+                        SUM(f.received_amount)
+                    FROM
+                        con_contract_cashflow f
+                    WHERE
+                        t.contract_id = f.contract_id AND
+                        f.due_date    < sysdate AND
+                        f.cf_item     = 1 AND
+                        f.cf_status   = 'RELEASE'
+                    ) received_amount,
+                    (SELECT
+                        SUM(c.overdue_amount)
+                    FROM
+                        con_contract_cashflow c
+                    WHERE
+                        t.contract_id = c.contract_id AND
+                        c.due_date    < sysdate AND
+                        c.cf_item     = 1 AND
+                        c.cf_status   = 'RELEASE'
+                    ) overdue_amount,
+                    (SELECT
+                        NVL(SUM(c.due_amount),0) -NVL(SUM(c.received_amount),0) from con_contract_cashflow c
+                    WHERE
+                        t.contract_id = c.contract_id AND
+                        c.due_date    > sysdate AND
+                        c.cf_status   = 'RELEASE' AND
+                        c.cf_item     = 1
+                    ) undue_rental
+                FROM
+                    con_contract t
+                WHERE
+                    t.contract_id = ${@contract_id}
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="undue_rental" databaseType="NUMBER" datatype="java.lang.Long" physicalName="undue_rental"/>
+        <bm:field name="overdue_amount" databaseType="NUMBER" datatype="java.lang.Long" physicalName="overdue_amount"/>
+        <bm:field name="received_amount" databaseType="NUMBER" datatype="java.lang.Long" physicalName="received_amount"/>
+        <bm:field name="contract_amount" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CONTRACT_AMOUNT"/>
+        <bm:field name="down_payment" databaseType="NUMBER" datatype="java.lang.Long" physicalName="DOWN_PAYMENT"/>
+        <bm:field name="finance_amount" databaseType="NUMBER" datatype="java.lang.Long" physicalName="FINANCE_AMOUNT"/>
+        <bm:field name="total_interest" databaseType="NUMBER" datatype="java.lang.Long" physicalName="TOTAL_INTEREST"/>
+        <bm:field name="residual_value" databaseType="NUMBER" datatype="java.lang.Long" physicalName="RESIDUAL_VALUE"/>
+        <bm:field name="deposit" databaseType="NUMBER" datatype="java.lang.Long" physicalName="DEPOSIT"/>
+        <bm:field name="contract_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CONTRACT_ID" required="true"/>
+    </bm:fields>
+</bm:model>

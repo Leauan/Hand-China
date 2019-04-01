@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: LR  
+    $Date: 2013-7-22 下午02:43:09  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[select * from(
+                SELECT
+                    h.lease_organization aut_code,
+                    h.description aut_desc,
+                    NVL(a.enabled_flag, 'N') enabled_flag,
+                    ${@company_id} company_id,
+                    ${@role_id} role_id,
+                    ${@aut_category_code} aut_category_code
+                FROM
+                    hls_lease_organization h,
+                    aut_object_role_authorize a
+                WHERE
+                    h.lease_organization = a.authority_value(+) AND
+                    a.authority_usage(+) = ${@aut_category_code} AND
+                    a.enabled_flag(+)    = 'Y' AND
+                    h.enabled_flag       = 'Y' AND
+                    a.role_id(+)         = ${@role_id} AND
+                    a.company_id(+)      = ${@company_id} AND
+                    'LEASE_ORG'          = ${@aut_category_code} --业务部
+                UNION ALL
+                SELECT
+                    h.price_list aut_code,
+                    h.description aut_desc,
+                    NVL(a.enabled_flag, 'N') enabled_flag,
+                    ${@company_id} company_id,
+                    ${@role_id} role_id,
+                    ${@aut_category_code} aut_category_code
+                FROM
+                    hls_price_list h,
+                    aut_object_role_authorize a
+                WHERE
+                    h.price_list         = a.authority_value(+) AND
+                    a.authority_usage(+) = ${@aut_category_code} AND
+                    a.enabled_flag(+)    = 'Y' AND
+                    h.enabled_flag       = 'Y' AND
+                    a.role_id(+)         = ${@role_id} AND
+                    a.company_id(+)      = ${@company_id} AND
+                    'PRICE_LIST'         = ${@aut_category_code} --价目表
+                UNION ALL
+                SELECT
+                    h.division aut_code,
+                    h.description aut_desc,
+                    NVL(a.enabled_flag, 'N') enabled_flag,
+                    ${@company_id} company_id,
+                    ${@role_id} role_id,
+                    ${@aut_category_code} aut_category_code
+                FROM
+                    hls_division h,
+                    aut_object_role_authorize a
+                WHERE
+                    h.division           = a.authority_value(+) AND
+                    a.authority_usage(+) = ${@aut_category_code} AND
+                    a.enabled_flag(+)    = 'Y' AND
+                    h.enabled_flag       = 'Y' AND
+                    a.role_id(+)         = ${@role_id} AND
+                    a.company_id(+)      = ${@company_id} AND
+                    'DIVISION'           = ${@aut_category_code} --产品线
+                UNION ALL
+                SELECT
+                    h.lease_channel aut_code,
+                    h.description aut_desc,
+                    NVL(a.enabled_flag, 'N') enabled_flag,
+                    ${@company_id} company_id,
+                    ${@role_id} role_id,
+                    ${@aut_category_code} aut_category_code
+                FROM
+                    hls_lease_channel h,
+                    aut_object_role_authorize a
+                WHERE
+                    h.lease_channel      = a.authority_value(+) AND
+                    a.authority_usage(+) = ${@aut_category_code} AND
+                    a.enabled_flag(+)    = 'Y' AND
+                    h.enabled_flag       = 'Y' AND
+                    a.role_id(+)         = ${@role_id} AND
+                    a.company_id(+)      = ${@company_id} AND
+                    'LEASE_CHANNEL'      = ${@aut_category_code} --商业模式
+                UNION ALL
+                SELECT
+                    h.document_type aut_code,
+                    h.description aut_desc,
+                    NVL(a.enabled_flag, 'N') enabled_flag,
+                    ${@company_id} company_id,
+                    ${@role_id} role_id,
+                    ${@aut_category_code} aut_category_code
+                FROM
+                    hls_document_type h,
+                    aut_object_role_authorize a
+                WHERE
+                    h.document_category = ${@aut_category_code} AND
+                    h.enabled_flag      = 'Y' AND
+                    h.document_category = a.authority_usage(+) AND
+                    h.document_type     = a.authority_value(+) AND
+                    a.enabled_flag(+)   = 'Y' AND
+                    a.role_id(+)        = ${@role_id} AND
+                    a.company_id(+)     = ${@company_id}
+                UNION ALL
+                SELECT
+                    g.authority_group aut_code,
+                    g.description aut_desc,
+                    NVL(a.enabled_flag, 'N') enabled_flag,
+                    ${@company_id} company_id,
+                    ${@role_id} role_id,
+                    ${@aut_category_code} aut_category_code
+                FROM
+                    aut_authority_group g,
+                    aut_object_role_authorize a
+                WHERE
+                    g.authority_usage = ${@aut_category_code} AND
+                    g.enabled_flag    = 'Y' AND
+                    g.authority_usage = a.authority_usage(+) AND
+                    g.authority_group = a.authority_value(+) AND
+                    a.enabled_flag(+) = 'Y' AND
+                    a.role_id(+)      = ${@role_id} AND
+                    a.company_id(+)   = ${@company_id})
+                ORDER BY
+                    enabled_flag desc,aut_code
+            ]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+            	BEGIN
+            	    UPDATE
+            	        aut_object_role_authorize a
+            	    SET
+            	        a.enabled_flag     = ${@enabled_flag},
+            	        a.last_updated_by  = ${/session/@user_id},
+            	        a.last_update_date = sysdate
+            	    WHERE
+            	        a.company_id                    = ${@company_id} AND
+            	        a.role_id                       = ${@role_id} AND
+            	        a.authority_usage               = ${@aut_category_code} AND
+            	        a.authority_value               = ${@aut_code};
+            	    IF sql%notfound AND ${@enabled_flag}='Y' THEN
+            	        INSERT
+            	        INTO
+            	            aut_object_role_authorize
+            	            (
+            	                company_id,
+            	                role_id,
+            	                authority_usage,
+            	                authority_value,
+            	                enabled_flag,
+            	                created_by,
+            	                creation_date,
+            	                last_updated_by,
+            	                last_update_date
+            	            )
+            	            VALUES
+            	            (
+            	                ${@company_id},
+            	                ${@role_id},
+            	                ${@aut_category_code},
+            	                ${@aut_code},
+            	                ${@enabled_flag},
+            	                ${/session/@user_id},
+            	                sysdate,
+            	                ${/session/@user_id},
+            	                sysdate
+            	            );
+            	    END IF;
+            	END;
+        	]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="aut_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="AUT_CODE"/>
+        <bm:field name="aut_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="AUT_DESC"/>
+        <bm:field name="enabled_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="ENABLED_FLAG"/>
+        <bm:field name="company_id"/>
+        <bm:field name="role_id"/>
+        <bm:field name="aut_category_code"/>
+    </bm:fields>
+</bm:model>

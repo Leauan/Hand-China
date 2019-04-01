@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:view>
+        <a:link id="con_contract_modify_link" url="${/request/@context_path}/modules/cont/CON505/con_contract_modify.screen"/>
+        <a:link id="acr512_invoice_ln_update_1_link" model="acr.ACR512.acr_invoice_update_query" modelaction="update"/>
+        <script><![CDATA[
+            // var dynamic_document_id = '$c{/parameter/@document_id}';
+            // if ('$c{/parameter/@document_id}') {
+            // var detail_mask;
+            // if ('${/parameter/@winid}') {
+            // if (parent.$A.CmpManager.get('${/parameter/@winid}')) {
+            // detail_mask = parent.$('${/parameter/@winid}').wrap;
+            // parent.Aurora.Masker.mask(detail_mask, '${l:HLS.LOADING}');
+            // } else {
+            // detail_mask = $('${/parameter/@winid}').wrap;
+            // Aurora.Masker.mask(detail_mask, '${l:HLS.LOADING}');
+            // }
+            // } else {
+            // detail_mask = Ext.getBody();
+            // Aurora.Masker.mask(detail_mask, '${l:HLS.LOADING}');
+            // }
+            // }
+            
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record, bp_seq) {
+                var link_function = '';
+                window['${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                if (name == 'bp_link' && record.get('bp_id') && record.get('record_id')) {
+                    link_function = '${/parameter/@layout_code}_open_bp_detail_window';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+                } else if (name == 'car_detail' && record.get('contract_lease_item_id')) {
+                    link_function = '${/parameter/@layout_code}_open_lease_item_detail_window';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+                } else if (name == 'contract_number' && record.get('contract_id')) {
+                    link_function = '${/parameter/@layout_code}_open_contract_detail_window';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');">' + value + '</a>';
+                }
+            };
+            
+            window['${/parameter/@layout_code}_open_lease_item_detail_window'] = function(id, name) {
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][id + '---' + name];
+                var param = record.data;
+                var contract_lease_item_id = record.get('contract_lease_item_id');
+                new Aurora.Window({
+                    id: 'contract_lease_item_maintain_window',
+                    url: $('contract_lease_item_maintain_link').getUrl(),
+                    params: {
+                        contract_lease_item_id: contract_lease_item_id,
+                        winid: 'contract_lease_item_maintain_window'
+                    },
+                    draggable: true,
+                    fullScreen: true
+                });
+            };
+            
+            window['${/parameter/@layout_code}_open_contract_detail_window'] = function(id, name) {
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][id + '---' + name];
+            
+                var param = record.data;
+                param['function_code'] = 'ACR_CON301'; /* param['function_usage'] = 'QUERY'; */
+                param['maintain_type'] = 'QUERY';
+            
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_modify_link', record.ds.id, '${/parameter/@layout_code}');
+            
+            };
+            //加载事件
+            window['${/parameter/@layout_code}_on_layout_dynamic_form_add_and_load'] = function(ds, record, config_records, bp_seq) {
+                var acr_invoice_hd_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'acr_invoice_hd');
+                var ds_batch_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'acr_invoice_batch_ln');
+                $(acr_invoice_hd_ds_id).getAt(0).set('merge_flag', 'Y');
+                $(acr_invoice_hd_ds_id).getAt(0).set('merge_flag_n', '合并');
+            
+                var acr_invoice_rec = $(acr_invoice_hd_ds_id).getAt(0);
+                var invoice_hd_id = $(acr_invoice_hd_ds_id).getCurrentRecord().get('invoice_hd_id');
+            
+                // if (acr_invoice_rec.get('merge_flag') == 'Y') {
+                Aurora.request({
+                    url: $('acr512_invoice_ln_update_1_link').getUrl(),
+                    para: {
+                        invoice_hd_id: invoice_hd_id,
+                        merge_flag: $(acr_invoice_hd_ds_id).getCurrentRecord().get('merge_flag')
+                    },
+                    success: function() {
+                        Aurora.SideBar.show({
+                            msg: '操作成功',
+                            duration: 2000
+                        });
+                        $(ds_batch_id).query();
+                        //$('${/parameter/@winid}').close();
+                    },
+                    scope: this
+                });
+            };
+            window['${/parameter/@layout_code}_open_bp_detail_window'] = function(id, name) {
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][id + '---' + name];
+                var param = record.data;
+                param['function_code'] = 'CON501H';
+                param['function_usage'] = 'MODIFY';
+                param['url_title'] = '${l:HLS212.BP_MASTER_MAINTAIN}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con713_hls_bp_master_modify_link', record.ds.id, '${/parameter/@layout_code}');
+            };
+            
+            function con500_contract_save(nextStep) {
+                var root_ds = $('${/model/base_table_path/record/@tab_code}_${/model/base_table_path/record/@base_table}_ds');
+                if (root_ds.validate()) {
+                    var winid = '${/parameter/@winid}';
+                    if (winid) {
+                        Aurora.Masker.mask($(winid).wrap, '${l:HLS.EXECUTING}');
+                    } else {
+                        Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+                    }
+                    lock_current_window();
+                    var root_record = root_ds.getAt(0);
+                    root_ds.setSubmitParameter('layout_code', '${/parameter/@layout_code}');
+                    on_con_save_dynamic(root_ds, root_record, nextStep, winid);
+                }
+                con500_contract_merge();
+            }
+            
+            function con500_contract_submit() {
+                debugger;
+                Aurora.SideBar.enable = false;
+                con500_contract_save(con500_contract_submit_final);
+            }
+            
+            function con500_contract_exit() {
+                if ('${/parameter/@winid}') {
+                    $('${/parameter/@winid}').close();
+                } else {
+                    window.location.go(-1);
+                }
+            }
+            
+            function con500_contract_save_exit() {
+                con500_contract_save(con500_contract_exit);
+            }
+            
+            
+            window['${/parameter/@layout_code}_on_layout_dynamic_submitsuccess'] = function(ds, record, res, bp_seq) {
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'acr_invoice_hd');
+                var ds_batch_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'acr_invoice_batch_ln');
+            
+                var invoice_hd_id = $(ds_id).getCurrentRecord().get('invoice_hd_id');
+                var message = '';
+                if ($(ds_id).getCurrentRecord().get('merge_flag') == 'Y') {
+                    message = '您确认行合并吗';
+                } else {
+                    message = '您确认行不合并吗';
+                }
+            
+                Aurora.showConfirm('提示', message, function() {
+                    Aurora.request({
+                        url: $('acr512_invoice_ln_update_1_link').getUrl(),
+                        para: {
+                            invoice_hd_id: invoice_hd_id,
+                            merge_flag: $(ds_id).getCurrentRecord().get('merge_flag')
+                        },
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '操作成功',
+                                duration: 2000
+                            });
+                            $(ds_batch_id).query();
+                            // $('${/parameter/@winid}').close();
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+            
+                            /*       new Aurora.Window({
+                             id: 'contract_invoice_merge_window',
+                             url: $('contract_invoice_merge_link').getUrl(),
+                             params: {
+                             invoice_hd_id: invoice_hd_id,
+                             winid: 'contract_invoice_merge_window'
+                             },
+                             // draggable: true,
+                             fullScreen: true
+                             }); */
+                        },
+                        scope: this
+                    });
+            
+                });
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

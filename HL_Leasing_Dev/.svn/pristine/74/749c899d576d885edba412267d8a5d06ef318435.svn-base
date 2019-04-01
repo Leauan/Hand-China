@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-8-4 下午03:12:06  
+    $Revision: 1.0  
+    $Purpose: 商业伙伴维护
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:view>
+        <a:link id="bank_account_num_link" model="hls.HLS214.hls_bp_bank_account_num" modelaction="update"/>
+        <a:link id="bp_name_change_link" model="hls.HLS214.hl_hls_bp_bp_name_change_flag" modelaction="update"/>
+        <a:link id="id_card_no_change_link" model="hls.HLS214.hl_hls_bp_id_card_no_change_flag" modelaction="update"/>
+        <a:link id="${/parameter/@layout_code}_downloadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="prj500_cdd_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="prj500_cdd_downloadFile_id" url="${/request/@context_path}/downloadFile.screen"/>
+        <script><![CDATA[
+            //add by wdd 20180522 for Hl
+            //承租人姓名，身份证变更
+            var bp_name_old = '';
+            var id_card_no_old = '';
+            //end
+            
+            function prj_check_bp_id(record) {
+                var bp_id;
+                if (record) {
+                    bp_id = record.get('bp_id');
+                }
+                if (!bp_id) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.EXECUTE_AFTER_SAVE}');
+                    bp_id = '';
+                }
+                return bp_id;
+            }
+            
+            //财务报表模板导入
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+                var record = $(ds_id).getCurrentRecord();
+            
+                bp_id = prj_check_bp_id(record);
+                if (!bp_id) {
+                    return;
+                }
+                new Aurora.Window({
+                    id: 'rsc_fin_statement_prj_import_handle_winid',
+                    url: '${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_import_handle.screen',
+                    params: {
+                        bp_id: bp_id,
+                        winid: 'rsc_fin_statement_prj_import_handle_winid'
+                    },
+                    title: '${l:STATEMENTS_BUSINESS_DATA_IMPORT}',
+                    width: 950,
+                    height: 200
+                });
+            };
+            
+            //财务报表模板查看
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+                var record = $(ds_id).getCurrentRecord();
+                var bp_id = prj_check_bp_id(record);
+                if (!bp_id) {
+                    return;
+                }
+                new Aurora.Window({
+                    id: 'rsc_fin_statement_prj_all_query_winid',
+                    url: '${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_all_query.screen',
+                    params: {
+                        bp_id: bp_id,
+                        winid: 'rsc_fin_statement_prj_all_query_winid'
+                    },
+                    title: '${l:STATEMENTS_BUSINESS_DATA_IMPORT}',
+                    fullScreen: true,
+                    draggable: true
+                });
+            };
+          	window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_form_add_and_load'] = function(ds, record, config_records, bp_seq) {
+		if(record.get('bp_category') == 'AGENT'){
+                    //add by lara 11355 20190102 经销商需维护广三经销商代码
+                    record.getField('gac_bp_code').setReadOnly(false);
+                    record.getField('gac_bp_code').setRequired(true);
+                    //end add by lara 11355 20190102 
+                }else{
+                    //add by lara 11355 20190102 经销商需维护广三经销商代码
+                    record.getField('gac_bp_code').setReadOnly(true);
+                    record.getField('gac_bp_code').setRequired(false);
+                    //end add by lara 11355 20190102 
+                }
+            };
+            
+            window['${/parameter/@layout_code}_on_layout_dynamic_grid_load'] = function(ds, line_record) {
+                var dsId = ds.id;
+                var base_table_temp = 'hls_bp_master_role_ds';
+                if (dsId.substring(dsId.length - base_table_temp.length, dsId.length) == base_table_temp) {
+                    var record = ds.getCurrentRecord();
+                    if (record) {
+                        record.getField('bp_type_n').setReadOnly(true);
+                        record.getField('enabled_flag').setReadOnly(true);
+                    }
+                }
+                if (ds.fields.parent_id) {
+                    record.getField('parent_id_n').setReadOnly(true);
+                }
+            };
+            
+            
+            //保存submitsuccess调用
+            window['${/parameter/@layout_code}_on_layout_dynamic_submitsuccess'] = function(ds, record, res, bp_seq) {
+			   window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                debugger;
+                var hls_bp_master_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+                var hls_bp_master_record = $(hls_bp_master_ds_id).getCurrentRecord();
+            
+                var bp_name = hls_bp_master_record.get('bp_name');
+                var bp_id = hls_bp_master_record.get('bp_id');
+            
+                var id_card_no = hls_bp_master_record.get('id_card_no');
+                if (bp_name_old != '' && bp_name != bp_name_old) {
+                    Aurora.request({
+                        url: $('bp_name_change_link').getUrl(),
+                        para: {
+                            bp_id: bp_id
+                        },
+                        success: function(res) {
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        failure: function(res) {
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        error: function() {
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        scope: this
+                    });
+                }
+            
+                if (id_card_no_old != '' && id_card_no != id_card_no_old) {
+                    window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                    Aurora.request({
+                        url: $('id_card_no_change_link').getUrl(),
+                        para: {
+                            bp_id: bp_id
+                        },
+                        success: function(res) {
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        failure: function(res) {
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        error: function() {
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        scope: this
+                    });
+                }
+				 window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+            };
+            
+            
+            
+            //更新时调用 add by liukang
+            //填写银行账号时 允许银行账号相同 但是给一个提示(提示一下而已)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+                var hls_bp_master_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+                var hls_bank_acc_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master_bank_account');
+                if ((ds.id).indexOf('hls_bp_master') != -1 && (ds.id).indexOf('F_BASIC') != -1) {
+                    if (name == 'agent_type') {
+                        if (value == 'AGENT_NO_REBATE' || value == 'AGENT_EE') {
+                            record.getField('parent_id_n').setReadOnly(false);
+                        } else {
+                            record.getField('parent_id_n').setReadOnly(true);
+                        }
+                    }
+                }
+                if (ds.id == hls_bp_master_ds_id) {
+                    if ($A.CmpManager.get(hls_bp_master_ds_id)) {
+                        if (name == 'province_id') {
+                            record.set('city_sp', '');
+                            record.set('city_sp_n', '');
+                        }
+                    }
+                    if (name == 'bp_name') {
+                        if (old_value != value) {
+                            bp_name_old = old_value;
+                        }
+                    }
+                    if (name == 'id_card_no') {
+                        if (old_value != value) {
+                            id_card_no_old = old_value;
+                        }
+                    }
+            
+                }
+            
+                if (ds.id == hls_bank_acc_ds_id) {
+                    var bank_account_num = record.get('bank_account_num');
+                    if (name == 'bank_account_num') {
+                        Aurora.request({
+                            url: $('bank_account_num_link').getUrl(),
+                            para: {
+                                bank_account_num: bank_account_num
+                            },
+                            success: function(res) {
+                                var number = res.result.num;
+                                //alert(number);
+                                if (number > 0) {
+                                    Aurora.showMessage('提示', '该银行账号在系统中已存在！');
+                                }
+                            },
+                            failure: function(res) {},
+                            error: function() {},
+                            scope: this
+                        });
+                    }
+                }
+            };
+            
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record, bp_seq) {
+                if (name == 'attachment') {
+                    link_function = '${/parameter/@layout_code}_attachtment_upload';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                }
+            };
+            
+            window['${/parameter/@layout_code}_attachtment_upload'] = function(ds_id, id, name, query_only) {
+                var record = $(ds_id).findById(id);
+                if (record.get('bank_account_id')) {
+                    var url = $('${/parameter/@layout_code}_downloadFile_id').getUrl() + '?table_name=HLS_BP_MASTER_BANK_ACCOUNT&header_id=' + record.get('bank_account_id');
+                    var win = new Aurora.Window({
+                        url: url,
+                        title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                        id: '${/parameter/@layout_code}${/parameter/@tree_code}_uploadFile_screen_id',
+                        width: 850,
+                        height: 400
+                    });
+            
+                    win.on('close', function() {
+                        record.ds.query();
+                    });
+                }
+            };
+            //modified by 20834
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_before_submit'] = function(ds, record) {
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var check_flag = true;
+                if(!isNaN(record.get('annual_income'))){
+                    if(record.get('annual_income') <= 0){
+                        Aurora.showMessage('${l:PROMPT}', '税后年收入须大于0！');
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    	return false;
+                    }
+                }
+                return check_flag;
+            };
+            
+            
+            // //附件上传
+            // window['${/parameter/@layout_code}_upload_layout_dynamic_click'] = function() {
+            // var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+            // var record = $(ds_id).getCurrentRecord();
+            // var bp_id = prj_check_bp_id(record);
+            // if (!bp_id) {
+            // return;
+            // }else{
+            // var url;
+            // if ('${/parameter/@function_usage}' == 'QUERY') {
+            // url = $('prj500_cdd_downloadFile_id').getUrl() + '?table_name=HLS_BP_MASTER_CONTENT&header_id=' + bp_id;
+            // } else {
+            // url = $('prj500_cdd_uploadFile_id').getUrl() + '?table_name=HLS_BP_MASTER_CONTENT&header_id=' + bp_id;
+            // }
+            // var win = new Aurora.Window({
+            // url: url,
+            // title: '${l:HLS.SUPPORTING_DOCUMENT}',
+            // id: 'prj500_cdd_uploadFile_screen_id',
+            // width: 850,
+            // height: 400
+            // });
+            // win.on('close', function() {
+            // // record.ds.query();
+            // });
+            // }
+            // };
+        ]]></script>
+    </a:view>
+</a:screen>

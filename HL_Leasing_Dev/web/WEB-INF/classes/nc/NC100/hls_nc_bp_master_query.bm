@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Peter Soong  
+    $Date: 2014-06-11 10:25:24
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" needAccessControl="false">
+    <bm:fields>
+        <bm:field name="result_id"/>
+        <bm:field name="bp_id"/>
+        <bm:field name="bp_code"/>
+        <bm:field name="bp_name"/>
+        <bm:field name="extra_nam"/>
+        <bm:field name="bp_class"/>
+        <bm:field name="bp_class_desc"/>
+        <bm:field name="bp_category"/>
+        <bm:field name="bp_category_desc"/>
+        <bm:field name="bp_type"/>
+        <bm:field name="bp_type_desc"/>
+        <bm:field name="result_state"/>
+        <bm:field name="result_state_n"/>
+        <bm:field name="enabled_flag"/>
+        <bm:field name="time"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        t2.result_id,
+                        t1.bp_id,
+                        t1.bp_code,
+                        t1.bp_name,
+                        t1.extra_nam,
+                        t1.bp_class,
+                        (SELECT
+                            v.code_value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code       = 'HLS211_BP_CLASS' AND
+                            v.code_value = t1.bp_class
+                        ) AS bp_class_desc,
+                        t1.bp_category,
+                        (SELECT
+                            bc.description
+                        FROM
+                            hls_bp_category bc
+                        WHERE
+                            bc.bp_category = t1.bp_category
+                        ) AS bp_category_desc,
+                        t1.bp_type,
+                        (SELECT bt.description FROM hls_bp_type bt WHERE bt.bp_type = t1.bp_type
+                        ) AS bp_type_desc,
+                        t1.enabled_flag,
+                        t2.result_state,
+                        TO_CHAR(t2.creation_date,'yyyy-mm-dd hh24:mi:ss') TIME,
+                        DECODE(t2.result_state, '1', '成功', '2', '失败', '3','程序异常','未知错误') result_state_n
+                    FROM
+                        hls_bp_master t1,
+                        gh_nc_inter_return t2
+                    WHERE
+                        t2.document_table = 'HLS_BP_MASTER' AND
+                        t1.bp_id          = t2.document_id AND
+                        t2.document_type !='AGENT'
+                    ORDER BY
+                        t1.BP_ID DESC
+                    ) t1 #WHERE_CLAUSE#
+                ORDER BY
+                    t1.time desc
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field field="bp_class" queryOperator="="/>
+        <bm:query-field field="bp_type" queryOperator="="/>
+        <bm:query-field name="bp_code_from" queryExpression="bp_code &gt;= ${@bp_code_from} "/>
+        <bm:query-field name="bp_code_to" queryExpression="bp_code &lt;= ${@bp_code_to} "/>
+        <bm:query-field field="bp_id" queryOperator="="/>
+        <bm:query-field field="bp_category" queryOperator="="/>
+        <bm:query-field field="extra_nam" queryOperator="like"/>
+        <bm:query-field field="bp_name" queryOperator="like"/>
+        <bm:query-field name="result_state" queryExpression="nvl(t1.result_state,&apos;3&apos;) = ${@nc_status}"/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="t1.enabled_flag = &apos;Y&apos;"/>
+    </bm:data-filters>
+</bm:model>

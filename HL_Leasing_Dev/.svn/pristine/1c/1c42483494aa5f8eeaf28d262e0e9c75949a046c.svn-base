@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:o="aurora.database.local.oracle" xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" baseTable="ZJ_WFL_GRAPHICS_DETAIL">
+    <bm:fields>
+        <bm:field name="detail_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="graphic_id" databaseType="NUMBER" datatype="java.lang.Long" insertExpression="${../../@graphic_id}"/>
+        <bm:field name="sequence_num" forInsert="false" forUpdate="false"/>
+        <bm:field name="config" databaseType="VARCHAR" datatype="java.lang.String"/>
+        <bm:field name="type" databaseType="VARCHAR" datatype="java.lang.String"/>
+        <bm:field name="node_type_desc" forInsert="false" forUpdate="false"/>
+        <bm:field name="table_name" databaseType="VARCHAR" datatype="java.lang.String"/>
+        <bm:field name="table_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="node_desc" forInsert="false" forUpdate="false"/>
+        <bm:field name="node_type" forInsert="false" forUpdate="false"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    t1.detail_id,
+                    t1.graphic_id,
+                    t1.config,
+                    n.sequence_num,
+                    t1.type,
+                    n.node_type_desc,
+                    t1.table_name,
+                    n.node_desc,
+                    n.node_type,
+                    t1.table_id
+                FROM
+                    zj_wfl_graphics_detail t1,
+                    zj_wfl_workflow_node_v n
+                WHERE
+                    t1.table_id = n.node_id AND
+                    EXISTS
+                    (SELECT
+                        1
+                    FROM
+                        zj_wfl_graphics g
+                    WHERE
+                        g.workflow_id = ${@workflow_id} AND
+                        g.graphic_id  = t1.graphic_id
+                    ) AND
+                    t1.type     != 'zLine' AND
+                    t1.type     != 'line' AND
+                    t1.table_id != 0 AND
+                    t1.table_id != -1
+                UNION ALL
+                SELECT
+                    NULL AS detail_id,
+                    NULL AS graphic_id,
+                    NULL AS config,
+                    n.sequence_num,
+                    -- DECODE(n.node_type, 'SUB_PROCESS', 'oval', 'BRANCH_NODE', 'diamond', 'NORMAL_NODE', 'image', 'rect') AS type,
+                    'image' type,
+                    n.node_type_desc,
+                    NULL AS table_name,
+                    n.node_desc,
+                    n.node_type,
+                    n.node_id AS table_id
+                FROM
+                    zj_wfl_workflow_node_v n
+                WHERE
+                    n.workflow_id = ${@workflow_id} AND
+                    NOT EXISTS
+                    (SELECT
+                        1
+                    FROM
+                        zj_wfl_graphics_detail d,
+                        zj_wfl_graphics g
+                    WHERE
+                        g.workflow_id = n.workflow_id AND
+                        d.graphic_id  = g.graphic_id AND
+                        d.table_id    = n.node_id
+                    )
+                ORDER BY
+                    sequence_num
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:primary-key>
+        <bm:pk-field name="detail_id"/>
+    </bm:primary-key>
+    <bm:features>
+        <o:sequence-pk/>
+    </bm:features>
+</bm:model>

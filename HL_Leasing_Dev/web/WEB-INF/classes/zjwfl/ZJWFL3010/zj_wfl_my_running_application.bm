@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:fields>
+        <bm:field name="instance_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="INSTANCE_ID"/>
+        <bm:field name="workflow_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="WORKFLOW_ID"/>
+        <bm:field name="workflow_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="WORKFLOW_CODE"/>
+        <bm:field name="workflow_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="WORKFLOW_DESC"/>
+        <bm:field name="current_seq" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CURRENT_SEQ"/>
+        <bm:field name="current_node_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CURRENT_NODE_DESC"/>
+        <bm:field name="last_approve_date" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="LAST_APPROVE_DATE"/>
+        <bm:field name="company_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="COMPANY_ID"/>
+        <bm:field name="company_info" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="instance_status" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="instance_status_desc" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="approve_user_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="APPROVE_USER_CODE"/>
+        <bm:field name="approve_user_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="APPROVE_USER_NAME"/>
+        <bm:field name="created_by"/>
+        <bm:field name="can_cancel"/>
+        <bm:field name="submitted_by"/>
+        <bm:field name="document_info"/>
+        <bm:field name="approve_num"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            	select t1.instance_id,
+				       t1.workflow_id,
+				       t1.workflow_code,
+				       t1.workflow_desc,
+				    
+				       zj_wfl_core_pkg.can_cancel_instance(t1.instance_id, ${/session/@user_id}) as can_cancel,
+				       t1.current_seq,
+				       t1.created_by,
+				       t1.submitted_by,
+				       t1.instance_status,
+				       t1.instance_status_desc,
+				       t1.current_node_desc,
+				       t1.last_approve_date,
+				       t1.company_id,
+				       t1.company_info,
+				       (select t.approve_user_code from zj_wfl_workflow_instance_v t where t.instance_id=t1.instance_id and rownum=1 AND exists (select 1 from sys_user sy where sy.user_id=${/session/@user_id} and sy.bp_category<>'AGENT'))approve_user_code,
+              (select t.approve_user_name from zj_wfl_workflow_instance_v t where t.instance_id=t1.instance_id and rownum=1 AND exists (select 1 from sys_user sy where sy.user_id=${/session/@user_id} and sy.bp_category<>'AGENT'))approve_user_name,       
+				       t1.document_info,
+				       (select count(*) from zj_wfl_approve_history_v r where r.approve_count = t1.approve_count and r.instance_id = t1.instance_id) approve_num
+				  from zj_wfl_workflow_instance_v t1
+					#WHERE_CLAUSE#
+				  order by t1.instance_id desc
+			]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="execute">
+            <bm:update-sql><![CDATA[
+        		begin
+        			zj_wfl_core_pkg.workflow_cancel(p_instance_id	=> ${@instance_id},
+        											p_user_id		=> ${/session/@user_id});
+        		end;
+        	]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="t1.submitted_by=${/session/@user_id} and t1.company_id = ${/session/@company_id}"/>
+    </bm:data-filters>
+    <bm:query-fields>
+        <bm:query-field name="instance_status" queryExpression="t1.instance_status = ${@instance_status}"/>
+        <bm:query-field name="instance_id" queryExpression="t1.instance_id = ${@instance_id}"/>
+        <bm:query-field name="workflow_code" queryExpression="t1.workflow_code like ${@workflow_code}"/>
+        <bm:query-field name="current_node_desc" queryExpression="t1.current_node_desc like &apos;%&apos;||${@current_node_desc}||&apos;%&apos;"/>
+        <bm:query-field name="node_desc" queryExpression="(t1.current_node_desc like &apos;%&apos;|| ${@node_desc}||&apos;%&apos; or t1.current_seq like &apos;%&apos;|| ${@node_desc}||&apos;%&apos;)"/>
+        <bm:query-field name="approve_user" queryExpression="(t1.approve_user_name like &apos;%&apos;|| ${@approve_user}||&apos;%&apos; or t1.approve_user_code like &apos;%&apos;|| ${@approve_user}||&apos;%&apos;)"/>
+        <bm:query-field name="document_info" queryExpression="t1.document_info like &apos;%&apos;||${@document_info}||&apos;%&apos;"/>
+    </bm:query-fields>
+</bm:model>

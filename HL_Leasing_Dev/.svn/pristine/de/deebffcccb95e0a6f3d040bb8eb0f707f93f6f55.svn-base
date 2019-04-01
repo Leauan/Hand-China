@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    DECODE(cc.bp_class, 'NP', '个人', 'ORG', '企业', NULL) bp_class_n,
+                    cc.bp_id_tenant_n name,
+                    (
+                        CASE
+                            WHEN hbm.id_type = 'ID_CARD'
+                            THEN '身份证'
+                            WHEN hbm.id_type          IS NULL AND
+                                hbm.organization_code IS NOT NULL
+                            THEN '组织机构代码证'
+                            ELSE NULL
+                        END) id_type_n,
+                    (
+                        CASE
+                            WHEN hbm.id_type = 'ID_CARD'
+                            THEN hbm.id_card_no
+                            WHEN hbm.id_type          IS NULL AND
+                                hbm.organization_code IS NOT NULL
+                            THEN hbm.organization_code
+                            ELSE NULL
+                        END) id_card_no,
+                    ppb.liv_province_n,
+                    ppb.liv_city,
+                    ppb.liv_city_n,
+                    ppb.living_address,
+                    ppb.cell_phone,
+                    ppb.phone,
+                    ppb.email,
+                    (SELECT
+                        ci.contact_person
+                    FROM
+                        prj_project_bp_contact_info ci
+                    WHERE
+                        ci.prj_bp_id = ppb.prj_bp_id AND
+                        rownum       = 1
+                    ) contact_person,
+                    (SELECT
+                        ci.phone
+                    FROM
+                        prj_project_bp_contact_info ci
+                    WHERE
+                        ci.prj_bp_id = ppb.prj_bp_id AND
+                        rownum       = 1
+                    ) contact_person_phone,
+                    (SELECT
+                        ci.cell_phone
+                    FROM
+                        prj_project_bp_contact_info ci
+                    WHERE
+                        ci.prj_bp_id = ppb.prj_bp_id AND
+                        rownum       = 1
+                    ) contact_person_cell_phone,
+                    (SELECT
+                        sc.code_value_name
+                    FROM
+                        sys_code_values_v sc
+                    WHERE
+                        sc.code       = 'GPS_PRODUCT_NAME' AND
+                        sc.code_value = acg.ln_product_code
+                    ) ln_product_name,
+                    acg.purchase_date,
+                    t.brand_id_n,
+                    t.model_id_n,
+                    t.color_of_apprearance,
+                    (
+                        CASE
+                            WHEN t.invoice_price>1000000
+                            THEN 1000000
+                            ELSE t.invoice_price
+                        END)invoice_price,
+                    t.item_engine_number,
+                    t.item_frame_number,
+                    t.license_number,
+                    '贷款车' purchase_car_type,
+                    cc.company_id_n,
+                    cc.contract_id,
+                    acg.saleno
+                FROM
+                    con_contract_lv cc,
+                    con_contract_lease_item_lv t,
+                    hls_bp_master_lv hbm,
+                    ast_car_gps acg,
+                    prj_project_bp_tenant_lv ppb
+                WHERE
+                    cc.contract_id  = t.contract_id AND
+                    cc.bp_id_tenant = hbm.bp_id AND
+                    cc.contract_id  = acg.contract_id AND
+                    cc.project_id   = ppb.project_id AND
+                    ppb.bp_category = 'TENANT' AND
+                    cc.contract_id  = ${@contract_id}
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

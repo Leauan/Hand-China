@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2014-1-18 下午4:44:03  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:s="aurora.plugin.script" xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        t1.project_number,
+                        t1.project_name,
+                        t1.project_id,
+                        t1.employee_id,
+                        (SELECT t.name FROM exp_employees t WHERE t.employee_id = t1.employee_id
+                        ) employee_name,
+                        t1.lease_organization,
+                        (SELECT
+                            t.description
+                        FROM
+                            hls_lease_organization t
+                        WHERE
+                            t.lease_organization = t1.lease_organization
+                        ) lease_organization_desc,
+                        t1.project_status,
+                        (SELECT
+                            t.code_value_name
+                        FROM
+                            sys_code_values_v t
+                        WHERE
+                            t.code       = 'PRJ501_PRJ_STATUS' AND
+                            t.code_value = t1.project_status
+                        ) project_status_desc,
+                        zj_wfl_workflow_pkg.get_current_node_desc(t1.wfl_instance_id) AS current_node_desc,
+                        t1.wfl_instance_id
+                    FROM
+                        prj_project t1
+                    WHERE
+                        EXISTS
+                        (SELECT 1 FROM prj_project_approval a WHERE a.project_id = t1.project_id
+                        )
+                    ) t1 #WHERE_CLAUSE#
+                ORDER BY
+                    t1.wfl_instance_id DESC
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="project_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PROJECT_NUMBER"/>
+        <bm:field name="project_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PROJECT_NAME"/>
+        <bm:field name="project_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="PROJECT_ID"/>
+        <bm:field name="employee_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="EMPLOYEE_ID"/>
+        <bm:field name="employee_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="EMPLOYEE_NAME"/>
+        <bm:field name="lease_organization" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="LEASE_ORGANIZATION"/>
+        <bm:field name="lease_organization_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="LEASE_ORGANIZATION_DESC"/>
+        <bm:field name="project_status" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PROJECT_STATUS"/>
+        <bm:field name="project_status_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PROJECT_STATUS_DESC"/>
+        <bm:field name="current_node_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CURRENT_NODE_DESC"/>
+        <bm:field name="wfl_instance_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="WFL_INSTANCE_ID"/>
+    </bm:fields>
+    <bm:features>
+        <s:bm-script><![CDATA[
+            var cx = Packages.aurora.javascript.Context.getCurrentContext();
+            Packages.aurora.plugin.script.engine.ScriptImportor.defineExternScript(cx, this, $ctx.getData(), "aut_authority_bm_validate.js");
+        ]]></s:bm-script>
+    </bm:features>
+    <bm:query-fields>
+        <bm:query-field field="project_number" queryOperator="="/>
+        <bm:query-field field="employee_id" queryOperator="="/>
+        <bm:query-field field="lease_organization" queryOperator="="/>
+        <bm:query-field field="project_name" queryOperator="like"/>
+    </bm:query-fields>
+</bm:model>

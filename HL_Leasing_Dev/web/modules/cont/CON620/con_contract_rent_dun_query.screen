@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="con_dun_record_id" url="${/request/@context_path}/modules/cont/CON620/con_dun_record.screen"/>
+        <a:link id="hls_bp_master_id" url="${/request/@context_path}/modules/hls/HLS306/hls_bp_master_details_check.screen"/>
+        <a:link id="con_contract_update_link_id" url="${/request/@context_path}/modules/cont/CON505/con_contract_modify.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="con_contract_lawyer_letter_print_link_id" url="${/request/@context_path}/modules/cont/CON620/con_contract_lawyer_letter_print.screen"/>
+        <a:link id="penalty_change_id" url="${/request/@context_path}/modules/cont/CON747/con_contract_penatly_change_req_detail.screen"/>
+        <script><![CDATA[
+            function CON601_con_contract_query() {
+                $('CON620_contract_result_ds').query();
+            }
+            
+            function CON601_con_contract_reset() {
+                $('CON620_contract_query_ds').reset();
+            }
+            
+            function penalty_change_btn() {
+                 // Aurora.go(url);
+                // var contract_id=$('CON620_contract_result_ds').getSelected().get('contract_id');
+                var url=$('penalty_change_id').getUrl();
+                // var url=$('penalty_change_id').getUrl()+'?contract_id='+contract_id;
+                new Aurora.Window({
+                    id: 'penalty_change_window',                   
+                    fullScreen:true,
+                    url: url
+                });
+            }
+            
+            function CON601_con_contract_print() {
+                //待报表做好，在此处写
+                var contract_id = $('CON620_contract_result_ds').getSelected()[0].get('contract_id');
+            
+                new Aurora.Window({
+                    id: 'con_contract_lawyer_letter_print_detail_winid',
+                    params: {
+                        contract_id: contract_id,
+                        winid: 'con_contract_lawyer_letter_print_detail_winid'
+                    },
+                    url: $('con_contract_lawyer_letter_print_link_id').getUrl(),
+                    title: '${l:CON505.CON_CONTENT_PRINT}',
+                    width: 600,
+                    height: 400
+                });
+            
+            }
+            
+            
+            function CON620_render_contract_dun_grid(value, record, name) {
+                if (name == 'contract_number') {
+                    if (record.get('overdue_times') > 1) {
+                        return '<u><a style="color:red" href="javascript:contract_link(' + record.id + ');">' + value + '</a></u>';
+                    } else {
+                        return '<a href="javascript:contract_link(' + record.id + ');">' + value + '</a>';
+                    }
+                } else if (name == 'bp_id_tenant_desc') {
+                    //商业伙伴查询页面要做好，然后在此处关联。
+                    if (record.get('overdue_times') > 1) {
+                        return '<u><a style="color:red" href="javascript:bp_id_tenant_desc_link(' + record.get('contract_id') + ');">' + value + '</a></u>';
+                    } else {
+                        return '<a href="javascript:bp_id_tenant_desc_link(' + record.get('contract_id') + ');">' + value + '</a>';
+                    }
+                } else if (name == 'bp_id_agent_desc') {
+                    if (record.get('bp_id_agent_desc') == null) {
+                        return;
+                    } else {
+                        if (record.get('overdue_times') > 1) {
+                            return '<u><a style="color:red" href="javascript:bp_id_agent_desc_link(' + record.get('bp_id_agent_level1') + ',\'' + record.get('bp_id_agent_class') + '\')">' + value + '</a></u>';
+                        } else {
+                            return '<a href="javascript:bp_id_agent_desc_link(' + record.get('bp_id_agent_level1') + ',\'' + record.get('bp_id_agent_class') + '\')">' + value + '</a>';
+                        }
+                    }
+                }
+            }
+            
+            function bp_id_tenant_desc_link(contract_id) {
+                var url = $('con_dun_record_id').getUrl() + '?contract_id=' + contract_id;
+            
+                var win = new Aurora.Window({
+                    id: 'con_dun_record_window',
+                    url: url,
+                    title: '催收记录',
+                    fullScreen: true
+                });
+                win.on('close', function() {
+                    $('CON620_contract_result_ds').query();
+                });
+            }
+            
+            function bp_id_agent_desc_link(bp_id, bp_class) {
+                var url = $('hls_bp_master_id').getUrl();
+                new Aurora.Window({
+                    id: 'hls_bp_detail_winId',
+                    url: url,
+                    params: {
+                        bp_id: bp_id,
+                        bp_class: bp_class,
+                        winId: 'hls_bp_detail_winId'
+                    },
+                    title: '${l:HLS212.BP_MASTER_MAINTAIN}',
+                    fullScreen: true
+                });
+            
+            }
+            
+            function con601_param_set_value(param) {
+                param['document_category'] = 'CONTRACT';
+                param['function_code'] = 'CON301';
+                param['function_usage'] = 'QUERY';
+                param['maintain_type'] = 'READONLY';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                param['company_id'] = '${/session/@company_id}';
+                //debugger;
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_update_link_id', 'CON620_contract_result_ds');
+            }
+            
+            function contract_link(id) {
+                //debugger;
+                var current_record = $('CON620_contract_result_ds').findById(id);
+                var record = current_record;
+                var saveData = [];
+                for (var k in record.data) {
+                    var item = record.data[k];
+                    if (item && item.xtype == 'dataset') {
+                        delete record.data[k];
+                    }
+                }
+                var param = record.data;
+                param['document_id'] = current_record.get('contract_id');
+                con601_param_set_value(param);
+            }
+            
+            function summaryRenderer(datas, name) {
+            
+                var sum = 0;
+                var sum2 = 0;
+                var sum3 = 0;
+                var sum4 = 0;
+                var sum5 = 0;
+                for (var i = 0;i < datas.length;i++) {
+                    record = datas[i];
+                    if (name == "overdue_amount") {
+                        var t_1 = record.get("overdue_amount");
+                        var t_2 = parseFloat(t_1);
+                        if (!isNaN(t_2)) {
+                            sum += t_2;
+                        }
+                    }
+                    if (name == "remain_principal") {
+                        var d_1 = record.get("remain_principal");
+                        var d_2 = parseFloat(d_1);
+                        if (!isNaN(d_2)) {
+                            sum2 += d_2;
+                        }
+                    }
+            
+                    if (name == "penalty") {
+                        var p_1 = record.get("penalty");
+                        var p_2 = parseFloat(p_1);
+                        if (!isNaN(p_2)) {
+                            sum3 += p_2;
+                        }
+                    }
+            
+                    if (name == "promised_return_amount") {
+                        var r_1 = record.get("promised_return_amount");
+                        var r_2 = parseFloat(r_1);
+                        if (!isNaN(r_2)) {
+                            sum4 += r_2;
+                        }
+                    }
+                    if (name == "deposit") {
+                        var s_1 = record.get("deposit");
+                        var s_2 = parseFloat(s_1);
+                        if (!isNaN(s_2)) {
+                            sum5 += s_2;
+                        }
+                    }
+                }
+                if (name == "overdue_days") {
+                    return '<div align="right">合计:</div>';
+                }
+                if (name == "overdue_amount") {
+                    return '<font color="red">' + Aurora.formatNumber(sum, 2) + '</font>';
+                }
+                if (name == "remain_principal") {
+                    return '<font color="red">' + Aurora.formatNumber(sum2, 2) + '</font>';
+                }
+                if (name == "penalty") {
+                    return '<font color="red">' + Aurora.formatNumber(sum3, 2) + '</font>';
+                }
+                if (name == "promised_return_amount") {
+                    return '<font color="red">' + Aurora.formatNumber(sum4, 2) + '</font>';
+                }
+                if (name == "deposit") {
+                    return '<font color="red">' + Aurora.formatNumber(sum5, 2) + '</font>';
+                }
+            }
+            
+            function onIndexChange(ds, record, name, value, oldvalue) {
+                $('bgt_contract_payment_detail_line_ds').setQueryParameter('contract_id', record.get('contract_id'));
+                $('bgt_contract_payment_detail_line_ds').query();
+            }
+            
+            function ds_query(ds) {
+                if(ds.getAll().length==0) {
+                    $('bgt_contract_payment_detail_line_ds').setQueryParameter('contract_id', null);
+                	$('bgt_contract_payment_detail_line_ds').query();
+                }
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:dataSets>
+            <a:dataSet id="CON601_lease_organization_name_ds" loadData="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="CON620_contract_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="bp_id_tenant_n" autoComplete="true" lovGridHeight="350" lovHeight="500" lovLabelWidth="100" lovService="cont.CON541.hls_bp_master_v_for_lov?bp_category=TENANT" lovWidth="520" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_name" to="bp_id_tenant_n"/>
+                            <a:map from="bp_id" to="bp_id_tenant"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_id_tenant"/>
+                    <a:field name="contract_number" typeCase="Upper"/>
+                    <a:field name="overdue_times"/>
+                    <a:field name="owner_user_id_desc" lovGridHeight="350" lovHeight="475" lovService="cont.CON620.sys_user_for_lov" lovWidth="520" title="出单人">
+                        <a:mapping>
+                            <a:map from="user_id" to="owner_user_id"/>
+                            <a:map from="description" to="owner_user_id_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="lease_organization_name" displayField="description" options="CON601_lease_organization_name_ds" returnField="lease_organization" valueField="lease_organization"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="CON620_contract_result_ds" autoPageSize="true" autoQuery="true" model="cont.CON620.con_contract_dun_for_query" queryDataSet="CON620_contract_query_ds" queryUrl="${/request/@context_path}/autocrud/cont.CON620.con_contract_dun_for_query/query" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="promised_return_date" datatype="date"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="indexChange" handler="onIndexChange"/>
+                    <a:event name="load" handler="ds_query"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="bgt_contract_payment_detail_line_ds" fetchAll="true" model="cont.CON620.bgt_contract_payment_detail_line"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="CON601_con_contract_query" text="HLS.QUERY"/>
+                <a:gridButton click="CON601_con_contract_reset" text="HLS.RESET"/>
+                <a:gridButton id="CON601_con_contract_print_btn" click="CON601_con_contract_print" text="打印催收函"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="100" marginWidth="30" title="CON301.CONTRACT_QUERY">
+                <a:textField name="contract_number" bindTarget="CON620_contract_query_ds" prompt="HLS.CONTRACT_NUMBER"/>
+                <a:lov name="bp_id_tenant_n" bindTarget="CON620_contract_query_ds" prompt="HLS.TENANT_CODE"/>
+                <a:textField name="phone" bindTarget="CON620_contract_query_ds" prompt="电话"/>
+                <a:numberField name="overdue_times" allowDecimals="false" bindTarget="CON620_contract_query_ds" prompt="逾期期数"/>
+                <a:numberField name="overdue_days_from" allowDecimals="false" bindTarget="CON620_contract_query_ds" prompt="逾期天数从"/>
+                <a:numberField name="overdue_days_to" allowDecimals="false" bindTarget="CON620_contract_query_ds" prompt="逾期天数到"/>
+                <a:numberField name="due_amount_from" allowDecimals="false" bindTarget="CON620_contract_query_ds" prompt="预定收款金额从"/>
+                <a:numberField name="due_amount_to" allowDecimals="false" bindTarget="CON620_contract_query_ds" prompt="预定收款金额至"/>
+            </a:form>
+            <a:grid id="CON601_con_contract_grid_ds" bindTarget="CON620_contract_result_ds" marginHeight="380" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" lock="true" prompt="HLS.CONTRACT_NUMBER" renderer="CON620_render_contract_dun_grid" width="150"/>
+                    <a:column name="bp_id_tenant_desc" lock="true" prompt="承租人名称" renderer="CON620_render_contract_dun_grid" showTitle="true" width="210"/>
+                    <a:column name="status_desc" align="center" prompt="催收状态"/>
+                    <a:column name="lease_organization_desc" align="center" prompt="业务部" width="120"/>
+                    <a:column name="lease_times" align="center" prompt="租赁期数" width="60"/>
+                    <a:column name="recieved_times" align="center" prompt="已还期数" width="60"/>
+                    <a:column name="overdue_times" align="center" prompt="逾期期数" width="60"/>
+                    <a:column name="overdue_days" align="center" footerRenderer="summaryRenderer" prompt="逾期天数" width="60"/>
+                    <a:column name="overdue_amount" align="right" footerRenderer="summaryRenderer" prompt="逾期金额" renderer="Aurora.formatMoney"/>
+                    <a:column name="penalty" align="right" footerRenderer="summaryRenderer" prompt="逾期罚息" renderer="Aurora.formatMoney"/>
+                    <a:column name="remain_principal" align="right" footerRenderer="summaryRenderer" prompt="剩余租金" renderer="Aurora.formatMoney"/>
+                    <a:column name="deposit" align="right" footerRenderer="summaryRenderer" prompt="保证金" renderer="Aurora.formatMoney"/>
+                </a:columns>
+            </a:grid>
+            <a:grid bindTarget="bgt_contract_payment_detail_line_ds" marginHeight="420" marginWidth="30" navBar="true" showRowNumber="true">
+                <a:columns>
+                    <!-- <a:column name="bp_name" prompt="承租人名称" width="200" showTitle="true"/>
+                    <a:column name="contract_number" prompt="HLS.CONTRACT_NUMBER" width="150"/> -->
+                    <a:column name="times" align="center" prompt="CON305.TIMES" width="80"/>
+                    <a:column name="due_date" align="center" prompt="CON305.DUE_DATE" renderer="Aurora.formatDate"/>
+                    <a:column name="due_amount" align="right" prompt="CON305.DUE_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="principal" align="right" prompt="CON305.PRINCIPAL" renderer="Aurora.formatMoney"/>
+                    <a:column name="interest" align="right" prompt="CON305.INTEREST" renderer="Aurora.formatMoney"/>
+                    <a:column name="write_off_date" align="center" prompt="实际收款日" renderer="Aurora.formatDate"/>
+                    <a:column name="write_off_due_amount" align="right" prompt="实际收款金额" renderer="Aurora.formatMoney"/>
+                    <a:column name="write_off_principal" align="right" prompt="实际收款本金" renderer="Aurora.formatMoney"/>
+                    <a:column name="write_off_interest" align="right" prompt="实际收款利息" renderer="Aurora.formatMoney"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

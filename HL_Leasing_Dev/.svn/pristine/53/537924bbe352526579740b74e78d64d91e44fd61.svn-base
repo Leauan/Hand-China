@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:view>
+        <a:link id="csh_chose_link" url="${/request/@context_path}/modules/ebank/EBANK_CSH110/hls_csh_province_city.screen"/>
+        <script><![CDATA[
+            function csh_reset() {
+                $('csh_ebank_query_ds').reset();
+            }
+            
+            function csh_query() {
+                $('csh_ebank_ds').query();
+            }
+            
+            function csh_save() {
+                var result_ds = $('csh_ebank_ds');
+                if (result_ds.validate()) {
+                    result_ds.submit();
+                }
+            }
+            
+            function to_chose_province_city(value, record, name) {
+                var ebank_id = record.get('ebank_id');
+                var ebank_spd_flag = record.get('ebank_spd_flag');
+                if (name == 'ebank_province_city') {
+                    return '<a  href="javascript:chose_window_open(\'' + ebank_id + '\',\'' + name + '\',\'' + ebank_spd_flag + '\')">' + '<font color="#FF9900">省市分行</font>' + '</a>';
+                }
+            }
+            
+            function chose_window_open(id, name,ebank_spd_flag, record, ds) {
+                if (Ext.isEmpty(id) || id == 'undefined') {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先点击保存!');
+                } else {
+                    var win = new Aurora.Window({
+                        id: 'chose_window',
+                        url: $('csh_chose_link').getUrl(),
+                        params: {
+                            winId: 'chose_window',
+                            ebank_id: id,
+                            ebank_spd_flag :ebank_spd_flag
+                        },
+                        title: '省市分行',
+                        fullScreen: true,
+                        draggable: true
+                    });
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="withholdwaysDs" lookupCode="WITHHOLD_WAYS"/>
+            <a:dataSet id="enable_flag_ds" lookupCode="YES_NO"/>
+            <a:dataSet id="csh_ebank_query_ds">
+                <a:fields>
+                    <a:field name="enabled_flag"/>
+                    <a:field name="enable_flag_des" displayField="code_value_name" options="enable_flag_ds" returnField="enabled_flag" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="csh_ebank_ds" autoPageSize="true" autoQuery="true" model="ebank.EBANK_CSH110.csh_ebank" queryDataSet="csh_ebank_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="ebank_code" required="true"/>
+                    <a:field name="ebank_name" required="true"/>
+                    <a:field name="withhold_way_name" displayField="code_value_name" options="withholdwaysDs" returnField="withhold_way" valueField="code_value"/>
+                    <a:field name="withhold_way"/>
+                    <a:field name="ebank_province_city"/>
+                    <a:field name="ebank_type_id"/>
+                    <a:field name="ebank_type_n" lovGridHeight="320" lovHeight="500" lovService="ebank.EBANK_CSH110.csh_bank_lov" lovWidth="500" required="true" title="银行选择">
+                        <a:mapping>
+                            <a:map from="bank_id" to="ebank_type_id"/>
+                            <a:map from="bank_short_name" to="ebank_type_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="ebank_spd_flag" checkedValue="0" defaultValue="1" uncheckedValue="1"/>
+                    <a:field name="seq_num"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="csh_query" text="HLS.QUERY"/>
+                <a:gridButton click="csh_reset" text="HLS.RESET"/>
+                <a:gridButton click="csh_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:form Width="910" column="3" title="查询条件">
+                <a:textField name="ebank_code" bindTarget="csh_ebank_query_ds" prompt="大额行号"/>
+                <a:textField name="ebank_name" bindTarget="csh_ebank_query_ds" prompt="银行名称"/>
+                <a:comboBox name="enable_flag_des" bindTarget="csh_ebank_query_ds" prompt="启用"/>
+            </a:form>
+            <a:grid id="csh_ebank_grid" bindTarget="csh_ebank_ds" marginHeight="180" marginWidth="60" navBar="true">
+                <a:toolBar>
+                    <a:button type="add"/>
+                    <a:button type="clear"/>
+                    <!-- <a:button type="delete"/> -->
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="ebank_type_n" align="left" editor="editor_lv" prompt="银行类型" width="200"/>
+                    <a:column name="ebank_code" align="left" editor="editor_tf" prompt="大额行号" width="200"/>
+                    <a:column name="ebank_name" align="left" editor="editor_tf" prompt="银行名称" width="350"/>
+                    <a:column name="withhold_way_name" align="left" editor="editor_combo" prompt="代扣方式" width="120"/>
+                    <a:column name="ebank_province_city" align="center" prompt="省市分行" renderer="to_chose_province_city" width="120"/>
+                    <a:column name="ebank_spd_flag" align="center" editor="editor_check" prompt="浦发标志" width="80"/>
+                    <a:column name="enabled_flag" align="center" editor="editor_check" prompt="启用" width="40"/>
+                    <a:column name="seq_num" align="left" editor="editor_tf" prompt="序号" width="80"/>
+                    <a:column name="cup_pin" align="left" editor="editor_tf" prompt="银联PIN码" width="60"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="editor_tf"/>
+                    <a:checkBox id="editor_check"/>
+                    <a:lov id="editor_lv"/>
+                    <a:comboBox id="editor_combo"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

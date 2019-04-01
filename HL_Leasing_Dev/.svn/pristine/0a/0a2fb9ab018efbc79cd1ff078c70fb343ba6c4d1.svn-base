@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-8-8 下午12:53:49  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query model="hls.HLS500.hls_fin_get_fnd_itfc_header_id" rootPath="header"/>
+        <a:import-excel header_id="${/model/header/record/@header_id}" separator="," status_field="/parameter/@ImportSuccess" template_code="HLS_FIN_CALC_LINE" user_id="${/session/@user_id}"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="hls_fin_calc_import_line_execute_link_id" model="hls.HLS500.hls_fin_calc_import_line_execute" modelaction="update"/>
+        <a:link id="hls_fin_calculator_update" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calculator_update.screen"/>
+        <script><![CDATA[
+            function div_set_style() {
+                document.getElementById('error_message_div_id').style.display = '';
+            }
+            Aurora.onReady(function() {
+                Aurora.request({
+                    url: $('hls_fin_calc_import_line_execute_link_id').getUrl(),
+                    para: {
+                        calc_session_id: '${/parameter/@calc_session_id}',
+                        interface_header_id: '${/model/header/record/@header_id}'
+                    },
+                    success: function(res) {
+                        var warning_message, duration;
+                        if (res.result.warning_message) {
+                            warning_message = res.result.warning_message;
+                            duration = 5000;
+                        } else {
+                            warning_message = '${l:HLS.SUBMIT_SUCCESS}';
+                            duration = 2000;
+                        }
+                        parent.Aurora.SideBar.enable = true;
+                        parent.Aurora.SideBar.show({
+                            html: '<div style="background-color:#ccfbd5;position:absolute;padding:3px;border:1px solid #009900">' + warning_message + '</div>',
+                            duration: duration
+                        });
+                        if ('${/parameter/@global_flag}' == 'Y') {
+                            parent.$('${/parameter/@parent_winId}').load($('hls_fin_calculator_update').getUrl(), {
+                                calc_session_id: '${/parameter/@calc_session_id}',
+                                winId: '${/parameter/@parent_winId}',
+                                document_id: '${/parameter/@document_id}',
+                                document_category: '${/parameter/@document_category}',
+                                calc_type: '${/parameter/@calc_type}',
+                                global_flag: '${/parameter/@global_flag}'
+                            });
+                        } else {
+                            parent.location.reload();
+                        }
+                        input_window_close();
+                    },
+                    failure: function() {
+                        div_set_style();
+                        parent.Aurora.Masker.unmask(parent._input_window.body);
+                    },
+                    error: function() {
+                        div_set_style();
+                        parent.Aurora.Masker.unmask(parent._input_window.body);
+                    },
+                    scope: this
+                });
+            });
+            
+            function input_window_close() {
+                parent._input_window.close();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="hls_fin_calc_error_message_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="error_message" defaultValue="${l:HLS.CHECK_AFTER_DATA_ERROR}"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <div id="error_message_div_id" style="display:none">
+                <a:screenTopToolbar>
+                    <a:gridButton click="input_window_close" text="HLS.CONFIRM"/>
+                </a:screenTopToolbar>
+                <a:form title="" width="400">
+                    <a:label name="error_message" bindTarget="hls_fin_calc_error_message_ds" style="margin-left:10px;font-weight:bold;font-size:20px;" width="380"/>
+                </a:form>
+            </div>
+        </a:screenBody>
+    </a:view>
+</a:screen>

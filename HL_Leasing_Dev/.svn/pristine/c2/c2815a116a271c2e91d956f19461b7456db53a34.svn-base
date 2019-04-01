@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: jack  
+    $Date: 2014-10-13 上午10:05:38  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="function_assign_role_link" url="${/request/@context_path}/modules/sys/SYS890/function_assign_role.screen"/>
+        <a:link id="function_copy_update_link" model="sys.SYS890.batch_copy_function" modelaction="batch_update"/>
+        <script><![CDATA[
+            function exit_to_prarent() {
+                $('function_assign_to_role_link_id').close();
+            }
+            
+            function reset_role_ds() {
+                $('query_ds').reset();
+            }
+            
+            function role_ds_query() {
+                $('sys_role_ds').query();
+            }
+            
+            function role_fun_assign(value, record, name) {
+                var role_id = record.get('role_id');
+                if (role_id) {
+                    return '<a href="javascript:winOpen_function_role(' + role_id + ')">首页功能分配</a>';
+                }
+            }
+            
+            function winOpen_function_role(id) {
+                var win = new Aurora.Window({
+                    id: 'function_assign_role_link_id',
+                    url: $('function_assign_role_link').getUrl(),
+                    params: {
+                        role_id: id
+                    },
+                    title: '首页功能分配',
+                    width: 810,
+                    height: 450
+                });
+            }
+            
+            function role_fun_copy(value, record, name) {
+                var role_id = record.get('role_id');
+                if (role_id) {
+                    return '<a href="javascript:winOpen_function_copy(' + role_id + ')">首页功能复制</a>';
+                }
+            }
+            
+            function winOpen_function_copy(id) {
+                var win = new Aurora.Window({
+                    id: 'function_copy_role_link_id',
+                    url: $('function_copy_link').getUrl(),
+                    params: {
+                        role_id: id
+                    },
+                    title: '首页功能复制',
+                    width: 550,
+                    height: 500
+                });
+            }
+            
+            function function_assign_role() {
+                role_record = $('sys_role_ds').getSelected();
+                var ds = $('${/parameter/@ds_name}');
+                var records = ds.getSelected();
+                if (role_record.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '请选择一条记录');
+                    return;
+                }
+                Aurora.showConfirm('${l:HLS.PROMPT}', '是否确定为所选角色分配首页功能？', function() {
+                    var datas = [];
+                    var role_record_count = role_record.length;
+                    //复制给多个角色多个功能
+                    for (var i = 0;i < records.length;i++) {
+                        for (var j = 0;j < role_record.length;j++) {
+                            var obj = {};
+                            obj['home_page_id'] = records[i].get('home_page_id');
+                            obj['role_id'] = role_record[j].get('role_id');
+                            obj['_status'] = 'update';
+                            datas[i * role_record_count + j] = obj;
+                        }
+                    }
+                    Aurora.request({
+                        url: $('function_copy_update_link').getUrl(),
+                        para: datas,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '操作成功',
+                                duration: 2000
+                            });
+                        },
+                        scope: this
+                    });
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="role_code"/>
+                    <a:field name="role_name"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="sys_role_ds" autoQuery="true" model="sys.sys_role_vl" queryDataSet="query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="role_id"/>
+                    <a:field name="role_code"/>
+                    <a:field name="role_name"/>
+                    <a:field name="description"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="exit_to_prarent" text="关闭"/>
+                <a:gridButton click="reset_role_ds" text="HLS.RESET"/>
+                <a:gridButton click="role_ds_query" text="HLS.QUERY"/>
+                <a:gridButton click="function_assign_role" text="分配确认"/>
+            </a:screenTopToolbar>
+            <a:form title="角色查询">
+                <a:hBox>
+                    <a:textField name="role_code" bindTarget="query_ds" prompt="角色代码"/>
+                    <a:textField name="description" bindTarget="query_ds" prompt="角色描述"/>
+                </a:hBox>
+            </a:form>
+            <a:grid bindTarget="sys_role_ds" height="320" navBar="true" width="550">
+                <a:columns>
+                    <a:column name="role_code" width="130"/>
+                    <a:column name="role_name" width="190"/>
+                    <a:column name="description" width="190"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

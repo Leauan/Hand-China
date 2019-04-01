@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wutuansen  
+    $Date: 2018-12-20 下午9:30:25  
+    $Revision: 1.0  
+    $Purpose: 销售收入表
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure><![CDATA[
+    ]]></a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+            function hz5210_hz_hls_return() {
+                history.go(-1);
+            }
+            
+            function rpt5110_reset() {
+                $('rpt5110_query_ds').reset();
+            }
+            
+            function rpt5110_query() {
+                $('rpt5110_result_ds').query();
+            }
+            
+            
+            function amtSumInfo(data, name) {
+                if (name == 'ref_d01') {
+                    return '<font color=red>' + '合计:' + '</font>';
+                } else {
+                    return colum_caculateTotal(data, name);
+                }
+            }
+            
+            function colum_caculateTotal(data, name) {
+                var total = 0;
+                var length = data.length;
+                var value = 0;
+                for (var i = 0;i < length;i++) {
+            
+                    if (Ext.isEmpty(data[i].get(name))) {
+                        value = 0;
+                    } else {
+                        //去掉小计
+                        if (data[i].get('ref_v09') == 'N') {
+                            value = data[i].get(name);
+                        } else {
+                            value = 0;
+                        }
+                    }
+                    total = plus(total, value);
+                }
+                return '<font color=red>' + Aurora.formatMoney(total) + '</font>';
+            
+            }
+            
+            function count_backgroundcolor(value, record, name) {
+                var flag = record.get('ref_v09');
+                //小计颜色背景色改变
+                if (flag == 'Y') {
+                    if (value) {
+            
+                        if (name == 'ref_n02' || name == 'ref_n03' || name == 'ref_n04' || name == 'ref_n05') {
+                            //金钱格式
+                            return '<div style="background-color:#fff2cc">' + Aurora.formatMoney(value) + '</div>';
+                        } else if (name == 'ref_v01') {
+                            //小计
+                            return '<div style="background-color:#fff2cc">' + '小计' + '</div>';
+                        } else if (name == 'ref_v02') {
+                            //不显示
+                            return '<div style="background-color:#fff2cc">' + '&nbsp' + '</div>';
+                        } else {
+            
+                            return '<div style="background-color:#fff2cc">' + value + '</div>';
+                        }
+                    } else if (value == 0) {
+                        return '<div style="background-color:#fff2cc">' + Aurora.formatMoney(value) + '</div>';
+            
+                    } else {
+                        return '<div style="background-color:#fff2cc">' + '&nbsp' + '</div>';
+                    }
+                } else {
+            
+                    if (name == 'ref_n02' || name == 'ref_n03' || name == 'ref_n04' || name == 'ref_n05') {
+                        //金钱格式
+                        return Aurora.formatMoney(value);
+                    } else {
+                        return value;
+            
+                    }
+                }
+            }
+             function ref_n01_time(record, name, value) {
+                var reg = /^\d\d\d\d\d\d$/;
+                if (reg.test(value)) {
+                    return true;
+                }
+                return '时间格式应为【yyyymm】,举例【201812】';
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="rpt5110_query_ds">
+                <a:fields>
+                    <a:field name="ref_n01" required="true" validator="ref_n01_time"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="rpt5110_result_ds" autoQuery="false" model="rpt.RPT5110.rpt5110_result_query" pageSize="50" queryDataSet="rpt5110_query_ds" selectable="true"><![CDATA[
+                
+            ]]></a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="rpt5110_query" text="HLS.QUERY"/>
+                <a:gridButton click="rpt5110_reset" text="HLS.RESET"/>
+                <a:gridButton id="RPT5110_EXCEL_BTN" bind="rpt5110_grid_ds" type="excel"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="100" marginWidth="50" title="查询条件">
+                <a:textField name="ref_v01" bindTarget="rpt5110_query_ds" prompt="经销商编码"/>
+                <a:textField name="ref_v02" bindTarget="rpt5110_query_ds" prompt="经销商名称"/>
+                <a:textField name="ref_n01" bindTarget="rpt5110_query_ds" prompt="基准月"/>
+            </a:form>
+            <a:grid id="rpt5110_grid_ds" bindTarget="rpt5110_result_ds" marginHeight="180" marginWidth="50" navBar="true">
+                <a:columns>
+                    <a:column name="ref_v01" align="left" prompt="经销商编码" renderer="count_backgroundcolor" width="100"/>
+                    <a:column name="ref_v02" align="left" prompt="经销商名称" renderer="count_backgroundcolor" width="180"/>
+                    <a:column name="ref_v03" align="left" prompt="承租人编码" renderer="count_backgroundcolor" width="100"/>
+                    <a:column name="ref_v04" align="left" prompt="承租人名称" renderer="count_backgroundcolor" width="100"/>
+                    <a:column name="ref_v05" align="center" prompt="合同编号" renderer="count_backgroundcolor" width="140"/>
+                    <a:column name="ref_v06" align="left" prompt="产品" renderer="count_backgroundcolor" width="140"/>
+                    <a:column name="ref_v07" align="left" prompt="车型" renderer="count_backgroundcolor" width="140"/>
+                    <a:column name="ref_d01_char" align="center" prompt="起租日期" renderer="count_backgroundcolor" width="100"/>
+                    <a:column name="ref_n02" align="right" footerRenderer="amtSumInfo" prompt="销售收入（融资租赁）" renderer="count_backgroundcolor" width="130"/>
+                    <a:column name="ref_n03" align="right" footerRenderer="amtSumInfo" prompt="逾期利息收入" renderer="count_backgroundcolor" width="130"/>
+                    <a:column name="ref_n04" align="right" footerRenderer="amtSumInfo" prompt="其他收入" renderer="count_backgroundcolor" width="130"/>
+                    <a:column name="ref_n05" align="right" footerRenderer="amtSumInfo" prompt="毛利" renderer="count_backgroundcolor" width="150"/>
+                    <a:column name="ref_v08" align="right" prompt="毛利率" renderer="count_backgroundcolor" width="80"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

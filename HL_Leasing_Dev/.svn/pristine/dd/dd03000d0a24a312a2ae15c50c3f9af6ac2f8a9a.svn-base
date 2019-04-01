@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-5-13 上午11:10:33  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="currency"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="sys_service_welcome_link" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="csh_transaction_receipt_write_off_detail_link" url="${/request/@context_path}/modules/csh/CSH519/csh_transaction_receipt_cross_currency_write_off_detail.screen"/>
+        <script><![CDATA[
+            function dateValidator(record, name, value) { //日期校验方法
+                if (name == 'transaction_date_from' || name == 'transaction_date_to') {
+                    var start_date = Aurora.formatDate(record.get('transaction_date_from'));
+                    var end_date = Aurora.formatDate(record.get('transaction_date_to'));
+                    if ( !! end_date) { //由于结束日期非必填，只有在结束日期填了才进行比较
+                        if (!compareDate(start_date, end_date)) {
+                            return '${l:CSH510.CSH_RECEIPT_DATE_CHECK}'; //校验不通过返回字符串
+                        }
+                    }
+                    return true; //校验通过返回true
+                }
+            }
+            
+            function compareDate(start, end) {
+                if (start > end) {
+                    return false;
+                }
+                return true;
+            }
+            
+            function csh513_receipt_query() {
+                var record = $('csh_transaction_receipt_write_off_query_ds').getAt(0);
+                var dirty_flag = 'N';
+                for (var name in record.data) {
+                    var value = record.get(name);
+                    if (value != 'undefined' && value != null && value != '') {
+                        dirty_flag = 'Y';
+                    }
+                }
+                if (dirty_flag == 'N') {
+                    Aurora.showConfirm('${l:PROMPT}', '${l:CSH510.CSH_RECEIPT_QUERY_INFORMATION}', function() {
+                        return;
+                    }, function() {
+                        $('csh_transaction_receipt_write_off_result_ds').query();
+                    }, null, null);
+                } else {
+                    $('csh_transaction_receipt_write_off_result_ds').query();
+                }
+            }
+            
+            function csh513_receipt_reset() {
+                $('csh_transaction_receipt_write_off_query_ds').reset();
+            }
+            
+            function csh513_receipt_back() {
+                history.go(-1);
+            }
+            
+            function csh513_receipt_forward() {
+                history.go(1);
+            }
+            
+            function csh513_receipt_quit() {
+                location.href = $('sys_service_welcome_link').getUrl();
+                parent.shMenu('show');
+            }
+            
+            function seedetail_transaction_num(value, record, name) {
+                if (record.get('transaction_id')) {
+                    url = $('csh_transaction_receipt_write_off_detail_link').getUrl() + '?transaction_id=' + record.get('transaction_id')+'&transaction_type='+record.get('transaction_type')+'&auto_filt_penalty='+record.get('auto_filt_penalty')+'&auto_filt_prinicipal_interest='+record.get('auto_filt_prinicipal_interest');
+                    return '<a href="javascript:openWindow(\'' + url + '\');">' + value + '</a>';
+                }
+            }
+            
+            function openWindow(url) {
+                new Aurora.Window({
+                    id: 'receipt_write_off_detail_link_winid',
+                    params: {
+                        winId: 'receipt_write_off_detail_link_winid'
+                    },
+                    url: url,
+                    title: '跨币种核销',
+                    fullScreen: true
+                });
+            }
+            
+            function construct_from_to() {
+                var config = ['transaction_num', 'bank_slip_num', 'transaction_amount', 'currency_code', 'bank_account_code', 'bp_code', 'bp_name', 'bp_id', 'transaction_date'];
+                var pattern = ['_from', '_to'];
+                var obj = {};
+                for (var i = 0,
+                    j = config.length;i < j;i++) {
+                    for (var m = 0,
+                        n = pattern.length;m < n;m++) {
+                        obj[config[i] + pattern[m]] = config[i] + pattern[n - 1 - m];
+                    }
+                }
+                return obj;
+            }
+            
+            function csh513_receipt_write_off_update(ds, record, name, value, oldvalue) {
+                var from_to = construct_from_to();
+                var opposite_name = from_to[name];
+                if (!Ext.isEmpty(opposite_name)) {
+                    var opposite_value = record.get(opposite_name);
+                    if (!Ext.isEmpty(value) && Ext.isEmpty(opposite_value)) {
+                        record.set(opposite_name, value);
+                    }
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="currency_ds">
+                <a:datas dataSource="/model/currency"/>
+            </a:dataSet>
+            <a:dataSet id="csh_transaction_receipt_write_off_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="bp_type" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_type_v_for_lov" lovWidth="500" title="HLS_BP_TYPE.BP_TYPE">
+                        <a:mapping>
+                            <a:map from="description" to="bp_type_desc"/>
+                            <a:map from="bp_type" to="bp_type"/>
+                            <a:map from="bp_category_desc" to="bp_category_desc"/>
+                            <a:map from="bp_category" to="bp_category"/>
+                            <a:map from="auto_coding" to="auto_coding"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_type_desc" readOnly="true"/>
+                    <a:field name="bp_category" readOnly="true"/>
+                    <a:field name="bp_category_desc" readOnly="true"/>
+                    <a:field name="bp_code" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov" lovWidth="500" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="bp_code" to="bp_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_name" readOnly="true"/>
+                    <a:field name="bp_id"/>
+                    <a:field name="transaction_num_from"/>
+                    <a:field name="transaction_num_to"/>
+                    <a:field name="bank_slip_num_from"/>
+                    <a:field name="bank_slip_num_to"/>
+                    <a:field name="transaction_date_from" validator="dateValidator"/>
+                    <a:field name="transaction_date_to" validator="dateValidator"/>
+                    <a:field name="bank_account_code_from" autoCompleteField="bank_account_num" lovGridHeight="350" lovHeight="550" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_code" to="bank_account_code_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_account_from_id"/>
+                    <a:field name="bank_account_code_to" autoComplete="true" autoCompleteField="bank_account_num" lovGridHeight="350" lovHeight="550" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_code" to="bank_account_code_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="transaction_amount_from"/>
+                    <a:field name="transaction_amount_to"/>
+                    <a:field name="posted_flag" defaultValue="Y"/>
+                    <a:field name="currency_name_from_display" displayField="currency_name" options="currency_ds" returnField="currency_code_from" valueField="currency_code"/>
+                    <a:field name="currency_code_from"/>
+                    <a:field name="currency_name_to_display" displayField="currency_name" options="currency_ds" returnField="currency_code_to" valueField="currency_code"/>
+                    <a:field name="currency_code_to"/>
+                    <a:field name="receipt" checkedValue="RECEIPT" defaultValue="RECEIPT" uncheckedValue="N"/>
+                    <a:field name="advance_receipt" checkedValue="ADVANCE_RECEIPT" defaultValue="ADVANCE_RECEIPT" uncheckedValue="N"/>
+                    <a:field name="transaction_category" defaultValue="BUSINESS"/>
+                    <a:field name="full_write_off_flag" defaultValue="FULL"/>
+                    <a:field name="reversed_flag" defaultValue="N"/>
+                    <a:field name="full_returned_flag" defaultValue="FULL"/>
+                    <a:field name="returned_flag"/>
+                    <a:field name="bp_code_from" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov" lovWidth="500" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id_from"/>
+                            <a:map from="bp_name" to="bp_name_from"/>
+                            <a:map from="bp_code" to="bp_code_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_code_to" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov" lovWidth="500" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id_to"/>
+                            <a:map from="bp_name" to="bp_name_to"/>
+                            <a:map from="bp_code" to="bp_code_to"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="csh513_receipt_write_off_update"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="csh_transaction_receipt_write_off_result_ds" autoPageSize="true" model="csh.CSH510.csh_transaction_query" queryDataSet="csh_transaction_receipt_write_off_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="auto_filt_penalty" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="auto_filt_prinicipal_interest" checkedValue="Y" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="csh513_receipt_back" text="HLS.BACK"/>
+                <a:gridButton click="csh513_receipt_forward" text="HLS.FORWARD"/>
+                <a:gridButton click="csh513_receipt_quit" text="HLS.EXIT"/>
+                <a:gridButton click="csh513_receipt_query" text="HLS.QUERY"/>
+                <a:gridButton click="csh513_receipt_reset" text="HLS.RESET"/>
+            </a:screenTopToolbar>
+            <a:form bindTarget="csh_transaction_receipt_write_off_query_ds" column="4" labelWidth="120" marginWidth="30" title="跨币种核销">
+                <a:lov name="bp_code_from" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="HLS.BP_CODE_FROM"/>
+                <a:textField name="bp_name_from" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="HLS.BP_NAME_FROM" readOnly="true"/>
+                <a:lov name="bp_code_to" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="HLS.BP_CODE_TO"/>
+                <a:textField name="bp_name_to" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="HLS.BP_NAME_TO" readOnly="true"/>
+                <a:textField name="transaction_num_from" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="HLS.RECEIPT_TRANSACTION_NUMBER_FROM"/>
+                <a:textField name="transaction_num_to" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="HLS.RECEIPT_TRANSACTION_NUMBER_TO"/>
+                <a:datePicker name="transaction_date_from" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="CSH510.CSH_TRANSACTION.TRANSACTION_DATE_FROM"/>
+                <a:datePicker name="transaction_date_to" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="CSH510.CSH_TRANSACTION.TRANSACTION_DATE_TO"/>
+                <a:numberField name="transaction_amount_from" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="CSH510.CSH_TRANSACTION.TRANSACTION_AMOUNT_FROM"/>
+                <a:numberField name="transaction_amount_to" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="CSH510.CSH_TRANSACTION.TRANSACTION_AMOUNT_TO"/>
+                <a:comboBox name="currency_name_from_display" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="HLS.CURRENCY_FROM"/>
+                <a:comboBox name="currency_name_to_display" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="HLS.CURRENCY_TO"/>
+                <a:lov name="bank_account_code_from" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="CSH510.CSH_TRANSACTION.BANK_ACCOUNT_CODE_FROM"/>
+                <a:lov name="bank_account_code_to" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="CSH510.CSH_TRANSACTION.BANK_ACCOUNT_CODE_TO"/>
+                <a:checkBox name="receipt" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="HLS.RECEIPT"/>
+                <a:checkBox name="advance_receipt" bindTarget="csh_transaction_receipt_write_off_query_ds" prompt="HLS.ADVANCE_RECEIPT"/>
+            </a:form>
+            <a:grid id="csh_transaction_receipt_write_off_grid_ds" bindTarget="csh_transaction_receipt_write_off_result_ds" marginHeight="260" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="transaction_num" align="center" renderer="seedetail_transaction_num" width="120"/>
+                    <a:column name="transaction_date" align="center" renderer="Aurora.formatDate" width="120"/>
+                    <a:column name="bp_code" align="center" width="120"/>
+                    <a:column name="bp_name" align="center" width="120"/>
+                    <a:column name="transaction_amount" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="unwrite_off_amount" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="currency_name" align="center" width="120"/>
+                    <a:column name="bank_account_num" width="120"/>
+                    <a:column name="bank_account_name" width="120"/>
+                    <a:column name="transaction_type_desc" align="center" width="120"/>
+                    <a:column name="auto_filt_penalty" editor="receipt_write_off_checkbox_id" width="100"/>
+                    <a:column name="auto_filt_prinicipal_interest" editor="receipt_write_off_checkbox_id" width="100"/>
+                </a:columns>
+                <a:editors>
+                    <a:checkBox id="receipt_write_off_checkbox_id"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

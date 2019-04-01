@@ -1,0 +1,561 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Guoxuezhao  
+    $Date: 2013-6-4 下午5:33:13  
+    $Revision: 1.0  
+    $Purpose: 新增 还款明细
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query autoCount="false" defaultWhereClause="t1.loan_contract_id = ${/parameter/@loan_contract_id}" model="tre.tre502.tre_loan_contract" rootPath="loan_con"/>
+        <a:model-query defaultWhereClause="v.code = &apos;TRE502_REPAYMENT_TYPE&apos; and ((${/model/loan_con/record/@business_type}=&apos;FACTORING&apos; and v.code_value in (&apos;FACTORING&apos;,&apos;FACTORING_FEE&apos;)) or (${/model/loan_con/record/@business_type}!=&apos;FACTORING&apos; and v.code_value in (&apos;CAPITAL&apos;,&apos;INTEREST&apos;,&apos;CAPITAL_INT&apos;)))" fetchAll="true" model="basic.sys_code_default_value" rootPath="repayment_type_path"/>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="currency"/>
+        <a:model-query fetchAll="true" model="gld.gld_exchangerate_type_lov" rootPath="exchangerate_type_path"/>
+        <a:model-query fetchAll="true" model="csh.CSH511.fnd_financial_option" rootPath="fnd_financial_option_path"/>
+        <a:model-query fetchAll="true" model="csh.CSH511.csh_transaction_default_exchange_rate_type" rootPath="default_exchange_rate_type_path"/>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootPath="default_sys_time_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="get_exchange_rate_link_id" model="csh.CSH511.csh_transaction_get_exchange_rate" modelaction="query"/>
+        <a:link id="get_period_name_id" model="basic.hls_get_period_name" modelaction="update"/>
+        <a:link id="tre_loan_contract_repayment_save_link_id" url="${/request/@context_path}/modules/tre/TRE507/tre_loan_contract_repayment_save.svc"/>
+        <script><![CDATA[
+            var _data = {
+                'BUSUNESS_TYPE': '${/model/loan_con/record/@business_type}',
+                'VAT_RATE_OF_INTEREST': '${/model/loan_con/record/@vat_rate_of_interest}',
+                'PRECISION': '${/model/loan_con/record/@precision}',
+                'BANK_BRANCH_ID':'${/model/loan_con/record/@bank_branch_id}'
+            };
+            var loan_con_currency = '${/model/loan_con/record/@currency}',
+                //合同币种
+                functional_currency_code = '${/model/default_exchange_rate_type_path/record/@functional_currency_code}'; //本位币
+            
+            function go_back() {
+                window.history.go(-1);
+            }
+            
+            function repayment_details_save() {
+                lock_repayment_details_window();
+                var dtl_records = $('loan_contract_repayment_dtl_ds').getAll();
+                if (!dtl_records.length) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:TRE503.UPDATE_LINE_FIRST}');
+                    unlock_repayment_details_window();
+                    return;
+                }
+                if ($('loan_contract_repayment_ds').validate()) {
+                    $('loan_contract_repayment_ds').submit($('tre_loan_contract_repayment_save_link_id').getUrl());
+                } else {
+                    unlock_repayment_details_window();
+                }
+            }
+            
+            function lock_repayment_details_window() {
+                Aurora.Masker.mask(document.documentElement, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_repayment_details_window() {
+                Aurora.Masker.unmask(document.documentElement);
+            }
+            
+            function repaymentsubmitsuccess(ds, res) {
+                var dtlDs = $('loan_contract_repayment_dtl_ds');
+                dtlDs.query(dtlDs.currentPage);
+                unlock_repayment_details_window();
+            }
+            
+            function repaymentsubmitfailed(ds, res) {
+                unlock_repayment_details_window();
+            }
+            
+            function switchToGrid(id, fromLoad) {
+                var grids = ['capital_int', 'capital', 'interest', 'factoring', 'factoring_fee'];
+                for (var i = 0,
+                    l = grids.length;i < l;i++) {
+                    var cg = grids[i];
+                    if (cg == id) {
+                        Ext.fly(cg).setStyle({
+                            'display': ''
+                        });
+                    } else {
+                        if (!fromLoad) {
+                            $('loan_contract_repayment_dtl_ds').removeAll();
+                        }
+                        Ext.fly(cg).setStyle({
+                            'display': 'none'
+                        });
+                    }
+                }
+            }
+            
+            function ds_field_setpropertity(repayment_principal_flag, repayment_interest_flag) {
+                var dtlDs = $('loan_contract_repayment_dtl_ds');
+                var repayment_principal_field = dtlDs.getField('repayment_principal'),
+                    repayment_interest_field = dtlDs.getField('repayment_interest');
+                repayment_principal_field.setRequired(repayment_principal_flag);
+                repayment_interest_field.setRequired(repayment_interest_flag);
+            }
+            
+            function set_all_div_style(display_flag) {
+                if (display_flag) {
+                    Ext.fly('repayment_all_id').setStyle({
+                        'display': ''
+                    });
+                } else {
+                    Ext.fly('repayment_all_id').setStyle({
+                        'display': 'none'
+                    });
+                }
+            }
+            
+            function switch_from_repayment_type(repayment_type) {
+                switch (repayment_type) {
+                    //本金利息
+                case 'CAPITAL_INT':
+                    switchToGrid('capital_int');
+                    ds_field_setpropertity(false, false);
+                    break;
+                    //本金
+                case 'CAPITAL':
+                    switchToGrid('capital');
+                    ds_field_setpropertity(true, false);
+                    break;
+                    //利息
+                case 'INTEREST':
+                    switchToGrid('interest');
+                    ds_field_setpropertity(false, true);
+                    break;
+                    //保理费
+                case 'FACTORING_FEE':
+                    switchToGrid('factoring_fee');
+                    ds_field_setpropertity(false, false);
+                    break;
+                case 'FACTORING':
+                    switchToGrid('factoring');
+                    ds_field_setpropertity(false, false);
+                    break;
+                }
+            }
+            
+            function repaymentUpd(dataSet, record, name, value, oldvalue) {
+                if (name == 'repayment_type') {
+                    switch_from_repayment_type(value);
+                } else if (name == 'rate_method_code' || name == 'period_name') {
+                    if (record.get('currency_code') != record.get('functional_currency_code')) {
+                        var rate_method_code = record.get('rate_method_code');
+                        record.set('exchange_rate_quotation', '');
+                        record.set('exchange_rate', '');
+                        if (rate_method_code == 'PERIOD' || rate_method_code == 'DAILY' || rate_method_code == 'FIXED') {
+                            record.getField('exchange_rate').setReadOnly(true);
+                            record.set('exchange_rate', '');
+                            getExchangeRate({
+                                fromCur: record.get('functional_currency_code'),
+                                toCur: record.get('currency_code'),
+                                exchangeRateType: record.get('exchange_rate_type'),
+                                exchangeDate: record.get('repayment_date'),
+                                periodName: record.get('period_name')
+                            });
+                        } else {
+                            record.set('exchange_rate_quotation', 'DIRECT QUOTATION');
+                            record.getField('exchange_rate').setReadOnly(false);
+                            record.set('exchange_rate', '');
+                        }
+                    }
+                } else if (name == 'repayment_date') {
+                    showPeriod(record);
+                }
+            }
+            
+            function on_loan_contract_repayment_dtl_remove(ds, record, index) {
+                var head_record = $('loan_contract_repayment_ds').getAt(0);
+                head_record.set('repayment_amount', minus(head_record.get('repayment_amount') || '', record.get('repayment_amount') || ''));
+            }
+            
+            function on_loan_contract_repayment_dtl_beforeremove(ds, records) {
+                var head_record = $('loan_contract_repayment_ds').getAt(0);
+                ds.setSubmitParameter('repayment_id', head_record.get('repayment_id'));
+                return true;
+            }
+            
+            function repaymentLoad(ds) {
+                var record = ds.getAt(0);
+                var repaymentType = record.get('repayment_type');
+                switch_from_repayment_type(repaymentType);
+                if (loan_con_currency == functional_currency_code) {
+                    record.getField('exchange_rate_type_desc').setRequired(false);
+                    record.getField('exchange_rate_type_desc').setReadOnly(true);
+                    record.getField('exchange_rate').setReadOnly(true);
+                } else {
+                    record.getField('exchange_rate_type_desc').setRequired(true);
+                    record.getField('exchange_rate_type_desc').setReadOnly(false);
+                }
+            }
+            
+            function on_loan_contract_repayment_dtl_update(ds, record, name, value, old_value) {
+                var repayment_principal, repayment_interest, vat_rate_of_interest, repayment_vat_interest, ln_repayment_amount;
+                if (name == 'repayment_principal' || name == 'repayment_interest' || name == 'vat_rate_of_interest') {
+                    repayment_principal = record.get('repayment_principal') || '';
+                    repayment_interest = record.get('repayment_interest') || '';
+                    vat_rate_of_interest = record.get('vat_rate_of_interest') || 0.17;
+                    if (Ext.isEmpty(repayment_principal) && Ext.isEmpty(repayment_interest)) {
+                        ln_repayment_amount = '';
+                    } else {
+                        ln_repayment_amount = plus(repayment_principal, repayment_interest);
+                    }
+                    record.set('repayment_amount', ln_repayment_amount);
+                    if (name == 'repayment_interest' || name == 'vat_rate_of_interest') {
+                        repayment_vat_interest = parseFloat(mul(div(repayment_interest, plus(1, vat_rate_of_interest)), vat_rate_of_interest)).toFixed(_data['PRECISION']) * 1;
+                        if (Ext.isEmpty(repayment_interest)) {
+                            repayment_vat_interest = '';
+                        }
+                        record.set('repayment_vat_interest', repayment_vat_interest);
+                    }
+                } else if (name == 'repayment_amount') {
+                    var head_record = $('loan_contract_repayment_ds').getAt(0);
+                    if (head_record.get('repayment_type') == 'FACTORING_FEE') {
+                        vat_rate_of_interest = record.get('vat_rate_of_interest') || 0.17;
+                        repayment_vat_interest = parseFloat(mul(div(value, plus(1, vat_rate_of_interest)), vat_rate_of_interest)).toFixed(_data['PRECISION']);
+                        if (isNaN(repayment_vat_interest)) {
+                            record.set('repayment_vat_interest', '');
+                        } else {
+                            record.set('repayment_vat_interest', repayment_vat_interest);
+            
+                        }
+                    }
+                    head_record.set('repayment_amount', plus(minus(head_record.get('repayment_amount') || 0, old_value || 0), value));
+                } else if (name == 'unpay_factoring_fee') {
+                    record.set('repayment_amount', parseFloat(parseFloat(value).toFixed(_data['PRECISION'])));
+                }
+            }
+            
+            function on_loan_contract_repayment_dtl_add(ds) {
+                var record = ds.getCurrentRecord();
+                if (_data['BUSUNESS_TYPE'] == 'FACTORING') {
+                    record.set('vat_rate_of_interest', _data['VAT_RATE_OF_INTEREST']);
+                }
+            }
+            
+            function showPeriod(record) {
+                var r_date = record.get('repayment_date');
+                r_date = Aurora.formatDate(r_date);
+                Aurora.request({
+                    url: $('get_period_name_id').getUrl(),
+                    para: {
+                        date: r_date,
+                        company_id: '${/model/loan_con/record/@company_id}'
+                    },
+                    success: periodname,
+                    scope: this
+                });
+            }
+            
+            function periodname(res) {
+                var head_record = $('loan_contract_repayment_ds').getAt(0);
+                if (res) {
+                    var period_name = res.result.period_name,
+                        internal_period_num = res.result.internal_period_num;
+                    if (period_name) {
+                        head_record.set('period_name', period_name);
+                        head_record.set('internal_period_num', internal_period_num);
+                    } else {
+                        head_record.set('period_name', '');
+                        head_record.set('internal_period_num', '');
+                        if (head_record.get('repayment_date')) {
+                            head_record.set('repayment_date', '');
+                            Aurora.showMessage('${l:PROMPT}', '${l:CSH511.PERIOD_ERROR}');
+                        }
+                    }
+                }
+            }
+            
+            function getExchangeRate(param) {
+                Aurora.request({
+                    url: $('get_exchange_rate_link_id').getUrl(),
+                    para: {
+                        from_currency: param.fromCur,
+                        to_currency: param.toCur,
+                        exchange_date: param.exchangeDate,
+                        exchange_period_name: param.periodName,
+                        exchange_rate_type: param.exchangeRateType
+                    },
+                    success: setRateAndQuotation,
+                    scope: this
+                });
+            }
+            
+            function setRateAndQuotation(res) {
+                var record = $('loan_contract_repayment_ds').getAt(0);
+                if (Ext.isDefined(res.result.record.exchange_rate_quotation)) {
+                    record.set('exchange_rate_quotation', res.result.record.exchange_rate_quotation);
+                } else {
+                    record.set('exchange_rate_quotation', 'DIRECT QUOTATION');
+                }
+                if (Ext.isDefined(res.result.record.exchange_rate)) {
+                    record.set('exchange_rate', res.result.record.exchange_rate);
+                }
+            }
+            
+            function on_fac_lov_focus(object) {
+                var display_name = object.binder.name,
+                    record = object.record || object.binder.ds.create();
+                var head_record = $('loan_contract_repayment_ds').getAt(0);
+                record.getField(display_name).setLovPara('repayment_type', head_record.get('repayment_type'));
+            }
+            
+            function on_cap_int_lov_focus(object) {
+                var display_name = object.binder.name,
+                    record = object.record || object.binder.ds.create();
+                var head_record = $('loan_contract_repayment_ds').getAt(0);
+                record.getField(display_name).setLovPara('repayment_type', head_record.get('repayment_type'));
+            }
+            
+            function on_bank_account_focus(object) {
+                var display_name = object.binder.name,
+                    record = object.record || object.binder.ds.create();
+                record.getField(display_name).setLovPara('bank_branch_id', _data['BANK_BRANCH_ID'] || -999);
+            }
+            
+            Aurora.onReady(function() {
+                if (_data['BUSUNESS_TYPE'] == 'FACTORING') {
+                    $('loan_contract_repayment_dtl_ds').getField('withdraw_number').setRequired(false);
+                }
+            });
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="repayment_type_ds">
+                <a:datas dataSource="/model/repayment_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="currency_ds">
+                <a:datas dataSource="/model/currency"/>
+            </a:dataSet>
+            <a:dataSet id="exchangerate_type_ds">
+                <a:datas dataSource="/model/exchangerate_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="loan_contract_repayment_ds" autoQuery="true" model="tre.tre503.tre_loan_contract_repayment" queryUrl="${/request/@context_path}/autocrud/tre.tre503.tre_loan_contract_repayment/query?repayment_id=${/parameter/@repayment_id}" selectable="true">
+                <a:fields>
+                    <a:field name="repayment_type_desc" displayField="code_value_name" options="repayment_type_ds" readOnly="true" required="true" returnField="repayment_type" valueField="code_value"/>
+                    <a:field name="repayment_number" readOnly="true" required="true"/>
+                    <a:field name="repayment_amount" readOnly="true" required="true" requiredMessage="${l:TRE_LOAN_CON_REPAYMENT_DTL.REPAYMENT_AMOUNT_REQUIRED}"/>
+                    <a:field name="repayment_date" required="true"/>
+                    <a:field name="currency_name" defaultValue="${/model/loan_con/record/@currency_desc}" displayField="currency_name" options="currency_ds" readOnly="true" required="true" returnField="currency_code" valueField="currency_code">
+                        <a:mapping>
+                            <a:map from="precision" to="precision"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="currency_code" defaultValue="${/model/loan_con/record/@currency}"/>
+                    <a:field name="precision"/>
+                    <a:field name="functional_currency_code" defaultValue="${/model/default_exchange_rate_type_path/record/@functional_currency_code}"/>
+                    <a:field name="exchange_rate_type_display" defaultValue="${/model/fnd_financial_option_path/record/@exchange_rate_type_display}" displayField="type_name" options="exchangerate_type_ds" readOnly="true" returnField="exchange_rate_type" valueField="type_code">
+                        <a:mapping>
+                            <a:map from="type_code" to="exchange_rate_type"/>
+                            <a:map from="rate_method_code" to="rate_method_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="exchange_rate_type" defaultValue="${/model/fnd_financial_option_path/record/@default_exchange_rate_type}"/>
+                    <a:field name="exchange_rate" readOnly="true" required="true"/>
+                    <a:field name="rate_method_code" defaultValue="${/model/fnd_financial_option_path/record/@rate_method_code}"/>
+                    <a:field name="period_name" defaultValue="${/model/default_sys_time_path/record/@now_period_name}"/>
+                    <a:field name="internal_period_num" defaultValue="${/model/default_sys_time_path/record/@now_internal_period_num}"/>
+                    <a:field name="bank_account_code" lovGridHeight="350" lovHeight="510" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" required="true" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_id" to="bank_account_id"/>
+                            <a:map from="bank_account_code" to="bank_account_code"/>
+                            <a:map from="bank_account_num" to="bank_account_num"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_account_id" required="true"/>
+                    <a:field name="bank_account_num" readOnly="true" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="repaymentUpd"/>
+                    <a:event name="load" handler="repaymentLoad"/>
+                    <a:event name="submitsuccess" handler="repaymentsubmitsuccess"/>
+                    <a:event name="submitfailed" handler="repaymentsubmitfailed"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="loan_contract_repayment_dtl_ds" autoQuery="true" bindName="details" bindTarget="loan_contract_repayment_ds" model="tre.tre503.tre_loan_con_repayment_dtl" queryUrl="${/request/@context_path}/autocrud/tre.tre503.tre_loan_con_repayment_dtl_query/query?repayment_id=${/parameter/@repayment_id}" selectable="true" submitUrl="${/request/@context_path}/modules/tre/TRE507/tre_loan_contract_repayment_delete.svc">
+                <a:fields>
+                    <a:field name="loan_contract_id" defaultValue="${/parameter/@loan_contract_id}"/>
+                    <a:field name="loan_contract_number" defaultValue="${/parameter/@loan_contract_number}"/>
+                    <a:field name="repayment_amount"/>
+                    <a:field name="withdraw_number" lovAutoQuery="true" lovGridHeight="350" lovHeight="500" lovService="tre.tre503.tre_loan_contract_withdraw_love?loan_contract_id=${/parameter/@loan_contract_id}" lovWidth="600" required="true" title="TRE_LOAN_CON_REPAYMENT_DTL.WITHDRAW_ID">
+                        <a:mapping>
+                            <a:map from="withdraw_id" to="withdraw_id"/>
+                            <a:map from="withdraw_number" to="withdraw_number"/>
+                            <a:map from="vat_rate_of_interest" to="vat_rate_of_interest"/>
+                            <a:map from="withdraw_date" to="withdraw_date"/>
+                            <a:map from="withdraw_amount" to="withdraw_amount"/>
+                            <a:map from="remaining_amount" to="remaining_amount"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="repayment_principal"/>
+                    <a:field name="repayment_interest"/>
+                    <a:field name="times" lovGridHeight="350" lovHeight="500" lovService="tre.tre503.tre_loan_con_repayment_plan_for_lov?loan_contract_id=${/parameter/@loan_contract_id}" lovWidth="500" title="还款计划">
+                        <a:mapping>
+                            <a:map from="repayment_plan_id" to="repayment_plan_id"/>
+                            <a:map from="times" to="times"/>
+                            <a:map from="expire_date" to="expire_date"/>
+                            <a:map from="unpay_factoring_fee" to="total_repayment_amount"/>
+                            <a:map from="unpay_principal" to="repayment_principal"/>
+                            <a:map from="unpay_interest" to="repayment_interest"/>
+                            <a:map from="unpay_factoring_fee" to="unpay_factoring_fee"/>
+                            <a:map from="unpay_principal" to="unpay_principal"/>
+                            <a:map from="unpay_interest" to="unpay_interest"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="repayment_plan_id"/>
+                    <a:field name="repayment_vat_interest"/>
+                    <a:field name="expire_date"/>
+                    <a:field name="repayment_amount" required="true" requiredMessage="${l:TRE_LOAN_CON_REPAYMENT_DTL.REPAYMENT_AMOUNT_REQUIRED}"/>
+                    <a:field name="vat_rate_of_interest"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="on_loan_contract_repayment_dtl_add"/>
+                    <a:event name="update" handler="on_loan_contract_repayment_dtl_update"/>
+                    <a:event name="beforeremove" handler="on_loan_contract_repayment_dtl_beforeremove"/>
+                    <a:event name="remove" handler="on_loan_contract_repayment_dtl_remove"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="repayment_details_save" text="HAP_SAVE"/>
+                <a:gridButton click="go_back" text="HAP_BACK"/>
+            </a:screenTopToolbar>
+            <a:box column="5" labelWidth="120" marginWidth="100">
+                <a:textField name="repayment_number" bindTarget="loan_contract_repayment_ds" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_NUMBER" width="120"/>
+                <a:numberField name="repayment_amount" allowFormat="true" allowNegative="false" bindTarget="loan_contract_repayment_ds" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_AMOUNT" width="120"/>
+                <a:comboBox name="repayment_type_desc" bindTarget="loan_contract_repayment_ds" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_TYPE" width="120"/>
+                <a:datePicker name="repayment_date" bindTarget="loan_contract_repayment_ds" prompt="TRE_LOAN_CONTRACT_REPAYMENT.REPAYMENT_DATE" width="100"/>
+                <a:textField name="note" bindTarget="loan_contract_repayment_ds" prompt="HLS.NOTE" width="250"/>
+                <a:comboBox name="currency_name" bindTarget="loan_contract_repayment_ds" prompt="HLS.CURRENCY" width="120"/>
+                <a:comboBox name="exchange_rate_type_display" bindTarget="loan_contract_repayment_ds" prompt="HLS.EXCHANGE_RATE_TYPE_DESC" width="120"/>
+                <a:numberField name="exchange_rate" allowNegative="false" bindTarget="loan_contract_repayment_ds" decimalPrecision="-1" prompt="HLS.EXCHANGE_RATE" width="120"/>
+                <a:lov name="bank_account_code" bindTarget="loan_contract_repayment_ds" prompt="TRE502.REPAYMENT_ACCOUNT_CODE" width="100">
+                    <a:events>
+                        <a:event name="focus" handler="on_bank_account_focus"/>
+                    </a:events>
+                </a:lov>
+                <a:textField name="bank_account_num" bindTarget="loan_contract_repayment_ds" prompt="TRE502.REPAYMENT_ACCOUNT_NUM" width="250"/>
+            </a:box>
+            <div id="repayment_all_id">
+                <div id="capital_int" style="display:none;">
+                    <a:grid bindTarget="loan_contract_repayment_dtl_ds" marginHeight="200" marginWidth="100" navBar="true">
+                        <a:columns>
+                            <a:column name="withdraw_number" editor="capital_int_lov" prompt="TRE_LOAN_CON_REPAYMENT_DTL.WITHDRAW_ID"/>
+                            <a:column name="withdraw_date" prompt="TRE_LOAN_CONTRACT_WITHDRAW.WITHDRAW_DATE" renderer="Aurora.formatDate"/>
+                            <a:column name="withdraw_amount" align="right" prompt="TRE502.LOAN_AMOUNT" renderer="Aurora.formatMoney"/>
+                            <!-- <a:column name="remaining_amount" align="right" prompt="TRE502.REMAINING_AMOUNT" renderer="Aurora.formatMoney"/> -->
+                            <a:column name="repayment_principal" align="right" editor="capital_int_dp" prompt="TRE_LOAN_CON_REPAYMENT_DTL.REPAYMENT_AMOUNT" renderer="Aurora.formatMoney"/>
+                            <a:column name="repayment_interest" align="right" editor="capital_int_dp" prompt="TRE502.REPAYMENT_INTEREST" renderer="Aurora.formatMoney"/>
+                            <a:column name="repayment_vat_interest" align="right" editor="capital_int_dp" prompt="TRE502.REPAYMENT_VAT_INTEREST" renderer="Aurora.formatMoney"/>
+                        </a:columns>
+                        <a:editors>
+                            <a:lov id="capital_int_lov">
+                                <a:events>
+                                    <a:event name="focus" handler="on_cap_int_lov_focus"/>
+                                </a:events>
+                            </a:lov>
+                            <a:numberField id="capital_int_dp" allowNegative="false"/>
+                        </a:editors>
+                    </a:grid>
+                </div>
+                <div id="capital" style="display:none;">
+                    <a:grid bindTarget="loan_contract_repayment_dtl_ds" marginHeight="200" marginWidth="100" navBar="true">
+                        <!-- <a:toolBar>
+                            <a:button type="add"/>
+                            <a:button type="delete"/>
+                        </a:toolBar> -->
+                        <a:columns>
+                            <a:column name="withdraw_number" prompt="TRE_LOAN_CON_REPAYMENT_DTL.WITHDRAW_ID"/>
+                            <a:column name="withdraw_date" prompt="TRE_LOAN_CONTRACT_WITHDRAW.WITHDRAW_DATE" renderer="Aurora.formatDate"/>
+                            <a:column name="withdraw_amount" align="right" prompt="TRE502.LOAN_AMOUNT" renderer="Aurora.formatMoney"/>
+                            <!-- <a:column name="remaining_amount" align="right" prompt="TRE502.REMAINING_AMOUNT" renderer="Aurora.formatMoney"/> -->
+                            <a:column name="repayment_principal" align="right" editor="cap_dp" prompt="TRE_LOAN_CON_REPAYMENT_DTL.REPAYMENT_AMOUNT" renderer="Aurora.formatMoney"/>
+                        </a:columns>
+                        <a:editors>
+                            <a:lov id="cap_lov">
+                                <a:events>
+                                    <a:event name="focus" handler="on_cap_int_lov_focus"/>
+                                </a:events>
+                            </a:lov>
+                            <a:numberField id="cap_dp" allowNegative="false"/>
+                        </a:editors>
+                    </a:grid>
+                </div>
+                <div id="interest" style="display:none;">
+                    <a:grid bindTarget="loan_contract_repayment_dtl_ds" marginHeight="200" marginWidth="100" navBar="true">
+                        <!-- <a:toolBar>
+                            <a:button type="add"/>
+                            <a:button type="delete"/>
+                        </a:toolBar> -->
+                        <a:columns>
+                            <a:column name="withdraw_number" prompt="TRE_LOAN_CON_REPAYMENT_DTL.WITHDRAW_ID"/>
+                            <a:column name="withdraw_date" prompt="TRE_LOAN_CONTRACT_WITHDRAW.WITHDRAW_DATE" renderer="Aurora.formatDate"/>
+                            <a:column name="repayment_interest" align="right" editor="int_dp" prompt="TRE502.REPAYMENT_INTEREST" renderer="Aurora.formatMoney"/>
+                            <a:column name="repayment_vat_interest" align="right" editor="int_dp" prompt="TRE502.REPAYMENT_VAT_INTEREST" renderer="Aurora.formatMoney"/>
+                        </a:columns>
+                        <a:editors>
+                            <a:lov id="int_lov">
+                                <a:events>
+                                    <a:event name="focus" handler="on_cap_int_lov_focus"/>
+                                </a:events>
+                            </a:lov>
+                            <a:numberField id="int_dp" allowNegative="false"/>
+                        </a:editors>
+                    </a:grid>
+                </div>
+                <div id="factoring_fee" style="display:none;">
+                    <a:grid bindTarget="loan_contract_repayment_dtl_ds" marginHeight="200" marginWidth="100" navBar="true">
+                        <!-- <a:toolBar>
+                            <a:button type="add"/>
+                            <a:button type="delete"/>
+                        </a:toolBar> -->
+                        <a:columns>
+                            <a:column name="times" align="right" prompt="TRE503.TIMES"/>
+                            <a:column name="expire_date" prompt="TRE502.PAYABLE_DATE" renderer="Aurora.formatDate"/>
+                            <a:column name="total_repayment_amount" align="right" prompt="TRE503.AMOUNT" renderer="Aurora.formatMoney"/>
+                            <!-- <a:column name="unpay_factoring_fee" prompt="TRE502.REMAINING_FACTORING_FEE" renderer="Aurora.formatMoney"/> -->
+                            <a:column name="repayment_amount" align="right" editor="fac_fee_dp" prompt="TRE502.PAYMENT_FACTORING_FEE" renderer="Aurora.formatMoney"/>
+                            <a:column name="repayment_vat_interest" align="right" editor="fac_fee_dp" prompt="CON500.CON_CONTRACT_CASHFLOW.VAT_INTEREST" renderer="Aurora.formatMoney"/>
+                        </a:columns>
+                        <a:editors>
+                            <a:lov id="fac_fee_lov">
+                                <a:events>
+                                    <a:event name="focus" handler="on_fac_lov_focus"/>
+                                </a:events>
+                            </a:lov>
+                            <a:numberField id="fac_fee_dp" allowNegative="false"/>
+                        </a:editors>
+                    </a:grid>
+                </div>
+                <div id="factoring" style="display:none;">
+                    <a:grid bindTarget="loan_contract_repayment_dtl_ds" marginHeight="200" marginWidth="100" navBar="true">
+                        <!-- <a:toolBar>
+                            <a:button type="add"/>
+                            <a:button type="delete"/>
+                        </a:toolBar> -->
+                        <a:columns>
+                            <a:column name="times" prompt="TRE503.TIMES"/>
+                            <a:column name="expire_date" prompt="TRE502.PAYABLE_DATE" renderer="Aurora.formatDate"/>
+                            <!-- <a:column name="unpay_factoring_fee" align="right" prompt="TRE503.UNPAY_FACTORING_FEE" renderer="Aurora.formatMoney"/>
+                            <a:column name="unpay_principal" align="right" prompt="TRE503.UNPAY_PRINCIPAL" renderer="Aurora.formatMoney"/>
+                            <a:column name="unpay_interest" align="right" prompt="TRE503.UNPAY_INTEREST" renderer="Aurora.formatMoney"/> -->
+                            <a:column name="repayment_amount" align="right" prompt="TRE503.AMOUNT" renderer="Aurora.formatMoney"/>
+                            <a:column name="repayment_principal" align="right" editor="fac_dp" prompt="TRE503.PRINCIPAL" renderer="Aurora.formatMoney"/>
+                            <a:column name="repayment_interest" align="right" editor="fac_dp" prompt="TRE502.REPAYMENT_INTEREST" renderer="Aurora.formatMoney"/>
+                            <a:column name="repayment_vat_interest" align="right" editor="fac_dp" prompt="CON500.CON_CONTRACT_CASHFLOW.VAT_INTEREST" renderer="Aurora.formatMoney"/>
+                        </a:columns>
+                        <a:editors>
+                            <a:lov id="fac_lov">
+                                <a:events>
+                                    <a:event name="focus" handler="on_fac_lov_focus"/>
+                                </a:events>
+                            </a:lov>
+                            <a:numberField id="fac_dp" allowNegative="false" decimalPrecision="${/model/loan_con/record/@precision}"/>
+                        </a:editors>
+                    </a:grid>
+                </div>
+            </div>
+        </a:screenBody>
+    </a:view>
+</a:screen>

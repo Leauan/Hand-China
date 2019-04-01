@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Icon  
+    $Date: 2014-10-27 上午10:33:39  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:s="aurora.plugin.script" xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+                BEGIN
+                    csh_payment_req_pkg.change_printed_status(p_payment_req_id =>${@payment_req_id}, p_user_id =>${/session/@user_id});
+                END;
+            ]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[select * from (select h.payment_req_number,
+       h.document_type,
+       (select d.document_type_desc
+          from hls_document_type_v d
+         where d.document_type = h.document_type) document_type_dis,
+       to_char(h.req_date, 'yyyy-mm-dd') req_date,
+       h.bp_id,
+       b.bp_code,
+       b.bp_name,
+       h.bp_category,
+       (select b.description
+          from hls_bp_category b
+         where b.bp_category = h.bp_category) bp_category_dis,
+       h.amount apply_amount,
+       h.currency_code,
+       (select t.currency_name from gld_currency_vl t where h.currency_code =t.currency_code ) currency_name,
+       h.created_by,
+       
+       h.submitted_flag,
+       h.approval_status,
+       to_char(h.approval_date, 'yyyy-mm-dd') approval_date,
+       h.approval_note,
+       h.payment_req_id,
+       h.closed_flag,
+       h.description payment_description,
+       h.apply_pay_date,
+       h.print_status,
+       (select v.code_value_name from sys_code_values_v v where v.code='CSH506_PRINT_STATUS' and v.code_value=h.print_status) print_status_n
+  from csh_payment_req_hd h,
+       hls_bp_master      b      
+ where  h.bp_id = b.bp_id(+)
+   and h.submitted_flag = 'N') t1
+   #WHERE_CLAUSE#
+   order by req_date desc,payment_req_number]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:features>
+        <s:bm-script><![CDATA[
+            var cx = Packages.aurora.javascript.Context.getCurrentContext();
+            Packages.aurora.plugin.script.engine.ScriptImportor.defineExternScript(cx, this, $ctx.getData(), "aut_authority_bm_validate.js");
+        ]]></s:bm-script>
+    </bm:features>
+    <bm:query-fields>
+        <bm:query-field name="payment_req_number_from" datatype="java.lang.String" queryExpression="t1.payment_req_number&gt;=${@payment_req_number_from}"/>
+        <bm:query-field name="payment_req_number_to" datatype="java.lang.String" queryExpression="t1.payment_req_number&lt;=${@payment_req_number_to}"/>
+        <bm:query-field name="req_date_from" datatype="java.lang.String" queryexpression="t1.req_date &gt;= ${@req_date_from}"/>
+        <bm:query-field name="req_date_to" datatype="java.lang.String" queryexpression="t1.req_date &lt;= ${@req_date_to}"/>
+        <bm:query-field name="amount_from" datatype="java.lang.String" queryExpression="t1.apply_amount&gt;=${@amount_from}"/>
+        <bm:query-field name="amount_to" datatype="java.lang.String" queryExpression="t1.apply_amount&lt;=${@amount_to}"/>
+        <bm:query-field name="approval_status" datatype="java.lang.String" queryOperator="="/>
+        <bm:query-field name="submitted_flag" datatype="java.lang.String" queryExpression="t1.submitted_flag=${@submitted_flag}"/>
+        <bm:query-field name="currency_code" datatype="java.lang.String" queryExpression="t1.currency_code=${@currency_code}"/>
+        <bm:query-field name="bp_code_from" datatype="java.lang.String" queryExpression="t1.bp_code&gt;=${@bp_code_from}"/>
+        <bm:query-field name="bp_code_to" datatype="java.lang.String" queryExpression="t1.bp_code&lt;=${@bp_code_to}"/>
+    </bm:query-fields>
+</bm:model>

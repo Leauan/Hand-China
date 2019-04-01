@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: LR  
+    $Date: 2013-8-13 上午10:30:25  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true">
+    <a:init-procedure><![CDATA[
+    ]]></a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_terminate_link_id" model="cont.CON560.con_contract_terminate" modelaction="batch_update"/>
+        <a:link id="sys_service_welcome_link" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="con_contract_update_link_id" url="${/request/@context_path}/modules/cont/CON500/con_contract_update.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <script><![CDATA[
+            function con560_con_contract_detail() {
+                var records = $('con560_contract_result_ds').getSelected();
+                    if (!records.length) {
+                        Aurora.showMessage('${l:PROMPT}', '请至少选择一条记录');
+                        return;
+                    }
+                    var TerminateData = [];
+                    for (var i = 0;i < records.length;i++) {
+                        records[i].set('_status', 'update');
+                        TerminateData.push(records[i].data);      
+                    }
+                    Aurora.showConfirm('${l:PROMPT}', '确认要结束?', function() {
+                        Aurora.request({
+                            url: $('con_contract_terminate_link_id').getUrl(),
+                            para: TerminateData,
+                            success: function() {
+                                Aurora.SideBar.show({
+                                    msg: '合同已结束',
+                                    duration: 2000
+                                });
+                                $('con560_contract_result_ds').query();
+                            },
+                            scope: this
+                        });
+                    }, function() {
+                        return;
+                    }, null, null);
+            }
+            
+            function con560_render_contractMaintainDs_grid(value, record, name) {
+                if (name == 'contract_number') {
+                    return '<a href="javascript:con560_contractMaintainDs_grid_update(' + record.id + ');">' + value + '</a>';
+                }
+            }
+            
+            function con560_param_set_value(param) {
+            	param['document_category'] = 'CONTRACT';
+                param['function_code'] = 'CON301';
+                param['function_usage'] = 'QUERY';
+                param['maintain_type'] = 'READONLY';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_update_link_id', 'con560_contract_result_ds');
+            }
+            
+            function con560_contractMaintainDs_grid_update(id) {
+                var current_record = $('con560_contract_result_ds').findById(id);
+                var param = current_record.data;
+                param['document_id'] = current_record.get('contract_id');
+                con560_param_set_value(param);
+            }
+            function con560_con_contract_query() {
+                $('con560_contract_result_ds').query();
+            }
+            
+            function con560_con_contract_reset(){
+                $('con560_contract_query_ds').reset();
+            }   
+             function summaryRenderer(datas, name) {
+                var sum = 0;
+              	var sum2 = 0;
+                for (var i = 0;i < datas.length;i++) {
+                    record = datas[i];
+                    if (name == "lease_item_amount" ) {
+                        var t_1 = record.get("lease_item_amount" );
+                        var  t_2 = parseFloat(t_1);
+                        if (!isNaN(t_2)) {
+                            sum += t_2;
+                        }
+                    }
+                    if (name == "down_payment" ) {
+                        var d_1 = record.get("down_payment" );
+                        var  d_2 = parseFloat(d_1);
+                        if (!isNaN(d_2)) {
+                            sum2 += d_2;
+                        }
+                    }
+                }
+                if (name == "bp_vender") {
+                    return '<div align="right">合计:</div>';
+                }
+                if (name == "lease_item_amount" ) {           
+                    return '<font color="red">' + Aurora.formatNumber(sum, 2) + '</font>';
+                }
+                if (name == "down_payment" ) {           
+                    return '<font color="red">' + Aurora.formatNumber(sum2, 2) + '</font>';
+                } 
+            }
+            
+            function onIndexChange(ds,record,name,value,oldvalue)
+            {
+                $('receivedAmountDs').setQueryParameter('contract_id', record.get('contract_id'));
+                $('unreceivedAmountDs').setQueryParameter('contract_id', record.get('contract_id'));
+                $('receivedAmountDs').query();   
+                $('unreceivedAmountDs').query(); 
+                
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=CONTRACT&amp;function_code=CON560"/>
+        <a:dataSets>
+            <a:dataSet id="receivedAmountDs" autoQuery="true" model="cont.CON560.con_contract_received_amount"/>
+            <a:dataSet id="unreceivedAmountDs" autoQuery="true" model="cont.CON560.con_contract_unreceived_amount"/>
+            <a:dataSet id="con560_lease_organization_name_ds" loadData="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="con560_contract_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="bp_name" autoComplete="true" lovGridHeight="350" lovHeight="500" lovLabelWidth="100" lovService="cont.CON541.hls_bp_master_v_for_lov?bp_category=TENANT" lovWidth="520" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="bp_id" to="bp_id_tenant"/>
+                        </a:mapping>
+                    </a:field>
+                    <!-- <a:field name="contract_number" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="cont.CON531.con_contract_lov" lovWidth="500" title="HLS.CONTRACT_NUMBER">
+                        <a:mapping>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="contract_id" to="contract_id"/>
+                        </a:mapping>
+                    </a:field> -->
+                    <a:field name="contract_number" typeCase="Upper"/>
+                    <a:field name="lease_organization_name" displayField="description" options="con560_lease_organization_name_ds" returnField="lease_organization" valueField="lease_organization"/>
+                    <a:field name="owner_user_id_n" lovGridHeight="350" lovHeight="475" lovService="cont.CON560.sys_user_for_lov" lovWidth="520" title="出单人选择">
+                        <a:mapping>
+                            <a:map from="user_id" to="owner_user_id"/>
+                            <a:map from="description" to="owner_user_id_n"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con560_contract_result_ds" autoPageSize="true" autoQuery="true" model="cont.CON560.con_contract_finish_for_query" queryDataSet="con560_contract_query_ds" queryUrl="${/request/@context_path}/autocrud/cont.CON560.con_contract_finish_for_query/query" selectable="true" selectionModel="single">
+                <a:events>
+                    <a:event name="indexChange" handler="onIndexChange"/>
+                    <a:event name="query" handler="aut_authority_list_validate_query"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="con560_con_contract_query" text="HLS.QUERY"/>
+                <a:gridButton click="con560_con_contract_reset" text="HLS.RESET"/>
+                <a:gridButton click="con560_con_contract_detail" text="合同结束"/>
+            </a:screenTopToolbar>
+            <a:form column="3" labelWidth="100" marginWidth="30" title="CON301.CONTRACT_QUERY">
+                <a:textField name="contract_number" bindTarget="con560_contract_query_ds" prompt="HLS.CONTRACT_NUMBER"/>
+                <a:lov name="bp_name" bindTarget="con560_contract_query_ds" prompt="HLS.TENANT_CODE"/>
+                <!--<a:lov name="owner_user_id_n" bindTarget="con560_contract_query_ds" prompt="出单人"/>-->
+                <a:comboBox name="lease_organization_name" bindTarget="con560_contract_query_ds" prompt="事业部"/>
+            </a:form>
+            <a:grid id="con560_con_contract_grid_ds" bindTarget="con560_contract_result_ds" marginHeight="365" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" lock="true" prompt="HLS.CONTRACT_NUMBER" renderer="con560_render_contractMaintainDs_grid" width="150"/>
+                    <a:column name="bp_name" prompt="HLS.TENANT_NAME" width="100"/>
+                    <a:column name="inception_of_lease" prompt="起租日期" renderer="Aurora.formatDate" width="100"/>
+                    <a:column name="lease_end_date" prompt="合同预计结束日期" renderer="Aurora.formatDate" width="100"/>
+                    <a:column name="is_terminate" prompt="租金是否结清" width="100"/>
+                    <a:column name="residual_value" align="right" prompt="留购价" renderer="Aurora.formatMoney" width="50"/>
+                    <!--<a:column name="signing_user_id_n" prompt="签约人" width="100"/>-->
+                    <a:column name="signing_date" prompt="签约时间" renderer="Aurora.formatDate" width="100"/>
+                    <a:column name="signing_location" prompt="签约地点" width="100"/>
+                    <a:column name="lease_channel_desc" prompt="商业模式" width="70"/>
+                    <!--<a:column name="bp_vender" align="center" footerRenderer="summaryRenderer" prompt="主供应商名称" width="200"/>-->
+                    <a:column name="lease_item_amount" align="right" footerRenderer="summaryRenderer" prompt="租赁物总价" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="down_payment" align="right" footerRenderer="summaryRenderer" prompt="首付款" renderer="Aurora.formatMoney" width="120"/>
+                    <!--<a:column name="owner_user_id_n" prompt="出单人" width="60"/>-->
+                    <a:column name="lease_organization_desc" prompt="事业部" width="80"/>
+                </a:columns>
+            </a:grid>
+            <a:tabPanel marginHeight="420" marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="未收金额" width="110">
+                        <a:grid bindTarget="unreceivedAmountDs" marginHeight="470" marginWidth="55" navBar="true">
+                            <a:columns>
+                                <a:column name="times" prompt="期数"/>
+                                <a:column name="cf_type_dis" prompt="类型"/>
+                                <a:column name="due_amount" align="right" prompt="应收金额" renderer="Aurora.formatMoney"/>
+                                <a:column name="received_amount" align="right" prompt="已收金额" renderer="Aurora.formatMoney"/>
+                                <a:column name="due_date" prompt="预定支付日期"/>
+                                <a:column name="amount" align="right" prompt="未收金额" renderer="Aurora.formatMoney"/>
+                                <a:column name="principal" align="right" prompt="未收本金" renderer="Aurora.formatMoney"/>
+                                <a:column name="interest" align="right" prompt="未收利息" renderer="Aurora.formatMoney"/>
+                                <!--<a:column name="termination_date" prompt="回购日"/>-->
+                                <a:column name="cf_status_dis" prompt="现金流状态"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab prompt="已收金额" width="110">
+                        <a:grid bindTarget="receivedAmountDs" marginHeight="450" marginWidth="55" navBar="true">
+                            <a:columns>
+                                <a:column name="times" prompt="期数"/>
+                                <a:column name="cf_type_dis" prompt="类型"/>
+                                <a:column name="due_amount" align="right" prompt="应收金额" renderer="Aurora.formatMoney"/>
+                                <a:column name="received_amount" align="right" prompt="已收金额" renderer="Aurora.formatMoney"/>
+                                <a:column name="due_date" prompt="预定支付日期"/>
+                                <a:column name="received_principal" align="right" prompt="已收本金" renderer="Aurora.formatMoney"/>
+                                <a:column name="received_interest" align="right" prompt="已收利息" renderer="Aurora.formatMoney"/>
+                                <!--<a:column name="termination_date" prompt="回购日"/>-->
+                                <a:column name="cf_status_dis" prompt="现金流状态"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-7-23 下午01:43:58  
+    $Revision: 1.0  
+    $Purpose:项目上会查询 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:view>
+        <a:link id="approver_info_win_link" url="${/request/@context_path}/modules/prj/PRJ602/prj_project_approver_query.screen"/>
+        <a:link id="prj_project_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="prj_project_update_link_id" url="${/request/@context_path}/modules/prj/PRJ500/prj_project_create_tree.screen"/>
+        <script><![CDATA[
+            function open_project_win(reocrd_id) {
+                var maintain_type = 'READONLY';
+                var record = $('projectQueryScreen_mainDs').findById(reocrd_id);
+                var param = record.data;
+                
+                param['function_code'] = 'PRJ502';
+                param['document_id'] = record.get('project_id');
+                param['function_usage'] = 'QUERY';
+                param['maintain_type'] = maintain_type;
+                param['url_title'] = '${l:HLS.PROJECT_MAITAIN}';
+                hls_doc_get_layout_code('prj_project_get_layout_code_link_id', param, 'prj_project_update_link_id', 'projectQueryScreen_mainDs');
+            
+            }
+            
+            function prj501_project_number_render(value, record, name) {
+                return '<a href="javascript:open_project_win(' + record.id + ')">' + value + '</a>';
+            }
+            
+            function open_approver_info_win(approval_id) {
+                new Aurora.Window({
+                    id: 'approver_info_win_id',
+                    url: $('approver_info_win_link').getUrl(),
+                    params: {
+                        approval_id: approval_id,
+                        winid: 'approver_info_win_id'
+                    },
+                    width: 800,
+                    height: 520
+                });
+            }
+            
+            function approver_info_renderer(value, record, name) {
+                return '<a href="javascript:open_approver_info_win(' + record.get('approval_id') + ')">上会信息</a>';
+            }
+            
+            function projectQueryScreen_query() {
+                $('projectQueryScreen_mainDs').query();
+            }
+            
+            function projectQueryScreen_reset() {
+                $('projectQueryScreen_paraDs').reset();
+            }
+        ]]></script>
+        <a:screen-include screen="modules/prj/PRJ500/prj_project_get_layout_code.screen"/>
+        <a:dataSets>
+            <a:dataSet id="project_status_ds" lookupCode="PRJ501_PRJ_STATUS"/>
+            <a:dataSet id="projectQueryScreen_paraDs">
+                <a:fields>
+                    <a:field name="project_name"/>
+                    <a:field name="project_number" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="prj.PRJ501.prj_project_for_lov" lovWidth="500" title="HLS.PROJECT_NUMBER">
+                        <a:mapping>
+                            <a:map from="project_number" to="project_number"/>
+                            <a:map from="project_name" to="project_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="project_status"/>
+                    <a:field name="project_status_desc" displayField="code_value_name" options="project_status_ds" returnField="project_status" valueField="code_value"/>
+                    <a:field name="pre_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="second_meet_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="meeting_date_from"/>
+                    <a:field name="meeting_date_to"/>
+                    <a:field name="meeting_count"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="projectQueryScreen_mainDs" autoPageSize="true" autoQuery="true" model="prj.PRJ602.prj_project_approval_query" queryDataSet="projectQueryScreen_paraDs" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="pre_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="second_meet_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="meeting_count" readOnly="true"/>
+                    <a:field name="meeting_date" readOnly="true"/>
+                    <a:field name="meeting_location" readOnly="true"/>
+                    <a:field name="approver_comment_summary" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="projectQueryScreen_reset" text="HLS.RESET"/>
+                <a:gridButton click="projectQueryScreen_query" text="HLS.QUERY"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelSeparator=" " labelWidth="100" marginWidth="30" title="HLS.QUERY_TITLE">
+                <a:lov name="project_number" bindTarget="projectQueryScreen_paraDs" prompt="HLS.PROJECT_NUMBER" width="150"/>
+                <a:textField name="project_name" bindTarget="projectQueryScreen_paraDs" prompt="HLS.PROJECT_NAME"/>
+                <a:datePicker name="meeting_date_from" bindTarget="projectQueryScreen_paraDs" prompt="上会时间从" width="150"/>
+                <a:datePicker name="meeting_date_to" bindTarget="projectQueryScreen_paraDs" prompt="上会时间到" width="150"/>
+                <a:textField name="meeting_count" bindTarget="projectQueryScreen_paraDs" prompt="上会次数"/>
+                <a:comboBox name="project_status_desc" bindTarget="projectQueryScreen_paraDs" prompt="项目状态" width="150"/>
+                <a:checkBox name="pre_flag" bindTarget="projectQueryScreen_paraDs" prompt="是否预评" width="30"/>
+                <a:checkBox name="second_meet_flag" bindTarget="projectQueryScreen_paraDs" prompt="是否二次上会" width="30"/>
+            </a:form>
+            <a:grid id="projectQueryScreen_mainDs_grid" bindTarget="projectQueryScreen_mainDs" marginHeight="200" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="project_number" prompt="项目编号" renderer="prj501_project_number_render" width="120"/>
+                    <a:column name="project_name" prompt="HLS.PROJECT_NAME" width="200"/>
+                    <a:column name="project_status_desc" prompt="HLS.PROJECT_STATUS"/>
+                    <a:column name="current_node_desc" prompt="GJPRJ554.CURRENT_NODE_DESC" width="180"/>
+                    <a:column name="meeting_count" prompt="上会次数"/>
+                    <a:column name="meeting_date" prompt="上会时间" renderer="Aurora.formatDate"/>
+                    <a:column name="meeting_location" prompt="上会地点" width="200"/>
+                    <a:column name="pre_flag" prompt="是否预评"/>
+                    <a:column name="second_meet_flag" prompt="是否二次上会"/>
+                    <a:column name="approver_info" align="center" prompt="上会信息" renderer="approver_info_renderer"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

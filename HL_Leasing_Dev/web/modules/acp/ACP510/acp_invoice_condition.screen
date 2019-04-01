@@ -1,0 +1,513 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	&author:DJ
+	$date:2013/05/08
+	$purpose:合同现金流查询
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.document_category=&apos;CONTRACT&apos;" fetchAll="true" model="basic.hls_document_type_for_lov" rootPath="con501_document_type_path"/>
+        <a:model-query defaultWhereClause="document_category=&apos;CONTRACT&apos;" fetchAll="true" model="basic.hls_document_type_v_lov" rootPath="contract_type_list"/>
+        <a:model-query defaultWhereClause="t1.enabled_flag = &apos;Y&apos;" model="prj.PRJ505.con_billing_method" rootPath="billing_method_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="pageLink_select_cashflow" url="${/request/@context_path}/modules/acp/ACP510/acp_invoice_select_cashflow.screen"/>
+        <!-- <a:link id="pageLink_conditionScreen_welcome" url="${/request/@context_path}/welcome.screen"/> -->
+        <a:link id="pageLink_invoice_create" url="${/request/@context_path}/modules/acp/ACP510/acp_invoice_create_invoice.screen"/>
+        <a:link id="svcLink_save_selected" url="${/request/@context_path}/modules/acp/ACP510/acp_invoice_save_selected.svc"/>
+        <a:screen-include screen="modules/hls/hls_common_javascript.screen"/>
+        <script><![CDATA[
+	        
+	        //Created By DJ
+	        //以下代码处理头行全选控制：较为复杂，特此注释，逻辑如下：
+	        //1.头选，则行全选
+	        //2.头不选，则行全不选
+	        //3.行任选一个，则头选
+	        //4.行全不选，则头不选
+	        //其中，复杂点在于：
+	        //1.头行会循环更新，需要严格控制何时更新头，何时更新行
+	        //2.头选择时，行可能还没有查询出来，需要查询一次以后全选；行可能已经查询出来了，需要直接全选
+	        //<<<<*****************************************************************
+	        (function ()
+			{
+			    var head_to_line = true; ////初始状态：私有变量：鼠标点击头标识
+			    var line_to_head = true; //初始状态：私有变量:鼠标点击行标识
+			    var hRecord_temp = null; //初始状态：私有变量:当前头记录
+			    
+			    onIndexchange_contractDs = function (ds,record)
+			    {
+			        hRecord_temp = record;
+			    };
+			    
+            	onSelect_contractDs = function (ds,record)
+            	{
+            	    if(head_to_line==true) //是鼠标点击头
+            	    {
+            	        hRecord_temp = record;
+            	    	ds.locate(ds.indexOf(record)+1);
+            	    	var lineDs = $('cashflowDs');
+            	    	if(lineDs.getAll().length != 0)
+            	    	{
+            	    	    line_to_head = false; //设置非鼠标点击行
+            	    	    lineDs.selectAll();
+            	    	    line_to_head = true; //恢复初始状态
+            	    	}
+            	    }
+            	};
+            	
+            	unselect_contractDs = function (ds,record)
+            	{
+            	    if(head_to_line==true) //是鼠标点击头
+            	    {
+            	        line_to_head = false; //设置非鼠标点击行
+            	        ds.locate(ds.indexOf(record)+1);
+	            	    $('cashflowDs').unSelectAll();
+            	        line_to_head = true; //恢复初始状态
+            	    }
+            	};
+            	
+            	onSelect_cashflowDs = function (ds,record)
+            	{
+            	    record.dirty = true;
+            	    if(line_to_head==true) //是鼠标点击行
+            	    {
+            	        if(!Ext.isEmpty(hRecord_temp))
+            	        {
+            	            head_to_line = false; //设置非鼠标点击头
+            	            if(!hRecord_temp.isSelected)
+            	            {
+            	                $('contractDs').select(hRecord_temp);
+            	            }
+            	            head_to_line = true; //恢复初始状态
+            	        }
+            	    }
+            	};
+            	
+            	onUnselect_cashflowDs = function (ds,record)
+            	{
+            	    record.dirty = false;
+            	    if(ds.getSelected().length==0)
+            	    {
+            	        if(line_to_head==true) //是鼠标点击行
+	            	    {
+	            	        hRecord_temp = $('contractDs').getCurrentRecord();
+	            	        if(!Ext.isEmpty(hRecord_temp))
+	            	        {
+	            	            head_to_line = false; //设置非鼠标点击头
+	            	            if(hRecord_temp.isSelected)
+	            	            {
+	            	                $('contractDs').unSelect(hRecord_temp);
+	            	            }
+	            	            head_to_line = true; //恢复初始状态
+	            	        }
+	            	    }
+            	    }
+            	};
+            	
+            	onLoad_cashflowDs = function (ds)
+            	{
+            	    if(!Ext.isEmpty(hRecord_temp) && hRecord_temp.isSelected)
+            	    {
+            	        ds.selectAll.defer(5,ds);
+            	    }
+            	};
+            	
+			    var getQueryParaStr = function(paraObject)
+				{
+				    var paraStr='';
+		            for (var key in paraObject)
+		            {
+		                if(paraStr=='')
+		                {
+		                    paraStr=key+'='+paraObject[key];
+		                }
+		                else
+		                {
+		                    paraStr=paraStr+'&'+key+'='+paraObject[key];
+		                }
+		            }
+		            if(paraStr=='')
+		            {
+		                return paraStr;
+		            }
+		            else
+		            {
+		                return '?' + paraStr;
+		            }
+				};
+				
+				onQuery_contractDs = function (ds,qpara)
+		        {
+		            head_to_line = true; //恢复初始状态
+			    	line_to_head = true; //恢复初始状态
+			    
+		            var conditionRecord = $('allConditionDs').getAt(0);
+		            var cashDs = $('cashflowDs');
+		            
+		            var last_received_date_from = conditionRecord.get('last_received_date_from');
+		            var last_received_date_to   = conditionRecord.get('last_received_date_to');
+		            var cf_item = conditionRecord.get('cf_item');
+		            
+		            var url = '${/request/@context_path}/autocrud/acp.ACP510.acp_invoice_contract_cf_v/query';
+		            
+		            var queryPara = {};
+		            if(!Ext.isEmpty(last_received_date_from))
+		            {
+		                queryPara['last_received_date_from']=$A.formatDate(last_received_date_from);
+		            }
+		            if(!Ext.isEmpty(last_received_date_to))
+		            {
+		                queryPara['last_received_date_to']=$A.formatDate(last_received_date_to);
+		            }
+		            if(!Ext.isEmpty(cf_item))
+		            {
+		                queryPara['cf_item']=cf_item;
+		            }
+		            var paraStr = getQueryParaStr(queryPara);
+		            cashDs.setQueryUrl(url+paraStr);
+		        };
+			})();
+			
+			//*****************************************************************>>>>
+			
+			function contractDs_grid_query()
+			{
+			    //$('condition_queryForm').close();
+			    $('contractDs').query();
+			}
+	        
+	        function contractDs_grid_add() {
+	            $('contractDs_grid').showEditorByRecord($('contractDs').create());
+	        }
+	        
+	        function invoiceHd_close() {
+            	$('acp_invoice_select_cashflow').close();
+        	}
+	        
+	        function contractDs_grid_clear() {
+	            $('contractDs_grid').clear();
+	        }
+	        
+	        function allConditionDs_reset() {
+	        	$('allConditionDs').reset();
+	        }
+	        
+	        function cashflowDs_grid_clear() {
+	            $('cashflowDs_grid').clear();
+	        }
+	        
+			function winOpen_invoice_create(val)
+			{
+			    //alert(val);
+			    var win = new Aurora.Window({
+	                id: 'acp_invoice_create_invoice',
+	                url: $('pageLink_invoice_create').getUrl(),
+	                params:{
+	                    company_id:'${/session/@company_id}',
+	                    object_tax_registry_num:val
+	                },
+	                title: '${l:ACR510.WIN_TITLE.CREATE}',
+	                fullScreen:true
+	            });
+	            
+	            win.on('close',function(){
+	                contractDs_grid_query();
+	            });
+			}
+			
+			function invoiceHd_confirm()
+			{
+        	    f_hls.winMask();
+        	    
+			    var ds=$('contractDs');
+			    if(!ds.validate(true))
+			    {
+			        f_hls.winNoMask();
+			        return;
+			    }
+			    if(ds.getSelected().length==0)
+			    {
+			        f_hls.winNoMask();
+			        return;
+			    }
+			    var datas = ds.getJsonData(true);
+			    
+			    Aurora.request({
+	                url: $('svcLink_save_selected').getUrl(),
+	                para: datas,
+	                success: function(res) {
+	                    f_hls.winNoMask();
+	                    var val;
+	                    if(!!ds.getCurrentRecord().get('object_tax_registry_num')){
+	                        val = ds.getCurrentRecord().get('object_tax_registry_num');
+	                    }else{
+	                        val = null;
+	                    }
+	                    winOpen_invoice_create(val);
+	                },
+	                failure: function() {
+	                    f_hls.winNoMask();
+	                },
+	                error: function() {
+	                    f_hls.winNoMask();
+	                },
+	                scope: this
+	            });
+			}
+			
+			function render_contractDs_grid(value,record,name){
+			    if(name=='billing_object_name')
+			    {
+			        record.getField('billing_object_name').setLovPara('contract_id',record.get('contract_id'));
+			    }
+			    return value;
+			}
+			
+		]]></script>
+        <a:dataSets>
+            <!--查询条件的ds-->
+            <a:dataSet id="acp510_document_type_name_ds">
+                <a:datas dataSource="/model/con501_document_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="contractTypeDs">
+                <a:datas dataSource="/model/contract_type_list"/>
+            </a:dataSet>
+            <a:dataSet id="billingMethodDs">
+                <a:datas dataSource="/model/billing_method_list"/>
+            </a:dataSet>
+            <a:dataSet id="allConditionDs" autoCreate="true">
+                <a:fields>
+                    <a:field name="project_number_from" lovGridHeight="300" lovHeight="450" lovService="prj.PRJ501.prj_project_for_lov" lovWidth="500" title="ACR510.FIELD.PROJECT_NUMBER_FROM">
+                        <a:mapping>
+                            <a:map from="project_number" to="project_number_from"/>
+                            <a:map from="project_name" to="project_name_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="project_number_to" lovGridHeight="300" lovHeight="450" lovService="prj.PRJ501.prj_project_for_lov" lovWidth="500" title="ACR510.FIELD.PROJECT_NUMBER_TO">
+                        <a:mapping>
+                            <a:map from="project_number" to="project_number_to"/>
+                            <a:map from="project_name" to="project_name_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="project_name_from" readOnly="true"/>
+                    <a:field name="project_name_to" readOnly="true"/>
+                    <a:field name="contract_number_from" lovGridHeight="300" lovHeight="500" lovService="basic.con_contract_for_lov" lovWidth="800" title="ACR510.FIELD.CONTRACT_NUMBER_FROM">
+                        <a:mapping>
+                            <a:map from="contract_number" to="contract_number_from"/>
+                            <a:map from="contract_name" to="contract_name_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_number_to" lovGridHeight="300" lovHeight="500" lovService="basic.con_contract_for_lov" lovWidth="800" title="ACR510.FIELD.CONTRACT_NUMBER_TO">
+                        <a:mapping>
+                            <a:map from="contract_number" to="contract_number_to"/>
+                            <a:map from="contract_name" to="contract_name_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_name_from" readOnly="true"/>
+                    <a:field name="contract_name_to" readOnly="true"/>
+                    <a:field name="bp_code_tenant_from" lovGridHeight="300" lovHeight="450" lovLabelWidth="100" lovService="basic.hls_bp_master_v_for_lov" lovWidth="600" title="ACR510.FIELD.BP_CODE_TENANT_FROM">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code_tenant_from"/>
+                            <a:map from="bp_name" to="bp_name_tenant_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_code_tenant_to" lovGridHeight="300" lovHeight="450" lovLabelWidth="100" lovService="basic.hls_bp_master_v_for_lov" lovWidth="600" title="ACR510.FIELD.BP_CODE_TENANT_TO">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code_tenant_to"/>
+                            <a:map from="bp_name" to="bp_name_tenant_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_name_tenant_from" readOnly="true"/>
+                    <a:field name="bp_name_tenant_to" readOnly="true"/>
+                    <a:field name="inception_of_lease_from"/>
+                    <a:field name="inception_of_lease_to"/>
+                    <a:field name="last_received_date_from"/>
+                    <a:field name="last_received_date_to"/>
+                    <a:field name="document_type"/>
+                    <a:field name="document_type_desc" displayField="document_type_desc" options="contractTypeDs">
+                        <a:mapping>
+                            <a:map from="document_type" to="document_type"/>
+                            <a:map from="document_type_desc" to="document_type_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="cf_item"/>
+                    <a:field name="cf_item_desc" lovGridHeight="300" lovHeight="500" lovService="hls.HLS005.hls_cashflow_item_v_lov?cf_direction=OUTFLOW" lovWidth="850" title="ACR510.ACR_INVOICE_CONTRACT_CF_V.CF_ITEM_DESC">
+                        <a:mapping>
+                            <a:map from="cf_item" to="cf_item"/>
+                            <a:map from="cf_item_desc" to="cf_item_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="billing_method"/>
+                    <a:field name="billing_method_desc" displayField="description" options="billingMethodDs" returnField="billing_method" valueField="billing_method"/>
+                    <a:field name="document_type_desc"/>
+                    <a:field name="lease_start_date_from"/>
+                    <a:field name="lease_start_date_to"/>
+                    <a:field name="contract_name"/>
+                    <a:field name="contract_number" typeCase="upper"/>
+                    <a:field name="project_name"/>
+                    <a:field name="bp_name"/>
+                    <a:field name="prj_search_term_1"/>
+                    <a:field name="con_search_term_1"/>
+                    <a:field name="prj_search_term_2"/>
+                    <a:field name="con_search_term_2"/>
+                    <a:field name="document_type_desc" displayField="description" options="acp510_document_type_name_ds" returnField="document_type" valueField="document_type"/>
+                </a:fields>
+            </a:dataSet>
+            <script><![CDATA[
+                /*function validate_contractDs(record,name,value){
+                 if(name=='object_tax_registry_num'||name=='invoice_bp_address_phone_num'||name=='invoice_bp_bank_account')
+                 {
+                 if(Ext.isEmpty(value))
+                 {
+                 if(record.get('bill_object_bp_class')=='NP'||record.get('object_taxpayer_type')=='SMALL_SCALE_TAXPAYER'||record.get('tax_type_vat')!='Y')
+                 {
+                 return true;
+                 }
+                 else
+                 {
+                 return '必输字段不能为空!';
+                 }
+                 }
+                 return true;
+                 }
+                 return true;
+                 }*/
+            ]]></script>
+            <!--查询结果的ds-->
+            <a:dataSet id="contractDs" autoQuery="true" model="acp.ACP510.acp_invoice_contract_v" pageSize="100" queryDataSet="allConditionDs" queryUrl="${/request/@context_path}/autocrud/acp.ACP510.acp_invoice_contract_v/query?company_id=${/parameter/@company_id}" selectable="true" selectionModel="single">
+                <a:fields>
+                    <!--<a:field name="invoice_title" required="true"/>-->
+                    <!--<a:field name="object_tax_registry_num" validator="validate_contractDs"/>
+                    <a:field name="invoice_bp_address_phone_num" validator="validate_contractDs"/>
+                    <a:field name="invoice_bp_bank_account" validator="validate_contractDs"/>-->
+                    <!-- <a:field name="object_tax_registry_num" required="true"/> -->
+                    <a:field name="object_tax_registry_num"/>
+                    <a:field name="pin_object_tax_registry_num"/>
+                    <a:field name="billing_object_name" lovGridHeight="300" lovHeight="450" lovLabelWidth="100" lovService="acp.ACP510.acp_invoice_billing_object_lov" lovWidth="650" title="ACR510.ACR_INVOICE_CONTRACT_V.BILLING_OBJECT_NAME">
+                        <a:mapping>
+                            <a:map from="bp_id" to="billing_object_id"/>
+                            <a:map from="bp_name" to="billing_object_name"/>
+                            <a:map from="invoice_title" to="invoice_title"/>
+                            <a:map from="invoice_bp_address_phone_num" to="invoice_bp_address_phone_num"/>
+                            <a:map from="invoice_bp_bank_account" to="invoice_bp_bank_account"/>
+                            <a:map from="taxpayer_type" to="object_taxpayer_type"/>
+                            <a:map from="taxpayer_type_desc" to="object_taxpayer_type_desc"/>
+                            <a:map from="tax_registry_num" to="object_tax_registry_num"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="document_type"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="select" handler="onSelect_contractDs"/>
+                    <a:event name="unselect" handler="unselect_contractDs"/>
+                    <a:event name="query" handler="onQuery_contractDs"/>
+                    <a:event name="indexchange" handler="onIndexchange_contractDs"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="cashflowDs" bindName="line_info" bindTarget="contractDs" fetchAll="true" model="acp.ACP510.acp_invoice_contract_cf_v" selectable="true">
+                <a:fields>
+                    <a:field name="last_received_date" datatype="date"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="select" handler="onSelect_cashflowDs"/>
+                    <a:event name="unselect" handler="onUnselect_cashflowDs"/>
+                    <a:event name="load" handler="onLoad_cashflowDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <!-- <a:gridButton click="conditionScreen_forward" text="HLS.FORWARD"/>
+                <a:gridButton click="conditionScreen_back" text="HLS.BACK"/>
+                <a:gridButton click="conditionScreen_quit" text="HLS.EXIT"/> -->
+                <a:gridButton click="contractDs_grid_query" text="HLS.QUERY"/>
+                <a:gridButton click="allConditionDs_reset" text="重置条件"/>
+                <a:gridButton click="contractDs_grid_clear" text="ACR510.BUTTON.CLEAR_CONTRACT"/>
+                <a:gridButton click="cashflowDs_grid_clear" text="清除应付"/>
+                <a:gridButton click="invoiceHd_confirm" text="创建"/>
+                <!-- <a:gridButton click="conditionScreen_save" text="HLS.QUERY"/> -->
+            </a:screenTopToolbar>
+            <!--<a:queryForm id="condition_queryForm" bindTarget="allConditionDs" createSearchButton="false" resultTarget="contractDs">
+                <a:formToolBar labelWidth="100">
+                    <a:datePicker name="last_received_date_from" bindTarget="allConditionDs" prompt="ACR.RECEIVED_DATE_FROM"/>
+                    <a:datePicker name="last_received_date_to" bindTarget="allConditionDs" prompt="ACR.RECEIVED_DATE_TO"/>
+                    <a:textField name="project_name" bindTarget="allConditionDs" prompt="HLS.PROJECT_NAME"/>
+                    <a:textField name="prj_search_term_1" bindTarget="allConditionDs" prompt="ACR.PROJECT_CHAR_CHECK_CODE"/>
+                </a:formToolBar>
+                <a:formBody column="4" labelWidth="100">
+                    <a:lov name="contract_number_from" bindTarget="allConditionDs" prompt="HLS.CONTRACT_NUMBER_FROM"/>
+                    <a:lov name="contract_number_to" bindTarget="allConditionDs" prompt="HLS.CONTRACT_NUMBER_TO_LANG"/>
+                    <a:textField name="contract_name" bindTarget="allConditionDs" prompt="HLS.CONTRACT_NAME"/>
+                    <a:textField name="prj_search_term_2" bindTarget="allConditionDs" prompt="ACR.PROJECT_NUM_CHECK_CODE"/>
+                    <a:lov name="bp_code_tenant_from" bindTarget="allConditionDs" prompt="HLS.TENANT_NUMBER_FROM"/>
+                    <a:lov name="bp_code_tenant_to" bindTarget="allConditionDs" prompt="HLS.TENANT_NUMBER_TO"/>
+                    <a:textField name="bp_name" bindTarget="allConditionDs" prompt="HLS.TENANT_NAME"/>
+                    <a:textField name="con_search_term_1" bindTarget="allConditionDs" prompt="ACR.CONTRACT_CHAR_CHECK_CODE"/>
+                    <a:lov name="project_number_from" bindTarget="allConditionDs" prompt="HLS.PROJECT_NUMBER_FROM"/>
+                    <a:lov name="project_number_to" bindTarget="allConditionDs" prompt="HLS.PROJECT_NUMBER_TO_LANG"/>
+                    <a:comboBox name="billing_method_desc" bindTarget="allConditionDs" prompt="HLS.BILLING_RULE"/>
+                    <a:textField name="con_search_term_2" bindTarget="allConditionDs" prompt="ACR.CONTRACT_NUM_CHECK_CODE"/>
+                    <a:comboBox name="document_type_desc" bindTarget="allConditionDs" prompt="HLS.CONTRACT_TYPE"/>
+                    <a:lov name="cf_item_desc" bindTarget="allConditionDs" prompt="HLS.RECEIVE_PROJECT"/>
+                    <a:datePicker name="lease_start_date_from" bindTarget="allConditionDs" prompt="HLS.LEASE_START_DATE_FROM"/>
+                    <a:datePicker name="lease_start_date_to" bindTarget="allConditionDs" prompt="HLS.LEASE_START_DATE_TO"/>
+                </a:formBody>
+            </a:queryForm>-->
+            <a:form column="4" marginWidth="30" title="查询条件">
+                <a:textField name="project_name" bindTarget="allConditionDs" prompt="HLS.PROJECT_NAME"/>
+                <a:textField name="contract_number" bindTarget="allConditionDs" prompt="HLS.CONTRACT_NUMBER"/>
+                <a:textField name="contract_name" bindTarget="allConditionDs" prompt="HLS.CONTRACT_NAME"/>
+                <a:lov name="cf_item_desc" bindTarget="allConditionDs" prompt="应付项目"/>
+            </a:form>
+            <a:grid id="contractDs_grid" bindTarget="contractDs" height="240" marginWidth="30">
+                <a:columns>
+                    <a:column name="contract_name" autoAdjust="false" lock="true" showTitle="true" width="200"/>
+                    <a:column name="contract_number" width="150"/>
+                    <a:column name="contract_status_desc" width="80"/>
+                    <!--<a:column name="billing_method_desc" width="80"/>-->
+                    <a:column name="pin_billing_object_name" autoAdjust="false" showTitle="true" width="200"/>
+                    <!--<a:column name="invoice_title" autoAdjust="false" editor="contractDs_grid_editor_tf" showTitle="true" width="200"/>-->
+                    <a:column name="pin_object_tax_registry_num" width="150"/>
+                    <a:column name="billing_object_name" autoAdjust="false" editor="contractDs_grid_editor_lov" renderer="render_contractDs_grid" showTitle="true" width="200"/>
+                    <a:column name="object_tax_registry_num" width="150"/>
+                    <!--<a:column name="invoice_bp_address_phone_num" autoAdjust="false" editor="contractDs_grid_editor_tf" showTitle="true" width="200"/>
+                    <a:column name="invoice_bp_bank_account" autoAdjust="false" editor="contractDs_grid_editor_tf" showTitle="true" width="150"/>-->
+                    <a:column name="description" autoAdjust="false" editor="contractDs_grid_editor_tf" showTitle="true" width="200"/>
+                    <!--<a:column name="object_taxpayer_type_desc"/>-->
+                    <a:column name="project_name" autoAdjust="false" showTitle="true" width="200"/>
+                    <!-- <a:column name="inception_of_lease" renderer="Aurora.formatDate" width="80"/> -->
+                </a:columns>
+                <a:editors>
+                    <a:lov id="contractDs_grid_editor_lov"/>
+                    <a:textField id="contractDs_grid_editor_tf"/>
+                </a:editors>
+            </a:grid>
+            <script><![CDATA[
+            	Ext.fly('contractDs_grid').child('[atype=grid.headcheck]').remove();
+            ]]></script>
+            <a:grid id="cashflowDs_grid" bindTarget="cashflowDs" marginHeight="430" marginWidth="30">
+                <a:columns>
+                    <a:column name="times" align="right" lock="true" width="60"/>
+                    <a:column name="cf_item_desc" lock="true" width="120"/>
+                    <a:column name="due_date" renderer="Aurora.formatDate"/>
+                    <a:column name="due_amount" align="right" renderer="Aurora.formatMoney"/>
+                    <!-- <a:column name="received_amount" align="right" renderer="Aurora.formatMoney"/> -->
+                    <a:column name="billing_amount" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="last_received_date" renderer="Aurora.formatDate"/>
+                    <a:column name="currency_desc" width="60"/>
+                    <a:column name="exchange_rate" align="right" width="80"/>
+                    <a:column name="exchange_rate_type_desc" width="100"/>
+                    <!--
+                    <a:column name="vat_due_amount" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="vat_principal" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="vat_interest" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="due_amount_after_tax" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="principal_after_tax" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="interest_after_tax" align="right" renderer="Aurora.formatMoney"/>
+                    -->
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-11-27 下午12:41:34  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="hls.HLS214.hls_bp_credit_info_req_seq" rootPath="hls_bp_credit_info_req_rp"/>
+        <a:model-query defaultWhereClause="t1.user_id=${/session/@user_id}" fetchAll="true" model="basic.sys_user" rootPath="sys_user_employee_rp"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="hld214_bp_credit_link" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="hls214_bp_credit_apply_submit_link" model="hls.HLS214.hls_bp_credit_info_req_submit" modelaction="update"/>
+        <script><![CDATA[
+            function hls_bp_credit_apply_attach_rend(value, record, name) {
+                if (record.get('bp_id')) {
+                    return '<a href="javascript:upload_win(' + '${/model/hls_bp_credit_info_req_rp/record/@credit_info_req_id}' + ')">' + '${l:HLS.UPLOAD_ATTACHMENT}' + '</a>';
+                }
+            }
+            
+            function upload_win(credit_info_req_id) {
+                new Aurora.Window({
+                    id: 'credit_info_req_win',
+                    url: $('hld214_bp_credit_link').getUrl() + '?header_id=' + credit_info_req_id + '&table_name=HLS_BP_CREDIT_INFO_REQ',
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    width: 850,
+                    height: 400
+                });
+            }
+            
+            function hls_bp_master_credit_apply_back() {
+                $('hls_bp_master_credit_apply_win').close();
+            }
+            
+            //提交申请
+            
+            function hls_bp_master_credit_apply_ok() {
+                Aurora.Masker.mask($('${/parameter/@winId}').wrap, '${l:HLS.EXECUTING}');
+                var record = $('bpQueryDs').getCurrentRecord();
+                record.set('hls_bp_employee_id', '${/model/sys_user_employee_rp/record/@employee_id}');
+                record.set('document_category', 'CREDIT_INFO');
+                record.set('document_type', 'CREDIT_INFO');
+                record.set('credit_info_req_id', '${/model/hls_bp_credit_info_req_rp/record/@credit_info_req_id}');
+                var params = record.data;
+                Aurora.request({
+                    url: $('hls214_bp_credit_apply_submit_link').getUrl(),
+                    para: params,
+                    success: function(res) {
+                        Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 2000
+                        });
+                        Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                        $('${/parameter/@winId}').close();
+                    },
+                    failure: function() {
+                        Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                        $('bpQueryDs').query();
+                    },
+                    error: function() {
+                        Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                        $('bpQueryDs').query();
+                    },
+                    scope: this
+                });
+            }
+        ]]></script>
+        <style><![CDATA[
+			.item-label{
+				font-size:14px;
+				text-decoration:underline;
+			}
+		]]></style>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="hls_bp_master_credit_apply_back" text="HLS.BACK"/>
+                <a:gridButton click="hls_bp_master_credit_apply_ok" text="HLS.CONFIRM"/>
+            </a:screenTopToolbar>
+            <a:placeHolder id="hls214_apply_id"/>
+        </a:screenBody>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="hls214_apply_id">
+            <p:switch test="/parameter/@bp_class">
+                <!-- 法人 -->
+                <p:case value="ORG">
+                    <c:process-config>
+                        <a:form title="HLS212.CREDIT_INFO_APPLY">
+                            <a:hBox labelWidth="120">
+                                <a:textField name="bp_code" bindTarget="bpQueryDs" prompt="HLS.BP_CODE" readOnly="true"/>
+                                <a:textField name="bp_name" bindTarget="bpQueryDs" prompt="HLS.BP_NAME" readOnly="true"/>
+                                <a:textField name="bp_class_desc" bindTarget="bpQueryDs" prompt="HLS.BP_CLASS" readOnly="true"/>
+                            </a:hBox>
+                            <a:hBox labelWidth="120">
+                                <a:textField name="loan_card_num" bindTarget="bpQueryDs" prompt="HLS212.LOAN_CARD_NUM" readOnly="true"/>
+                                <a:textField name="ref_v01" bindTarget="bpQueryDs" prompt="HLS212.LOAN_CARD_PWD" readOnly="true"/>
+                                <a:textField name="organization_code" bindTarget="bpQueryDs" prompt="HLS212.ORGANIZATION_CODE" readOnly="true"/>
+                            </a:hBox>
+                        </a:form>
+                    </c:process-config>
+                </p:case>
+                <!-- 自然人 -->
+                <p:case value="NP">
+                    <c:process-config>
+                        <a:form title="HLS212.CREDIT_INFO_APPLY">
+                            <a:hBox>
+                                <a:vBox labelWidth="120">
+                                    <a:textField name="bp_code" bindTarget="bpQueryDs" prompt="HLS.BP_CODE" readOnly="true"/>
+                                    <a:textField name="id_card_desc" bindTarget="bpQueryDs" prompt="HLS212.LEGAL_ID_NO" readOnly="true"/>
+                                </a:vBox>
+                                <a:vBox labelWidth="120">
+                                    <a:textField name="bp_name" bindTarget="bpQueryDs" prompt="HLS.BP_NAME" readOnly="true"/>
+                                    <a:label name="hls_bp_credit_apply_attach" bindTarget="bpQueryDs" prompt="" renderer="hls_bp_credit_apply_attach_rend"/>
+                                </a:vBox>
+                                <a:vBox labelWidth="120">
+                                    <a:textField name="bp_class_desc" bindTarget="bpQueryDs" prompt="HLS.BP_CLASS" readOnly="true"/>
+                                </a:vBox>
+                            </a:hBox>
+                        </a:form>
+                    </c:process-config>
+                </p:case>
+            </p:switch>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

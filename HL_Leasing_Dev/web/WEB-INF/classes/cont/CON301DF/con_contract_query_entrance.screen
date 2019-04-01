@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-8-1 下午01:54:29  
+    $Revision: 1.0  
+    $Purpose: 合同查询入口界面
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:view>
+        <a:link id="${/parameter/@layout_code}${/parameter/@pre_layout}zj_wfl_approve_history_check" url="${/request/@context_path}/modules/zjwfl/zj_wfl_approve_history_check.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="con_contract_query_link" url="${/request/@context_path}/modules/cont/CON301DF/con_contract_query.screen"/>
+        <!--<a:link id="car_modify_special_link" url="${/request/@context_path}/modules/prj/PRJ500N/prj_project_create_special.screen"/>-->
+        <a:link id="car_modify_special_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain_readonly.screen"/>
+        <a:link id="${/parameter/@layout_code}_contract_print_link_id" url="${/request/@context_path}/modules/cont/CON301N/con_contract_print.screen"/>
+        <script><![CDATA[
+            function open_contract_win(ds_id, record_id) {
+                var record = $(ds_id).findById(record_id);
+                var param = record.data;
+                param['function_code'] = 'CON301';
+                param['function_usage'] = 'QUERY';
+                // param['maintain_type'] = 'UPDATE';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_query_link', null);
+            }
+            
+            function open_project_Window(record_id, ds_id) {
+                var record = $(ds_id).findById(record_id);
+                var param = {};
+                param['company_id'] = record.get('company_id');
+                param['project_id'] = record.get('project_id');
+                //param['function_code'] = 'PRJ502D';
+				param['function_code'] = 'PRJ502Q';
+                param['function_usage'] = 'QUERY';
+                param['bp_class'] = record.get('bp_class');
+                param['maintain_type'] = 'QUERY';
+               /*  param['window_open_flag'] = 'Y';
+                param['show_history_flag'] = 'Y'; */
+                param['url_title'] = '${l:HLS.PROJECT_MAITAIN}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'car_modify_special_link', ds_id, '${/parameter/@layout_code}');
+            }
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                if (name == 'contract_number' && value) {
+                    return '<a href="javascript:open_contract_win(\'' + record.ds.id + '\',\'' + record.id + '\')">' + value + '</a>';
+                }
+                if (name == 'project_id_c' && value) {
+                    return '<a href="javascript:open_project_Window(\'' + record.id + '\',\'' + record.ds.id + '\')">' + value + '</a>';
+                }
+                return value;
+            };
+            window['${/parameter/@layout_code}_on_layout_dynamic_grid_query'] = function(ds, qpara, bp_seq) {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract');
+            
+                if (ds == $(ds_id)) {
+                    aut_authority_list_validate_query(ds, qpara);
+            
+                }
+            };
+            
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract');
+                var grid_id = ds_id.replace('ds', 'layout_grid_id');
+                $(grid_id)._export();
+            };
+            
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+            	var result_ds = $('CONTRACT_QUERY_ENTRANCE_G_CONTRACT_RESULT_con_contract_ds');
+                var record = result_ds.getCurrentRecord();
+                var document_id = record.get('contract_id');
+                var contract_number = record.get('contract_number');
+                var contract_name = record.get('contract_name');
+                var win = new Aurora.Window({
+	                        id: 'con_contract_print_win_id',
+	                        params: {
+	                            contract_id: record.get('contract_id'),
+	                            winid: 'con_contract_print_win_id',
+	                            contract_number: contract_number,
+	                            contract_name:contract_name
+	                        },
+	                        url: $('${/parameter/@layout_code}_contract_print_link_id').getUrl(),
+	                        title: '打印支付计划',
+	                        width: 1300,
+	                        height: 550
+	                    });
+	                    //在关闭页面之后,刷新一下ds
+	                    win.on('close', function() {
+	
+	                    });
+            };
+            
+            //单据跟踪
+            window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function() {
+                debugger;
+                // var prj_project_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                // var records = $('prj_project_ds_id').getSelected();
+                var ds = $('CONTRACT_QUERY_ENTRANCE_G_CONTRACT_RESULT_con_contract_ds');
+                var records = ds.getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('提示', '请选择一条数据！');
+                    return;
+                }
+                var instance_id = records[0].get('wfl_instance_id');
+                var win = new Aurora.Window({
+                    id: 'history_check',
+                    url: $('${/parameter/@layout_code}${/parameter/@pre_layout}zj_wfl_approve_history_check').getUrl(),
+                    params: {
+                        instance_id:instance_id
+                    },
+                    title: '单据历史查看',
+                    height: 500,
+                    width: 860,
+                    fullScreen: true
+                });
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=CONTRACT&amp;function_code=CON501"/>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

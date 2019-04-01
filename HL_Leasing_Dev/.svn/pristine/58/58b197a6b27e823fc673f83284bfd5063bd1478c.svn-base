@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-12-3 上午11:18:39  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.document_category = &apos;JE&apos;" fetchAll="true" model="basic.hls_document_type_for_lov" queryOrderBy="document_type desc" rootPath="hls_document_type_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="welcome_link_id" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="hls_journal_con_contract_update_link_id" url="${/request/@context_path}/modules/cont/CON500/con_contract_update.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="hls_journal_post_to_gld_link" model="hls.HLS301.hls_journal_post_to_gld" modelaction="batch_update"/>
+        <a:link id="hls_journal_unpost_to_gld_link" model="hls.HLS301.hls_journal_unpost_to_gld" modelaction="batch_update"/>
+        <a:screen-include screen="modules/hls/hls_common_javascript.screen"/>
+        <script><![CDATA[
+            //查询按钮
+            
+            function hls301_journal_query() {
+                $('hls_journal_header_result_ds').query();
+            }
+            //重置按钮
+            
+            function hls301_journal_reset() {
+                $('hls_journal_header_query').reset();
+            }
+            //退出按钮
+            
+            function hls301_journal_exit() {
+                location.href = $('welcome_link_id').getUrl();
+                parent.shMenu('show');
+            }
+            
+            function construct_from_to() {
+                var config = ['responsibility_center_code','responsibility_center_name', 'account_code','account_name'];
+                var pattern = ['_from', '_to'];
+                var obj = {};
+                for (var i = 0,
+                    j = config.length;i < j;i++) {
+                    for (var m = 0,
+                        n = pattern.length;m < n;m++) {
+                        obj[config[i] + pattern[m]] = config[i] + pattern[n - 1 - m];
+                    }
+                }
+                return obj;
+            }
+            
+            function onUpdate_para_journalQueryDs(ds, record, name, value, oldvalue) {
+                var from_to = construct_from_to();
+                var opposite_name = from_to[name];
+                if (!Ext.isEmpty(opposite_name)) {
+                    var opposite_value = record.get(opposite_name);
+                    if (!Ext.isEmpty(value) && Ext.isEmpty(opposite_value)) {
+                        record.set(opposite_name, value);
+                    }
+                }
+            
+            }
+            
+            function hls301_link_dynamic(reocrd_id, journal_header_id) {
+                
+                var maintain_type = 'READONLY';
+                var record = $('hls_journal_header_result_ds').findById(reocrd_id);
+                
+                
+                var param = record.data;
+                param['function_code'] = 'GLD310';
+                param['document_id'] = journal_header_id;
+                param['document_category'] = 'JE';
+                param['function_usage'] = 'QUERY';
+                param['maintain_type'] = maintain_type;
+                param['url_title'] = '${l:GLD310.JE_QUERY}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'hls_journal_con_contract_update_link_id');
+            }
+            
+            function hls301_journal_num_render(value, record, name) {
+                return '<a href="javascript:hls301_link_dynamic(' + record.id + ',' + record.get('journal_header_id') + ');">' + value + '</a>';
+            }
+            
+            function journal_submit(datas)
+            {
+                Aurora.request({
+	                url: $('hls_journal_post_to_gld_link').getUrl(),
+	                para: datas,
+	                success: function(res) {
+	                    f_hls.winNoMask();
+	                    Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 2000
+                        });
+	                    $('hls_journal_header_result_ds').query();
+	                },
+	                failure: function() {
+	                    f_hls.winNoMask();
+	                },
+	                error: function() {
+	                    f_hls.winNoMask();
+	                },
+	                scope: this
+	            });
+            }
+            
+            function hls301_journal_post(){
+               f_hls.winMask();
+                var ds=$('hls_journal_header_result_ds');
+                var records=ds.getSelected();
+                if(records.length==0)
+                {
+                    f_hls.winNoMask();
+                    return;
+                }
+                var datas=[];
+                for(var i=0;i<records.length;i++)
+                {
+                    var obj={};
+                    obj['journal_header_id']=records[i].get('journal_header_id');
+                    obj['_status']='execute';
+                    datas[i]=obj;
+                }
+                journal_submit(datas);
+            }
+            
+            function journal_submit_unpost(datas)
+            {
+                Aurora.request({
+	                url: $('hls_journal_unpost_to_gld_link').getUrl(),
+	                para: datas,
+	                success: function(res) {
+	                    f_hls.winNoMask();
+	                    Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 2000
+                        });
+	                    $('hls_journal_header_result_ds').query();
+	                },
+	                failure: function() {
+	                    f_hls.winNoMask();
+	                },
+	                error: function() {
+	                    f_hls.winNoMask();
+	                },
+	                scope: this
+	            });
+            }
+            function hls301_journal_unpost(){
+               f_hls.winMask();
+                var ds=$('hls_journal_header_result_ds');
+                var records=ds.getSelected();
+                if(records.length==0)
+                {
+                    f_hls.winNoMask();
+                    return;
+                }
+                var datas=[];
+                for(var i=0;i<records.length;i++)
+                {
+                    var obj={};
+                    obj['journal_header_id']=records[i].get('journal_header_id');
+                    obj['_status']='execute';
+                    datas[i]=obj;
+                }
+                journal_submit_unpost(datas);
+            }
+            
+			
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:dataSets>
+            <a:dataSet id="hls_document_type_ds">
+                <a:datas dataSource="/model/hls_document_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="post_gl_status_ds" lookupCode="SUBSYSTEM_POST_GL_FLAG"/>
+            <a:dataSet id="hls_journal_header_query">
+                <a:fields>
+                    <a:field name="journal_num"/>
+                    <a:field name="category_code_desc" displayField="description" options="hls_document_type_ds" returnField="category_code" valueField="document_type"/>
+                    <a:field name="journal_date_from"/>
+                    <a:field name="journal_date_to"/>
+                    <a:field name="total_amount_dr_from"/>
+                    <a:field name="total_amount_dr_to"/>
+                    <a:field name="period_name"/>
+                    <a:field name="external_journal_num"/>
+                    <a:field name="bp_id_tenant"/>
+                    <a:field name="bp_id_tenant_desc" lovGridHeight="350" lovHeight="550" lovService="basic.hls_bp_master_v_for_lov?bp_category=TENANT" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="bp_name" to="bp_id_tenant_desc"/>
+                            <a:map from="bp_id" to="bp_id_tenant"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="source_table"/>
+                    <a:field name="reference1"/>
+                    <a:field name="je_transaction_code"/>
+                    <a:field name="je_transaction_desc" lovGridHeight="420" lovHeight="550" lovPageSize="20" lovService="gld.GLD104.gld_je_transaction_for_lov" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="je_transaction_code" to="je_transaction_code"/>
+                            <a:map from="je_transaction_desc" to="je_transaction_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="post_gl_status"/>
+                    <a:field name="post_gl_status_desc" displayField="code_value_name" options="post_gl_status_ds" returnField="post_gl_status" valueField="code_value"/>
+                    <a:field name="responsibility_center_name_from" lovHeight="500" lovLabelWidth="100" lovService="fnd.FND2110.fnd_responsibility_centers_lov" lovWidth="550" title="HLS.RESPONSIBILITY_CENTER_NAME">
+                        <a:mapping>
+                            <a:map from="responsibility_center_id" to="responsibility_center_id"/>
+                            <a:map from="responsibility_center_code" to="responsibility_center_code_from"/>
+                            <a:map from="responsibility_center_name" to="responsibility_center_name_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="responsibility_center_name_to" lovHeight="500" lovLabelWidth="100" lovService="fnd.FND2110.fnd_responsibility_centers_lov" lovWidth="550" title="HLS.RESPONSIBILITY_CENTER_NAME">
+                        <a:mapping>
+                            <a:map from="responsibility_center_code" to="responsibility_center_code_to"/>
+                            <a:map from="responsibility_center_name" to="responsibility_center_name_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="account_code_from" autoComplete="true" lovHeight="500" lovLabelWidth="100" lovService="hls.HLS301.hls_journal_account_for_lov" lovWidth="500" title="HLS530.ACCOUNT_NAME">
+                        <a:mapping>
+                            <a:map from="account_code" to="account_code_from"/>
+                            <a:map from="description" to="account_name_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="account_code_to" autoComplete="true" lovHeight="600" lovLabelWidth="100" lovUrl="${/request/@context_path}/modules/hls/HLS530/gld_company_account_tree.screen" lovWidth="550" title="HLS530.ACCOUNT_NAME">
+                        <a:mapping>
+                            <a:map from="account_code" to="account_code_to"/>
+                            <a:map from="description" to="account_name_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="company_short_name" lovHeight="500" lovLabelWidth="100" lovService="fnd.fnd_companies_lov" lovWidth="550" title="HLS530.JOURNAL_COMPANY">
+                        <a:mapping>
+                            <a:map from="company_id" to="je_company_id"/>
+                            <a:map from="company_short_name" to="company_short_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="currency_code" lovHeight="500" lovLabelWidth="100" lovService="basic.gld_currency_v_lov" lovWidth="550">
+                        <a:mapping>
+                            <a:map from="currency_code" to="currency_code"/>
+                            <a:map from="currency_name" to="currency_name"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_para_journalQueryDs"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="hls_journal_header_result_ds" autoPageSize="true" autoQuery="true" model="hls.HLS301.hls_journal_header_v" queryDataSet="hls_journal_header_query" selectable="true"><![CDATA[
+            ]]></a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:toolbarButton click="hls301_journal_exit" text="HLS.EXIT"/>
+                <a:toolbarButton click="hls301_journal_reset" text="HLS.RESET"/>
+                <a:toolbarButton click="hls301_journal_query" text="HLS.QUERY"/>
+                <!-- <a:toolbarButton click="hls301_journal_post" text="HLS530.JOURNAL_POST_GL"/> -->
+                <!-- <a:toolbarButton click="hls301_journal_unpost" text="HLS530.JOURNAL_UNPOST_GL"/> -->
+            </a:screenTopToolbar>
+            <a:form column="5" labelSeparator=" " labelWidth="100" marginWidth="30" title="HAP_QUERY_TITLE">
+                <a:lov name="account_code_from" bindTarget="hls_journal_header_query" prompt="HLS530.ACCOUNT_NAME_FROM"/>
+                <a:lov name="account_code_to" bindTarget="hls_journal_header_query" prompt="HLS530.ACCOUNT_NAME_TO"/>
+                <a:lov name="responsibility_center_name_from" bindTarget="hls_journal_header_query" prompt="HLS530.RESPONSIBILITY_CENTER_NAME_FROM"/>
+                <a:lov name="responsibility_center_name_to" bindTarget="hls_journal_header_query" prompt="HLS530.RESPONSIBILITY_CENTER_NAME_TO"/>
+                <a:lov name="company_short_name" bindTarget="hls_journal_header_query" prompt="HLS530.JOURNAL_COMPANY"/>
+                <a:datePicker name="journal_date_from" bindTarget="hls_journal_header_query" prompt="HLS530.JOURNAL_DATE_FROM"/>
+                <a:datePicker name="journal_date_to" bindTarget="hls_journal_header_query" prompt="HLS530.JOURNAL_DATE_TO"/>
+                <a:numberField name="total_amount_dr_from" allowFormat="true" bindTarget="hls_journal_header_query" prompt="HLS530.TOTAL_AMOUNT_DR_FROM"/>
+                <a:numberField name="total_amount_dr_to" allowFormat="true" bindTarget="hls_journal_header_query" prompt="HLS530.TOTAL_AMOUNT_DR_TO"/>
+                <a:textField name="journal_num" bindTarget="hls_journal_header_query" prompt="HLS530.JOURNAL_NUM"/>
+                <a:textField name="project_name" bindTarget="hls_journal_header_query" prompt="HLS.PROJECT_NAME"/>
+                <a:lov name="je_transaction_desc" bindTarget="hls_journal_header_query" prompt="HLS530.JE_TRANSACTION"/>
+                <a:lov name="currency_code" bindTarget="hls_journal_header_query" prompt="HLS.CURRENCY"/>
+                <a:lov name="bp_id_tenant_desc" bindTarget="hls_journal_header_query" prompt="HLS.TENANT_CODE"/>
+                <!-- <a:textField name="external_journal_num" bindTarget="hls_journal_header_query" prompt="HLS530.EXTERNAL_JOURNAL_NUM"/> -->
+                <!-- <a:textField name="reference1" bindTarget="hls_journal_header_query" prompt="HLS530.REFERENCE1"/> -->
+            </a:form>
+            <a:grid id="hls_journal_headers_grid" bindTarget="hls_journal_header_result_ds" marginHeight="230" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="journal_num" lock="true" prompt="HLS530.JOURNAL_NUM" renderer="hls301_journal_num_render" width="120"/>
+                    <a:column name="js_company_short_name" prompt="HLS530.JOURNAL_COMPANY" width="90"/>
+                    <a:column name="period_name" align="center" prompt="HLS530.PERIOD_NAME" width="80"/>
+                    <a:column name="journal_date" align="center" prompt="HLS530.JOURNAL_DATE" renderer="Aurora.formatDate" width="90"/>
+                    <a:column name="total_amount_dr" align="right" prompt="HLS530.TOTAL_AMOUNT_DR" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="currency_desc" align="center" prompt="HLS.CURRENCY" width="70"/>
+                    <a:column name="total_amount_fuc_dr" align="right" prompt="HLS530.TOTAL_AMOUNT_FUC_DR" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="je_transaction_desc" prompt="HLS530.JE_TRANSACTION" width="150"/>
+                    <a:column name="status_desc" align="center" prompt="HLS.STATUS" width="70"/>
+                    <a:column name="reversed_flag_desc" align="center" prompt="HLS.REVERSE_FLAG" width="80"/>
+                    <a:column name="description" prompt="HLS530.JOURNAL_DESCRIPTION" width="220"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

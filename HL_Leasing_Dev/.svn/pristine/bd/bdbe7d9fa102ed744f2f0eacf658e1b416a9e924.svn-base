@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-9-9 下午01:40:06  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+					        select t1.*,
+					       (t1.transaction_date - t1.due_date) overdue_days,
+					       (sum(nvl(t1.write_off_due_amount, 0))
+					        over(partition by t1.cashflow_id order by t1.write_off_id) -
+					        nvl(t1.write_off_due_amount, 0)) received_amount
+					  from (select (select t.transaction_date
+					                  from csh_transaction t
+					                 where t.transaction_id = wo.csh_transaction_id) transaction_date,
+					               (select cf1.due_date
+					                  from con_contract_cashflow cf1
+					                 where cf1.cashflow_id = ${@cashflow_id}) due_date,
+					               (select to_char(nvl(con.penalty_rate, 0) * 100, 'FM990.0099') || '%'
+					                  from con_contract con
+					                 where con.contract_id = cf.contract_id) penalty_rate,
+					               cf.overdue_amount,
+					               cf.due_amount,
+					               cf.cashflow_id,
+					               wo.write_off_due_amount,
+					               wo.write_off_id
+					          from csh_write_off wo,
+					               (select cf2.*
+					                  from con_contract_cashflow cf2, con_contract_cashflow cf3
+					                 where cf3.cashflow_id = ${@cashflow_id}
+					                   and cf3.contract_id = cf2.contract_id
+					                   and cf2.times = cf3.times
+					                   and cf2.cf_item = 9) cf
+					         where wo.cashflow_id = cf.cashflow_id
+					           and wo.reversed_flag = 'N'
+					           and wo.cf_item = 9
+					           and cf.cf_status in ('BLOCK', 'RELEASE')) t1
+					 order by t1.write_off_id asc
+   ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="transaction_date" databaseType="DATE" datatype="java.util.Date"/>
+        <bm:field name="due_date" databaseType="DATE" datatype="java.util.Date"/>
+        <bm:field name="overdue_days"/>
+        <bm:field name="overdue_amount"/>
+        <bm:field name="write_off_due_amount"/>
+        <bm:field name="due_amount"/>
+        <bm:field name="penalty_rate"/>
+        <bm:field name="cashflow_id"/>
+        <bm:field name="write_off_id"/>
+        <bm:field name="received_amount"/>
+    </bm:fields>
+</bm:model>

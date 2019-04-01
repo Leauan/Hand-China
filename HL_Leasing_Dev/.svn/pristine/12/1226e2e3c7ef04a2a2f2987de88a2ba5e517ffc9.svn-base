@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-11-24 下午04:11:56  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    tt.*
+                FROM
+                    (SELECT
+                        t.contract_id document_id,
+                        t.document_category,
+                        pci.cdd_item_id,
+                        pci.cdd_list_id,
+                        pci.cdd_item,
+                        pci.description,
+                        pci.enabled_flag,
+                        pci.note,
+                        NVL(pci.sys_flag, 'N') sys_flag,
+                        pcc.paper_required,
+                        pcc.attachment_required,
+                        pcc.not_applicable,
+                        pcc.check_id,
+                        pci.order_seq,
+                        pci.sign_required_flag,
+                        hls_sys_upload_pkg.get_atm_file_href(p_table_pk_value => pcc.check_id, p_source_type => 'PRJ_CDD_ITEM_CHECK', p_user_id => ${/session/@user_id}) AS file_name
+                    FROM
+                        prj_cdd_item pci,
+                        prj_cdd_item_check pcc,
+                        con_contract t
+                    WHERE
+                        pci.cdd_item_id  = pcc.cdd_item_id(+) AND
+                        t.cdd_list_id    = pci.cdd_list_id AND
+                        pci.cdd_list_id  = t.cdd_list_id AND
+                        pci.enabled_flag = 'Y' AND
+                        (
+                            pci.cdd_item_id IN
+                            (SELECT
+                                t1.cdd_item_id
+                            FROM
+                                prj_cdd_item_list_grp_tab T1,
+                                PRJ_CDD_ITEM_TAB_GROUP T2
+                            WHERE
+                                t1.cdd_list_id  = t.cdd_list_id AND
+                                T2.TAB_GROUP    = 'DATA_ARCHIVING' AND
+                                t2.tab_group_id = t1.tab_group_id
+                            ) OR
+                            NVL(pci.sys_flag, 'N') = 'N'
+                        )
+                        AND
+                        t.contract_id = ${@contract_id}
+                    ) tt
+                WHERE
+                    NOT EXISTS
+                    (SELECT
+                        1
+                    FROM
+                        yonda_document_lend_record_ln l
+                    WHERE
+                        l.cdd_item_id  = tt.cdd_item_id AND
+                        l.contract_id  = tt.document_id AND
+                        l.return_date IS NULL
+                    )
+                ORDER BY
+                    order_seq
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

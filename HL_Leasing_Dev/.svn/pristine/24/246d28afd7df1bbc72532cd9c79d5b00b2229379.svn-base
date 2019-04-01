@@ -1,0 +1,404 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: xuls  
+    $Date: 2016-12-15 下午10:10:33  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query model="csh.CSH710N.csh_deduction_cashflow_wfl_v" rootPath="csh710n_outflow"/>
+    </a:init-procedure>
+    <a:view>
+        <link href="${/request/@context_path}/resource/aurora.ui.std/default/grid/Grid-min.css" rel="stylesheet"/>
+        <script src="${/request/@context_path}/javascripts/dedution_grid_column_wraps.js"/>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <script><![CDATA[
+            /*单行金额校验*/
+            
+            function csh710n_transaction_amount_validate(record, name, value) {
+                var unreceived_amount = record.get('unreceived_amount');
+                if (value > unreceived_amount) {
+                    return '本次核销金额不能超过剩余金额';
+                }
+                return true;
+            } /*退出*/
+            
+            function csh710n_deduction_return() {
+                $('csh710n_deducate_detail_link').close();
+            } /*应收更新事件*/
+            
+            function get_current_amount(amt) {
+                if (!Ext.isEmpty(amt)) {
+                    return amt;
+                } else {
+                    return 0;
+                }
+            }
+            
+            function get_minus_amount(amt1, amt2) {
+                var value1 = get_current_amount(amt1),
+                    value2 = get_current_amount(amt2);
+                var value = minus(value1, value2);
+                return value;
+            }
+            
+            function csh710n_deduction_inflow_update(ds, record, name, value, oldvalue) {
+                var head_record = $('csh710n_outflow_cashflow_ds').getAt(0);
+                var unwrite_off_amount = get_current_amount(head_record.get('unreceived_amount'));
+                var total_inflow_amount = get_current_amount(head_record.get('total_inflow_amount'));
+                if (name == 'write_off_due_amount') {
+                    var rs = ds.getAll();
+                    var amount = 0;
+                    for (var i = 0;i < rs.length;i++) {
+                        var write_off_due_amount = rs[i].get('write_off_due_amount');
+                        var write_off_penalty = rs[i].get('write_off_penalty');
+                        if (!write_off_due_amount) {
+                            write_off_due_amount = 0;
+                        }
+                        if (!write_off_penalty) {
+                            write_off_penalty = 0;
+                        }
+                        amount = amount + write_off_due_amount + write_off_penalty;
+                    }
+                    $('csh710n_outflow_cashflow_ds').getAt(0).set('total_inflow_amount', amount.toFixed(2));
+                    var write_off_order100 = record.get('write_off_order100'),
+                        write_off_order101 = record.get('write_off_order101'),
+                        current_value, unreceived_principal = get_current_amount(record.get('unreceived_principal')),
+                        unreceived_interest = get_current_amount(record.get('unreceived_interest')),
+                        current_principal_value, current_interest_value, v_message = '';
+                    if (write_off_order100 < write_off_order101) {
+                        current_principal_value = get_min_amount(value, unreceived_principal);
+                        current_interest_value = get_minus_amount(value, current_principal_value);
+                        if (unreceived_interest < current_interest_value) {
+                            v_message = '${l:CSH513.WRITEOFF_INTEREST_BEYOND}';
+                        }
+                    } else {
+                        current_interest_value = get_min_amount(value, unreceived_interest);
+                        current_principal_value = get_minus_amount(value, current_interest_value);
+                        if (current_principal_value >unreceived_principal){
+                            current_principal_value = unreceived_principal;
+                        }
+                        if (unreceived_principal < current_principal_value) {
+                            v_message = '${l:CSH513.WRITEOFF_PRINICIPAL_BEYOND}';
+                        }
+                    }
+                    record.set('write_off_interest', current_interest_value);
+                    record.set('write_off_principal', current_principal_value);
+                    if (v_message) {
+                        Aurora.showMessage('${l:PROMPT}', v_message);
+                    }
+                    if (value != oldvalue) {
+                        var change_value = get_minus_amount(value, oldvalue);
+                        head_record.set('unreceived_amount', minus(unwrite_off_amount, change_value));
+                    }
+                } else if (name == 'write_off_penalty') {
+                    if (value != oldvalue) {
+                        var penalty_change_value = get_minus_amount(value, oldvalue);
+                        head_record.set('unreceived_amount', minus(unwrite_off_amount, penalty_change_value));
+                        $('csh710n_outflow_cashflow_ds').getAt(0).set('total_inflow_amount', minus(total_inflow_amount, penalty_change_value * -1));
+                    }
+                }
+            }
+            
+            /*应收删除记录事件*/
+            
+            function csh710n_deduction_inflow_delete(ds, record, index) {
+                var rs = $('csh710n_deduction_inflow_ds').getAll();
+                var amount = 0;
+                for (var i = 0;i < rs.length;i++) {
+                    var write_off_due_amount = rs[i].get('write_off_due_amount');
+                    if (!write_off_due_amount) {
+                        write_off_due_amount = 0;
+                    }
+                    amount += write_off_due_amount;
+                }
+                $('csh710n_outflow_cashflow_ds').getAt(0).set('total_inflow_amount', amount.toFixed(2));
+            
+                var head_record = $('csh710n_outflow_cashflow_ds').getCurrentRecord();
+                var change_value = record.get('write_off_due_amount') || 0,
+                    unwrite_off_amount = head_record.get('unreceived_amount');
+                head_record.set('unreceived_amount', plus(unwrite_off_amount, change_value));
+            
+            } /*执行抵扣*/
+            
+            function csh710n_deducate_exe() {
+                var detail_mask = $('${/parameter/@winid}').wrap;
+                var inflow_count = $('csh710n_deduction_inflow_ds').getAll().length;
+                if (inflow_count == 0) { /*确保抵扣收付项均存在*/
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:CSH710.CONFIRM_DEDUCTION_INOUT_ITEM}');
+                    return;
+                }
+                var head_unreceived_amount = $('csh710n_outflow_cashflow_ds').getAt(0).get('unreceived_amount');
+                if (head_unreceived_amount < 0) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:CSH710.CONFIRM_DEDUCTION_AMOUNT_INOUT}');
+                    return;
+                }
+                Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                $('csh710n_outflow_cashflow_ds').submit();
+            }
+            
+            function get_min_amount(amt1, amt2) {
+                if (!Ext.isEmpty(amt1) && !Ext.isEmpty(amt2)) {
+                    if (amt1 > amt2) {
+                        return amt2;
+                    } else {
+                        return amt1;
+                    }
+                } else if (Ext.isEmpty(amt1)) {
+                    return amt2;
+                } else if (Ext.isEmpty(amt2)) {
+                    return amt1;
+                } else {
+                    return null;
+                }
+            } /*自动分配延迟金*/
+            
+            function on_write_off_penalty_dblclick() {
+                var head_record = $('csh710n_outflow_cashflow_ds').getAt(0),
+                    line_record = $('csh710n_deduction_inflow_ds').getCurrentRecord();
+                var unwrite_off_amount = head_record.get('unwrite_off_amount'),
+                    penalty = line_record.get('penalty');
+                if (Ext.isEmpty(line_record.get('write_off_penalty')) && !Ext.isEmpty(penalty)) {
+                    line_record.set('write_off_penalty', get_min_amount(unwrite_off_amount, penalty));
+                }
+            }
+            
+            /*自动分配本金利息*/
+            
+            function on_write_off_due_amount_dblclick() {
+                var head_record = $('csh710n_outflow_cashflow_ds').getAt(0);
+                var line_record = $('csh710n_deduction_inflow_ds').getCurrentRecord();
+                var unwrite_off_amount = head_record.get('unreceived_amount'); /*头未收金额*/
+                var unreceived_amount = line_record.get('unreceived_amount'); /*行未收金额*/
+                if (Ext.isEmpty(line_record.get('write_off_due_amount')) && line_record.get('contract_number')) {
+                    line_record.set('write_off_due_amount', get_min_amount(unwrite_off_amount, unreceived_amount));
+                }
+            } /*提交成功*/
+            
+            function csh710n_submit_sucess(ds, res) {
+                var detail_mask = $('${/parameter/@winid}').wrap;
+                Aurora.Masker.unmask(detail_mask);
+                csh710n_deduction_return();
+            }
+            
+            /*初始化债务项*/
+            
+            function csh710n_load_init(ds) {
+                $('csh710n_outflow_cashflow_ds').getAt(0).set('transaction_category', 'BUSINESS');
+                $('csh710n_outflow_cashflow_ds').getAt(0).set('transaction_type', 'DEDUCTION');
+                $('csh710n_outflow_cashflow_ds').getAt(0).set('write_off_type', 'PAYMENT_DEBT');
+            }
+        ]]></script>
+        <style><![CDATA[
+        	.add-btn,.close-btn{
+        		background-image:url(${/request/@context_path}/resource/aurora.ui.std/default/toolbar/toolbar_btn.gif);
+        		background-position:0 -34px;
+        		height:17px;
+        		width:17px;
+				margin-top:3px;
+        		display:block;
+        		cursor:pointer;
+        	}
+        	.add-btn{
+    	    	background-position:0 0;
+        	}
+        	.align_dom {
+    			text-align:right;
+    		}
+        ]]></style>
+        <a:dataSets>
+            <a:dataSet id="csh710n_outflow_cashflow_ds" submitUrl="${/request/@context_path}/modules/csh/CSH710N/csh_deduction_write_off_n.svc">
+                <a:datas dataSource="/model/csh710n_outflow"/>
+                <a:fields>
+                    <a:field name="transaction_date" required="true"/>
+                    <a:field name="due_date" datatype="java.util.Date"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="csh710n_load_init"/>
+                    <a:event name="submitsuccess" handler="csh710n_submit_sucess"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="csh710n_deduction_inflow_ds" autoQuery="true" model="csh.CSH710N.csh_deduction_off_credit_wfl" queryUrl="${/request/@context_path}/autocrud/csh.CSH710N.csh_deduction_off_credit_wfl/query?instance_id=${/parameter/@instance_id}">
+                <a:fields>
+                    <a:field name="document_category" defaultValue="CONTRACT"/>
+                    <a:field name="transaction_category" defaultValue="BUSINESS"/>
+                    <a:field name="write_off_type" defaultValue="RECEIPT_CREDIT"/>
+                    <a:field name="transaction_type" defaultValue="DEDUCTION"/>
+                    <a:field name="contract_id" defaultValue="${/parameter/@contract_id}"/>
+                    <a:field name="contract_number" lovHeight="550" lovUrl="csh_deduction_receipt_ref_contract.screen?cashflow_id=${/parameter/@cashflow_id}" lovWidth="1050" required="true">
+                        <a:mapping>
+                            <a:map from="project_name" to="project_name"/>
+                            <a:map from="cf_item_name" to="cf_item_name"/>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="times" to="times"/>
+                            <a:map from="due_date" to="due_date"/>
+                            <a:map from="principal" to="principal"/>
+                            <a:map from="interest" to="interest"/>
+                            <a:map from="due_amount" to="due_amount"/>
+                            <a:map from="received_amount" to="received_amount"/>
+                            <a:map from="unreceived_amount" to="unreceived_amount"/>
+                            <a:map from="unreceived_principal" to="unreceived_principal"/>
+                            <a:map from="unreceived_interest" to="unreceived_interest"/>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="cashflow_id" to="cashflow_id"/>
+                            <a:map from="penalty" to="penalty"/>
+                            <a:map from="penalty_cashflow_id" to="penalty_cashflow_id"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="company_id" to="company_id"/>
+                            <a:map from="write_off_order100" to="write_off_order100"/>
+                            <a:map from="write_off_order101" to="write_off_order101"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="csh710n_deduction_inflow_update"/>
+                    <a:event name="remove" handler="csh710n_deduction_inflow_delete"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form marginWidth="30" title="收付抵扣">
+                <a:hBox labelWidth="120">
+                    <a:datePicker name="transaction_date" bindTarget="csh710n_outflow_cashflow_ds" prompt="HLS.WRITE_OFF_DATE" readOnly="true"/>
+                    <a:textField name="cf_item_name" bindTarget="csh710n_outflow_cashflow_ds" prompt="HLS.CF_ITEM_DESC" readOnly="true"/>
+                    <a:numberField name="times" bindTarget="csh710n_outflow_cashflow_ds" prompt="HLS.TIMES" readOnly="true"/>
+                    <a:datePicker name="due_date" bindTarget="csh710n_outflow_cashflow_ds" prompt="TRE502.PAYABLE_DATE" readOnly="true" renderer="Aurora.formatDate"/>
+                </a:hBox>
+                <a:hBox labelWidth="120">
+                    <a:numberField name="due_amount" bindTarget="csh710n_outflow_cashflow_ds" prompt="CSH502.CSH_PAYMENT_AMOUNT" readOnly="true" renderer="Aurora.formatMoney"/>
+                    <a:numberField name="received_amount" bindTarget="csh710n_outflow_cashflow_ds" prompt="CSH710.PAYED_AMOUNT" readOnly="true" renderer="Aurora.formatMoney"/>
+                    <a:numberField name="unreceived_amount" align="right" bindTarget="csh710n_outflow_cashflow_ds" prompt="CSH710.DEDUCTION_AMOUNT_LEFT" readOnly="true" renderer="Aurora.formatMoney"/>
+                    <a:numberField name="total_inflow_amount" align="right" bindTarget="csh710n_outflow_cashflow_ds" prompt="CSH710.DEDUCTION_AMOUNT" readOnly="true" renderer="Aurora.formatMoney"/>
+                </a:hBox>
+                <a:hBox labelWidth="120">
+                    <a:textField name="bp_name" bindTarget="csh710n_outflow_cashflow_ds" prompt="HLS.TENANT_CODE" readOnly="true"/>
+                    <a:textField name="transaction_description" bindTarget="csh710n_outflow_cashflow_ds" prompt="HLS.COMMENT" readOnly="true" width="620"/>
+                </a:hBox>
+            </a:form>
+            <div id="demo" class="item-grid item-grid-wrap" style="width:1220px;height:348px;">
+                <div class="grid-uh" onselectstart="return false;" style="text-align: left; height: 50px; cursor: default" unselectable="on">
+                    <table border="0" cellpadding="0" cellspacing="0">
+                        <tbody>
+                            <tr class="grid-hl" height="0">
+                                <th style="height:0px;" width="22"/>
+                                <th style="height:0px;" width="40"/>
+                                <th style="height:0px;" width="100"/>
+                                <th style="height:0px;" width="100"/>
+                                <th style="height:0px;" width="100"/>
+                                <th style="height:0px;" width="100"/>
+                                <th style="height:0px;" width="100"/>
+                                <th style="height:0px;" width="100"/>
+                                <th style="height:0px;" width="100"/>
+                                <th style="height:0px;" width="100"/>
+                                <th style="height:0px;" width="100"/>
+                                <th style="height:0px;" width="100"/>
+                                <th style="height:0px;" width="100"/>
+                                <th style="height:0px;" width="40"/>
+                                <th style="height:0px;" width="18"/>
+                            </tr>
+                            <tr height="25">
+                                <td class="grid-hc" rowspan="2">
+                                    <div><![CDATA[NO]]></div>
+                                </td>
+                                <td class="grid-hc" colspan="2">
+                                    <div><![CDATA[${l:HLS.CONTRACT_NUMBER}]]></div>
+                                </td>
+                                <td class="grid-hc" colspan="2">
+                                    <div><![CDATA[${l:PRJ501.PRJ_PROJECT.PROJECT_NAME}]]></div>
+                                </td>
+                                <td class="grid-hc">
+                                    <div><![CDATA[${l:CSH513.CF_ITEM}]]></div>
+                                </td>
+                                <td class="grid-hc" colspan="2">
+                                    <div><![CDATA[${l:CSH513.BP_TENANT}]]></div>
+                                </td>
+                                <td class="grid-hc">
+                                    <div><![CDATA[${l:CSH513.DUE_DATE}]]></div>
+                                </td>
+                                <td class="grid-hc" colspan="4">
+                                    <div><![CDATA[${l:HLS.COMMENT}]]></div>
+                                </td>
+                                <!-- <td class="grid-hc" rowspan="2">
+                                    <div align="center">
+                                        <span class="add-btn"/>
+                                    </div>
+                                </td> -->
+                                <td rowspan="2"/>
+                            </tr>
+                            <tr height="25">
+                                <td class="grid-hc">
+                                    <div><![CDATA[${l:HLS.PERIOD_NUMBER}]]></div>
+                                </td>
+                                <td class="grid-hc">
+                                    <div><![CDATA[${l:CSH513.DUE_AMOUNT}]]></div>
+                                </td>
+                                <td class="grid-hc">
+                                    <div><![CDATA[${l:CSH513.PRINCIPAL}]]></div>
+                                </td>
+                                <td class="grid-hc">
+                                    <div><![CDATA[${l:CSH513.INTEREST}]]></div>
+                                </td>
+                                <td class="grid-hc">
+                                    <div><![CDATA[${l:CSH513.UNRECEIVED_AMOUNT}]]></div>
+                                </td>
+                                <td class="grid-hc">
+                                    <div><![CDATA[${l:CSH513.UNRECEIVED_PRINCIPAL}]]></div>
+                                </td>
+                                <td class="grid-hc">
+                                    <div><![CDATA[${l:CSH513.UNRECEIVED_INTEREST}]]></div>
+                                </td>
+                                <td class="grid-hc">
+                                    <div><![CDATA[${l:CSH513.PENALTY}]]></div>
+                                </td>
+                                <td class="grid-hc">
+                                    <div><![CDATA[${l:HLS.WRITEOFF_DUE_AMOUNT}]]></div>
+                                </td>
+                                <td class="grid-hc">
+                                    <div><![CDATA[${l:CSH513.WRITE_OFF_PRINCIPAL}]]></div>
+                                </td>
+                                <td class="grid-hc">
+                                    <div><![CDATA[${l:CSH513.WRITE_OFF_INTEREST}]]></div>
+                                </td>
+                                <td class="grid-hc">
+                                    <div><![CDATA[${l:CSH513.WRITE_OFF_PENALTY}]]></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="grid-ub" style="height:298px;"><![CDATA[
+        	]]></div>
+            </div>
+            <script><![CDATA[
+			new MultiGrid({id:'demo',linetpl:[
+					    '<tr>',
+					    	'<td rowspan="2" align="center"><div dataindex="sequence">{row}</div></td>',
+					    	'<td colspan="2">',
+								'<div dataindex="contract_number"></div>',
+					    	'</td>',
+					    	'<td colspan="2"><div dataindex="project_name"></div></td>',
+					    	'<td><div dataindex="cf_item_name"></div></td>',
+					    	'<td colspan="2"><div dataindex="bp_name"></div></td>',
+					    	'<td><div dataindex="due_date" renderer="Aurora.formatDate"></div></td>',
+					    	'<td colspan="4"><input class="item-readOnly" readOnly="readOnly" dataindex="description"/></td>',
+					    '</tr>',
+					    '<tr>',
+					    	'<td><div dataindex="times"></div></td>',
+					    	'<td class="align_dom"><div dataindex="due_amount" renderer="Aurora.formatMoney"></div></td>',
+					    	'<td class="align_dom"><div dataindex="principal" renderer="Aurora.formatMoney"></div></td>',
+					    	'<td class="align_dom"><div dataindex="interest" renderer="Aurora.formatMoney"></div></td>',
+					    	'<td class="align_dom"><div dataindex="unreceived_amount" renderer="Aurora.formatMoney"></div></td>',
+					    	'<td class="align_dom"><div dataindex="unreceived_principal" renderer="Aurora.formatMoney"></div></td>',
+					    	'<td class="align_dom"><div dataindex="unreceived_interest" renderer="Aurora.formatMoney"></div></td>',
+					    	'<td class="align_dom"><div dataindex="penalty" renderer="Aurora.formatMoney"></div></td>',
+					    	'<td><input class="align_dom item-readOnly" atype="numberfield" readOnly="readOnly" ondblclick="on_write_off_due_amount_dblclick()" dataindex="write_off_due_amount" renderer="Aurora.formatMoney"/></td>',
+					    	'<td><input class="align_dom item-readOnly" atype="numberfield" dataindex="write_off_principal" readOnly="readOnly" renderer="Aurora.formatMoney"/></td>',
+					    	'<td><input class="align_dom item-readOnly" atype="numberfield" dataindex="write_off_interest" readOnly="readOnly" renderer="Aurora.formatMoney"/></td>',
+					    	'<td><input class="align_dom item-readOnly" atype="numberfield" ondblclick="on_write_off_penalty_dblclick()" readOnly="readOnly" dataindex="write_off_penalty"  renderer="Aurora.formatMoney"/></td>',
+					    '</tr>'
+		    ],sequencefield:'sequence',context:'${/request/@context_path}/'}).bind('csh710n_deduction_inflow_ds');
+		]]></script>
+        </a:screenBody>
+    </a:view>
+</a:screen>

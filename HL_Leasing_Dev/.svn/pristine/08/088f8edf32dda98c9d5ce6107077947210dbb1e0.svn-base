@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei  
+    $Date: 2015-5-21 下午4:03:31  
+    $Revision: 1.0  
+    $Purpose:文件模板参数定义
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:view>
+        <a:link id="hls_doc_file_para_table_list_link_id" url="${/request/@context_path}/modules/hls/HLS811/hls_doc_file_para_table_list.screen"/>
+        <script><![CDATA[
+            function bookmarkFunction(record, name) {
+                if (record.isNew) {
+                    if (name == 'bookmark') {
+                        return 'text_ed_up';
+                    }
+                }
+                return '';
+            }
+            
+            function hls811_add() {
+                var ds = $('doc_file_templet_para_ds');
+                var record = ds.create(ds.currentIndex);
+                $('doc_file_templet_para_ds_id').showEditorByRecord(record);
+            
+            }
+            
+            function hls811_delete() {
+                var ds = $('doc_file_templet_para_ds');
+                var records = ds.getSelected();
+                if (records.length != 0) {
+                    Aurora.showConfirm('${l:HLS.PROMPT}', '${l:HLS030.CONFIRM_DELETE}', function() {
+                        ds.remove(records);
+                    });
+                }
+            
+            }
+            
+            function hls811_save() {
+                var ds = $('doc_file_templet_para_ds');
+                if (ds.validate()) {
+                    ds.submit();
+                }
+            
+            }
+            
+            function hls811_query() {
+                $('doc_file_templet_para_ds').query();
+            }
+            
+            function hls_doc_table_list_renderer(value, record, name) {
+                if (!record.isNew && (record.get('bookmark_type') == 'TABLE' || record.get('bookmark_type') == 'FORM_TABLE')) {
+                    return '<a href="javascript:hls811_table_list(\'' + record.id + '\')">列配置</a>';
+                }
+            }
+            
+            function hls811_table_list(record_id) {
+                var record = $('doc_file_templet_para_ds').findById(record_id);
+                var url = $('hls_doc_file_para_table_list_link_id').getUrl();
+                var win = new Aurora.Window({
+                    id: 'hls_doc_file_para_table_list_winid',
+                    url: url,
+                    params: {
+                        bookmark: record.get('bookmark'),
+                        templet_para_id: record.get('templet_para_id'),
+                        bookmark_description: record.get('bookmark_description')
+                    },
+                    title: '列配置',
+                    height: 350,
+                    width: 700
+                });
+            }
+            
+           
+            
+            function checklength(ds, record, name, value, oldvalue) {
+                var bookmark_code = record.get('bookmark');
+                if (name == 'bookmark' && value) {
+                    if (bookmark_code.length > 20) {
+                        Aurora.showMessage('${l:PROMPT}', '您输入的长度大于20，请重新输入！');           				
+                    }
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="hls811_bookmark_type_ds" lookupCode="BOOKMARK_TYPE"/>
+            <a:dataSet id="enable_flag_ds" lookupCode="ENABLED_STATUS"/>
+            <a:dataSet id="underline_ds" lookupCode="UNDERLINE"/>
+            <a:dataSet id="for_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="bookmark"/>
+                    <a:field name="bookmark_description"/>
+                    <a:field name="enabled_flag"/>
+                    <a:field name="enabled_flag_des" displayField="code_value_name" options="enable_flag_ds" returnField="enabled_flag" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="doc_file_templet_para_ds" autoQuery="true" model="hls.HLS811.hls_doc_file_templet_para" queryDataSet="for_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="bookmark" required="true"/>
+                    <a:field name="font_family" defaultValue="宋体"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="sql_content" lovHeight="430" lovUrl="${/request/@context_path}/modules/hls/HLS811/hls_doc_file_parameter_sql_lov.screen" lovWidth="580" title="FND712.FND_SCORE_TARGET.FROM_SQL">
+                        <a:mapping>
+                            <a:map from="lov_sql" to="sql_content"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="sql" lovHeight="430" lovUrl="${/request/@context_path}/modules/hls/HLS811/hls_doc_file_parameter_con_sql_lov.screen" lovWidth="580" title="FND712.FND_SCORE_TARGET.FROM_SQL">
+                        <a:mapping>
+                            <a:map from="lov_sql" to="sql"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bookmark_type_desc" displayField="code_value_name" options="hls811_bookmark_type_ds" required="true" returnField="bookmark_type" valueField="code_value"/>
+                    <a:field name="underline_desc" displayField="code_value_name" options="underline_ds" returnField="underline" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="checklength"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="hls811_query" text="HLS.QUERY"/>
+                <a:gridButton click="hls811_add" text="新增"/>
+                <a:gridButton click="hls811_delete" text="删除"/>
+                <a:gridButton click="hls811_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:form column="4" marginWidth="200" title="查询条件">
+                <a:textField name="bookmark" bindTarget="for_query_ds" prompt="书签代码"/>
+                <a:textField name="bookmark_description" bindTarget="for_query_ds" prompt="书签描述"/>
+                <a:comboBox name="enabled_flag_des" bindTarget="for_query_ds" prompt="启用标志"/>
+            </a:form>
+            <a:grid id="doc_file_templet_para_ds_id" bindTarget="doc_file_templet_para_ds" marginHeight="200" marginWidth="200" navBar="true">
+                <a:columns>
+                    <a:column name="bookmark" editorFunction="bookmarkFunction" prompt="书签代码" width="150"/>
+                    <a:column name="bookmark_description" editor="text_ed" prompt="书签描述" width="150"/>
+                    <a:column name="bookmark_type_desc" editor="hls811_comed" prompt="书签类型" width="100"/>
+                    <a:column name="sql_content" editor="conBasicClauseParaDs_grid_lov" prompt="SQL" width="330"/>
+                    <!-- <a:column name="sql" editor="conBasicClauseParaDs_grid_lov" prompt="合同SQL" width="250"/> -->
+                    <a:column name="table_list" align="center" prompt="列配置" renderer="hls_doc_table_list_renderer"/>
+                    <a:column name="font_family" align="center" editor="text_ed" prompt="字体型号"/>
+                    <a:column name="font_size" align="center" editor="text_ed" prompt="字体大小"/>
+                    <a:column name="underline_desc" align="center" editor="hls811_comed" prompt="下划线"/>
+                    <a:column name="enabled_flag" editor="checkbox_ed" prompt="启用"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="text_ed"/>
+                    <a:textField id="text_ed_up" typeCase="upper"/>
+                    <a:checkBox id="checkbox_ed"/>
+                    <a:lov id="conBasicClauseParaDs_grid_lov"/>
+                    <a:comboBox id="hls811_comed"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129	  
+    $Date: 2014-6-11 下午08:56:52  
+    $Revision: 1.0  
+    $Purpose: 项目上会工作流评委意见汇总
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:fields>
+        <bm:field name="fact_payment_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="payment_req_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="bp_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="finance_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="down_payment" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="residual_value" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="insurance_fee" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="interim_rental" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="lease_term" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="int_rate" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="deposit" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="first_rental_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="bp_name" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="price_list_pay_type" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="business_type_desc" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="price_list_desc" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="pay_type_desc" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="cdd_list_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="contract_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="lease_charge" databaseType="NUMBER" datatype="java.lang.Double"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            	select t1.*,
+       t1.price_list_desc || t1.pay_type_desc price_list_pay_type,
+       nvl(t1.amount, 0) - nvl(t1.down_payment, 0) -
+       nvl(t1.first_rental_amount, 0) - nvl(t1.deposit, 0) -
+       nvl(t1.insurance_fee, 0) - nvl(t1.interim_rental, 0) fact_payment_amount
+  from (select hd.payment_req_id,
+               hd.bp_id,
+               (select m.bp_name
+                  from hls_bp_master m
+                 where m.bp_id = hd.bp_id) bp_name,
+               c.finance_amount,
+               c.business_type,
+               c.business_type_desc,
+               c.down_payment,
+               c.residual_value,
+               (select a.fact_insurance_amount from con_contract_insurance a where a.contract_id=c.contract_id) insurance_fee,
+               (select sum(cf.due_amount) from con_contract_cashflow cf 
+               where cf.contract_id=c.contract_id and cf.cf_item=12)interim_rental,
+               c.lease_term,
+               c.int_rate,
+               c.contract_id,
+               c.lease_charge,
+               hd.amount,
+               c.price_list,
+               c.pay_type,
+               c.cdd_list_id,
+               (select l.description
+                  from hls_price_list l
+                 where l.price_list = c.price_list) price_list_desc,
+               (select v.code_name
+                  from sys_code_values_v v
+                 where v.code = 'HLS500_PAY_TYPE'
+                   and v.code_value = c.Pay_Type) pay_type_desc,
+               c.deposit,
+               (select cf.due_amount
+                  from con_contract_cashflow cf
+                 where cf.contract_id = c.contract_id
+                   and cf.cf_item = 1
+                   and cf.times = 1) first_rental_amount
+          from csh_payment_req_hd hd,
+               csh_payment_req_ln ln,
+               con_contract_v     c
+         where hd.payment_req_id = ln.payment_req_id
+           and ln.ref_doc_id = c.contract_id
+           and ln.ref_doc_category = 'CONTRACT') t1
+           where t1.payment_req_id=${@payment_req_id}
+
+            
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

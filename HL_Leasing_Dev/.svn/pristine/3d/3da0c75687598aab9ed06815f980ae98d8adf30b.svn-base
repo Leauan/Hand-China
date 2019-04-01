@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:view>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="clear_tab_2_link" model="cont.CON651.clear_tab_2" modelaction="batch_update"/>
+        <a:link id="ins_con_move_cars_hd_link" model="cont.CON651.ins_con_move_cars" modelaction="execute"/>
+        <a:link id="ins_con_move_cars_ln_link" model="cont.CON651.ins_con_move_cars" modelaction="batch_update"/>
+        <a:link id="con_move_cars_submit_wfl_link" model="cont.CON651.con_move_cars_submit_wfl" modelaction="execute"/>
+        <a:link id="con_contract_move_cars_detail_link" url="${/request/@context_path}/modules/cont/CON651/con_contract_move_cars_detail.screen"/>
+        <script><![CDATA[
+           
+           //
+           window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+           
+               window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+               var ds_id = get_dsid_by_tabcode_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'G_CONFIRM','con_contract_df_car_info');
+               var ds_id_cart = get_dsid_by_tabcode_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'G_WILLMOVE', 'con_contract_df_car_info');
+               var records_result = $(ds_id).getSelected();
+               var records_cart = $(ds_id_cart).getSelected();
+           
+               var records = records_result.concat(records_cart);
+               Aurora.request({
+                   url: $('ins_con_move_cars_hd_link').getUrl(),
+                   // para: {
+                       // project_id: head_record.get('project_id')
+                   // },
+                   success: function(res) {
+                       var hd_id = res.result.hd_id;
+                       var param = [];
+                       for (var i = 0;i < records.length;i++) {
+                           var record = records[i];
+                           var car_info_id = record.get('car_info_id');
+                           param.push({
+                               'car_info_id': car_info_id,
+                               'hd_id': hd_id,
+                               '_status': 'update'
+                           });
+                       }
+                       //2
+                       Aurora.request({
+                           url: $('ins_con_move_cars_ln_link').getUrl(),
+                           para: param,
+                           success: function(res) {
+                               //跳转
+                               var param = {};
+                               param['hd_id'] = hd_id;
+                               param['function_code'] = 'CON651D';
+                               param['function_usage'] = 'MODIFY';
+                               param['url_title'] = '车辆移库创建';
+                               param['winid'] = 'con_move_cars_detail_win_id';
+                               window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                               hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_move_cars_detail_link', ds_id);
+           
+                               $(ds_id_cart).removeAll();
+                           },
+                           failure: function() {
+                               window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                           },
+                           error: function() {
+                               window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                           },
+                           scope: this
+                       });
+           
+                   },
+                   failure: function() {
+                       window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                   },
+                   error: function() {
+                       window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                   },
+                   scope: this
+               });
+           };
+           
+           //添加到购物车按钮 add by yunfei
+           window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function() {
+               var ds_id = get_dsid_by_tabcode_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'G_CONFIRM', 'con_contract_df_car_info');
+               var ds_id2 = get_dsid_by_tabcode_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'G_WILLMOVE', 'con_contract_df_car_info');
+               var records = $(ds_id).getSelected();
+               var records2 = $(ds_id2).getSelected();
+               var params = [];
+               //debugger;
+               if (records.length) {
+                   for (var j = 0;j < records.length;j++) {
+                       var param = {};
+                       param.car_info_id = records[j].get('car_info_id');
+                       param.flag = 'Y';
+                       param._status = 'update';
+                       param.flag = 'Y';
+                       params.push(param);
+                   }
+                   Aurora.request({
+                       url: $('clear_tab_2_link').getUrl(),
+                       para: params,
+                       success: function() {
+                           //自动查询和移交成功提示
+                           var ds_result = $(ds_id);
+                           var ds_shopping_cart = $(ds_id2);
+                           ds_result.query();
+                           ds_shopping_cart.query();
+                           Aurora.SideBar.show({
+                               msg: '移交成功！',
+                               duration: 2000
+                           });
+                       },
+                       scope: this
+                   });
+               }
+           
+               //错误移交操作提示
+               if (records2.length) {
+                   if (records2[0].get('will_move_flag') == 'Y') {
+                       var ds_result = $(ds_id);
+                       var ds_shopping_cart = $(ds_id2);
+                       ds_result.query();
+                       ds_shopping_cart.query();
+                       Aurora.showMessage('提示', '请勿重复移交!');
+                   }
+               }
+           };
+           //从购物车移除按钮
+           window['${/parameter/@layout_code}_user_button4_layout_dynamic_click'] = function() {
+               var ds_id = get_dsid_by_tabcode_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'G_CONFIRM', 'con_contract_df_car_info');
+               var ds_id2 = get_dsid_by_tabcode_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'G_WILLMOVE', 'con_contract_df_car_info');
+               var records = $(ds_id2).getSelected();
+               var records2 = $(ds_id).getSelected();
+               var params = [];
+               //debugger;
+               if (records.length) {
+                   for (var j = 0;j < records.length;j++) {
+                       var param = {};
+                       param.car_info_id = records[j].get('car_info_id');
+                       param.flag = 'N';
+                       param._status = 'update';
+                       params.push(param);
+                   }
+                   Aurora.request({
+                       url: $('clear_tab_2_link').getUrl(),
+                       para: params,
+                       success: function() {
+                           //进行自动查询和成功提示
+                           var ds_result = $(ds_id);
+                           ds_result.query();
+                           var ds_shopping_cart = $(ds_id2);
+                           ds_shopping_cart.query();
+                           Aurora.SideBar.show({
+                               msg: '移出成功！',
+                               duration: 2000
+                           });
+                       },
+                       scope: this
+                   });
+               }
+           
+               //错误移除操作提示
+               if (records2.length) {
+                   if (records2[0].get('will_move_flag') == 'N' || records2[0].get('will_move_flag') == null) {
+                       Aurora.showMessage('提示', '请前往待提交移出!');
+                   }
+               }
+           };
+       ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

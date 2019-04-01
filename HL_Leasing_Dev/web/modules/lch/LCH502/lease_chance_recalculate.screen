@@ -1,0 +1,411 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Mouse Chow  
+    $Date: 2012-12-23 下午03:45:59  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <model-execute autoCount="false" model="hls_prj.hls_prj_reload_tmp" rootPath="reload_tmp"/>
+        <model-query model="lch.LCH501.lch_lease_chance_hds_quote_query" rootPath="quote"/>
+    </a:init-procedure>
+    <a:view package="aurora.ui.std" template="default">
+        <script><![CDATA[
+            var change_flag = 0;
+            var processId = 0;
+            
+            function recal_remove_tmp() {
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/hls_prj.hls_prj_reload_tmp/execute',
+                    para: {},
+                    success: function(args) {},
+                    scope: this
+                });
+            }
+            
+            function onRecalUpdate(ds, record, name, value) {
+            
+                if (name == "sale_amount") {
+                    var downpay_amount = record.get('downpay_amount');
+                    var sale_amount_nf = $('sale_amount_nf')
+                    if ($("recal_hls_prj_finance_amount_temp_ds").getAll().length > 0) {
+                        recal_remove_tmp();
+                        $("recal_hls_prj_finance_amount_temp_ds").query();
+                        record.set("lease_amt_sum", null);
+                    }
+                    change_flag = 1;
+                    if (downpay_amount && value) {
+                        if (value <= downpay_amount) {
+                            Aurora.showErrorMessage('错误操作', '销售金额应大于首付金额');
+                        }
+                        record.set("financing_amount", (value - downpay_amount));
+                        Aurora.request({
+                            url: '${/request/@context_path}/autocrud/hls_prj.hls_prj_get_downpay_rate/execute',
+                            para: {
+                                downpay_amount: downpay_amount,
+                                sale_amount: value
+                            },
+                            success: function(args) {
+                                var percent_vl = args.result.downpay_rate;
+                                if (percent_vl == 0) {
+                                    $('downpay_rate_nf').setValue(0, true);
+                                } else {
+            
+                                    var downpay_rate_val = percent_vl / 100
+                                    var downpay_rate_vl = downpay_rate_val.toFixed(2)
+                                    record.set("downpay_rate_disp", percent_vl);
+                                    record.set("downpay_rate", downpay_rate_vl);
+                                }
+            
+                            },
+                            scope: this
+                        });
+                    }
+                }
+            
+            
+                if (name == "downpay_amount") {
+                    var sale_amount = record.get("sale_amount");
+                    change_flag = 1;
+                    if (value && sale_amount) {
+                        if (value >= sale_amount) {
+                            Aurora.showErrorMessage('错误操作', '首付金额应小于销售金额');
+                            return false;
+                        }
+                        record.set("financing_amount", (sale_amount - value));
+                        Aurora.request({
+                            url: '${/request/@context_path}/autocrud/hls_prj.hls_prj_get_downpay_rate/execute',
+                            para: {
+                                downpay_amount: value,
+                                sale_amount: sale_amount
+                            },
+                            success: function(args) {
+                                var percent_vl = args.result.downpay_rate;
+                                if (percent_vl == 0) {
+                                    $('downpay_rate_nf').setValue(0, true);
+                                } else {
+                                    var downpay_rate_val = percent_vl / 100
+                                    var downpay_rate_vl = downpay_rate_val.toFixed(2)
+                                    record.set("downpay_rate_disp", percent_vl);
+                                    record.set("downpay_rate", downpay_rate_vl);
+                                }
+                            },
+                            scope: this
+                        });
+                    }
+                    if ($("recal_hls_prj_finance_amount_temp_ds").getAll().length > 0) {
+                        recal_remove_tmp();
+                        $("recal_hls_prj_finance_amount_temp_ds").query();
+                        record.set("lease_amt_sum", null);
+                    }
+                }
+            
+                if (name == "lease_start_date") {
+                    var payment_start_date_vl = record.get("payment_start_date");
+                    var payment_start_date = record.getMeta().getField('payment_start_date');
+                    change_flag = 1;
+                    if (value) {
+                        payment_start_date.setRequired(true);
+                        payment_start_date.setReadOnly(false);
+                    }
+                    if (typeof(value) != 'undefined' && !Ext.isEmpty(payment_start_date_vl)) {
+                        if (!recal_compareDate(value, payment_start_date_vl)) {
+                            Aurora.showErrorMessage('错误信息', '起租日不能大于支付开始日');
+                            return false;
+                        }
+                    }
+                    if ($("recal_hls_prj_finance_amount_temp_ds").getAll().length > 0) {
+                        recal_remove_tmp();
+                        $("recal_hls_prj_finance_amount_temp_ds").query();
+                        record.set("lease_amt_sum", null);
+                    }
+                }
+            
+                if (name == "payment_start_date") {
+                    var lease_start_date = record.get("lease_start_date");
+                    change_flag = 1;
+                    if (typeof(value) != 'undefined' && !Ext.isEmpty(lease_start_date)) {
+                        if (!recal_compareDate(lease_start_date, value)) {
+                            Aurora.showErrorMessage('错误信息', '起租日不能大于支付开始日');
+                            return false;
+                        }
+                    }
+                    if ($("recal_hls_prj_finance_amount_temp_ds").getAll().length > 0) {
+                        recal_remove_tmp();
+                        $("recal_hls_prj_finance_amount_temp_ds").query();
+                        record.set("lease_amt_sum", null);
+                    }
+                }
+            
+                if (name == "periods_count") {
+                    change_flag = 1;
+                    record.set("payment_times", value);
+                    if ($("recal_hls_prj_finance_amount_temp_ds").getAll().length > 0) {
+                        recal_remove_tmp();
+                        $("recal_hls_prj_finance_amount_temp_ds").query();
+                        record.set("lease_amt_sum", null);
+                    }
+                }
+            
+                if (name == "interest_rate") {
+                    change_flag == 1;
+                    if ($("recal_hls_prj_finance_amount_temp_ds").getAll().length > 0) {
+                        recal_remove_tmp();
+                        $("recal_hls_prj_finance_amount_temp_ds").query();
+                        record.set("lease_amt_sum", null);
+                    }
+                }
+            
+                if (name == "fixed_flag") {
+                    if ($("recal_hls_prj_finance_amount_temp_ds").getAll().length > 0) {
+                        $("recal_hls_prj_finance_amount_temp_ds").query();
+                    }
+            
+                }
+            
+                if (name == "payment_type") {
+                    change_flag = 1;
+                }
+            }
+            
+            
+            function recal_onLoad() {
+                var record = $('reacal_hls_lease_requisition_ds').getAt(0);
+                var downpay_amount = record.get('downpay_amount');
+                var sale_amount = record.get("sale_amount");
+            
+                record.set("financing_amount", (sale_amount - downpay_amount));
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/hls_prj.hls_prj_get_downpay_rate/execute',
+                    para: {
+                        downpay_amount: downpay_amount,
+                        sale_amount: sale_amount
+                    },
+                    success: function(args) {
+                        var percent_vl = args.result.downpay_rate;
+                        if (percent_vl == 0) {
+                            $('downpay_rate_nf').setValue(0, true);
+                        } else {
+            
+                            var downpay_rate_val = percent_vl / 100
+                            var downpay_rate_vl = downpay_rate_val.toFixed(2)
+                            record.set("downpay_rate_disp", percent_vl);
+                            record.set("downpay_rate", downpay_rate_vl);
+                        }
+            
+                    },
+                    scope: this
+                });
+            
+            }
+            
+            function recal_select_record(dataSet, record) {
+                var rcd = $('reacal_hls_lease_requisition_ds').getCurrentRecord();
+                var fixed_flag = rcd.get("fixed_flag");
+                var length = dataSet.getAll().length;
+                var last_record = dataSet.getAt(length - 1);
+            
+                if (fixed_flag == "Y") {
+                    var fixed_flag_tmp = record.get("fixed_flag");
+                    if (last_record == record) {
+                        dataSet.unSelect(record);
+                        Aurora.showMessage("提示信息", "最后一期不能修改");
+                        return false;
+                    }
+                    record.getMeta().getField("payment_amount").setReadOnly(false);
+                }
+            }
+            
+            function unrecal_select_record(dataSet, record) {
+                record.getMeta().getField("payment_amount").setReadOnly(true);
+            }
+            
+            function recal_compareDate(start, end) {
+                if (start > end) {
+                    return false;
+                }
+                return true;
+            }
+            
+            function recal_keep_data() {
+                var reacal_hls_lease_requisition_ds = $('reacal_hls_lease_requisition_ds')
+                var recd = reacal_hls_lease_requisition_ds.getCurrentRecord();
+                var fixed_flag = recd.get("fixed_flag");
+                var recal_hls_prj_finance_amount_temp_ds = $('recal_hls_prj_finance_amount_temp_ds');
+                if (fixed_flag == 'Y') {
+                    for (var i = 0;i < recal_hls_prj_finance_amount_temp_ds.getAll().length;i++) {
+                        var record = recal_hls_prj_finance_amount_temp_ds.getAt(i);
+                        var fixed_flag = record.get("fixed_flag");
+                        if (fixed_flag == "N") {
+                            recal_hls_prj_finance_amount_temp_ds.select(record);
+                        }
+                    }
+                }
+            
+            }
+            
+            function recal_numberRenderer(value, record, name) {
+                return Aurora.formatNumber(value, 2);
+            }
+            
+            
+            function recalQuery() {
+                if ($('reacal_lease_chance_process_ds').validate()) {
+                    processId = $('reacal_lease_chance_process_ds').getAt(0).get('process_id');
+            
+                    $('reacal_hls_lease_requisition_ds').setQueryUrl('${/request/@context_path}/autocrud/lch.LCH502.lch_lease_chance_rent_calc/query?process_id=' + processId);
+                    $('recal_hls_prj_finance_amount_temp_ds').setQueryUrl('${/request/@context_path}/autocrud/lch.LCH502.hls_prj_finance_amount_gj/query?ORDER_FIELD=period_number&process_id=' + processId);
+            
+                    $('reacal_hls_lease_requisition_ds').query();
+                    $('recal_hls_prj_finance_amount_temp_ds').query();
+                }
+            }
+            
+            function recalculate_lease_amount() {
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/db.ord_calculate_irr_pkg.main/execute',
+                    para: {
+                        process_id: processId
+                    },
+                    success: function(args) {
+                        if (args.result && args.result.return_value == 0) {
+                            $('recal_hls_prj_finance_amount_temp_ds').query();
+                            $('reacal_hls_lease_requisition_ds').query();
+                        }
+                    },
+                    scope: this
+                });
+            }
+            
+            function onGJAdd(dataSet,record,index){
+                record.set('process_id',processId);
+            }
+            
+            function recal_init(){
+            }
+            
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="recal_hls_cal_method_ds">
+                <a:datas>
+                    <a:record name="等额本息,调首期" value="NEW"/>
+                    <a:record name="等额本息,调末期" value="OLD"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="reacal_lease_chance_process_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="process_id" lovGridHeight="320" lovHeight="450" lovLabelWidth="120" lovService="lch.LCH502.lch_lease_chance_process_query_for_lov?lease_chance_id=${/parameter/@lease_chance_id}" lovWidth="400" prompt="报价版本" required="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="reacal_hls_lease_requisition_ds" autoCreate="true" model="lch.LCH502.lch_lease_chance_rent_calc">
+                <a:fields>
+                    <a:field name="process_id"/>
+                    <a:field name="lease_chance_id"/>
+                    <a:field name="sale_amount" readOnly="true"/>
+                    <a:field name="downpay_amount" readOnly="true"/>
+                    <a:field name="lease_start_date" dataType="date" readOnly="true"/>
+                    <a:field name="payment_start_date" dataType="date" readOnly="true"/>
+                    <a:field name="periods_count" readOnly="true"/>
+                    <a:field name="financing_amount" readOnly="true"/>
+                    <a:field name="downpay_rate" readOnly="true"/>
+                    <a:field name="downpay_rate_disp" readOnly="true"/>
+                    <a:field name="interest_rate" readOnly="true"/>
+                    <a:field name="payment_times" readOnly="true"/>
+                    <a:field name="signed_payment_amount" readOnly="true"/>
+                    <a:field name="lease_amt_sum" readOnly="true"/>
+                    <a:field name="payment_type" checkedValue="Y" defaultValue="N" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="fixed_flag" checkedValue="Y" defaultValue="N" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="irr" readOnly="true"/>
+                    <a:field name="npv" readOnly="true"/>
+                    <a:field name="cal_method_disp" displayField="name" options="recal_hls_cal_method_ds" readOnly="true" returnField="version_desc" valueField="value"/>
+                    <a:field name="version_desc"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onRecalUpdate"/>
+                    <a:event name="load" handler="recal_onLoad"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="recal_hls_lease_payment_schedule_ds" model="prj.hls_prj_lease_payment_schedule_for_maintain">
+                <a:fields>
+                    <a:field name="payment_date" dataType="date"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="recal_hls_prj_finance_amount_temp_ds" fetchAll="true" model="lch.LCH502.hls_prj_finance_amount_gj" selectable="true">
+                <a:fields>
+                    <a:field name="process_id"/>
+                    <a:field name="payment_date"/>
+                    <a:field name="payment_amount"/>
+                    <a:field name="fixed_flag" defaultValue="N"/>
+                    <a:field name="currency" defaultValue="CNY"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="onGJAdd"/>
+                    <a:event name="select" handler="recal_select_record"/>
+                    <a:event name="unselect" handler="unrecal_select_record"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:hBox>
+                <a:lov name="process_id" bindTarget="reacal_lease_chance_process_ds"/>
+                <a:button click="recalQuery" text="查询"/>
+            </a:hBox>
+            <a:form LabelAlign="left" LabelWidth="90" column="4" title="HLS_LEASE_REQUISITION.LEASE_INFO" width="960">
+                <a:numberField name="sale_amount" allowFormat="true" allowNegative="false" bindTarget="reacal_hls_lease_requisition_ds" decimalPrecision="2" prompt="HLS_LEASE_REQUISITION.SALE_AMOUNT" width="120"/>
+                <a:numberField name="downpay_amount" allowFormat="true" allowNegative="false" bindTarget="reacal_hls_lease_requisition_ds" decimalPrecision="2" prompt="HLS_LEASE_REQUISITION.DOWNPAY_AMOUNT" width="120"/>
+                <a:numberField name="downpay_rate_disp" bindTarget="reacal_hls_lease_requisition_ds" decimalPrecision="2" prompt="HLS_LEASE_REQUISITION.DOWNPAY_RATE" width="120"/>
+                <a:numberField name="financing_amount" allowFormat="true" allowNegative="false" bindTarget="reacal_hls_lease_requisition_ds" decimalPrecision="2" prompt="HLS_LEASE_REQUISITION.FINANCING_AMOUNT" width="120"/>
+                <a:datePicker name="lease_start_date" bindTarget="reacal_hls_lease_requisition_ds" prompt="起租日" width="120"/>
+                <a:datePicker name="payment_start_date" bindTarget="reacal_hls_lease_requisition_ds" prompt="支付日" width="120"/>
+                <a:numberField name="interest_rate" allowNegative="false" bindTarget="reacal_hls_lease_requisition_ds" decimalPrecision="2" prompt="年利率(%)" width="120"/>
+                <a:numberField name="periods_count" allowDecimals="false" allowNegative="false" bindTarget="reacal_hls_lease_requisition_ds" prompt="HLS_LEASE_REQUISITION.PERIODS_COUNT" width="120"/>
+                <a:textField name="irr" bindTarget="reacal_hls_lease_requisition_ds" prompt="IRR" width="120"/>
+                <a:textField name="npv" bindTarget="reacal_hls_lease_requisition_ds" prompt="NPV" width="120"/>
+                <a:comboBox name="cal_method_disp" bindTarget="reacal_hls_lease_requisition_ds" prompt="计算引擎" width="120"/>
+            </a:form>
+            <a:hBox labelWidth="100">
+                <a:checkBox name="payment_type" bindTarget="reacal_hls_lease_requisition_ds" prompt="百元取整"><![CDATA[
+                    
+                ]]></a:checkBox>
+                <a:checkBox name="fixed_flag" bindTarget="reacal_hls_lease_requisition_ds" prompt="HLS_LEASE_REQUISITION.FIXED_FLAG"><![CDATA[
+                    
+                ]]></a:checkBox>
+                <a:button click="recalculate_lease_amount" text="重算首期租金"/>
+            </a:hBox>
+            <a:form LabelAlign="left" LabelWidth="100" column="1" title="HLS_LEASE_REQUISITION.LEASE_PAYMENT_SCHEDULE" width="960">
+                <a:grid id="recal_hls_prj_finance_amount_temp_grid" bindTarget="recal_hls_prj_finance_amount_temp_ds" height="357" width="930">
+                    <a:toolBar>
+                        <a:button type="add"/>
+                        <a:button type="save"/>
+                        <a:button type="clear"/>
+                        <a:button type="delete"/>
+                        <a:button prompt="PROMPT.EXPORT_EXCEL" type="excel"/>
+                    </a:toolBar>
+                    <a:columns>
+                        <a:column name="period_number" align="center" editor="payment_amount_nf2" prompt="支付期" width="60"/>
+                        <a:column name="payment_date" editor="payment_amount_dp" prompt="HLS_LEASE_PAYMENT_SCHEDULE.PAYMENT_DATE" renderer="Aurora.formatDate" width="100"/>
+                        <a:column name="payment_amount" align="right" editor="recal_payment_amount_nf" prompt="HLS_LEASE_PAYMENT_SCHEDULE.PAYMENT_AMOUNT" renderer="recal_numberRenderer" width="130"/>
+                        <a:column name="principal_amount" align="right" editor="recal_payment_amount_nf" prompt="HLS_LEASE_PAYMENT_SCHEDULE.PRINCIPAL_AMOUNT" renderer="recal_numberRenderer" width="130"/>
+                        <a:column name="interest_amount" align="right" editor="recal_payment_amount_nf" prompt="HLS_LEASE_PAYMENT_SCHEDULE.INTEREST_AMOUNT" renderer="recal_numberRenderer" width="130"/>
+                        <a:column name="principal_balance" align="right" editor="recal_payment_amount_nf" prompt="HLS_LEASE_PAYMENT_SCHEDULE.PRINCIPAL_BALANCE" renderer="recal_numberRenderer" width="130"/>
+                        <a:column name="vat_payamt" align="right" prompt="租金税额"/>
+                        <a:column name="vat_principal" align="right" prompt="本金税额"/>
+                        <a:column name="vat_interest" align="right" prompt="利息税额"/>
+                        <a:column name="interest_after_tax" align="right" prompt="税后利息"/>
+                    </a:columns>
+                    <a:editors>
+                        <a:numberField id="recal_payment_amount_nf" allowDecimals="true" allowFormat="true" decimalPrecision="2"/>
+                        <a:numberField id="payment_amount_nf2"/>
+                        <a:textField id="payment_amount_tf"/>
+                        <a:datePicker id="payment_amount_dp"/>
+                    </a:editors>
+                </a:grid>
+            </a:form>
+        </a:screenBody>
+        <script><![CDATA[
+        	
+        	recal_init();
+        ]]></script>
+    </a:view>
+</a:screen>

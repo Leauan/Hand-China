@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:c="aurora.application.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <p:switch test="/parameter/@reader_type">
+            <!--
+    			$Author:DJ
+    			读者类型:
+    			提交人
+    			审批人
+    			系统管理员 
+    		-->
+            <p:case value="SUBMITTER">
+                <a:model-query defaultWhereClause="t1.workflow_id = ${/parameter/@workflow_id}" model="zjwfl.zj_wfl_workflow" rootPath="approve_ht_workflow"/>
+                <a:model-query defaultWhereClause="t1.node_hide_approve_record = &apos;N&apos; and ${/model/approve_ht_workflow/record/@show_approve_history_flag} = &apos;Y&apos; and (${/model/approve_ht_workflow/record/@show_all_approve_ht_flag} = &apos;Y&apos; or t1.record_approve_count = t1.instance_approve_count)" fetchAll="true" model="zjwfl.ZJWFL1060.zj_wfl_approve_history_v" rootPath="approve_history_list"/>
+            </p:case>
+            <p:case value="APPROVER">
+                <a:model-query defaultWhereClause="t1.node_id = ${/parameter/@node_id}" model="zjwfl.zj_wfl_workflow_node_filter_node_id" rootPath="approve_ht_node"/>
+                <a:model-query defaultWhereClause="t1.node_hide_approve_record = &apos;N&apos; and ${/model/approve_ht_node/record/@show_approve_history_flag} = &apos;Y&apos; and (${/model/approve_ht_node/record/@show_all_approve_ht_flag} = &apos;Y&apos; or t1.record_approve_count = t1.instance_approve_count)" fetchAll="true" model="zjwfl.ZJWFL1060.zj_wfl_approve_history_v" rootPath="approve_history_list"/>
+            </p:case>
+            <p:case value="ADMIN">
+                <a:model-query fetchAll="true" model="zjwfl.ZJWFL1060.zj_wfl_approve_history_v" rootPath="approve_history_list"/>
+            </p:case>
+        </p:switch>
+        <a:model-query model="prj.PRJ600.is_prj_workflow" rootPath="is_prj_workflow"/>
+        <a:model-query fetchAll="true" model="zjwfl.zj_wfl_get_bp_category" rootPath="zjwfl_bp_category_history"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="prj_attach_downloadfile_link" url="${/request/@context_path}/downloadFile.screen"/>
+        <!-- <a:link id="check_agent_link" model="zjwfl.ZJWFL1060.zj_wfl_check_agent_re" modelaction="update"/> -->
+        <style><![CDATA[
+    		.cell_n{
+    		    word-wrap : break-word;
+    		    word-break: break-all; 
+    		    overflow:hidden; 
+    		}
+    	]]></style>
+        <a:screen-include screen="modules/zjwfl/zj_wfl_common_javascript.screen"/>
+        <script><![CDATA[
+            function render_action_type_desc(value, record, name) {
+                return f_zjwfl.getApproveImg(record.get('record_type'), value);
+            }
+            
+            function open_downloadfile_win(rcpt_record_id) {
+                new Aurora.Window({
+                    id: 'zj_wfl_approve_history_downloadfile_win',
+                    url: $('prj_attach_downloadfile_link').getUrl() + '?table_name=ZJ_WFL_INSTANCE_NODE_RECIPIENT&header_id=' + rcpt_record_id,
+                    title: '附件查看',
+                    width: 850,
+                    height: 400
+                });
+            }
+            
+            function attachement_renderer(value, record, name) {
+                if (record.get('rcpt_record_id')) {
+                    if (record.get('attach_count') > 0) {
+                        return '<a style="color:red" href="javascript:open_downloadfile_win(' + record.get('rcpt_record_id') + ')">附件查看</a>';
+                    }
+                    return '<a href="javascript:open_downloadfile_win(' + record.get('rcpt_record_id') + ')">附件查看</a>';
+                }
+            }
+            
+            function prj_atm_renderer(value, record, name) {
+                if (record.get('rcpt_record_id')) {
+                    return '<a href="javascript:open_prj_atm()">附件查看</a>';
+                }
+            }
+            
+            function open_prj_atm() {
+                var url = $('prj_attach_downloadfile_link').getUrl() + '?table_name=ZJ_WFL_APPROVE_RECORD&header_id=' + ${/parameter/@instance_id};
+                new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'con504_attach_downloadfile_win',
+                    width: 850,
+                    height: 400
+                });
+            
+            
+            }
+            
+            function check_agent_renderer(value, record, name) {
+                //debugger;
+                var agent_flag = record.get('agent_flag');
+                if(agent_flag == 'Y'){
+                    return '<a>' + '<font color="#FF9900">' + value + '</font>' + '</a>';
+                }else{
+                    return value;
+                }
+                
+                
+                
+                
+                //alert(rcpt_record_id);
+                // Aurora.request({
+                    // url: $('check_agent_link').getUrl(),
+                    // para: {
+                        // rcpt_record_id: rcpt_record_id
+                    // },
+                    // success: function(res) { // 
+                        // var agent_flag = res.result.agent_flag;
+                        // //alert(agent_flag);
+                        // if (agent_flag == 'AGENT') {
+                            // return '<a>' + '<font color="#FF9900">' + value + '</font>' + '</a>';
+                        // }
+                    // },
+                    // scope: this
+                // });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="approveHistoryDs">
+                <a:datas dataSource="/model/approve_history_list"/>
+            </a:dataSet>
+            <a:dataSet id="zjwfl_bp_category_history_ds">
+                <a:datas dataSource="/model/zjwfl_bp_category_history"/>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form marginWidth="30" padding="0">
+                <a:table id="zj_wfl_approve_history_table_id" bindTarget="approveHistoryDs" canWheel="false" className="cell_n" percentWidth="100">
+                    <a:columns>
+                        <a:column name="create_date_fmt" prompt="审批时间" width="150"/>
+                        <a:column name="action_type_desc" prompt="审批操作" renderer="render_action_type_desc" width="200"/>
+                        <!-- <a:column name="comment_text" prompt="内部信审意见" width="250"/> -->
+                        <a:column name="node_desc" prompt="审批节点" width="200"/>
+                        <a:column name="approver" prompt="审批人" renderer="check_agent_renderer" width="200"/>
+                        <a:column name="comment_text_out" prompt="审批意见" width="400"/>
+                        <a:placeHolder id="dynamicLineColumn_id"/>
+                        <!-- <a:column name="attachement" align="center" prompt="附件查看" renderer="attachement_renderer" width="80"/> -->
+                    </a:columns>
+                </a:table>
+            </a:form>
+        </a:screenBody>
+        <script><![CDATA[
+            var record = $('zjwfl_bp_category_history_ds').getCurrentRecord();
+            if (record.get('bp_category') != 'EMPLOYEE') {
+                $('zj_wfl_approve_history_table_id').hideColumn('comment_text');
+                $('zj_wfl_approve_history_table_id').hideColumn('attachement');
+            }
+            
+            if (record.get('role_code_name') == 'JF') {
+                $('zj_wfl_approve_history_table_id').hideColumn('comment_text');
+                $('zj_wfl_approve_history_table_id').hideColumn('comment_text_out');
+                $('zj_wfl_approve_history_table_id').hideColumn('attachement');
+            }
+        ]]></script>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="dynamicLineColumn_id">
+            <p:loop source="/model/is_prj_workflow">
+                <p:switch test="@prj_workflow">
+                    <p:case value="Y">
+                        <c:process-config>
+                            <a:column name="attachement" align="center" prompt="附件查看" renderer="attachement_renderer" width="80"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

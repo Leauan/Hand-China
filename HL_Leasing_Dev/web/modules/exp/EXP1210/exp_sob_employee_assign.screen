@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wutong $
+    $Date: 2012/2/7 09:04:27 $
+    $Revision: 1.1 $
+    $Purpose: 员工类型分配
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query autoCount="false" defaultWhereClause=" employee_type_id=${/parameter/@type_id}" fetchAll="true" model="exp.EXP1210.exp_employee_types" rootPath="employee_type"/>
+        <a:model-query autoCount="false" defaultWhereClause=" enabled_flag=&apos;Y&apos;" fetchAll="true" model="gld.gld_set_of_books_vl" rootPath="set_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="EXP1210_exp_sob_emp_update_link" url="${/request/@context_path}/modules/exp/EXP1210/exp_sob_emp_asgn_cm_update.svc"/>
+        <a:link id="EXP1210_exp_sob_emp_assign_tmp_link_2" url="${/request/@context_path}/modules/exp/EXP1210/exp_sob_emp_asgn_cm_tmp.svc"/>
+        <a:link id="EXP1210_exp_sob_emp_assign_com_lov_link_2" url="${/request/@context_path}/modules/exp/EXP1210/exp_sob_employees_company_assigned_batch.screen"/>
+        <script><![CDATA[
+
+            function batchAssignCompany() {
+            
+                var param = {};
+                param['details'] = [{employee_type_id:'${/parameter/@type_id}'}];
+                Aurora.request({
+                    url: $('EXP1210_exp_sob_emp_assign_tmp_link_2').getUrl(),
+                    para:param,
+                    scope: this,
+                    success: jumpAssignCom
+                });
+            }
+            
+            function jumpAssignCom() {
+                new Aurora.Window({
+                    id: 'EXP1210_exp_sob_employees_com_assigned_batch_screen',
+                    url: /*pur_sys_venders_company_assigned_batch.screen*/
+                    $('EXP1210_exp_sob_emp_assign_com_lov_link_2').getUrl(),
+                    title: '${l:FND_SYS_VENDERS.BATCH_DISP_COMPANY}',
+                    width: 730,
+                    height: 460
+                });
+            }
+            
+            function EXP1210_setofbookcombo(record) {
+                if (record.isNew) {
+                    return 'EXP1210_set_of_book_combox';
+                }
+                return '';
+            }
+            
+            function EXP1210_companylov(record, name) {
+                if (record.isNew && record.get('set_of_books_code')) {
+            
+                    return 'EXP1210_fnd_company_lov';
+                }
+                return '';
+            }
+            
+            function EXP1210_setParameter(ds, record, name, value, oldvalue) {
+                var v_set_of_book_id = record.get('set_of_books_id');
+                var metaField = record.getMeta().getField('company_code');
+                metaField.setLovPara('set_of_books_id', v_set_of_book_id);
+            }
+            
+            function EXP1210_hap_save() {
+                var dataSet = $('exp_sob_emp_assign_ds');
+                if (dataSet.validate()) {
+                    var param = {};
+                    param['lines'] = dataSet.getJsonData(false);
+                    Aurora.request({
+                        url: $('EXP1210_exp_sob_emp_update_link').getUrl(),
+                        para: param,
+                        success: function(){$('exp_sob_emp_assign_ds').query();},
+                        scope: this
+                    });
+                }
+            }
+            
+          function exp_1210_child2_grid_add(){
+                $('exp_1210_child2_grid').showEditorByRecord($('exp_sob_emp_assign_ds').create());
+            }
+            function exp_1210_child2_grid_submit() {
+                var result_ds = $('exp_sob_emp_assign_ds');
+                if (result_ds.validate()) {
+                    result_ds.submit();
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="set_list_ds">
+                <a:datas dataSource="/model/set_list"/>
+            </a:dataSet>
+            <a:dataSet id="employee_details_ds">
+                <a:datas dataSource="/model/employee_type"/>
+            </a:dataSet>
+            <a:dataSet id="exp_sob_emp_assign_ds" autoQuery="true" fetchAll="false" queryUrl="${/request/@context_path}/autocrud/exp.EXP1210.exp_sob_employee_assign/query?type_id=${/parameter/@type_id}">
+                <a:fields>
+                    <a:field name="exp_emp_type_id" defaultValue="${/parameter/@type_id}"/>
+                    <a:field name="set_of_books_code" displayField="set_of_books_combox_display" options="set_list_ds" prompt="FND_SYSTEM_VENDERS.SET_OF_BOOKS_ID" required="true" returnField="set_of_books_id" valueField="set_of_books_id"/>
+                    <a:field name="set_of_books_id"/>
+                    <a:field name="company_code" lovGridHeight="300" lovHeight="450" lovService="fnd.fnd_dimension_value_assign_batch_lov" lovWidth="500" prompt="FND_COMPANIES.COMPANY_FROM" required="true" title="FND_COMPANIES.COMPANY_FROM">
+                        <a:mapping>
+                            <a:map from="company_short_name" to="company_short_name"/>
+                            <a:map from="company_code" to="company_code"/>
+                            <a:map from="company_id" to="company_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="EXP1210_setParameter"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar height="29">
+                <a:button click="exp_1210_child2_grid_add" height="20" icon="${/request/@context_path}/images/add.png" iconAlign="left" text="新增" width="50"/>
+                <a:separator style="margin-left:3px;"/>
+                <a:button click="EXP1210_hap_save" height="20" icon="${/request/@context_path}/images/save.png" iconAlign="left" text="保存" width="50"/>
+                <a:separator style="margin-left:3px;"/>
+            </a:screenTopToolbar>
+            <a:form column="2" labelWidth="90" width="750">
+                <a:label name="employee_type_code" bindTarget="employee_details_ds" prompt="EXP_EMPLOYEE_TYPES.TYPE_CODE"/>
+                <a:label name="description" bindTarget="employee_details_ds" prompt="EXP_EMPLOYEE_TYPES.TYPE_DESC"/>
+            </a:form>
+            <a:grid id="exp_1210_child2_grid" bindTarget="exp_sob_emp_assign_ds" height="400" navBar="true" width="750">
+                <a:columns>
+                    <a:column name="set_of_books_code" editorFunction="EXP1210_setofbookcombo" prompt="FND_SYSTEM_VENDERS.SET_OF_BOOKS_ID"/>
+                    <a:column name="company_code" editorFunction="EXP1210_companylov" prompt="FND_COMPANIES.COMPANY_CODE" sortable="true"/>
+                    <a:column name="company_short_name" prompt="FND_COMPANIES_VL.COMPANY_SHORT_NAME"/>
+                    <a:column name="enabled_flag" editor="EXP1210_enabled_flag_check_box" prompt="FND_COMAPNY_LEVELS.ENABLED_FLAG"/>
+                </a:columns>
+                <a:editors>
+                    <a:comboBox id="EXP1210_set_of_book_combox"/>
+                    <a:lov id="EXP1210_fnd_company_lov"/>
+                    <a:checkBox id="EXP1210_enabled_flag_check_box"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-7-30 下午04:25:31  
+    $Revision: 1.0  
+    $Purpose: 商机维护动态页面
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:view>
+        <a:link id="hls_fin_doc_quotation_link_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_doc_quotation.svc"/>
+        <a:link id="hls_fin_calculator_update_link_id" url="${/request/@context_path}/modules/hls/HLS500N/hls_fin_calculator_update_n.screen"/>
+        <a:link id="hls_fin_calc_quotation_header_link_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calc_quotation_header.screen"/>
+        <a:link id="prj_chance_print_intention_print_link_id" url="${/request/@context_path}/modules/prj/PRJ401/prj_chance_print_intention_detail.screen"/>
+        <script><![CDATA[
+            function open_quote_win(ds_id, record_id, name) {
+                var head_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_chance');
+                var base_ds = $(ds_id);
+                var record = base_ds.findById(record_id);
+            
+                var head_ds = $(head_ds_id);
+                var head_record = head_ds.getAt(0);
+                var parent_base_table_pk = 'chance_id';
+                var url;
+            
+            
+                if ('${/parameter/@calc_type}' == 'LITE_CALCULATOR') {
+                    url = $('hls_fin_calc_quotation_header_link_id').getUrl();
+                } else if ('${/parameter/@calc_type}' == 'CLASSIC_CALCULATOR') {
+                    url = $('hls_fin_calculator_update_link_id').getUrl();
+                } else {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.CALC_TYPE_IS_NULL}');
+                    return;
+                }
+                if (head_record.dirty == true) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.EXECUTE_AFTER_SAVE}');
+                    return;
+                }
+                if (base_ds.validate()) {
+                    if (!record.get('price_list') || !record.get('currency') || !record.get('lease_times')) {
+                        Aurora.showMessage('${l:PROMPT}', '${l:HLS.QUOTATION_EXECUTE_AFTER_SAVE}');
+                        return;
+                    }
+            
+                    window['${/parameter/@layout_code}_lock_layout_dynamic_window'];
+            
+                    var parent_pk_value = head_record.get(parent_base_table_pk);
+                    record.set('function_code', '${/parameter/@function_code}');
+                    record.set('function_usage', '${/parameter/@function_usage}');
+                    record.set(parent_base_table_pk, parent_pk_value);
+                    record.set('to_doc_table', 'HLS_FIN_CALCULATOR_HD');
+                    var calc_recreate_L_formula;
+                    if (record.get('quotation_id') && !record.get('calc_session_id')) {
+                        calc_recreate_L_formula = 'Y';
+                        record.set('_status', 'update');
+                    } else if (record.get('quotation_id') && record.get('calc_session_id')) {
+                        calc_recreate_L_formula = 'N';
+                        record.set('_status', 'execute');
+                    } else {
+                        calc_recreate_L_formula = 'Y';
+                        record.set('_status', 'insert');
+                    }
+                    if ('${/parameter/@document_category}' == 'CHANCE') {
+                        record.set('from_doc_table', 'PRJ_QUOTATION');
+                        record.set('from_doc_pk', record.get('quotation_id'));
+                        record.set('calculate_flag', 'N');
+                    } else if ('${/parameter/@document_category}' == 'CONTRACT') {
+                        record.set('from_doc_table', 'CON_CONTRACT');
+                        record.set('from_doc_pk', parent_pk_value);
+                        record.set('calculate_flag', 'N');
+                    }
+                    if (!'${/parameter/@document_id}') {
+                        record.set('document_id', parent_pk_value);
+                    }
+                    var saveData = [];
+                    saveData.push(record.data);
+                    Aurora.request({
+                        url: $('hls_fin_doc_quotation_link_id').getUrl(),
+                        para: saveData,
+                        success: function(res) {
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window'];
+                            base_ds.query();
+                            var quotation_id = record.get('quotation_id') || res.result.quotation_id;
+                            new Aurora.Window({
+                                id: 'hls_fin_calc_quotation_link_winid',
+                                params: {
+                                    document_id: parent_pk_value,
+                                    document_category: '${/parameter/@document_category}',
+                                    maintain_type: '${/parameter/@maintain_type}',
+                                    calc_session_id: res.result.record.calc_session_id,
+                                    quotation_id: quotation_id,
+                                    dsId: ds_id,
+                                    winId: 'hls_fin_calc_quotation_link_winid',
+                                    global_flag: 'Y',
+                                    id_num: 0,
+                                    calc_type: '${/parameter/@calc_type}',
+                                    recreate_L_formula: calc_recreate_L_formula
+                                },
+                                url: url,
+                                fullScreen: true,
+                                draggable: true
+                            });
+                        },
+                        failure: function() {
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window'];
+                        },
+                        error: function() {
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window'];
+                        },
+                        scope: this
+                    });
+                }
+            };
+            
+            
+            //超链接渲染
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                //报价超链接
+                if (!record.isNew && name == 'quote') {
+                    return '<a href="javascript:open_quote_win(\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\')">' + config_record.get('prompt') + '</a>';
+                } else {
+                    return '';
+                }
+            };
+            
+            function print_chance_intention(ds_id, record_id, name) {
+                var record = $(ds_id).findById(record_id),
+                    url = $('prj_chance_print_intention_print_link_id').getUrl();
+                if (!record.get('calc_session_id')) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:CON500.QUOTATION_NEED_UPDATE}');
+                    return;
+                }
+                var form = document.createElement("form");
+                form.target = "prj_intention_word_export_window";
+                form.method = "post";
+                form.action = url + '?quotation_id=' + record.get('quotation_id');
+                var iframe = Ext.get('prj_intention_word_export_window') || new Ext.Template('<iframe id ="prj_intention_word_export_window" name="prj_intention_word_export_window" style="position:absolute;left:-10000px;top:-10000px;width:1px;height:1px;display:none"></iframe>').insertFirst(document.body, {}, true);
+                document.body.appendChild(form);
+                form.submit();
+                Ext.fly(form).remove();
+            }
+            
+            //打印租赁意向书
+            window['${/parameter/@layout_code}_dynamic_button_renderer'] = function(value, record, name, config_record) {
+                if (name == 'print_intention') {
+                    if (Ext.isIE || Ext.isIE9 || Ext.isIE10) {
+                        return '<button style="font-size:11px;height:22px;width:70%;text-align:center;padding:0 4px 4px 0" onclick="print_chance_intention(\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\');"><div style="height: 18px; line-height: 16px; text-decoration: none;">' + config_record.get('prompt') + '</div></button>';
+                    } else {
+                        return '<button style="font-size:11px;height:22px;width:70%;text-align:center;" onclick="print_chance_intention(\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</button>';
+                    }
+                }
+            };
+            
+            //新增报价
+            window['${/parameter/@layout_code}_on_layout_dynamic_grid_add'] = function(ds, record, config_records) {
+                var records = ds.getAll(),
+                    version_num = 0;
+                if (records.length) {
+                    for (var i = 0;i < records.length;i++) {
+                        var current_record = records[i],
+                            version = current_record.get('version');
+                        if (!Ext.isEmpty(version)) {
+                            index = version.indexOf('v');
+                            if (index == -1) {
+                                version_num = version_num;
+                            } else {
+                                var current_version = version.substring(index + 1);
+                                if (isNaN(current_version) || parseFloat(current_version) <= parseFloat(version_num)) {
+                                    version_num = version_num;
+                                } else {
+                                    version_num = current_version;
+                                }
+                            }
+                        }
+                    }
+                }
+                record.set('version', 'v' + parseInt(plus(version_num, 1)).toFixed(1));
+            };
+        ]]></script>
+    </a:view>
+</a:screen>

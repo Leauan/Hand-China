@@ -1,0 +1,699 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-2-26 下午2:37:49  
+    $Revision: 1.0  
+    $Purpose: projectMaintainScreen
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="document_category=&apos;PROJECT&apos;" fetchAll="true" model="basic.hls_document_type_v_lov" rootPath="project_type_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="bmLink_ifBpNameExist" model="prj.PRJ501.prj_project_bp_check" modelaction="execute"/>
+        <a:link id="bmLink_ifLeaseItemExist" model="prj.PRJ501.prj_project_lease_item_check" modelaction="execute"/>
+        <a:link id="pageLink_setProjectNo" url="${/request/@context_path}/modules/prj/PRJ501/prj_project_number_update.screen"/>
+        <a:link id="hls_fin_calculator_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calculator.screen"/>
+        <a:link id="hls_fin_calculator_update_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calculator_update.screen"/>
+        <a:link id="hls_fin_calculator_readonly_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calculator_readonly.screen"/>
+        <a:link id="prj_project_calculator_history_id" url="${/request/@context_path}/modules/prj/PRJ501/prj_project_calculator_history.screen"/>
+        <style><![CDATA[
+    		.hide_dom {
+    			display:none
+    		}
+    	]]></style>
+        <script><![CDATA[
+            function hideDom(dom_id) {
+                var className = 'hide_dom';
+                var obj = Ext.get(dom_id);
+                if(Ext.isEmpty(obj))
+                {
+                    return; 
+                }
+                if (!obj.hasClass(className)) {
+                	obj.addClass(className);
+            	}
+            
+            }
+            
+            function displayDom(dom_id) {
+                var className = 'hide_dom';
+                var obj = Ext.get(dom_id);
+                if(Ext.isEmpty(obj))
+                {
+                    return; 
+                }
+                if (obj.hasClass(className)) {
+                    obj.removeClass(className);
+                }
+            }
+            
+            
+            
+            function displayHandle(type) {
+                var config = {
+                    bpMaster: {
+                        dsName: 'bpMasterDs',
+                        divId: 'bpMasterInfo'
+                    },
+                    leaseItem: {
+                        dsName: 'leaseItemDs',
+                        divId: 'leaseItemInfo'
+                    },
+                    quotation: {
+                        dsName: 'quotationDs',
+                        divId: 'quotationInfo'
+                    }
+                };
+                var obj = config[type];
+                var dsName = obj['dsName'];
+                var divId = obj['divId'];
+                var records = $(dsName).getAll();
+                if (records.length == 0) {
+                    hideDom(divId);
+                } else {
+                    displayDom(divId);
+                }
+            }
+            
+            
+            //basicInfoDs event handler
+            
+            function onSumitFailed_basicInfoDs(ds, res) {
+                if (window.handle_basicInfoDs_submitFailed) {
+                    handle_basicInfoDs_submitFailed(ds, res);
+                }
+            }
+            
+            function onSubmitSuccess_basicInfoDs(ds, res) {
+                if (window.handle_basicInfoDs_submitSuccess) {
+                    handle_basicInfoDs_submitSuccess(ds, res);
+                }
+            }
+            
+            function onAjaxfailed_basicInfoDs(ds, res, opt) {
+                if (window.handle_basicInfoDs_ajaxfailed) {
+                    handle_basicInfoDs_ajaxfailed(ds, res, opt);
+                }
+            }
+            
+            
+            //只读record
+            
+            function record_setReadOnly(ds, record) {
+                if (record.get('all_readonly_flag') != 'Y') {
+                    var fields = ds.fields;
+                    for (var name in fields) {
+                        record.getField(name).setReadOnly(true);
+                    }
+                    record.set('all_readonly_flag', 'Y', true);
+                }
+            }
+            //record是否只读
+            
+            function record_displayControl(ds, record) {
+                if ('${/parameter/@maintain_type}' == 'READONLY') {
+                    record_setReadOnly(ds, record);
+                }
+            }
+            
+            
+            function quotationDelete() {
+                var records = $('quotationDs').getSelected();
+                if (!records.length) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+                var saveData = [];
+                for (var i = 0;i < records.length;i++) {
+                    records[i].set('_status', 'delete');
+                    saveData.push(records[i].data);
+                }
+                $('quotationDelete_id').disable();
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/prj.PRJ501.prj_quotation_save/batch_update',
+                    para: saveData,
+                    success: function(res) {
+                        $('quotationDs').query();
+                        $('quotationDelete_id').enable();
+                    },
+                    failure: function() {
+                        $('quotationDelete_id').enable();
+                    },
+                    error: function() {
+                        $('quotationDelete_id').enable();
+                    },
+                    scope: this
+                });
+            }
+            
+            function quotationAdd() {
+                $('grid_quotationDs').showEditorByRecord($('quotationDs').create());
+            }
+            
+            function onRemove_quotationDs(ds, record, index) {
+                displayHandle('quotation');
+            }
+            
+            function onAdd_quotationDs(ds, record, index) {
+                displayHandle('quotation');
+                if ('${/parameter/@maintain_type}' == 'UPDATE') {
+                    var main_record = $('basicInfoDs').getAt(0);
+                    record.set('project_no', main_record.get('project_no'));
+                    record.set('bp_name', main_record.get('bp_name'));
+                }
+            }
+            
+            function onLoad_quotationDs(ds) {
+                var className = 'hide_dom';
+                var obj = Ext.get('quotationInfo');
+                var obj_1 = Ext.get('tab_quotationInfo');
+                obj.addClass(className);
+                var record = $('basicInfoDs').getAt(0);
+                if (!record.get('project_id')) {
+                    obj_1.addClass(className);
+                }
+                if ('${/parameter/@maintain_type}' == 'READONLY') {
+                    $('grid_quotationDs').hideColumn('calc_session_update');
+                }
+            }
+            
+            function onselect_quotationDs(ds) {
+                var className = 'hide_dom';
+                var obj = Ext.get('quotationInfo');
+                var record = ds.getSelected()[0];
+                if (record.get('quotation_id')) {
+                    obj.addClass(className);
+                } else {
+                    obj.removeClass(className);
+                }
+            }
+            
+            function prj501_quotation_calculator() {
+                if ($('quotationDs').validate()) {
+                    $('prj501_quotation_calculator_id').disable();
+                    var record = $('quotationDs').getCurrentRecord();
+                    var basic_record = $('basicInfoDs').getAt(0);
+                    if (!basic_record.get('project_id') && !'${/parameter/@project_id}') {
+                        return;
+                    }
+                    var type_record = $('project_type_ds').find('document_type', basic_record.get('document_type'));
+                    record.set('_status', 'insert');
+                    record.set('business_type', type_record.get('business_type'));
+                    record.set('document_category', type_record.get('document_category'));
+                    record.set('document_id', basic_record.get('project_id'));
+                    var saveData = [];
+                    saveData.push(record.data);
+                    Aurora.request({
+                        url: '${/request/@context_path}/autocrud/prj.PRJ501.prj_quotation_temp_save/batch_update',
+                        para: saveData,
+                        success: function(res) {
+                            $('prj501_quotation_calculator_id').enable();
+                            new Aurora.Window({
+                                id: 'global_hls_fin_calculator_id',
+                                params: {
+                                    session_id: '${/session/@session_id}',
+                                    company_id: basic_record.get('company_id'),
+                                    document_id: basic_record.get('project_id'),
+                                    document_category: type_record.get('document_category'),
+                                    price_list: record.get('price_list'),
+                                    currency: record.get('currency'),
+                                    dsId: 'quotationDs',
+                                    winId: 'global_hls_fin_calculator_id',
+                                    global_flag: 'Y'
+                                },
+                                url: $('hls_fin_calculator_id').getUrl(),
+                                title: '${l:HLS.FIN_CALCULATOR}',
+                                fullScreen: true
+                            });
+                        },
+                        failure: function() {
+                            $('prj501_quotation_calculator_id').enable();
+                        },
+                        error: function() {
+                            $('prj501_quotation_calculator_id').enable();
+                        },
+                        scope: this
+                    });
+                }
+            }
+            
+            function calc_session_seedetail_readonly(value, record, name) {
+                if (record.get('calc_session_id')) {
+                    return '<a href="javascript:open_readonly_window(\'' + record.get('calc_session_id') + '\');">' + '${l:PRJ501.PRJ_QUERY}' + '</a>';
+                }
+            }
+            
+            function calc_session_seedetail_update(value, record, name) {
+                if (record.get('calc_session_id') && '${/parameter/@maintain_type}' != 'READONLY') {
+                    return '<a href="javascript:open_update_window(\'' + record.get('calc_session_id') + '\',\'' + record.get('quotation_id') + '\',\'' + record.get('document_id') + '\');">' + '${l:PRJ501.PRJ_UPDATE}' + '</a>';
+                }
+            }
+            
+            function calc_session_seedetail_history(value, record, name) {
+                if (record.get('calc_session_id')) {
+                    return '<a href="javascript:open_history_window(\'' + record.get('document_id') + '\');">' + '${l:PRJ501.PRJ_QUOTATION_DETAIL}' + '</a>';
+                }
+            }
+            
+            function open_history_window(document_id) {
+                var basic_record = $('basicInfoDs').getAt(0);
+                var type_record = $('project_type_ds').find('document_type', basic_record.get('document_type'));
+                new Aurora.Window({
+                    id: 'prj_project_calculator_history_winid',
+                    params: {
+                        document_category: type_record.get('document_category'),
+                        document_id: document_id,
+                        maintain_type: '${/parameter/@maintain_type}',
+                        dsId: 'quotationDs',
+                        winId: 'prj_project_calculator_history_winid'
+                    },
+                    url: $('prj_project_calculator_history_id').getUrl(),
+                    width: 600,
+                    height: 350,
+                    title: '${l:PRJ501.PRJ_HISTORY_VERSION}'
+                });
+            }
+            
+            function open_update_window(calc_session_id, quotation_id, document_id) {
+                var basic_record = $('basicInfoDs').getAt(0);
+                var type_record = $('project_type_ds').find('document_type', basic_record.get('document_type'));
+                new Aurora.Window({
+                    id: 'global_hls_fin_calculator_update_id',
+                    params: {
+                        calc_session_id: calc_session_id,
+                        quotation_id: quotation_id,
+                        document_id: document_id,
+                        document_category: type_record.get('document_category'),
+                        dsId: 'quotationDs',
+                        winId: 'global_hls_fin_calculator_update_id',
+                        global_flag: 'Y'
+                    },
+                    url: $('hls_fin_calculator_update_id').getUrl(),
+                    title: '${l:HLS.FIN_CALCULATOR}',
+                    fullScreen: true
+                });
+            }
+            
+            function open_readonly_window(calc_session_id) {
+                new Aurora.Window({
+                    id: 'global_hls_fin_calculator_readonly_id',
+                    params: {
+                        calc_session_id: calc_session_id,
+                        winId: 'global_hls_fin_calculator_readonly_id',
+                        global_flag: 'Y'
+                    },
+                    url: $('hls_fin_calculator_readonly_id').getUrl(),
+                    title: '${l:HLS.FIN_CALCULATOR}',
+                    fullScreen: true
+                });
+            }
+            
+            function onIndexChange_quotationDs(ds, record) {
+                record_displayControl(ds, record);
+            }
+            
+            function quotationds_contract_seq(record, name) {
+                if ('${/parameter/@maintain_type}' == 'READONLY') {
+                    return '';
+                } else {
+                    return 'grid_quotationds_numberfield_id';
+                }
+            }
+            function quotationClear(){
+                $('grid_quotationDs').clear();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="project_type_ds">
+                <a:datas dataSource="/model/project_type_list"/>
+            </a:dataSet>
+            <a:dataSet id="organizationDs" loadData="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="channelDs" loadData="true" model="basic.hls_lease_channel_for_lov"/>
+            <a:dataSet id="divisionDs" loadData="true" model="basic.hls_division_for_lov"/>
+            <a:dataSet id="currencyDs" loadData="true" model="basic.gld_currency_v_lov"/>
+            <a:dataSet id="legal_form_ds" lookupCode="HLS211_LEGAL_FORM"/>
+            <a:dataSet id="gender_ds" lookupCode="HLS211_GENDER"/>
+            <a:dataSet id="id_type_ds" lookupCode="HLS211_ID_TYPE"/>
+            <a:dataSet id="academic_background_ds" lookupCode="HLS211_ACADEMIC_BACKGROUND"/>
+            <a:dataSet id="marital_status_ds" lookupCode="HLS211_MARITAL_STATUS"/>
+            <a:dataSet id="bpClassDs" lookupCode="HLS211_BP_CLASS"/>
+            <a:dataSet id="caculate_type_ds" lookupCode="PRJ501_CACULATE_TYPE"/>
+            <a:dataSet id="basicInfoDs" loadData="true" model="prj.PRJ501.prj_project_maintain" submitUrl="prj_project_maintain.svc">
+                <a:fields>
+                    <a:field name="lease_chance_code" readOnly="true"/>
+                    <a:field name="project_name" required="true"/>
+                    <a:field name="document_type"/>
+                    <a:field name="document_type_desc" displayField="document_type_desc" options="project_type_ds" required="true">
+                        <a:mapping>
+                            <a:map from="document_type" to="document_type"/>
+                            <a:map from="document_category" to="document_category"/>
+                            <a:map from="business_type" to="business_type"/>
+                            <a:map from="code_update_flag" to="code_update_flag"/>
+                            <a:map from="code_auto_flag" to="code_auto_flag"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="project_no" readOnly="true"/>
+                    <a:field name="lease_organization_desc" displayField="description" options="organizationDs" required="true" returnField="lease_organization" valueField="lease_organization"/>
+                    <a:field name="lease_channel_desc" displayField="description" options="channelDs" required="true" returnField="lease_channel" valueField="lease_channel"/>
+                    <a:field name="division_desc" displayField="description" options="divisionDs" required="true" returnField="division" valueField="division"/>
+                    <a:field name="employee_id_of_manager"/>
+                    <a:field name="employee_name_of_manager" fetchRemote="false" lovGridHeight="300" lovHeight="450" lovService="basic.exp_org_unit_manager_lov" lovWidth="500" required="true" title="PRJ501.PRJ_PROJECT.EMPLOYEE_NAME_OF_MANAGER">
+                        <a:mapping>
+                            <a:map from="mgr_employee_id" to="employee_id_of_manager"/>
+                            <a:map from="mgr_employee_name" to="employee_name_of_manager"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="employee_id"/>
+                    <a:field name="employee_name" lovGridHeight="300" lovHeight="450" lovService="basic.hls_salesman_assign_v_for_lov" lovWidth="500" required="true" title="PRJ501.PRJ_PROJECT.EMPLOYEE_NAME">
+                        <a:mapping>
+                            <a:map from="employee_id" to="employee_id"/>
+                            <a:map from="employee_name" to="employee_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="unit_id"/>
+                    <a:field name="unit_name" lovGridHeight="300" lovHeight="450" lovService="basic.exp_org_unit_name_lov" lovWidth="500" required="true" title="HLS.UNIT_NAME">
+                        <a:mapping>
+                            <a:map from="unit_id" to="unit_id"/>
+                            <a:map from="unit_name" to="unit_name"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitfailed" handler="onSumitFailed_basicInfoDs"/>
+                    <a:event name="submitsuccess" handler="onSubmitSuccess_basicInfoDs"/>
+                    <a:event name="ajaxfailed" handler="onAjaxfailed_basicInfoDs"/>
+                </a:events>
+            </a:dataSet>
+            <!-- <a:dataSet id="quotationDs" autoQuery="true" bindName="quotation_info" bindTarget="basicInfoDs" model="prj.PRJ501.prj_quotation" queryUrl="${/request/@context_path}/autocrud/prj.PRJ501.prj_quotation/query?document_id=${/parameter/@project_id}&amp;enabled_flag=Y" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="document_id"/>
+                    <a:field name="caculate_type_display" displayField="code_value_name" options="caculate_type_ds" required="true" returnField="caculate_type" valueField="code_value"/>
+                    <a:field name="currency_name" displayField="currency_name" options="currencyDs" required="true" returnField="currency" valueField="currency_code"/>
+                    <a:field name="price_list_name" lovGridHeight="350" lovHeight="500" lovService="hls.HLS050.hls_price_list_for_lov" lovWidth="500" required="true" title="HLS.PRICE_LIST">
+                        <a:mapping>
+                            <a:map from="price_list" to="price_list"/>
+                            <a:map from="description" to="price_list_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="price_list"/>
+                    <a:field name="calc_session_id"/>
+                    <a:field name="caculate_date" required="true"/>
+                    <a:field name="contract_seq" required="true"/>
+                    <a:field name="project_no"/>
+                    <a:field name="bp_name"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="indexchange" handler="onIndexChange_quotationDs"/>
+                    <a:event name="add" handler="onAdd_quotationDs"/>
+                    <a:event name="remove" handler="onRemove_quotationDs"/>
+                    <a:event name="load" handler="onLoad_quotationDs"/>
+                    <a:event name="select" handler="onselect_quotationDs"/>
+                </a:events>
+            </a:dataSet> -->
+        </a:dataSets>
+        <a:screenBody>
+            <a:switch test="/parameter/@maintain_type">
+                <a:case value="READONLY"><![CDATA[
+                ]]></a:case>
+                <a:case value="*">
+                    <a:screenTopToolbar>
+                        <script><![CDATA[
+                    		//保存控制逻辑
+	                		var projectMaintain_pageStatus={
+				        		submit_flag:'N'
+				        	};
+				        	
+				        	
+				            function projectMaintainScreen_updateProjectNo(project_no) {
+				                $('basicInfoDs').getAt(0).set('project_no', project_no);
+				            }
+				            
+				            function projectMaintainScreen_validateDs() {
+				                var dsTabConfig = {
+				                    'basicInfoDs': {
+				                        tabIndex: 0
+				                    },
+				                    'bpMasterDs': {
+				                        tabIndex: 1
+				                    },
+				                    'leaseItemDs': {
+				                        tabIndex: 2
+				                    }
+				                };
+				                var tabPanel = $('projectMaintainScreen_tabPanel');
+				            
+				                for (var dsName in dsTabConfig) {
+				                    
+				                    if(Aurora.CmpManager.get(dsName))
+				                    {
+				                        if (!$(dsName).validateSelf()) {
+				                        
+				                        tabPanel.selectTab(dsTabConfig[dsName]['tabIndex']);
+				                        unmask_projectNoScreen();
+				                        unmask_projectMaintainScreen();
+				                        return false;
+				                    	}
+				                    }
+				                }
+				                return true;
+				            }
+				            
+				            function winOpen_projectNoUpdate(project_id,project_no)
+				            {
+				                new Aurora.Window({
+					                id: 'prj_project_number_update',
+					                params: {
+					                    project_id:project_id,
+					                	project_no:project_no
+					                },
+					                url: $('pageLink_setProjectNo').getUrl(),
+					                width: 260,
+					                height: 120
+					            });
+				            }
+				            
+				            
+				            function unmask_projectNoScreen()
+				            {
+				                if(Aurora.CmpManager.get('prj_project_number_update'))
+				                {
+				                    Aurora.Masker.unmask($('prj_project_number_update').wrap);
+				                }
+				            }
+				            
+				            function mask_projectNoScreen()
+				            {
+				                if(Aurora.CmpManager.get('prj_project_number_update'))
+				                {
+				                    Aurora.Masker.mask($('prj_project_number_update').wrap,'${l:HLS.SAVING}');
+				                }
+				            }
+				            
+				            
+				            function unmask_projectMaintainScreen()
+				            {
+				                if(Aurora.CmpManager.get('prj_project_maintain'))
+				                {
+				                    Aurora.Masker.unmask($('prj_project_maintain').wrap);
+				                }
+				            }
+				            
+				            function mask_projectMaintainScreen()
+				            {
+				                if(Aurora.CmpManager.get('prj_project_maintain'))
+				                {
+				                    Aurora.Masker.mask($('prj_project_maintain').wrap,'${l:HLS.SAVING}');
+				                }
+				                
+				            }
+				            
+				            
+				            function projectMaintainScreen_save(SideBar)
+				            {
+				                mask_projectMaintainScreen();
+				                if (projectMaintainScreen_validateDs()) {
+				                    if(SideBar)
+				                    {
+				                        Aurora.SideBar.enable = true;
+				                    }
+				                    else
+				                    {
+				                        Aurora.SideBar.enable = false;
+				                    }
+				                	$('basicInfoDs').submit();
+				                }
+				            }
+				            
+				            //保存控制
+				            //如果是新增并且未提交过那么调用校验编码规则
+				            //其他则直接保存
+				            function projectMaintainScreen_controlSave() {
+				                mask_projectMaintainScreen();
+				                
+				                var ds=$('basicInfoDs');
+					            var record=ds.getAt(0);
+				                
+				                if('${/parameter/@maintain_type}'=='ADD'&&projectMaintain_pageStatus['submit_flag']=='N')
+				                {
+				                    if (projectMaintainScreen_validateDs()) {
+				                        
+				                    	if(record.get('code_auto_flag')=='Y')
+					                    {
+					                        projectMaintainScreen_save(false);
+					                    }
+					                    else
+					                    {
+					                        winOpen_projectNoUpdate('','');
+					                        unmask_projectMaintainScreen();
+					                    }
+				                    }
+				                }
+				                else
+				                {
+				                    projectMaintainScreen_save(true);
+				                }
+				                    
+				            }
+				            
+				            function handle_basicInfoDs_submitFailed(ds,res)
+				            {
+				                unmask_projectNoScreen();
+				                unmask_projectMaintainScreen();
+				            }
+				            
+				            function handle_basicInfoDs_ajaxfailed(ds,res,opt)
+				            {
+				                unmask_projectNoScreen();
+				                unmask_projectMaintainScreen();
+				            }
+				            
+				            
+				            function handle_basicInfoDs_submitSuccess(ds,res) {
+				                var record = ds.getAt(0);
+				                
+				                $('quotationDs').setQueryParameter('document_id', record.get('project_id'));
+				                displayDom('tab_quotationInfo');
+				                
+				                
+				                
+				                if(Aurora.CmpManager.get('prj_project_number_update'))
+				                {
+				                    unmask_projectNoScreen();
+				                    $('prj_project_number_update').close();
+				                }
+				                unmask_projectMaintainScreen();
+				                
+				                if('${/parameter/@maintain_type}'=='ADD')
+				                {
+				                    var project_no=record.get('project_no');
+				                    if(projectMaintain_pageStatus['submit_flag']=='N'&&record.get('code_update_flag')=='Y'&&record.get('code_auto_flag')=='Y')
+				                    {
+				                        winOpen_projectNoUpdate(record.get('project_id'),project_no);
+				                    }
+				                    else
+				                    {
+				                        if((Aurora.SideBar.enable==false))
+					                    {
+					                        Aurora.showMessage('${l:HLS.PROMPT}','${l:PRJ501.SAVE_SUCCESS_PROJECT_CODE}'+project_no);
+					                    }
+				                    }
+				                    
+				                }
+				                
+				                projectMaintain_pageStatus['submit_flag']='Y';
+				                
+				                
+				            }
+                		]]></script>
+                        <a:gridButton click="projectMaintainScreen_controlSave" text="HLS.SAVE"/>
+                    </a:screenTopToolbar>
+                </a:case>
+            </a:switch>
+            <script><![CDATA[
+            	(
+        		function ()
+        		{
+        		    
+        		    var ds=$('basicInfoDs');
+        		    if('${/parameter/@maintain_type}'=='ADD')
+        		    {
+        		        $('basicInfoDs').create();
+        		    }
+        		    if('${/parameter/@maintain_type}'=='READONLY')
+        		    {
+        		        var record=ds.getAt(0);
+	        		    if(!Ext.isEmpty(record))
+	        		    {
+	        		        record_setReadOnly(ds,record);
+	        		    }
+        		    }
+        		    
+        		})();
+        	]]></script>
+            <a:tabPanel id="projectMaintainScreen_tabPanel" marginHeight="120" marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="PRJ501.BASIC_INFO" selected="true" width="100">
+                        <a:form column="4" labelWidth="120" marginWidth="60" title=" ">
+                            <a:textField name="lease_chance_code" bindTarget="basicInfoDs"/>
+                            <a:comboBox name="document_type_desc" bindTarget="basicInfoDs"/>
+                            <a:textField name="project_no" bindTarget="basicInfoDs"/>
+                            <a:lov name="employee_name" bindTarget="basicInfoDs"/>
+                            <a:lov name="unit_name" bindTarget="basicInfoDs"/>
+                            <a:comboBox name="lease_organization_desc" bindTarget="basicInfoDs"/>
+                            <a:comboBox name="lease_channel_desc" bindTarget="basicInfoDs"/>
+                            <a:comboBox name="division_desc" bindTarget="basicInfoDs"/>
+                            <a:lov name="employee_name_of_manager" bindTarget="basicInfoDs"/>
+                            <a:textField name="project_name" bindTarget="basicInfoDs"/>
+                            <a:numberField name="financed_amount" bindTarget="basicInfoDs"/>
+                            <a:textField name="financing_purpose" bindTarget="basicInfoDs"/>
+                            <a:textField name="description" bindTarget="basicInfoDs"/>
+                        </a:form>
+                    </a:tab>
+                    <a:tab prompt="PRJ501.BP_MASTER_INFO" ref="${/request/@context_path}/modules/prj/PRJ501/prj_project_bp_master.screen?maintain_type=${/parameter/@maintain_type}&amp;project_id=${/parameter/@project_id}" width="100"/>
+                    <a:tab prompt="PRJ501.LEASE_ITEM_INFO" ref="${/request/@context_path}/modules/prj/PRJ501/prj_project_lease_item.screen?maintain_type=${/parameter/@maintain_type}&amp;project_id=${/parameter/@project_id}" width="100"/>
+                    <a:tab prompt="HLS.QUOTATION_INFORMATION" ref="${/request/@context_path}/modules/hls/HLS500/hls_fin_calc_quotation.screen?document_id=${/parameter/@project_id}&amp;document_category=PROJECT&amp;basic_ds=basicInfoDs&amp;maintain_type=${/parameter/@maintain_type}" width="100"/>
+                    <!-- <a:tab id="tab_quotationInfo" prompt="PRJ501.PRJ_QUOTATION_INFORMATION" width="100">
+                        <a:grid id="grid_quotationDs" bindTarget="quotationDs" height="200" marginWidth="60" navBar="true">
+                            <a:columns>
+                                <a:column name="caculate_type_display" align="center"/>
+                                <a:column name="project_no" align="center"/>
+                                <a:column name="caculate_date" align="center" renderer="Aurora.formatDate"/>
+                                <a:column name="contract_seq" align="center" editorFunction="quotationds_contract_seq"/>
+                                <a:column name="version" align="center"/>
+                                <a:column name="bp_name" align="center"/>
+                                <a:column name="calc_session_query" align="center" prompt="PRJ501.PRJ_QUERY" renderer="calc_session_seedetail_readonly"/>
+                                <a:column name="calc_session_update" align="center" prompt="PRJ501.PRJ_UPDATE" renderer="calc_session_seedetail_update"/>
+                                <a:column name="calc_session_history" align="center" prompt="PRJ501.PRJ_QUOTATION_DETAIL" renderer="calc_session_seedetail_history"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:numberField id="grid_quotationds_numberfield_id" allowFormat="false"/>
+                            </a:editors>
+                        </a:grid>
+                        <a:switch test="/parameter/@maintain_type">
+                            <a:case value="READONLY"><![CDATA[
+                         ]]></a:case>
+                            <a:case value="*">
+                                <a:hBox>
+                                    <a:button click="quotationAdd" text="HLS.NEW"/>
+                                    <a:button click="quotationClear" text="HLS.CLEAR"/>
+                                    <a:button id="quotationDelete_id" click="quotationDelete" text="HLS.REMOVE"/>
+                                </a:hBox>
+                            </a:case>
+                        </a:switch>
+                        <div id="quotationInfo">
+                            <a:form bindTarget="quotationDs" column="3" title=" ">
+                                <a:comboBox name="caculate_type_display" bindTarget="quotationDs"/>
+                                <a:numberField name="contract_seq" allowFormat="false" allowpad="false" bindTarget="quotationDs"/>
+                                <a:datePicker name="caculate_date" bindTarget="quotationDs"/>
+                                <a:lov name="price_list_name" bindTarget="quotationDs"/>
+                                <a:comboBox name="currency_name" bindTarget="quotationDs"/>
+                                <a:button id="prj501_quotation_calculator_id" click="prj501_quotation_calculator" style="margin-left:15px" text="HLS.QUOTATION"/>
+                            </a:form>
+                        </div>
+                    </a:tab> -->
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

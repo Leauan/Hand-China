@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-5-30 下午08:08:02  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[select t1.transaction_id,
+       t1.transaction_num,
+       t1.transaction_category,
+       t1.transaction_type,
+       to_char(t1.transaction_date,'yyyy-mm-dd') transaction_date,
+       t1.penalty_calc_date,
+       t1.bank_slip_num,
+       t1.company_id,
+       t1.internal_period_num,
+       t1.period_name,
+       t1.payment_method_id,
+       t1.distribution_set_id,
+       t1.cashflow_amount,
+       t1.currency_code,
+       t1.transaction_amount,
+       t1.exchange_rate_type,
+       t1.exchange_rate_quotation,
+       t1.exchange_rate,
+       t1.bank_account_id,
+       t1.bp_category,
+       t1.bp_id,
+       t1.bp_bank_account_id,
+       t1.bp_bank_account_num,
+       t1.description,
+       t1.handling_charge,
+       t1.posted_flag,
+       t1.reversed_flag,
+       t1.reversed_date,
+       t1.returned_flag,
+       t1.returned_amount,
+       t1.write_off_flag,
+       t1.write_off_amount,
+       t1.full_write_off_date,
+       t1.twin_csh_trx_id,
+       t1.return_from_csh_trx_id,
+       t1.reversed_csh_trx_id,
+       t1.source_csh_trx_type,
+       t1.source_csh_trx_id,
+       t1.source_doc_category,
+       t1.source_doc_type,
+       t1.source_doc_id,
+       t1.source_doc_line_id,
+       t1.create_je_mothed,
+       t1.create_je_flag,
+       t1.gld_interface_flag,
+       (select d.bp_code from hls_bp_master_v d where d.bp_id = t1.bp_id) as bp_code,
+       (select d.bp_name from hls_bp_master_v d where d.bp_id = t1.bp_id) as bp_name,
+       (select cp.description
+          from csh_payment_method cp
+         where cp.payment_method_id = t1.payment_method_id) as payment_method_display,
+       (select gc.currency_name
+          from gld_currency_vl gc
+         where gc.currency_code = t1.currency_code) as currency_name,
+       (select b.description
+          from hls_bp_category b
+         where b.bp_category = t1.bp_category) as bp_category_display,
+       (select tv.type_name
+          from gld_exchangerate_types_vl tv
+         where tv.type_code = t1.exchange_rate_type) as exchange_rate_type_display,
+       gld_exchange_rate_pkg.get_currency_exchange(t1.transaction_amount,t1.exchange_rate,t1.exchange_rate_quotation) as transaction_functional_amount,
+       (select a.bank_account_code
+          from csh_bank_account a
+         where a.bank_account_id = t1.bank_account_id
+           and a.company_id = t1.company_id) as bank_account_code,
+       (select a.bank_account_name
+          from csh_bank_account a
+         where a.bank_account_id = t1.bank_account_id
+           and a.company_id = t1.company_id) as bank_account_name,
+       (select a.bank_account_num
+          from csh_bank_account a
+         where a.bank_account_id = t1.bank_account_id
+           and a.company_id = t1.company_id) as bank_account_num,
+       (select a.bank_account_code  from hls_bp_master_bank_account a  where a.bank_account_id = t1.bp_bank_account_id) as bp_bank_account_code,
+       (select a.bank_account_name   from hls_bp_master_bank_account a  where a.bank_account_id = t1.bp_bank_account_id) as bp_bank_account_name,
+       (select gb.functional_currency_code
+          from fnd_companies fc, gld_set_of_books gb
+         where fc.company_id = ${/session/@company_id}
+           and fc.set_of_books_id = gb.set_of_books_id) as functional_currency_code,
+       (select t.rate_method_code
+          from gld_exchangerate_types t
+         where t.type_code = t1.exchange_rate_type) as rate_method_code,
+       (select d.zero_amounts_allowed
+          from csh_bank_account_v d
+         where d.bank_account_id = t1.bank_account_id) as zero_amounts_allowed,
+       (t1.transaction_amount - nvl(t1.write_off_amount, 0)) as unwrite_off_amount,
+       (select g.precision
+          from gld_currency g
+         where g.country_code = t1.currency_code) as precision,
+       (-1 * t1.transaction_amount) as reverse_amount,
+       (t1.transaction_amount-nvl(t1.returned_amount, 0)-nvl(t1.write_off_amount, 0)) can_return_amount,
+       t1.created_by,
+       (select u.employee_name from sys_user_v u where u.user_id=t1.created_by )user_desc
+  from csh_transaction t1
+  #WHERE_CLAUSE#
+  order by t1.transaction_date desc,t1.transaction_num desc
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:data-filters>
+        <bm:data-filter name="query" expression="(t1.company_id=${/session/@company_id} and t1.posted_flag=&apos;Y&apos; and t1.reversed_flag=&apos;N&apos; and write_off_flag&lt;&gt; &apos;FULL&apos; and returned_flag &lt;&gt; &apos;FULL&apos; and t1.transaction_type in (&apos;RECEIPT&apos;,&apos;ADVANCE_RECEIPT&apos;) and  (nvl(t1.returned_amount, 0)+nvl(t1.write_off_amount, 0)&lt;t1.transaction_amount)) "/>
+    </bm:data-filters>
+    <bm:query-fields>
+        <bm:query-field name="transaction_type" queryExpression="t1.transaction_type=${@transaction_type}"/>
+        <bm:query-field name="bp_name" queryExpression="t1.bp_id=${@bp_id}"/>
+        <bm:query-field name="transaction_num_from" queryExpression="t1.transaction_num &gt;= ${@transaction_num_from}"/>
+        <bm:query-field name="transaction_num_to" queryExpression="t1.transaction_num &lt;= ${@transaction_num_to}"/>
+        <bm:query-field name="bank_slip_num_from" queryExpression="t1.bank_slip_num &gt;= ${@bank_slip_num_from}"/>
+        <bm:query-field name="bank_slip_num_to" queryExpression="t1.bank_slip_num &lt;= ${@bank_slip_num_to}"/>
+        <bm:query-field name="transaction_amount_from" queryExpression="t1.transaction_amount &gt;= ${@transaction_amount_from}"/>
+        <bm:query-field name="transaction_amount_to" queryExpression="t1.transaction_amount &lt;= ${@transaction_amount_to}"/>
+        <bm:query-field name="currency_code_from" queryExpression="t1.currency_code &gt;= ${@currency_code_from}"/>
+        <bm:query-field name="currency_code_to" queryExpression="t1.currency_code &lt;= ${@currency_code_to}"/>
+        <bm:query-field name="bank_account_code_from" queryExpression="(select a.bank_account_code from csh_bank_account a where a.bank_account_id=t1.bank_account_id) &gt;= ${@bank_account_code_from}"/>
+        <bm:query-field name="bank_account_code_to" queryExpression="(select a.bank_account_code from csh_bank_account a where a.bank_account_id=t1.bank_account_id) &lt;= ${@bank_account_code_to}"/>
+        <bm:query-field name="transaction_date_from" queryExpression="trunc(t1.transaction_date) &gt;= to_date(${@transaction_date_from},&apos;YYYY-MM-DD&apos;)"/>
+        <bm:query-field name="transaction_date_to" queryExpression="trunc(t1.transaction_date) &lt;= to_date(${@transaction_date_to},&apos;YYYY-MM-DD&apos;)"/>
+        <bm:query-field name="payment_method_id" queryExpression="t1.payment_method_id =${@payment_method_id}"/>
+        <bm:query-field name="returned_flag" queryExpression="t1.returned_flag=${@returned_flag}"/>
+        <bm:query-field name="period_name" queryExpression="t1.period_name=${@period_name}"/>
+        <bm:query-field name="user_id" queryExpression="t1.created_by=${@user_id}"/>
+        <bm:query-field name="receipt" queryExpression="(t1.transaction_type=${@receipt} or t1.transaction_type=${@advance_receipt})"/>
+        <bm:query-field name="full_write_off_flag" queryExpression="t1.write_off_flag!=${@full_write_off_flag}"/>
+    </bm:query-fields>
+</bm:model>

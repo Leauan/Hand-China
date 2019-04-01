@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="v.code=&apos;ZJ_WFL_WORKFLOW_STATUS&apos; and v.code_value = &apos;1&apos;" model="zjwfl.sys_code_default_value" rootPath="workflow_status_default_value"/>
+        <a:model-query defaultWhereClause="v.code=&apos;ZJ_WFL_WORKFLOW_STATUS&apos; and v.code_value in (&apos;1&apos;,&apos;10&apos;,&apos;-1&apos;,&apos;-1000&apos;)" model="zjwfl.sys_code_default_value" rootPath="workflow_status_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="pageLink_node_approve_history" url="${/request/@context_path}/modules/zjwfl/ZJWFL1060/zj_wfl_monitoring_node_approve_history.screen"/>
+        <a:link id="pageLink_view_graphics" url="${/request/@context_path}/modules/zjwfl/zj_wfl_graphics.screen"/>
+        <a:link id="pageLink_do_operation" url="${/request/@context_path}/modules/zjwfl/ZJWFL1060/zj_wfl_monitoring_admin_operation.screen"/>
+        <a:screen-include screen="modules/zjwfl/zj_wfl_common_javascript.screen"/>
+        <script><![CDATA[
+            function query_monitorDs() {
+                $('monitorDs').query();
+            }
+            
+            function refresh_monitorDs() {
+                var ds = $('monitorDs');
+                ds.query(ds.currentPage);
+            }
+            
+            function reset_para_monitorDs() {
+                $('para_monitorDs').reset();
+            }
+            
+            function winOpen_view_graphics(instance_id, workflow_id) {
+                new Aurora.Window({
+                    id: 'zj_wfl_graphics',
+                    url: $('pageLink_view_graphics').getUrl(),
+                    params:{
+                        instance_id:instance_id,
+                        workflow_id:workflow_id
+                    },
+                    title: '流程图',
+                    fullScreen: true
+                });
+            }
+            
+            function winOpen_approve_history(instance_id) {
+                new Aurora.Window({
+                    id: 'node_approve_history_win',
+                    url: $('pageLink_node_approve_history').getUrl(),
+                    params: {
+                        instance_id: instance_id,
+                        show_hide: 'Y'
+                    },
+                    title: '单据明细',
+                    fullScreen: true
+                });
+            
+            }
+            
+            function winOpen_do_operation(instance_id, workflow_id) {
+                var win = new Aurora.Window({
+                    id: 'zj_wfl_monitoring_admin_operation',
+                    url: $('pageLink_do_operation').getUrl(),
+                    params:{
+                        instance_id:instance_id,
+                        workflow_id:workflow_id
+                    },
+                    title: '流程图',
+                    width: 650,
+                    height: 300
+                });
+                win.on('close',function(){
+                	refresh_monitorDs();
+                });
+            }
+            
+            function render_monitorDs_grid(value, record, name) {
+                if(name=='approve_history')
+                {
+                    return '<a href="javascript:winOpen_approve_history(' + record.get('instance_id') + ');">' + '明细' + '</a>';
+                }
+                else if(name=='instance_status_desc')
+                {
+                    return f_zjwfl.getStatusImg(record.get('instance_status'),value);
+                }
+                else if(name=='view_graphics')
+                {
+                    return '<a href=\"javascript:winOpen_view_graphics(' + record.get('instance_id') + ',' + record.get('workflow_id') + ')\">流程图</a>';
+                }
+                else if(name=='do_operation')
+                {
+                    return '<a href=\"javascript:winOpen_do_operation(' + record.get('instance_id') + ',' + record.get('workflow_id') + ')\">操作</a>';
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="instanceStatusDs">
+                <a:datas dataSource="/model/workflow_status_list"/>
+            </a:dataSet>
+            <a:dataSet id="para_monitorDs" autoCreate="true" model="zjwfl.ZJWFL1060.zj_wfl_monitoring_query">
+                <a:fields>
+                    <a:field name="instance_status" defaultValue="${/model/workflow_status_default_value/record/@code_value}"/>
+                    <a:field name="instance_status_desc" defaultValue="${/model/workflow_status_default_value/record/@code_value_name}" displayField="code_value_name" options="instanceStatusDs" returnField="instance_status" valueField="code_value"/>
+                    <a:field name="workflow_code" lovGridHeight="300" lovHeight="450" lovService="zjwfl.zj_wfl_workflow_lov_company?sub_category=MAIN_PROCESS" lovWidth="480" title="工作流选择">
+                        <a:mapping>
+                            <a:map from="workflow_id" to="workflow_id"/>
+                            <a:map from="workflow_code" to="workflow_code"/>
+                            <a:map from="workflow_desc" to="workflow_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="workflow_desc" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="monitorDs" autoPageSize="true" autoQuery="true" model="zjwfl.ZJWFL1060.zj_wfl_monitoring_query" queryDataSet="para_monitorDs"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form column="4" labelWidth="100" marginWidth="30" title="查询条件">
+                <a:lov name="workflow_code" bindTarget="para_monitorDs" prompt="工作流代码" typeCase="upper"/>
+                <a:textField name="workflow_desc" bindTarget="para_monitorDs" prompt="工作流描述"/>
+                <a:textField name="node_desc" bindTarget="para_monitorDs" prompt="当前节点"/>
+                <a:comboBox name="instance_status_desc" bindTarget="para_monitorDs" prompt="实例状态"/>
+                <a:textField name="approve_user_code" bindTarget="para_monitorDs" prompt="当前审批人代码"/>
+                <a:textField name="approve_user_name" bindTarget="para_monitorDs" prompt="当前审批人姓名"/>
+                <a:textField name="document_info" bindTarget="para_monitorDs" prompt="单据信息"/>
+            </a:form>
+            <a:hBox>
+                <a:button click="query_monitorDs" text="HAP_QUERY"/>
+                <a:button click="reset_para_monitorDs" text="HAP_RESET"/>
+            </a:hBox>
+            <a:grid id="monitorDs_grid" bindTarget="monitorDs" marginHeight="180" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="instance_id" align="right" prompt="实例ID" width="60"/>
+                    <a:column name="instance_status_desc" prompt="状态" renderer="render_monitorDs_grid" width="100"/>
+                    <a:column name="workflow_desc" autoAdjust="false" prompt="工作流描述" showTitle="true" width="100"/>
+                    <a:column name="document_info" autoAdjust="false" prompt="单据信息" showTitle="true" width="250"/>
+                    <a:column name="current_seq" align="right" prompt="节点序号" width="60"/>
+                    <a:column name="current_node_desc" autoAdjust="false" prompt="当前节点" showTitle="true" width="280"/>
+                    <a:column name="last_approve_date" align="center" prompt="上一节点审批时间" width="130"/>
+                    <a:column name="company_info" autoAdjust="false" prompt="公司信息" showTitle="true" width="120"/>
+                    <a:column name="approve_user_code" autoAdjust="false" prompt="当前审批人代码" showTitle="true" width="150"/>
+                    <a:column name="approve_user_name" autoAdjust="false" prompt="当前审批人姓名" showTitle="true" width="150"/>
+                    <a:column name="approve_history" align="center" prompt="明细" renderer="render_monitorDs_grid" width="50"/>
+                    <a:column name="view_graphics" align="center" prompt="流程图" renderer="render_monitorDs_grid" width="50"/>
+                    <a:column name="do_operation" align="center" prompt="操作" renderer="render_monitorDs_grid" width="50"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

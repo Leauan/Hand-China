@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ouyangzhaochang2663 $
+    $Date: 2010/12/10 08:05:10 $
+    $Revision: 1.6 $
+    $Purpose: UPDATE BY DJ 重构大部分代码
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure><![CDATA[
+    ]]></a:init-procedure>
+    <a:view>
+        <a:link id="bmLink_reset_password" model="sys.SYS8210.sys_user_set_password" modelaction="update"/>
+        <script><![CDATA[
+            function passwordScreen_close() {
+                $('sys_user_set_password').close();
+            }
+            
+            function validate_password(record, name, value) {
+                if (name == 'password' || name == 'confirm_password') {
+                    var password = record.get('password');
+                    var passwordRe = record.get('confirm_password');
+                    if (password != passwordRe) {
+                        return '${l:FND_PRV_SET_PASS.PWD_NO_EQU}';
+                    }
+                    return true;
+                }
+            }
+            
+            function resetPassword() {
+                var record=$('passwordDs').getAt(0);
+                Aurora.request({
+                    url: $('bmLink_reset_password').getUrl(),
+                    para: {
+                        user_id:record.get('user_id'),
+                        password:record.get('password')
+                    },
+                    success: function(res) {
+                        Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 2000
+                        });
+                        passwordScreen_close();
+                    },
+                    failure: function() {
+                    },
+                    error: function() {
+                    },
+                    scope: this
+                });
+            }
+            
+            function onUpdate_passwordDs(ds,record,name,value,oldvalue){
+            	if(name == 'password' || name == 'confirm_password'){
+                    record.validate((name == 'password') ? 'confirm_password' : 'password'); 
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="passwordScreen_userDs" loadData="true" model="sys.sys_user">
+                <a:fields>
+                    <a:field name="user_name" readonly="true"/>
+                    <a:field name="description" readonly="true"/>
+                    <a:field name="start_date" readonly="true"/>
+                    <a:field name="end_date" readonly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="passwordDs" autoCreate="true" submitUrl="${/request/@context_path}/autocrud/sys.SYS8210.sys_user_set_password/batch_update">
+                <a:fields>
+                    <a:field name="user_id" defaultValue="${/parameter/@user_id}"/>
+                    <a:field name="password" required="true" validator="validate_password"/>
+                    <a:field name="confirm_password" required="true" validator="validate_password"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_passwordDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="passwordScreen_close" text="HLS.CLOSE"/>
+                <a:gridButton click="resetPassword" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:fieldSet column="2" title="SYS_USER.USER_INFO">
+                <a:textField name="user_name" bindTarget="passwordScreen_userDs"/>
+                <a:textField name="description" bindTarget="passwordScreen_userDs"/>
+                <a:datePicker name="start_date" bindTarget="passwordScreen_userDs"/>
+                <a:datePicker name="end_date" bindTarget="passwordScreen_userDs"/>
+            </a:fieldSet>
+            <a:fieldSet column="2" title="SYS_USER.MODIFY_PASSWORD">
+                <a:passWord name="password" bindTarget="passwordDs" prompt="SYS_USER.NEW_PASSWORD"/>
+                <a:passWord name="confirm_password" bindTarget="passwordDs" prompt="SYS_USER.CONFIRM"/>
+            </a:fieldSet>
+        </a:screenBody>
+    </a:view>
+</a:screen>

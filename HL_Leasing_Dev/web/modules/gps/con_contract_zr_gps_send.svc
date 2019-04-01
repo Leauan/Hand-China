@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Spencer 3893  
+    $Date: 2016-9-19 上午10:24:11  
+    $Revision: 1.0  
+    $Purpose: 青岛中瑞GPS
+-->
+<a:service xmlns:ns1="aurora.application.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <a:model-update model="gps.con_contract_gps_data_check"/>
+        <s:server-script import="gps/zr_gps.js"><![CDATA[
+            importPackage(Packages.java.util);
+            importPackage(Packages.rd.zr.gps.addorderwithvpsInfos);
+            importPackage(Packages.rd.zr.gps.getalleqpositionsbyappcode);
+            importPackage(Packages.rd.zr.gps.getbaseorderInfobyappcode);
+            
+            var appkey = gps_config.appkey;
+            
+            function post_get_name(name) {
+                var name_arr = {
+                    "APPCODE": "Appcode",
+                    "PRODUCTID": "ProductId",
+                    "PRODUCTTYPE": "productType",
+                    "DISTRICTCODE": "DistrictCode",
+                    "INSTALLADD": "InstallAdd",
+                    "INSTALLTIME": "InstallTime",
+                    "SHOPNAME": "ShopName",
+                    "LINKMAN": "LinkMan",
+                    "LINKPHONE": "LinkPhone",
+                    "USERNAME": "UserName",
+                    "USERPHONE": "UserPhone",
+                    "CARTYPE": "CarType",
+                    "PLATENUMBER": "PlateNumber",
+                    "VIN": "VIN",
+                    "COLOR": "Color",
+                    "CARPRICE": "CarPrice",
+                    "LOANAMOUNT": "LoanAmount",
+                    "CREDITPERIOD": "CreditPeriod",
+                    "NUM": "Num",
+                    "REMARK": "Remark"
+                };
+                if (name_arr[name]) {
+                    return name_arr[name];
+                } else {
+                    return name;
+                }
+            }
+            
+            function save_gps_resp(savetype, zr_id, zr_appcode, zr_locationtime, address, zr_orderstatus, zr_url) {
+                if (savetype == 'ZR_DOWNLOAD_GPS') {
+                    if (zr_id != '' && zr_id != null) {
+                        null;
+                    } else {
+                        raise_app_error("新增工单失败：" + zr_id);
+                    }
+                } else if (savetype == 'ZR_DOWNLOAD_GPS') {
+                    var download_url_info = zr_url;
+                    if (download_url_info.indexOf('http') == -1) {
+                        raise_app_error("下载保单失败：" + download_url_info);
+                    }
+                    if (download_url_info) {
+                        $ctx.parameter.ln_url = String(download_url_info);
+                    }
+                }
+                
+                var saveBm = $bm('gps.con_contract_update_zr_gps_response');
+                saveBm.update({
+                    contract_id: $ctx.parameter.contract_id,
+                    zr_id: zr_id,
+                    zr_appcode: zr_appcode,
+                    address: address,
+                    zr_locationtime:zr_locationtime,
+                    zr_orderstatus: zr_orderstatus,
+                    zr_url: zr_url,
+                    savetype: savetype
+                });
+            }
+            
+            function new_gps() {
+                var infoBm = $bm('gps.con_contract_zr_add_gps_info');
+                var infoResult = infoBm.queryAsMap({
+                    contract_id: $ctx.parameter.contract_id
+                });
+                var infoChilds = infoResult.getChildren();
+                if (infoChilds.length) {
+                    var infoChild = infoChilds[0];
+                    var newGpsUrl = gps_config.newGpsUrl;
+                    var infoMap = new HashMap();
+                    var zr_appcode;
+                    for (var name in infoChild) {
+                        if (post_get_name(name)) {
+                            if (infoChild[name] || infoChild[name] === 0) {
+                                infoMap.put(post_get_name(name), infoChild[name]);
+                                if (name == 'APPCODE') {
+                                    zr_appcode = infoChild[name];
+                                }
+                            } else {
+                                if(name == 'LINKMAN'){
+                                    infoMap.put(post_get_name(name), "测试");
+                                }else if(name == 'LINKPHONE'){
+                                    infoMap.put(post_get_name(name), "13111234567");
+                            }else{
+                                infoMap.put(post_get_name(name), null);}
+                            }
+                        }
+                    }
+                    try {
+                        println("newGpsUrl>>>" + newGpsUrl);
+                        println("infoMap>>>" + infoMap);
+                        var nav = new AddOrderWithVpsInfos(newGpsUrl, infoMap, "UTF-8", appkey);
+                        var newresp = nav.run();
+                        println("result>>>" + newresp);
+                        save_gps_resp('ZR_NEW_GPS', String(newresp), zr_appcode, null, null, null, null);
+                    } catch (e) {
+                        raise_app_error("新增工单失败：" + e);
+                    }
+                } else {
+                    raise_app_error("未获取到对应的合同工单信息");
+                }
+            }
+            
+            
+            function find_con_gps() {
+                var findGpsUrl = gps_config.findGpsUrl;
+                var zr_appcode = $ctx.parameter.zr_appcode;
+                var infoMap = new HashMap();
+                infoMap.put(post_get_name("APPCODE"), "GH201609220000013");
+                //infoMap.put(post_get_name("APPCODE"), $ctx.parameter.zr_appcode);
+                try {
+                    var fv = new GetBaseOrderInfoByAppCode(findGpsUrl, infoMap, "UTF-8", appkey);
+                    var arr = fv.run();
+                    var OrderStatus = arr[0];
+                    var error_message = null;
+                    println("OrderStatus>>>" + OrderStatus); //“新增”“等待派单”“等待加装”“加装完成”
+                    if (OrderStatus != '加装完成') {
+                        return false;
+                        // error_message = "该工单尚未激活";
+                        // raise_app_error(message);
+                    }
+                    return true;
+                } catch (e) {
+                    var message = null;
+                    if (error_message) {
+                        message = error_message;
+                    } else {
+                        message = "查找工单失败：" + e;
+                    }
+                    raise_app_error(message);
+                }
+            }
+            
+            function find_con_posi_gps() {
+                var findGpsPosiUrl = gps_config.findGpsPosiUrl;
+                var zr_appcode = $ctx.parameter.zr_appcode;
+                var infoMap = new HashMap();
+                //infoMap.put(post_get_name("APPCODE"), "测试定位001");
+                infoMap.put(post_get_name("APPCODE"), "0000585");
+                //infoMap.put(post_get_name("APPCODE"), $ctx.parameter.zr_appcode);
+                try {
+                    var fv = new GetAllEqPositionsByAppCode(findGpsPosiUrl, infoMap, "UTF-8", appkey);
+                    var arr = fv.run();
+                    var equipment = arr[0];
+                    var locationAdd = arr[1];
+                    var locationTime = arr[2];
+                    var vin = arr[3];
+                    var imei = arr[4];
+                    var appcode = arr[5];
+                    var flag = arr[6];
+                    var lat = arr[7];
+                    var lng = arr[8];
+                    var battery = arr[9];
+                    var sbcstatus = arr[10];
+                    var typestr = arr[11];
+                    var LocateMode = arr[12];
+                    var message = arr[13];
+             println("locationTime>>>" + locationTime);
+                    var error_message = null;
+                    save_gps_resp('ZR_FIND_GPS', null, zr_appcode, locationTime, locationAdd, null, null);
+                } catch (e) {
+                    var message = null;
+                    if (error_message) {
+                        message = error_message;
+                    } else {
+                        message = "查找工单失败：" + e;
+                    }
+                    raise_app_error(message);
+                }
+            }
+            
+            function down_con_gps() {
+                var infoBm = $bm('gps.con_contract_ln_add_gps_info');
+                var infoResult = infoBm.queryAsMap({
+                contract_id: $ctx.parameter.contract_id
+                });
+                var infoChilds = infoResult.getChildren();
+                if (infoChilds.length) {
+                    var infoChild = infoChilds[0];
+                    var downloadGpsUrl = gps_config.downloadGpsUrl;
+                    var infoStrArray = [];
+            
+                    try {
+                        var dv = new DownLoadSaleInfo(downloadGpsUrl, saleNo, Account, Password, infoStrArray, "gb2312", ReqfilePath, RespfilePath);
+                        var download_url_info = dv.run();
+                        save_gps_resp('ZR_DOWNLOAD_GPS', download_url_info);
+                    } catch (e) {
+                        raise_app_error("初始化新增工单失败：" + e);
+                    }
+                } else {
+                    raise_app_error("未获取到对应的合同工单信息");
+                }
+            }
+            
+            var gps_type = $ctx.parameter.gps_type;
+            if (gps_type == 'ZR_NEW_GPS') {
+                new_gps();
+            } else if (gps_type == 'ZR_FIND_GPS') {
+                // var flag = find_con_gps();
+                // if (flag) {
+                    find_con_posi_gps();
+                // } else {
+                    // raise_app_error("该GPS设备尚未激活！");
+                // }
+            } else if (gps_type == 'ZR_DOWNLOAD_GPS') {
+                //down_con_gps();
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:service-output output="/parameter"/>
+</a:service>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: xuls  
+    $Date: 2016-11-24 上午11:18:19  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:service xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+        	importPackage(java.io);
+        	var head = $bm('zx.ZX5010.hls_zx_post_head_str');
+            var head_result = head.queryAsMap({
+            	post_id:$ctx.parameter.post_id    
+            });
+            var head_result_childs = head_result.getChildren();
+            
+            var base = $bm('zx.ZX5010.hls_zx_post_base_str');
+            var base_result = base.queryAsMap({
+            	post_id:$ctx.parameter.post_id    
+            });
+            var base_result_childs = base_result.getChildren();
+            
+            //var fw;  
+            //由于fw不能写入其他字符集，只能写入系统默认的字符集，所以换成用out，虽然fw比较快
+            var out;
+            try{
+              /*fw = new FileWriter(head_result_childs[0].file_path);  
+              
+              fw.write(head_result_childs[0].head_str); 
+              fw.close(); */
+                outWriter = new OutputStreamWriter(new FileOutputStream(head_result_childs[0].file_path),"GB2312");
+                buf_writer = new BufferedWriter(outWriter);
+                /*写入报文头*/
+	            buf_writer.write(head_result_childs[0].head_str);
+	            //报文头写完加入两个回车换行  其中一个回车换行符 在下面处理
+	            buf_writer.write("\r\n");
+	            /*写入报文记录*/
+	            //写报文基础数据
+	            for (var i = 0;i < base_result_childs.length;i++) { 
+	                buf_writer.write("\r\n");//写入记录之前用\r\n区分
+	                buf_writer.write(base_result_childs[i].base_str);
+	                var new_flag = base_result_childs[i].new_flag;
+	                if (new_flag =='2'){
+	                	var identify = $bm('zx.ZX5010.hls_zx_identify_str');
+			            var identify_result = identify.queryAsMap({
+			            	item_id:base_result_childs[i].item_id 
+			            });
+			            var identify_result_childs = identify_result.getChildren();
+			            for (var j = 0;j < identify_result_childs.length;j++) {
+			                buf_writer.write(identify_result_childs[j].identify_str);
+			            }    
+	                }
+	            }
+	            
+	            buf_writer.flush();   
+	            outWriter.close();
+            	buf_writer.close(); 
+            }catch (e) {
+                /* var logger = $logger("server-script");
+                logger.severe(e.message) */
+                e.printStackTrace();   
+            } 
+	        //fw.close();   
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

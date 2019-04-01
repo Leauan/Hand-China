@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-11-23 上午10:40:33  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="v.code=&apos;CON_CHANGE_REQ_STATUS&apos; and code_value = &apos;NEW&apos;" model="basic.sys_code_default_value" rootPath="request_status_default_record"/>
+    </a:init-procedure>
+    <a:view>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=CHANGE_REQUEST&amp;function_code=CON752"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="con_contract_update_link_id" url="${/request/@context_path}/modules/cont/CON500/con_contract_update.screen"/>
+        <a:link id="pageLink_change_detail" url="${/request/@context_path}/modules/cont/CON751/con_contract_change_query.screen;"/>
+        <a:screen-include screen="modules/hls/hls_common_javascript.screen"/>
+        <a:link id="bmLink_cancel_request" model="cont.CON752.con_contract_change_req_v" modelaction="execute"/>
+        <script><![CDATA[
+            
+            function con501_param_set_value(param) {
+                param['function_code'] = 'CON752';
+                param['function_usage'] = 'MODIFY';
+                param['maintain_type'] = 'UPDATE';
+                param['url_title'] = '合同变更申请';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_update_link_id', 'con752_requestDs');
+            }
+            
+            function con752_dynamic_config(id) {
+                var current_record = $('con752_requestDs').findById(id);
+                var param = current_record.data;
+                param['document_id'] = current_record.get('change_req_id');
+                param['document_category'] = 'CONTRACT';
+                con501_param_set_value(param);
+            }
+            
+            function winOpen_change_detail(new_contract_id,old_contract_id)
+            {
+                new Aurora.Window({
+                    id: 'modules/cont/CON751/con_contract_change_query.screen',
+                    url: $('pageLink_change_detail').getUrl(),
+                    params:{
+                        new_contract_id:new_contract_id,
+                        old_contract_id:old_contract_id
+                    },
+                    title: '变更明细',
+                    fullScreen:true
+                });
+            }
+            
+            function render_con752_requestDs_grid(value,record,name)
+            {
+                if(name=='change_req_number')
+                {
+                    if(record.get('req_status')=='NEW')
+                    {
+                        return '<a href="javascript:con752_dynamic_config(' + record.id + ');">' + value + '</a>';
+                    }
+                    return value;
+                }
+                else if(name=='change_detail')
+                {
+                    if(record.get('req_status')=='NEW')
+                    {
+                        return '';
+                    }
+                    return '<a href="javascript:winOpen_change_detail(' + record.get('change_req_id') + ',' + record.get('contract_id') + ');">' + '变更明细' + '</a>';
+                }
+                return '';
+            }
+            
+            
+            function query_con752_requestDs() {
+                $('con752_requestDs').query();
+            }
+            
+            function reset_con752_para_requestDs() {
+                $('con752_para_requestDs').reset();
+            }
+            
+            function cancel_con752_para_requestDs()
+            {
+        	    f_hls.winMask();
+        	    
+			    var ds=$('con752_requestDs');
+			    var records = ds.getSelected();
+			    var length = records.length;
+			    if(length==0)
+			    {
+			        f_hls.winNoMask();
+			        return;
+			    }
+			    else if(length>1)
+			    {
+			        Aurora.showMessage('${l:HLS.PROMPT}', '只能选择一条记录');
+			        f_hls.winNoMask();
+			        return;
+			    }
+			    
+			    Aurora.request({
+	                url: $('bmLink_cancel_request').getUrl(),
+	                para: {
+	                	change_req_id:records[0].get('change_req_id')
+	                },
+	                success: function(res) {
+	                    f_hls.winNoMask();
+	                    winOpen_invoice_create();
+	                },
+	                failure: function() {
+	                    f_hls.winNoMask();
+	                },
+	                error: function() {
+	                    f_hls.winNoMask();
+	                },
+	                scope: this
+	            });
+			}
+            
+            function onUpdate_con752_para_requestDs(ds, record, name, value, oldvalue) {
+                
+                if(name=='change_req_number_f'||name=='change_req_number_t')
+                {
+                    if(name=='change_req_number_f'&&!Ext.isEmpty(value)&&Ext.isEmpty(record.get('change_req_number_t')))
+                    {
+                        record.set('change_req_number_t',value);
+                    }
+                    else if(name=='change_req_number_t'&&!Ext.isEmpty(value)&&Ext.isEmpty(record.get('change_req_number_f')))
+                    {
+                        record.set('change_req_number_f',value);
+                    }
+                }
+                else if(name=='req_date_f'||name=='req_date_t')
+                {
+                    if(name=='req_date_f'&&!Ext.isEmpty(value)&&Ext.isEmpty(record.get('req_date_t')))
+                    {
+                        record.set('req_date_t',value);
+                    }
+                    else if(name=='req_date_t'&&!Ext.isEmpty(value)&&Ext.isEmpty(record.get('req_date_f')))
+                    {
+                        record.set('req_date_f',value);
+                    }
+                }
+            }
+            
+            function con752_requestDs_grid_clear() {
+	            $('con752_requestDs_grid').clear();
+	        }
+            
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="requestStatusDs" lookupCode="CON_CHANGE_REQ_STATUS"/>
+            <a:dataSet id="con752_para_requestDs" autoCreate="true" model="cont.CON752.con_contract_change_req_v">
+                <a:fields>
+                    <a:field name="req_status" defaultValue="${/model/request_status_default_record/record/@code_value}"/>
+                    <a:field name="req_status_desc" defaultValue="${/model/request_status_default_record/record/@code_value_name}" displayField="code_value_name" options="requestStatusDs" returnField="req_status" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_con752_para_requestDs"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="con752_requestDs" autoPageSize="true" autoQuery="true" model="cont.CON752.con_contract_change_req_v" queryDataSet="con752_para_requestDs" selectable="true">
+                <a:events>
+                    <a:event name="query" handler="aut_authority_list_validate_query"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="query_con752_requestDs" text="HLS.QUERY"/>
+                <a:gridButton click="reset_con752_para_requestDs" text="HLS.RESET"/>
+                <a:gridButton click="con752_requestDs_grid_clear" text="HLS.CLEAR"/>
+                <a:gridButton click="cancel_con752_para_requestDs" text="取消"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelSeparator=" " labelWidth="100" marginWidth="30" title="CON301.CONTRACT_QUERY">
+                <a:textField name="change_req_number_f" bindTarget="con752_para_requestDs" prompt="变更申请编号从"/>
+                <a:textField name="change_req_number_t" bindTarget="con752_para_requestDs" prompt="变更申请编号到"/>
+                <a:datePicker name="req_date_f" bindTarget="con752_para_requestDs" prompt="变更日期编号从"/>
+                <a:datePicker name="req_date_t" bindTarget="con752_para_requestDs" prompt="变更日期编号到"/>
+                <a:textField name="contract_number" bindTarget="con752_para_requestDs" prompt="HLS.CONTRACT_NUMBER"/>
+                <a:textField name="contract_name" bindTarget="con752_para_requestDs" prompt="HLS.CONTRACT_NAME"/>
+                <a:textField name="search_term_1" bindTarget="con752_para_requestDs" prompt="合同字符搜索码"/>
+                <a:numberField name="search_term_2" allowDecimals="false" bindTarget="con752_para_requestDs" prompt="合同数字搜索码"/>
+                <a:textField name="bp_name" bindTarget="con752_para_requestDs" prompt="承租人"/>
+                <a:comboBox name="req_status_desc" bindTarget="con752_para_requestDs" prompt="变更申请状态"/>
+            </a:form>
+            <a:grid id="con752_requestDs_grid" bindTarget="con752_requestDs" marginHeight="265" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="change_req_number" prompt="变更申请编号" renderer="render_con752_requestDs_grid" width="120"/>
+                    <a:column name="req_status_desc" prompt="变更申请状态" width="80"/>
+                    <a:column name="req_date" prompt="变更申请日期" renderer="Aurora.formatDate"/>
+                    <a:column name="change_detail" align="center" prompt="变更明细" renderer="render_con752_requestDs_grid" width="80"/>
+                    <a:column name="contract_number" prompt="HLS.CONTRACT_NUMBER" width="120"/>
+                    <a:column name="contract_name" prompt="HLS.CONTRACT_NAME" width="250"/>
+                    <a:column name="bp_name" prompt="承租人" width="250"/>
+                    <a:column name="search_term_1" prompt="字符搜索码" width="80"/>
+                    <a:column name="search_term_2" prompt="数字搜索码" width="80"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

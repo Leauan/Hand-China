@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei  
+    $Date: 2015-2-27 上午10:29:51  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[SELECT 
+       rank() over( order by v.cashflow_id) rk,     
+       v.contract_id,
+       to_char(sysdate,'yyyy-mm-dd') req_date,
+       v.cashflow_id,
+       v.contract_number,
+       v.contract_name,
+       v.item_frame_number,
+       v.bp_tenant_name,
+       v.cf_description,
+       to_char(v.due_amount,'999,999,990.99') due_amount,
+       v.currency_code,
+       v.due_date,
+       to_char(v.residual_amount,'999,999,990.99') residual_amount,
+       v.bp_id,
+       v.bp_name,
+       v.bp_code,
+        to_char(v.applied_pay_amount,'999,999,990.99') applied_pay_amount,
+       v.virtual_amount,
+        to_char(nvl(v.estimated_due_amount,
+           v.due_amount),'999,999,990.99') AS estimated_due_amount,
+       to_char(v.due_amount - nvl(v.applied_pay_amount,
+                          0),'999,999,990.99') AS amount
+  FROM (SELECT t.contract_id,
+               f.cashflow_id,
+               t.contract_number,
+               t.contract_name,
+               p.project_name,
+               t.bp_id_tenant,
+               (SELECT b.item_frame_number
+                  FROM con_contract_lease_item  a,
+                       con_contract_item_detail b
+                 WHERE a.contract_lease_item_id = b.contract_lease_item_id
+                       AND a.contract_id = t.contract_id) item_frame_number,
+               (SELECT bp_name FROM hls_bp_master bp WHERE bp.bp_id = t.bp_id_tenant) bp_tenant_name,
+               h.description cf_description,
+               f.due_amount,
+               nvl2(f.estimated_due_amount,
+                    f.due_amount,
+                    0) virtual_amount,
+               nvl(f.estimated_due_amount,
+                   f.due_amount) estimated_due_amount,
+               t.currency currency_code,
+               to_char(f.due_date,
+                       'yyyy-mm-dd') due_date,
+               nvl(f.due_amount,
+                   0) - nvl(f.received_amount,
+                            0) residual_amount,
+               
+               csh_payment_req_pkg.get_bp_id(t.contract_id) bp_id,
+               (SELECT b.bp_name FROM hls_bp_master b WHERE b.bp_id = csh_payment_req_pkg.get_bp_id(t.contract_id)) bp_name,
+               (SELECT b.bp_code FROM hls_bp_master b WHERE b.bp_id = csh_payment_req_pkg.get_bp_id(t.contract_id)) bp_code,
+               (nvl((SELECT SUM(l.amount_paid)
+                      FROM csh_payment_req_ln l,
+                           csh_payment_req_hd h
+                     WHERE l.ref_doc_line_id = f.cashflow_id
+                           AND l.payment_req_id = h.payment_req_id
+                           AND h.submitted_flag = 'Y'
+                           AND h.approval_status = 'APPROVED'
+                           AND nvl(h.closed_flag,
+                                   'N') = 'Y'),
+                    0) + nvl((SELECT SUM(l.amount)
+                                FROM csh_payment_req_ln l,
+                                     csh_payment_req_hd h
+                               WHERE l.ref_doc_line_id = f.cashflow_id
+                                     AND l.payment_req_id = h.payment_req_id
+                                     AND h.submitted_flag = 'Y'
+                                     AND h.approval_status = 'APPROVED'
+                                     AND nvl(h.closed_flag,
+                                             'N') <> 'Y'),
+                              0) + nvl((SELECT SUM(l.amount)
+                                          FROM csh_payment_req_ln l,
+                                               csh_payment_req_hd h
+                                         WHERE l.ref_doc_line_id = f.cashflow_id
+                                               AND l.payment_req_id = h.payment_req_id
+                                               AND h.submitted_flag = 'Y'
+                                               AND h.approval_status = 'APPROVING'),
+                                        0)) applied_pay_amount
+          FROM con_contract          t,
+               con_contract_cashflow f,
+               prj_project           p,
+               hls_cashflow_item     h
+         WHERE t.contract_id = f.contract_id
+               AND t.project_id = p.project_id(+)
+               AND f.cf_item = h.cf_item
+               AND t.data_class = 'NORMAL'
+               AND f.cashflow_id in (${:@cashflow_id})
+               ) v
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

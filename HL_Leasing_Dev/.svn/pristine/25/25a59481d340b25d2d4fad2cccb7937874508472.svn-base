@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang
+    $Date: 2016-3-10 上午09:52:30  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:service xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <s:server-script import="seal_util.js;jacob/jacob.js"><![CDATA[
+            importPackage(java.util.zip);
+            importPackage(java.io);
+            importPackage(Packages.hls.plugin.docx4j);
+            importPackage(Packages.hls.plugin.jacob.engine);
+            //importPackage(org.apache.tools.zip); /*可以传入参数*/
+            
+            function writeFile(zos, fn, fp) {
+                var ze = new ZipEntry(fn);
+                //zos.setEncoding("UTF-8");//如果是org.apache.tools.zip需要追加字符集
+                zos.putNextEntry(ze);
+                var fis = new FileInputStream(fp);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    zos.write(b, 0, len);
+                }
+                fis.close();
+            }
+            
+            
+            function transfer(file, os) {
+                var fis = new FileInputStream(file);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    os.write(b, 0, len);
+                }
+                fis.close();
+            }
+            
+            
+            function getdate() {
+                var now = new Date()
+                y = now.getFullYear()
+                m = now.getMonth() + 1
+                d = now.getDate()
+                m = m < 10 ? "0" + m : m
+                d = d < 10 ? "0" + d : d
+                return y + "" + m + "" + d
+            }
+            $ctx["__request_type__"] = 'file'; //to indicate this request is not a JSON_REQUEST
+            var resp = $ctx['_instance.javax.servlet.http.HttpServletResponse'];
+            resp.setHeader("Pragma", "No-cache");
+            resp.setHeader("Cache-Control", "no-cache, must-revalidate");
+            var date_str = getdate();
+            var doc_code = '催收函'
+            //println(decodeURI($ctx.parameter.doc_code));
+            var path = $ctx.parameter.path;
+            var filename = doc_code + '-' + date_str + ".zip"
+            //
+            resp.setDateHeader("Expires", 0);
+            resp.setContentType("application/x-msdownload");
+            var collection_id = $ctx.parameter.collection_id;
+            println(collection_id);
+            if (collection_id) {
+                try {
+                    var attachment_batch_dl = $bm('cont.CON632C.con_contract_content_download');
+                    var result = attachment_batch_dl.queryAsMap({
+                        collection_id: $ctx.parameter.collection_id,
+                        contract_id: $ctx.parameter.contract_id,
+                        content_type: $ctx.parameter.content_type
+                    });
+                    var arr = result.getChildren();
+                    println(arr.length);
+                    if (arr.length >= 1) {
+                        var file_name = arr[0].file_name;
+                        file_path = arr[0].file_path + file_name;
+                        var pe = new PdfConvertEngine($instance('aurora.database.service.IDatabaseServiceFactory'), $instance('uncertain.ocm.IObjectRegistry'), $ctx.getData());
+                        var attachment_id = arr[0].attachment_id;
+                        var server = jacob_config.jacobUrl + attachment_id;
+                        var target_path = jacob_config.target_path;
+                        var url = jacob_config.jacobserviceUrl + '?target_url=' + server + '&target_path=' + target_path;
+                        try {
+                            pe.run(url);
+                        } catch (e) {
+                            raise_app_error('转化PDF失败：' + e);
+                        }
+                        // var brwt = new ConvertOutPDF();
+                        // var outputfilepath = brwt.convertPdf(file_path);
+                        var outputfilepath = file_path + '_pdf';
+                        if (file_name.substring(file_name.length - 4) == '.doc') {
+                            file_name = file_name.substring(0, file_name.length - 4);
+                        } else if (file_name.substring(file_name.length - 5) == '.docx') {
+                            file_name = file_name.substring(0, file_name.length - 5);
+                        }
+                        sign_path = seal(file_name, outputfilepath);
+                        resp.setHeader("Content-disposition", "attachment; filename=" + encodeURI(file_name + '.pdf', 'UTF-8'));
+                        var os = resp.getOutputStream();
+                        transfer(sign_path, os);
+                        os.flush();
+            
+                    }
+                } catch (e) {
+                    var logger = $logger("server-script");
+                    logger.severe(e.message);
+                }
+            } else {
+                var attachment_batch_dl = $bm('cont.CON632C.con_contract_content_download');
+                var result = attachment_batch_dl.queryAsMap({
+                    collection_id: $ctx.parameter.collection_id
+                });
+                var arr = result.getChildren();
+                //打包下载
+                resp.setHeader("Content-disposition", "attachment; filename=" + encodeURI(filename));
+                var zos = new ZipOutputStream(resp.getOutputStream());
+                //zos.setEncoding("GBK"); //如果是org.apache.tools.zip需要追加字符集
+                for (var i = 0;i < arr.length;i++) {
+                    var f = arr[i];
+                    if (f.file_path && f.file_name) {
+                        writeFile(zos, f.file_name, f.file_path);
+                    }
+                }
+                zos.close();
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

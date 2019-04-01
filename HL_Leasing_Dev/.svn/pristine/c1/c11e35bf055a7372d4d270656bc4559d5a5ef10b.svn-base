@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+       importPackage(Packages.com.guohuan)
+                var lov_list_details;
+                try {
+                    var lov_list_bm = $bm('nt.sys_sms_list');
+                    var lov_list_map = lov_list_bm.queryAsMap({
+                        sms_id: $ctx.parameter.sms_id
+                    });
+                    lov_list_details = lov_list_map.getChildren();
+                    $ctx.parameter.return_status = 'S';
+                    $ctx.parameter.return_message = '执行成功';
+                } catch (e) {
+                    $ctx.parameter.return_status = 'E';
+                    $ctx.parameter.return_message = String(e);
+                }
+            
+                var result = {
+                    result: $ctx.parameter.return_status,
+                    message: $ctx.parameter.return_message,
+                    xml_recs: []
+                };
+                var xml_recs = result.xml_recs;
+                if (lov_list_details) {
+                    for (var i = 0;i < lov_list_details.length;i++) {
+                        var lov_list_detail = lov_list_details[i];
+                          var  command="MT_REQUEST";//MULTI_MT_REQUEST
+                          var  sms_id=lov_list_detail.sms_id
+                          var  spid="9545";//账号
+                          var  sppassword="JQ8GRrBo";//api密码
+                          var  da="8618130615066";
+                          var  dc="15"; //这些数据都是要从bm中取出，
+                          var  obj = new Object(); 
+                             obj.contextIn=lov_list_detail.text;
+                             obj.da=da;
+                             obj.command=command;
+                             obj.spid=spid;
+                             obj.sppassword=sppassword;
+                             obj.dc=dc;
+                             obj.obj=obj;
+                        xml_recs.push(obj);
+                    }
+                }
+       
+               // var  contextIn="你好,这是移通网络单条下行测试短信";//发送内容
+               // var  command="MT_REQUEST";//MULTI_MT_REQUEST
+               // var  spid="9545";//账号
+               // var  sppassword="JQ8GRrBo";//api密码
+               // var  da="8618130615066";//号码前面加86
+               // var  dc="15"; //这些数据都是要从bm中取出，
+               // //var  smspk ; //这些数据都是要从bm中取出smslist-pk，
+               // var obj = new Object(); 
+               // obj.contextIn=contextIn;
+               // obj.command=command;
+               // obj.spid=spid;
+               // obj.sppassword=sppassword;
+               // obj.da=da;
+               // obj.dc=dc;
+               // obj.obj=obj;
+              // var xml_recs=[];
+              // xml_recs.push(obj);
+               
+            function xml_rec_execute(xml_rec) {
+                if (!xml_rec) {
+                    raise_app_error('no record found');
+                }
+                
+                var contextIn = xml_rec.contextIn;
+                var command = xml_rec.command;
+               var spid = xml_rec.spid;
+                 var sppassword = xml_rec.sppassword;
+                   var da = xml_rec.da;
+                     var dc = xml_rec.dc;
+                var engine = $instance('uncertain.core.UncertainEngine');
+                var sms = new Sms(spid,sppassword);
+                var req_response = sms.sendMt(null,contextIn,command,spid,sppassword,da,dc);
+                //req_response = String(req_response);
+                 println("engine>>>"+req_response);
+                
+             $bm("nt.sys_sms_list").update({
+                   sms_id: sms_id,
+                   req_response: req_response
+               }); 
+            }
+            
+            for (var i = 0;i < xml_recs.length;i++) {
+                var xml_single_rec = xml_recs[i];
+                println(xml_single_rec);
+                xml_rec_execute(xml_single_rec);
+            }
+       
+     ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

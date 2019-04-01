@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei  
+    $Date: 2015-1-29 下午12:02:11  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            SELECT t1.*
+  FROM (SELECT (SELECT decode(approval_status,
+                              'APPROVING',
+                              '2',
+                              'APPROVED',
+                              '1',
+                              '3')
+                  FROM csh_payment_req_hd
+                 WHERE payment_req_id = (SELECT MAX(req_h.payment_req_id)
+                                           FROM csh_payment_req_ln req_l,
+                                                csh_payment_req_hd req_h
+                                          WHERE req_l.ref_doc_category = 'CONTRACT'
+                                                AND req_l.ref_doc_id = con.contract_id
+                                                AND req_l.ref_doc_line_id = f.cashflow_id
+                                                AND req_l.payment_req_id = req_h.payment_req_id
+                                                AND req_h.closed_flag = 'N'
+                                                AND req_h.approval_status != 'REJECT')
+                UNION
+                SELECT '3'
+                  FROM dual
+                 WHERE NOT EXISTS (SELECT 1
+                          FROM csh_payment_req_ln req_l,
+                               csh_payment_req_hd req_h
+                         WHERE req_l.ref_doc_category = 'CONTRACT'
+                               AND req_l.ref_doc_id = con.contract_id
+                               AND req_l.ref_doc_line_id = f.cashflow_id
+                               AND req_l.payment_req_id = req_h.payment_req_id
+                               AND req_h.closed_flag = 'N'
+                               AND req_h.approval_status != 'REJECT')) approval_status,
+               (SELECT decode(approval_status,
+                              'APPROVING',
+                              '正在走付款流程',
+                              'APPROVED',
+                              '已交财务部，尚未付款',
+                              '尚未收到付款材料')
+                  FROM csh_payment_req_hd
+                 WHERE payment_req_id = (SELECT MAX(req_h.payment_req_id)
+                                           FROM csh_payment_req_ln req_l,
+                                                csh_payment_req_hd req_h
+                                          WHERE req_l.ref_doc_category = 'CONTRACT'
+                                                AND req_l.ref_doc_id = con.contract_id
+                                                AND req_l.ref_doc_line_id = f.cashflow_id
+                                                AND req_l.payment_req_id = req_h.payment_req_id
+                                                AND req_h.closed_flag = 'N'
+                                                AND req_h.approval_status != 'REJECT')
+                UNION
+                SELECT '尚未收到付款材料'
+                  FROM dual
+                 WHERE NOT EXISTS (SELECT 1
+                          FROM csh_payment_req_ln req_l,
+                               csh_payment_req_hd req_h
+                         WHERE req_l.ref_doc_category = 'CONTRACT'
+                               AND req_l.ref_doc_id = con.contract_id
+                               AND req_l.ref_doc_line_id = f.cashflow_id
+                               AND req_l.payment_req_id = req_h.payment_req_id
+                               AND req_h.closed_flag = 'N'
+                               AND req_h.approval_status != 'REJECT')) approval_status_n,
+               (SELECT decode(approval_status,
+                              'APPROVING',
+                              '正在审批',
+                              'APPROVED',
+                              '审批通过',
+                              '')
+                  FROM csh_payment_req_hd
+                 WHERE payment_req_id = (SELECT MAX(req_h.payment_req_id)
+                                           FROM csh_payment_req_ln req_l,
+                                                csh_payment_req_hd req_h
+                                          WHERE req_l.ref_doc_category = 'CONTRACT'
+                                                AND req_l.ref_doc_id = con.contract_id
+                                                AND req_l.ref_doc_line_id = f.cashflow_id
+                                                AND req_l.payment_req_id = req_h.payment_req_id
+                                                AND req_h.closed_flag = 'N'
+                                                AND req_h.approval_status != 'REJECT')
+                UNION
+                SELECT ''
+                  FROM dual
+                 WHERE NOT EXISTS (SELECT 1
+                          FROM csh_payment_req_ln req_l,
+                               csh_payment_req_hd req_h
+                         WHERE req_l.ref_doc_category = 'CONTRACT'
+                               AND req_l.ref_doc_id = con.contract_id
+                               AND req_l.ref_doc_line_id = f.cashflow_id
+                               AND req_l.payment_req_id = req_h.payment_req_id
+                               AND req_h.closed_flag = 'N'
+                               AND req_h.approval_status != 'REJECT')) wfl_approval_status_n,
+               con.contract_number,
+               con.lease_channel,
+               con.lease_channel_n,
+               con.unit_id,
+               con.unit_id_n,
+               con.signing_date,
+               con.inception_of_lease,
+               con.bp_id_tenant_n,
+               con.employee_id_n,
+               (SELECT in_h.invoice_date
+                  FROM acp_invoice_ln in_l,
+                       acp_invoice_hd in_h
+                 WHERE in_l.cashflow_id = f.cashflow_id
+                       AND in_l.invoice_header_id = in_h.invoice_hd_id
+                       AND in_h.reversed_flag = 'N') invoice_date,
+               con.other_fee,
+               (SELECT decode(in_h.invoice_status,
+                              'NEW',
+                              '新建',
+                              'CONFIRM',
+                              '已确认')
+                  FROM acp_invoice_ln in_l,
+                       acp_invoice_hd in_h
+                 WHERE in_l.cashflow_id = f.cashflow_id
+                       AND in_l.invoice_header_id = in_h.invoice_hd_id
+                       AND in_h.reversed_flag = 'N') invoice_status_n,
+               (SELECT in_h.invoice_number
+                  FROM acp_invoice_ln in_l,
+                       acp_invoice_hd in_h
+                 WHERE in_l.cashflow_id = f.cashflow_id
+                       AND in_l.invoice_header_id = in_h.invoice_hd_id
+                       AND in_h.reversed_flag = 'N') invoice_number,
+               (SELECT req_h.amount
+                  FROM csh_payment_req_hd req_h,
+                       csh_payment_req_ln req_l
+                 WHERE req_h.approval_status IN ('APPROVED',
+                                                 'APPROVING')
+                       AND req_l.ref_doc_id = con.contract_id
+                       AND req_l.ref_doc_line_id = f.cashflow_id
+                       AND req_l.payment_req_id = req_h.payment_req_id
+                       AND req_h.closed_flag = 'N') total_amount,
+               (SELECT in_h.accounting_date
+                  FROM acp_invoice_ln in_l,
+                       acp_invoice_hd in_h
+                 WHERE in_l.cashflow_id = f.cashflow_id
+                       AND in_l.invoice_header_id = in_h.invoice_hd_id
+                       AND in_h.invoice_status = 'CONFIRM'
+                       AND in_h.reversed_flag = 'N') accounting_date,
+               (SELECT payment_completed_date
+                  FROM csh_payment_req_ln
+                 WHERE payment_req_ln_id = (SELECT MAX(req_l.payment_req_ln_id)
+                                              FROM csh_payment_req_ln req_l,
+                                                   csh_payment_req_hd req_h
+                                             WHERE req_l.ref_doc_category = 'CONTRACT'
+                                                   AND req_l.ref_doc_id = con.contract_id
+                                                   AND req_l.ref_doc_line_id = f.cashflow_id
+                                                   AND req_l.payment_req_id = req_h.payment_req_id
+                                                   AND req_h.closed_flag = 'N'
+                                                   AND req_h.approval_status != 'REJECT')) payment_completed_date,
+               (SELECT description
+                  FROM csh_payment_req_ln
+                 WHERE payment_req_ln_id = (SELECT MAX(req_l.payment_req_ln_id)
+                                              FROM csh_payment_req_ln req_l,
+                                                   csh_payment_req_hd req_h
+                                             WHERE req_l.ref_doc_category = 'CONTRACT'
+                                                   AND req_l.ref_doc_id = con.contract_id
+                                                   AND req_l.ref_doc_line_id = f.cashflow_id
+                                                   AND req_l.payment_req_id = req_h.payment_req_id
+                                                   AND req_h.closed_flag = 'N'
+                                                   AND req_h.approval_status != 'REJECT')) descriptions
+          FROM con_contract_lv       con,
+               con_contract_cashflow f
+         WHERE con.contract_id = f.contract_id
+               AND f.cf_item = 109
+               AND f.cf_type = 109
+               AND f.write_off_flag != 'FULL'
+               AND con.contract_status = 'INCEPT'
+               AND con.data_class = 'NORMAL'
+               AND NOT EXISTS (SELECT req_l.payment_completed_date
+                  FROM csh_payment_req_ln req_l
+                 WHERE req_l.ref_doc_category = 'CONTRACT'
+                       AND req_l.ref_doc_id = con.contract_id
+                       AND req_l.ref_doc_line_id = f.cashflow_id
+                       AND req_l.payment_completed_date IS NOT NULL)) t1
+                       #WHERE_CLAUSE#
+		ORDER BY t1.approval_status
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="approval_status" queryExpression="t1.approval_status=${@approval_status}"/>
+        <bm:query-field name="contract_number" queryExpression="t1.contract_number like ${@contract_number}"/>
+        <bm:query-field name="unit_id_n" queryExpression="t1.unit_id_n like ${@unit_id_n}"/>
+        <bm:query-field name="invoice_number" queryExpression="t1.invoice_number like ${@invoice_number}"/>
+        <bm:query-field name="inception_of_lease_from" queryExpression="t1.inception_of_lease&gt;=trunc(to_date(${@inception_of_lease_from},&apos;yyyy-mm-dd&apos;))"/>
+        <bm:query-field name="inception_of_lease_to" queryExpression="trunc(t1.inception_of_lease)&lt;=to_date(${@inception_of_lease_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="invoice_date_from" queryExpression="t1.invoice_date&gt;=trunc(to_date(${@invoice_date_from},&apos;yyyy-mm-dd&apos;))"/>
+        <bm:query-field name="invoice_date_to" queryExpression="trunc(t1.invoice_date)&lt;=to_date(${@invoice_date_to},&apos;yyyy-mm-dd&apos;)"/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter name="query" expression="t1.lease_channel !=&apos;02&apos;"/>
+    </bm:data-filters>
+</bm:model>

@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ouyangzhaochang2663 $
+    $Date: 2010/12/10 08:03:39 $
+    $Revision: 1.4 $
+    $Purpose: 更新公司信息
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query autoCount="false" fetchAll="true" fieldNameCase="lower" model="fnd.fnd_companies" rootPath="fnd_company"/>
+        <a:model-query autoCount="true" defaultWhereClause="enabled_flag = &apos;Y&apos;" fetchAll="true" model="gld.gld_set_of_books" queryOrderBy="set_of_books_code" rootPath="set_of_book_list"/>
+        <a:model-query autoCount="false" fetchAll="true" model="fnd.FND2020.fnd_company_position_cmb" rootPath="parent_companies"/>
+        <a:model-query fetchAll="true" model="basic.fnd_company_journal_count" rootPath="hls_journal_header_path"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+            function createCompany() {
+                $('fnd_companies_update_ds').submit();
+            }
+            
+            function closeWindow() {
+                $('company_edit_window').close();
+                queryCompanies();
+            }
+            
+            function onUpdate(ds, record, name, value) {
+                if (name == 'start_date_active' || name == 'end_date_active') {
+                    record.validate((name == 'start_date_active') ? 'end_date_active' : 'start_date_active');
+                }
+            }
+            
+            function compareDate(start, end) {
+                if (start > end) {
+                    return false;
+                }
+                return true;
+            }
+            
+            function dateValidator(record, name, value) {
+                if (name == 'start_date_active' || name == 'end_date_active') {
+                    var start_date = record.get('start_date_active');
+                    var end_date = record.get('end_date_active');
+                    if (typeof(end_date) != 'undefined' && !Ext.isEmpty(end_date)) {
+                        if (!compareDate(start_date, end_date)) {
+                            return '${l:START_GREATER_THAN_END}';
+                        }
+                    }
+                    return true;
+                }
+            }
+            
+            function oncompanyLoad(ds) {
+                var record = ds.getCurrentRecord();
+                if ('${/model/hls_journal_header_path/record/@je_count}' == 0) {
+                    record.getField('set_of_books_id_display').setReadOnly(false);
+                } else {
+                    record.getField('set_of_books_id_display').setReadOnly(true);
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <!-- SPV公司 -->
+            <a:dataSet id="spv_company_ds">
+                <a:datas>
+                    <a:record name="是" code="Y"/>
+                    <a:record name="否" code="N"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="fnd_companies_level_ds" autoCount="false" fetchAll="true" loadData="true" model="fnd.fnd_company_levels"/>
+            <a:dataSet id="fnd_companies_type_ds" lookupCode="COMPANY_TYPE"/>
+            <a:dataSet id="gld_set_of_book_ds">
+                <a:datas dataSource="/model/set_of_book_list"/>
+            </a:dataSet>
+            <a:dataSet id="parent_companies_ds">
+                <a:datas dataSource="/model/parent_companies"/>
+            </a:dataSet>
+            <!-- <a:dataSet id="fnd_companies_parent_ds" autoCount="false" fetchAll="true" loadData="true" model="fnd.FND2020.fnd_companies_parent"/> -->
+            <a:dataSet id="fnd_companies_update_ds" loadData="true" model="fnd.fnd_companies" submitUrl="${/request/@context_path}/modules/fnd/FND2020/fnd_company_create_control.svc">
+                <a:fields>
+                    <a:field name="phone"/>
+                    <a:field name="invoice_bp_bank"/>
+                    <a:field name="company_code" readOnly="true" required="true"/>
+                    <a:field name="company_short_name" required="true"/>
+                    <a:field name="company_type_display" displayField="code_value_name" options="fnd_companies_type_ds" readOnly="true" required="true" returnField="company_type" valueField="code_value"/>
+                    <a:field name="set_of_books_id_display" displayField="set_of_books_name_display" options="gld_set_of_book_ds" readOnly="true" required="true" returnField="set_of_books_id" valueField="set_of_books_id"/>
+                    <a:field name="parent_biz_company_display" readOnly="true"/>
+                    <a:field name="parent_biz_company_code" lovGridHeight="300" lovHeight="460" lovService="fnd.fnd_companies?company_type=1&amp;valid_date=sysdate&amp;not_company_id=${/parameter/@company_id}" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="company_id" to="parent_biz_company_id"/>
+                            <a:map from="company_code" to="parent_biz_company_code"/>
+                            <a:map from="company_short_name" to="parent_biz_company_display"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="start_date_active" datatype="date" required="true" validator="dateValidator"/>
+                    <a:field name="end_date_active" datatype="date" validator="dateValidator"/>
+                    <!-- <a:field name="parent_company_id_display" displayField="company_code" options="fnd_companies_parent_ds" returnField="parent_company_id" valueField="company_id"/> -->
+                    <a:field name="chief_position_id_display" lovGridHeight="320" lovHeight="450" lovService="fnd.FND2020.fnd_company_position_cmb?company_id=${/session/@company_id}" lovWidth="550" title="FND_COMPANIES.CHIEF_POSITION_ID">
+                        <a:mapping>
+                            <a:map from="position_name_display" to="chief_position_id_display"/>
+                            <a:map from="position_id" to="chief_position_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <!-- <a:field name="spv_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/> -->
+                    <a:field name="spv_flag_desc" displayField="name" options="spv_company_ds" prompt="FND_COMPANIES.SPV_FLAG" returnField="spv_flag" valueField="code"/>
+                    <a:field name="enable_role_authority" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="enable_user_authority" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="bank_info" lovGridHeight="320" lovHeight="450" lovService="fnd.FND2020.csh_bank_account_v?company_id=${/parameter/@company_id}&amp;enabled_flag=Y" lovWidth="550" title="收款账户">
+                        <a:mapping>
+                            <a:map from="bank_info" to="bank_info"/>
+                            <a:map from="bank_account_id" to="bank_account_id"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+                <a:events>
+                    <!-- <a:event name="submitsuccess" handler="closeWindow"/> -->
+                    <a:event name="update" handler="onUpdate"/>
+                    <a:event name="load" handler="oncompanyLoad"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="closeWindow" text="HLS.CLOSE"/>
+                <a:gridButton click="createCompany" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:fieldSet column="1" title="FND_COMPANIES.INFO" width="550">
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="company_code" bindTarget="fnd_companies_update_ds" typeCase="upper"/>
+                    <a:textField name="company_short_name" bindTarget="fnd_companies_update_ds"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="company_full_name" bindTarget="fnd_companies_update_ds" width="408"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:comboBox name="company_type_display" bindTarget="fnd_companies_update_ds"/>
+                    <a:comboBox name="set_of_books_id_display" bindTarget="fnd_companies_update_ds"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <!-- <a:comboBox name="company_level_id_display" bindTarget="fnd_companies_update_ds"/> -->
+                    <a:lov name="chief_position_id_display" bindTarget="fnd_companies_update_ds"/>
+                    <!-- <a:checkBox name="spv_flag" bindTarget="fnd_companies_update_ds"/> -->
+                    <a:comboBox name="spv_flag_desc" bindTarget="fnd_companies_update_ds"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:lov name="parent_biz_company_code" bindTarget="fnd_companies_update_ds"/>
+                    <a:textField name="parent_biz_company_display" bindTarget="fnd_companies_update_ds"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:datePicker name="start_date_active" bindTarget="fnd_companies_update_ds"/>
+                    <a:datePicker name="end_date_active" bindTarget="fnd_companies_update_ds"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="address" bindTarget="fnd_companies_update_ds" width="408"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="phone" bindTarget="fnd_companies_update_ds" prompt="电话" width="408"/>
+                </a:hBox>
+                <!-- <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:checkBox name="spv_flag" bindTarget="fnd_companies_update_ds"/>
+                </a:hBox> -->
+            </a:fieldSet>
+            <a:fieldSet column="1" title="FND_COMPANIES.FINACE_DETAIL" width="550">
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="invoice_title" bindTarget="fnd_companies_update_ds" width="408"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="invoice_bp_address_phone_num" bindTarget="fnd_companies_update_ds" width="408"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:lov name="bank_info" bindTarget="fnd_companies_update_ds" prompt="收款账户" width="408"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="invoice_bp_bank_account" bindTarget="fnd_companies_update_ds" prompt="开户行及账号" width="408"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:numberField name="vat_invoice_limit" allowDecimals="true" allowFormat="true" bindTarget="fnd_companies_update_ds"/>
+                    <a:numberField name="invoice_limit" allowFormat="true" bindTarget="fnd_companies_update_ds"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="tax_registry_num" bindTarget="fnd_companies_update_ds"/>
+                    <a:numberField name="sales_tax_invoice_limit" allowFormat="true" bindTarget="fnd_companies_update_ds"/>
+                </a:hBox>
+            </a:fieldSet>
+            <a:fieldSet column="1" title="FND_COMPANIES.AUTHORITY_CONTROL" width="550">
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:checkBox name="enable_user_authority" bindTarget="fnd_companies_update_ds"/>
+                    <a:label width="117"/>
+                    <a:checkBox name="enable_role_authority" bindTarget="fnd_companies_update_ds"/>
+                </a:hBox>
+            </a:fieldSet>
+        </a:screenBody>
+    </a:view>
+</a:screen>

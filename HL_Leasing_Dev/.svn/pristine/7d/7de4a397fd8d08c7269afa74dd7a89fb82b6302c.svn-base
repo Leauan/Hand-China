@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang 
+    $Date: 2014-10-27 上午09:19:03  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        t.contract_id,
+                        t.company_id,
+                        t.business_type,
+                        t.contract_number,
+                        t.contract_name,
+                        t.document_type,
+                        dt.document_type_desc,
+                        t.document_category,
+                        dt.document_category_desc,
+                        t.bp_id_tenant,
+                        b.bp_name,
+                        b.bp_code,
+                        p.project_name,
+                        TO_CHAR(t.inception_of_lease,'yyyy-mm-dd') inception_of_lease,
+                        p.employee_id,
+                        (SELECT u.user_name FROM sys_user_v u WHERE u.user_id=p.employee_id
+                        )employee_name,
+                        t.contract_status,
+                        (SELECT
+                            v.code_value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code       = 'CON500_CONTRACT_STATUS' AND
+                            v.code_value = t.contract_status
+                        ) AS status_desc,
+                        (SELECT
+                            DECODE(COUNT(*),0,'N','Y')
+                        FROM
+                            con_contract_cashflow f
+                        WHERE
+                            f.contract_id   =t.contract_id AND
+                            f.overdue_status='Y'
+                        ) overdue_status
+                    FROM
+                        con_contract t,
+                        prj_project p,
+                        hls_bp_master b,
+                        hls_document_type_v dt
+                    WHERE
+                        t.project_id        = p.project_id(+) AND
+                        t.bp_id_tenant      = b.bp_id(+) AND
+                        dt.document_type(+) = t.document_type AND
+                        T.CONTRACT_STATUS   = 'INCEPT' AND
+                        t.data_class        ='NORMAL'
+                    ) v #WHERE_CLAUSE#
+                ORDER BY
+                    v.contract_number DESC
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="contract_id" queryExpression="t1.contract_id = ${@contract_id}"/>
+        <bm:query-field name="date_from" datatype="java.lang.String" queryexpression="v.inception_of_lease &gt;= ${@date_from}"/>
+        <bm:query-field name="date_to" datatype="java.lang.String" queryexpression="v.inception_of_lease &lt;= ${@date_from}"/>
+        <bm:query-field name="contract_number" datatype="java.lang.String" queryexpression="v.contract_number=${@contract_number}"/>
+        <bm:query-field name="contract_name" datatype="java.lang.String" queryexpression="v.contract_name=${@contract_name}"/>
+        <bm:query-field name="bp_code" datatype="java.lang.String" queryexpression="v.bp_code=${@bp_code}"/>
+        <bm:query-field name="project_number" datatype="java.lang.String" queryexpression="v.project_number=${@project_number}"/>
+        <bm:query-field name="document_category" datatype="java.lang.String" queryexpression="v.document_category=${@document_category}"/>
+        <bm:query-field name="document_type" datatype="java.lang.String" queryexpression="v.document_type=${@document_type}"/>
+        <bm:query-field name="user_id" datatype="java.lang.String" queryexpression="v.employee_id=${@user_id}"/>
+        <bm:query-field name="overdue_status" datatype="java.lang.String" queryexpression="v.overdue_status=${@overdue_status}"/>
+    </bm:query-fields>
+</bm:model>

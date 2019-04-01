@@ -1,0 +1,609 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-4-17 上午09:26:12  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" customizationEnabled="true" trace="true">
+    <a:init-procedure participants="aurora.service.exception.ExceptionHandler">
+        <a:model-query defaultWhereClause="d.enabled_flag=&apos;Y&apos; and nvl(d.display_flag,&apos;N&apos;)!=&apos;N&apos;" fetchAll="true" model="hls.HLS500.hls_fin_calc_config_ln" rootPath="calc_config_ln_path"/>
+        <a:model-query defaultWhereClause="d.enabled_flag=&apos;Y&apos;" fetchAll="true" model="hls.HLS500.hls_fin_calc_config_ln" rootPath="calc_config_ln_all_path"/>
+        <a:model-query fetchAll="true" model="hls.HLS500.hls_fin_calc_button" rootPath="calc_button_path"/>
+        <a:model-query defaultWhereClause="t.enabled_flag=&apos;Y&apos; and t.display_flag=&apos;Y&apos;" fetchAll="true" model="hls.HLS500.hls_fin_calc_config_hd" rootPath="calc_config_hd_path"/>
+        <a:model-query defaultWhereClause="t.enabled_flag=&apos;Y&apos; and t.display_flag=&apos;N&apos;" fetchAll="true" model="hls.HLS500.hls_fin_calc_config_hd" rootPath="temp_config_hd_path"/>
+        <a:model-query fetchAll="true" model="hls.HLS500.hls_fin_calculator_ln_formula" rootPath="ln_formula_path"/>
+        <a:model-query fetchAll="true" model="hls.HLS500.hls_fin_calculator_hd_formula" rootPath="hd_formula_path"/>
+        <a:model-query defaultwhereclause="(d.layout_area_seq = &apos;H&apos;)" fetchAll="true" model="hls.HLS500.hls_parameter_value_lov_load" rootPath="hd_parameter_sql_value"/>
+        <a:model-query defaultwhereclause="(d.layout_area_seq = &apos;L&apos;)" fetchAll="true" model="hls.HLS500.hls_parameter_value_lov_load" rootPath="ln_parameter_sql_value"/>
+        <p:exception-handles>
+            <p:catch Exception="*">
+                <p:action name="HandleException"/>
+                <p:action name="CreateErrorResponse"/>
+            </p:catch>
+        </p:exception-handles>
+    </a:init-procedure>
+    <a:view>
+        <!-- <a:link id="hls_parameter_value_lov_link" url="${/request/@context_path}/modules/hls/HLS500/hls_parameter_value_lov.screen"/> -->
+        <a:link id="hls_fin_calculator_price_list" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calculator_price_list.screen"/>
+        <a:link id="hls_fin_calculator_update" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calculator_update.screen"/>
+        <style><![CDATA[
+        .finGrid td[dataindex=percent]{
+            border-right-color:#FFF;
+            background-color:#FFF;
+            border-bottom-color:#FFF;
+        }
+		.item-options{
+		    background:#ffffff;
+		}
+		.cell-editor{
+    		border:none;
+    		margin-left:3px;
+    	}
+        ]]></style>
+        <a:screen-include screen="modules/hls/HLS500/hls_fin_calculator_dynamic.screen?calc_session_id=${/parameter/@calc_session_id}&amp;calc_type=CLASSIC_CALCULATOR&amp;document_category=${/parameter/@document_category}&amp;winId=${/parameter/@winId}"/>
+        <script><![CDATA[
+            var formula_column_name = '';
+            var formula_column_code = '';
+            var formula_prompt = '';
+            var formula_row = '';
+            var formula_calc_line_id = '';
+            var recreate_L_formula_value = '';
+            var recreate_L_formula = '${/parameter/@recreate_L_formula}' || 'N';
+            var recreate_H_formula = '${/parameter/@recreate_H_formula}' || 'N';
+            var global_button_code = '';
+            var global_save_data_first = '';
+            var global_action_after_button = '';
+            var global_javascript = '';
+            var quotation_update_flag = 'N';
+            var errorColor = {
+                ERROR: 'FFFF00'
+            };
+            
+            Aurora.Masker.mask(document.documentElement, '${l:HLS.LOADING}');
+            
+            function hls_formatMoney(v, p) {
+                return Aurora.formatNumber(v, p);
+            }
+            
+            function hls_formatMoney_zero_fill(v, p) {
+                return Aurora.formatNumber(v, p).replace(/0*$/g, '').replace(/\.$/, '');
+            }
+            
+            function is_false_return(value) {
+                if (isNaN(value) && Ext.isDefined(value)) {
+                    if (value.substring(0, 1) == '#') {
+                        return false;
+                    }
+            
+                } else {
+                    return true;
+                }
+            }
+            
+            function setGridCellStyle(record, name, cls) {
+                var id = 'hls_fin_calculator_hd_grid_id_' + name + '_' + record.id,
+                    intervalId = setInterval(function() {
+                        var div = Ext.get(id);
+                        if (div) {
+                            if (!div.getBorderWidth('t r b l')) {
+                                div = div.parent();
+                            }
+                            clearInterval(intervalId);
+                            div.dom.className = '';
+                            div.addClass(cls);
+                        }
+                    }, 10);
+            }
+            
+            function seedetail_column_hd(value, record, name) {
+                var field = record.getField(name);
+                if (field.isRequired()) {
+                    setGridCellStyle(record, name, 'item-notBlank');
+                } else if (!field.isRequired() && !field.isReadOnly()) {
+                    setGridCellStyle(record, name, 'item-options');
+                }
+                if (is_false_return(value) == false) {
+                    return "<div style='background-color:#" + errorColor['ERROR'] + "'>" + value + "</div>";
+                }
+                if (record.get('validation_type') == 'NUMBERFIELD' && (value || value === 0)) {
+                    if (record.get('allow_format') == 'TRUE') {
+                        if (record.get('precision')) {
+                            if (record.get('zero_fill') == 'TRUE') {
+                                return hls_formatMoney(value, record.get('precision'));
+                            } else {
+                                return hls_formatMoney_zero_fill(value, record.get('precision'));
+                            }
+                        } else {
+                            return hls_formatMoney(value);
+                        }
+                    } else {
+                        if (record.get('precision') && record.get('allow_decimal') == 'TRUE') {
+                            if (record.get('zero_fill') == 'TRUE') {
+                                return parseFloat(value).toFixed(record.get('precision'));
+                            } else {
+                                return parseFloat(value).toFixed(record.get('precision')).replace(/0*$/g, '').replace(/\.$/, '');
+                            }
+                        } else {
+                            if (record.get('allow_decimal') == 'TRUE') {
+                                return value;
+                            } else {
+                                return parseFloat(parseFloat(value).toFixed(0));
+                            }
+                        }
+                    }
+                } else if (record.get('validation_type') == 'DATEPICKER') {
+                    return Aurora.formatDate(value);
+                } else {
+                    return value;
+                }
+            }
+            
+            function wrap_render(value, record, name) {
+                var editor_record = $('line_attribute_ds').find('column_name', name);
+                if (editor_record.get('validation_type') == 'NUMBERFIELD' && editor_record.get('input_mode') != 'READONLY' && name != 'times' && editor_record.get('sys_grid_col_underline') == 'Y' && !Ext.isEmpty(value)) {
+                    return '<u>' + seedetail_column_ln(value, record, name) + '</u>';
+                } else {
+                    return seedetail_column_ln(value, record, name);
+                }
+            }
+            
+            function seedetail_column_ln(value, record, name) {
+                if (is_false_return(value) == false) {
+                    return "<div style='background-color:#" + errorColor['ERROR'] + "'>" + value + "</div>";
+                }
+                var editor_record = $('line_attribute_ds').find('column_name', name);
+                if (editor_record.get('validation_type') == 'NUMBERFIELD' && (value || value === 0)) {
+                    if (editor_record.get('allow_format') == 'TRUE') {
+                        if (editor_record.get('precision')) {
+                            if (editor_record.get('zero_fill') == 'TRUE') {
+                                return hls_formatMoney(value, editor_record.get('precision'));
+                            } else {
+                                return hls_formatMoney_zero_fill(value, editor_record.get('precision'));
+                            }
+                        } else {
+                            return hls_formatMoney(value);
+                        }
+                    } else {
+                        if (editor_record.get('precision') && editor_record.get('allow_decimal') == 'TRUE') {
+                            if (editor_record.get('zero_fill') == 'TRUE') {
+                                return parseFloat(value).toFixed(editor_record.get('precision'));
+                            } else {
+                                return parseFloat(value).toFixed(editor_record.get('precision')).replace(/0*$/g, '').replace(/\.$/, '');
+                            }
+                        } else {
+                            if (editor_record.get('allow_decimal') == 'TRUE') {
+                                return value;
+                            } else {
+                                return parseFloat(parseFloat(value).toFixed(0));
+                            }
+                        }
+                    }
+                } else if (editor_record.get('validation_type') == 'DATEPICKER') {
+                    return Aurora.formatDate(value);
+                } else {
+                    return value;
+                }
+            }
+            
+            function parameter_function(record, name) {
+                var field = record.getField(name),
+                    ds = $('hls_fin_calculator_hd_ds'),
+                    input_mode = record.get('input_mode');
+                field.setReadOnly(true);
+                special_editor_function(ds, record, name);
+                if (record.get('alignment')) {
+                    Ext.each($('hls_fin_calculator_hd_grid_id').columns, function(c) {
+                        if (c.name == name) {
+                            c.align = record.get('alignment');
+                        }
+                    });
+                }
+                if (record.get('validation_type') == 'NUMBERFIELD') {
+                    if (record.get('allow_decimal') == 'TRUE') {
+                        field.setPropertity('allowdecimals', true);
+                    } else {
+                        field.setPropertity('allowdecimals', false);
+                    }
+                    if (record.get('precision') || record.get('precision') == 0) {
+                        field.setPropertity('decimalprecision', record.get('precision'));
+                    }
+                    if (record.get('zero_fill') == 'TRUE') {
+                        field.setPropertity('allowpad', true);
+                    } else {
+                        field.setPropertity('allowpad', false);
+                    }
+                    set_field_limit(record, field);
+                } else if (record.get('validation_type') == 'LOV') {
+                    var documentMapping;
+                    if (record.get('lov_return_vcode') == 'Y') {
+                        documentMapping = [{
+                            from: 'value_code',
+                            to: name
+                        }];
+                    } else {
+                        documentMapping = [{
+                            from: 'value_name',
+                            to: name
+                        }, {
+                            from: 'value_code',
+                            to: name + '_c'
+                        }];
+                    }
+                    var hd_parameter_sql_value_record = $('hd_parameter_sql_value_ds').find('column_code', record.get('column_code'));
+                    field.setLovPara('validation_sql', hd_parameter_sql_value_record.get('validation_sql'));
+                    field.setTitle(record.get('prompt'));
+                    field.setMapping(documentMapping);
+                    field.setLovModel('hls.HLS500.hls_parameters_lov');
+                } else if (record.get('validation_type') == 'COMBOBOX') {
+                    var combobox_ds = record.get('layout_area_seq') + '_' + record.get('column_name') + '_combobox_ds';
+                    combobox_ds = $(combobox_ds);
+                    field.setOptions(combobox_ds);
+                    combobox_ds.setQueryParameter('validation_sql', record.get('validation_sql'));
+                    var comboBoxMapping;
+                    field.setPropertity('valuefield', 'value_code');
+                    if (record.get('lov_return_vcode') == 'Y') {
+                        field.setPropertity('displayfield', 'value_code');
+                        comboBoxMapping = [{
+                            from: 'value_code',
+                            to: name
+                        }];
+                    } else {
+                        field.setPropertity('displayfield', 'value_name');
+                        comboBoxMapping = [{
+                            from: 'value_code',
+                            to: name + '_c'
+                        }];
+                    }
+                    field.setMapping(comboBoxMapping);
+                } else if (record.get('validation_type') == 'CHECKBOX') {
+                    field.setPropertity('checkedvalue', 'Y');
+                    field.setPropertity('uncheckedvalue', 'N');
+                } else if (record.get('validation_type') == 'BOOLEAN_CHECKBOX') {
+                    field.setPropertity('checkedvalue', '1');
+                    field.setPropertity('uncheckedvalue', '0');
+                }
+                return '';
+            }
+            
+            function do_hls500_column_name(record, name) {
+                var editor_record = $('line_attribute_ds').find('column_name', name),
+                    field = record.getField(name),
+                    input_mode = editor_record.get('input_mode');
+                field.setReadOnly(true);
+                if (editor_record.get('validation_type') == 'NUMBERFIELD') {
+                    if (editor_record.get('allow_decimal') == 'TRUE') {
+                        field.setPropertity('allowdecimals', true);
+                    } else {
+                        field.setPropertity('allowdecimals', false);
+                    }
+                    if (editor_record.get('precision') || editor_record.get('precision') == 0) {
+                        field.setPropertity('decimalprecision', editor_record.get('precision'));
+                    }
+                    if (editor_record.get('zero_fill') == 'TRUE') {
+                        field.setPropertity('allowpad', true);
+                    } else {
+                        field.setPropertity('allowpad', false);
+                    }
+                    set_field_limit(editor_record, field);
+                } else if (editor_record.get('validation_type') == 'LOV') {
+                    var documentMapping = [{
+                        from: 'value_code',
+                        to: name
+                    }];
+                    var ln_parameter_sql_value_record = $('ln_parameter_sql_value_ds').find('column_code', editor_record.get('column_code'));
+                    field.setLovPara('validation_sql', ln_parameter_sql_value_record.get('validation_sql'));
+                    field.setTitle(editor_record.get('prompt'));
+                    field.setMapping(documentMapping);
+                    field.setLovModel('hls.HLS500.hls_parameters_lov');
+                } else if (editor_record.get('validation_type') == 'CHECKBOX') {
+                    field.setPropertity('checkedvalue', 'Y');
+                    field.setPropertity('uncheckedvalue', 'N');
+                } else if (editor_record.get('validation_type') == 'BOOLEAN_CHECKBOX') {
+                    field.setPropertity('checkedvalue', '1');
+                    field.setPropertity('uncheckedvalue', '0');
+                }
+                return '';
+            }
+            
+            function hls_hls500_return() {
+                if ('${/parameter/@global_flag}' == 'Y') {
+                    current_win_close();
+                } else {
+                    var url = $('hls_fin_calculator_price_list').getUrl();
+                    window.location.href = url;
+                }
+            }
+            
+            function do_hls500_line_load(ds) {
+                var lineRecords = ds.getAll();
+                var attribute_records = $('line_attribute_ds').getAll();
+                if (!lineRecords) {
+                    return;
+                }
+                if ('${/model/calc_config_hd_path/record/@show_column_code}' == 'Y') {
+                    for (var i = 0;i < lineRecords.length;i++) {
+                        var ln_formula_record = $('ln_formula_ds').find('calc_line_id', lineRecords[i].get('calc_line_id'));
+                        for (var j = 0;j < attribute_records.length;j++) {
+                            var column_name = attribute_records[j].get('column_name');
+                            var tooltip_ln_formula = escapeHtml(appendBr(ln_formula_record.get(column_name), 60));
+                            lineRecords[i].getField(column_name).setPropertity('tooltip', tooltip_ln_formula);
+                        }
+                    }
+                }
+            }
+            
+            function do_hls500_line_update(ds, record, name, value, old_value) {
+                if (quotation_update_flag == 'N') {
+                    quotation_update_flag = 'Y';
+                }
+                var formula_record = $('ln_formula_ds').find('calc_line_id', record.get('calc_line_id'));
+                if (formula_record) {
+                    formula_record.set(name, value);
+                }
+                onLineupdate_setEmpty(ds, record, name, value, old_value);
+            }
+            
+            function escapeHtml(str) {
+                if (Ext.isEmpty(str) || !Ext.isString(str)) {
+                    return str;
+                }
+                return $A.escapeHtml(str).replace(/&lt;br\/&gt;/gm, '<br/>');
+            }
+            
+            function appendBr(s, max) {
+                if (s) {
+                    for (var i = max || 10;i < s.length;i += max + 5) {
+                        s = s.substr(0, i) + '<br/>' + s.substr(i);
+                    }
+                    return s;
+                } else {
+                    return '';
+                }
+            }
+            
+            function on_hd_load_last_deal(ds, each_record) {
+                var value;
+                if (each_record.get('lov_return_vcode') == 'N' && (each_record.get('validation_type') == 'COMBOBOX' || each_record.get('validation_type') == 'LOV')) {
+                    value = each_record.get('column_value_c');
+                } else {
+                    value = each_record.get('column_value');
+                }
+                onEditor_load_fire(ds, each_record, each_record.get('column_name'), value, null);
+            }
+            
+            function onEditorHdload(ds) {
+                var headRecords = ds.getAll();
+                if (headRecords[0].get('show_column_code') == 'N') {
+                    $('hls_fin_calculator_hd_grid_id').hideColumn('column_code');
+                    $('hls_fin_calculator_export_grid_id').hideColumn('column_code');
+                } else {
+                    var hd_formula_record = $('hd_formula_ds').getAt(0);
+                    for (var i = 0;i < headRecords.length;i++) {
+                        var column_name = headRecords[i].get('column_name');
+                        var tooltip_hd_formula = escapeHtml(appendBr(hd_formula_record.get(column_name), 60));
+                        headRecords[i].getField('column_code').setPropertity('tooltip', tooltip_hd_formula);
+                        headRecords[i].getField('prompt').setPropertity('tooltip', tooltip_hd_formula);
+                        headRecords[i].getField('column_value').setPropertity('tooltip', tooltip_hd_formula);
+                    }
+                }
+                Ext.each(ds.getAll(), function(each_record) {
+                    each_record.isNew = true;
+                    Ext.iterate(ds.fields, function(key) {
+                        key == 'column_value' && parameter_function(each_record, key);
+                    })
+                });
+                Ext.each(ds.getAll(), function(each_record) {
+                    on_hd_load_last_deal(ds, each_record);
+                });
+                Ext.each($('temp_hd_attribute_ds').getAll(), function(each_record) {
+                    on_hd_load_last_deal($('temp_hd_attribute_ds'), each_record);
+                });
+                Aurora.Masker.unmask(document.documentElement);
+            }
+            
+            function hls500_hd_process(datas) {
+                for (var i = 0;i < datas.length;i++) {
+                    var temp = datas[i];
+                    if (temp.data['validation_type'] == 'NUMBERFIELD') {
+                        temp.data['column_value'] = isNaN(temp.data['column_value']) == true ? temp.data['column_value'] : parseFloat(parseFloat(temp.data['column_value']).toFixed(temp.data['precision']));
+                    }
+                }
+                return datas;
+            }
+            
+            function hls500_ln_process(datas) {
+                for (var i = 0;i < datas.length;i++) {
+                    var temp = datas[i];
+                    for (var name in temp.data) {
+                        var temp_record = $('line_attribute_ds').find('column_name', name);
+                        if (temp_record) {
+                            if (temp_record.get('validation_type') == 'NUMBERFIELD') {
+                                temp.data[name] = isNaN(temp.data[name]) == true ? temp.data[name] : parseFloat(parseFloat(temp.data[name]).toFixed(temp_record.get('precision')));
+                            }
+                        }
+                    }
+                }
+                return datas;
+            }
+            
+            
+            
+            function hls_hls500_export() {
+                $('hls_fin_calculator_export_ds').query();
+            
+                function on_hls_fin_calculator_export_load() {
+                    $('hls_fin_calculator_export_grid_id')._export();
+                    $('hls_fin_calculator_export_ds').un('load', on_hls_fin_calculator_export_load);
+                }
+                $('hls_fin_calculator_export_ds').on('load', on_hls_fin_calculator_export_load);
+            }
+            
+            function hd_grid_rowrenderer() {
+                return 'background-color:#f3f3f3';
+            }
+            
+            Aurora.onReady(function() {
+                Ext.fly('hls_fin_calculator_export_grid_id_wrap').setStyle({
+                    display: 'none'
+                });
+            });
+        ]]></script>
+        <a:dataSets>
+            <a:placeHolder id="dynamicDataSet_left_id"/>
+            <a:dataSet id="hls_dynamiclinefields_ds" autoCreate="true">
+                <a:fields>
+                    <a:placeHolder id="dynamicLineFields"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="line_attribute_ds">
+                <a:datas dataSource="/model/calc_config_ln_path"/>
+            </a:dataSet>
+            <a:dataSet id="line_field_ds">
+                <a:datas dataSource="/model/calc_config_ln_all_path"/>
+            </a:dataSet>
+            <a:dataSet id="temp_hd_attribute_ds">
+                <a:datas dataSource="/model/temp_config_hd_path"/>
+            </a:dataSet>
+            <a:dataSet id="hd_parameter_sql_value_ds">
+                <a:datas dataSource="/model/hd_parameter_sql_value"/>
+            </a:dataSet>
+            <a:dataSet id="ln_parameter_sql_value_ds">
+                <a:datas dataSource="/model/ln_parameter_sql_value"/>
+            </a:dataSet>
+            <a:dataSet id="ln_formula_ds" queryUrl="${/request/@context_path}/autocrud/hls.HLS500.hls_fin_calculator_ln_formula/query?calc_session_id=${/parameter/@calc_session_id}">
+                <a:datas dataSource="/model/ln_formula_path"/>
+            </a:dataSet>
+            <a:dataSet id="hd_formula_ds">
+                <a:datas dataSource="/model/hd_formula_path"/>
+            </a:dataSet>
+            <a:dataSet id="calc_button_ds">
+                <a:datas dataSource="/model/calc_button_path"/>
+            </a:dataSet>
+            <a:dataSet id="hls_fin_cal_save_hd_ds" autoCreate="true"/>
+            <a:dataSet id="hls_fin_calculator_hd_ds" autoQuery="true" fetchAll="true" model="hls.HLS500.hls_fin_calc_config_hd" processfunction="hls500_hd_process" queryUrl="${/request/@context_path}/autocrud/hls.HLS500.hls_fin_calc_config_hd/query?calc_session_id=${/parameter/@calc_session_id}&amp;enabled_flag=Y&amp;display_flag=Y">
+                <a:fields>
+                    <a:field name="column_value" lovGridHeight="350" lovHeight="500" lovWidth="500"/>
+                    <a:field name="column_value_c"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="onEditorHdload"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="hls_fin_calculator_ln_ds" autoQuery="true" fetchAll="true" model="hls.HLS500.hls_fin_calculator_ln" processfunction="hls500_ln_process" queryUrl="${/request/@context_path}/autocrud/hls.HLS500.hls_fin_calculator_ln/query?calc_session_id=${/parameter/@calc_session_id}" selectable="true">
+                <a:events>
+                    <a:event name="load" handler="do_hls500_line_load"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="hls_fin_calculator_export_ds" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/hls.HLS500.hls_fin_calculator_export/query?calc_session_id=${/parameter/@calc_session_id}"/>
+        </a:dataSets>
+        <a:screenBody padding="0" style="margin:3px">
+            <a:vBox padding="0" style="border:1px solid #ccc;">
+                <a:screenTopToolbar style="height:40px;padding:0;border-bottom-color:#000;">
+                    <div style="font-size:15px;margin:10px 5px 0 5px"><![CDATA[${l:HLS.FIN_CALCULATOR}]]></div>
+                    <a:placeHolder id="hls500_button_ds"/>
+                </a:screenTopToolbar>
+                <a:hBox padding="0" style="padding:3px">
+                    <a:grid id="hls_fin_calculator_hd_grid_id" bindTarget="hls_fin_calculator_hd_ds" marginHeight="${/model/calc_config_hd_path/record/@margin_height}" rowRenderer="hd_grid_rowrenderer" style="margin-right:3px" width="${/model/calc_config_hd_path/record/@grid_left_width}">
+                        <a:columns>
+                            <a:column name="column_code" align="left" autoAdjust="false" prompt="HLS050.HLS_FIN_CALC_CONFIG.COLUMN_CODE" width="40"/>
+                            <a:column name="prompt" align="right" autoAdjust="false" prompt="HLS500.PROMPT" width="110"/>
+                            <a:column name="column_value" autoAdjust="false" editorFunction="parameter_function" prompt="HLS500.PROMPT_VALUE" renderer="seedetail_column_hd" showtitle="${/model/calc_config_hd_path/record/@sys_grid_show_title}" width="110"/>
+                            <a:column name="percent" autoAdjust="false" width="19"/>
+                        </a:columns>
+                    </a:grid>
+                    <a:grid id="hls_fin_calculator_ln_grid_id" bindTarget="hls_fin_calculator_ln_ds" marginHeight="${/model/calc_config_hd_path/record/@margin_height}" marginWidth="${/model/calc_config_hd_path/record/@grid_margin_width}">
+                        <a:columns>
+                            <a:placeHolder id="dynamicLineColumn_id"/>
+                        </a:columns>
+                    </a:grid>
+                    <script><![CDATA[
+                    	Aurora.onReady(function(){
+                    	   var records=$('line_field_ds').getAll();
+                    	   if(records.length){
+                    	      for(var i=0;i<records.length;i++){
+                    	          var record=records[i],column_name=record.get('column_name');
+                    	          if(record.get('display_flag')=='C'){
+                    	          	 $('hls_fin_calculator_ln_grid_id').hideColumn(column_name);
+                    	          	 $('hls_fin_calculator_export_grid_id').hideColumn(column_name);
+                    	          }
+                    	      }
+                    	   }
+                    	});
+                    ]]></script>
+                </a:hBox>
+            </a:vBox>
+            <a:grid id="hls_fin_calculator_export_grid_id" bindTarget="hls_fin_calculator_export_ds" height="350" width="900">
+                <a:columns>
+                    <a:column name="prompt" align="right" autoAdjust="false" lock="true" prompt="HLS500.PROMPT" width="100"/>
+                    <a:column name="column_value" autoAdjust="false" editorFunction="parameter_function" lock="true" prompt="HLS500.PROMPT_VALUE" renderer="seedetail_column_hd" showtitle="true"/>
+                    <a:column name="percent" autoAdjust="false" lock="true" prompt=" " width="19"/>
+                    <a:placeHolder id="dynamicLineColumn_export_id"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="dynamicDataSet_left_id">
+            <p:loop source="/model/calc_config_hd_path">
+                <p:switch test="@validation_type">
+                    <p:case value="COMBOBOX">
+                        <c:process-config>
+                            <a:dataSet id="${@layout_area_seq}_${@column_name}_combobox_ds" queryUrl="${/request/@context_path}/autocrud/hls.HLS500.hls_parameters_lov/query"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="hls500_button_ds">
+            <p:loop source="/model/calc_button_path">
+                <p:switch test="@button_code">
+                    <p:case value="EXIT">
+                        <c:process-config>
+                            <a:gridButton click="hls_hls500_return" style="margin-top:10px;margin-left:5px" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="EXPORT">
+                        <c:process-config>
+                            <a:gridButton id="hls_hls500_export_id" click="hls_hls500_export" style="margin-top:10px;margin-left:5px" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicLineColumn_id">
+            <p:loop source="/model/calc_config_ln_path">
+                <p:switch test="@show_column_code">
+                    <p:case value="Y">
+                        <c:process-config>
+                            <a:column lock="${@lock_column}" prompt="${@column_code}" width="${@width}">
+                                <a:column name="${@column_name}" align="${@alignment}" editorFunction="do_hls500_column_name" exportDatatype="${@data_type}" lock="${@lock_column}" prompt="${@prompt}" renderer="wrap_render" showtitle="${@sys_grid_show_title}" width="${@width}"/>
+                            </a:column>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="N">
+                        <c:process-config>
+                            <a:column name="${@column_name}" align="${@alignment}" editorFunction="do_hls500_column_name" exportDatatype="${@data_type}" lock="${@lock_column}" prompt="${@prompt}" renderer="wrap_render" showtitle="${@sys_grid_show_title}" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicLineColumn_export_id">
+            <p:loop source="/model/calc_config_ln_path">
+                <c:process-config>
+                    <a:column lock="${@lock_column}" prompt="${@upper_column_name}" width="${@width}">
+                        <a:column name="${@column_name}" align="${@alignment}" editorFunction="do_hls500_column_name" exportDatatype="${@data_type}" lock="${@lock_column}" prompt="${@prompt}" renderer="wrap_render" showtitle="${@sys_grid_show_title}" sortable="true" width="${@width}"/>
+                    </a:column>
+                </c:process-config>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicLineFields">
+            <p:loop source="/model/calc_config_ln_all_path">
+                <c:process-config>
+                    <a:field name="${@column_name}" defaultValue="${@default_value}" lovGridHeight="350" lovHeight="500" lovWidth="500"/>
+                </c:process-config>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

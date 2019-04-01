@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.instance_id = ${/parameter/@instance_id}" model="zjwfl.ZJWFL1060.zj_wfl_monitoring_query" rootPath="instance_record"/>
+        <a:model-query defaultWhereClause="v.code=&apos;ZJ_WFL_WORKFLOW_STATUS&apos; and v.code_value in (&apos;10&apos;,&apos;-1&apos;,&apos;-1000&apos;)" model="zjwfl.sys_code_default_value" rootPath="workflow_status_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="bmLink_admin_do_finish" model="zjwfl.ZJWFL1060.zj_wfl_monitoring_admin_finish" modelaction="execute"/>
+        <a:link id="bmLink_admin_do_jump" model="zjwfl.ZJWFL1060.zj_wfl_monitoring_admin_jump_node" modelaction="execute"/>
+        <a:screen-include screen="modules/zjwfl/zj_wfl_common_javascript.screen"/>
+        <script><![CDATA[
+            
+            function adminDo_page_close() {
+                var win = $('zj_wfl_monitoring_admin_operation');
+                win.close();
+            }
+            
+            function adminDo_wfl_finish() {
+                var win = $('zj_wfl_monitoring_admin_operation');
+                f_zjwfl.winMask(win);
+                var ds = $('adminDoDs');
+            
+                var record = ds.getAt(0);
+                record.getField('jump_node_desc').setRequired(false);
+                record.getField('finish_status_desc').setRequired(true);
+            
+                if (!ds.validate()) {
+                    f_zjwfl.winNoMask(win);
+                    return;
+                }
+            
+                Aurora.showConfirm('是否确认', '结束工作流，结束类型为：' + record.get('finish_status_desc'), function() {
+                    Aurora.request({
+                        url: $('bmLink_admin_do_finish').getUrl(),
+                        para: {
+                            'instance_id': '${/parameter/@instance_id}',
+                            'status': record.get('finish_status')
+                        },
+                        success: function(res) {
+                            f_zjwfl.winNoMask(win);
+                            Aurora.SideBar.show({
+                                msg: '提交成功！',
+                                duration: 2000
+                            });
+                            adminDo_page_close();
+                        },
+                        failure: function() {
+                            f_zjwfl.winNoMask(win);
+                        },
+                        error: function() {
+                            f_zjwfl.winNoMask(win);
+                        },
+                        scope: this
+                    });
+                }, function() {
+                    f_zjwfl.winNoMask(win);
+                });
+            }
+            
+            
+            function adminDo_jump_node() {
+                var win = $('zj_wfl_monitoring_admin_operation');
+                f_zjwfl.winMask(win);
+                
+                var ds = $('adminDoDs');
+                var record = ds.getAt(0);
+                record.getField('jump_node_desc').setRequired(true);
+                record.getField('finish_status_desc').setRequired(false);
+            
+                if (!ds.validate()) {
+                    f_zjwfl.winNoMask(win);
+                    return;
+                }
+            
+            
+                Aurora.showConfirm('是否确认', '跳转工作流，跳转到节点：' + record.get('jump_node_desc'), function() {
+                    Aurora.request({
+                        url: $('bmLink_admin_do_jump').getUrl(),
+                        para: {
+                            'instance_id': '${/parameter/@instance_id}',
+                            'node_id': record.get('node_id'),
+                            'parent_node_id': record.get('parent_node_id')
+                        },
+                        success: function(res) {
+                            f_zjwfl.winNoMask(win);
+                            Aurora.SideBar.show({
+                                msg: '提交成功！',
+                                duration: 2000
+                            });
+                            adminDo_page_close();
+                        },
+                        failure: function() {
+                            f_zjwfl.winNoMask(win);
+                        },
+                        error: function() {
+                            f_zjwfl.winNoMask(win);
+                        },
+                        scope: this
+                    });
+                },function (){
+                	f_zjwfl.winNoMask(win);
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="adminDo_statusDs">
+                <a:datas dataSource="/model/workflow_status_list"/>
+            </a:dataSet>
+            <a:dataSet id="adminDoDs">
+                <a:datas dataSource="/model/instance_record"/>
+                <a:fields>
+                    <a:field name="jump_node_desc" lovGridHeight="300" lovHeight="450" lovService="zjwfl.ZJWFL1060.zj_wfl_monitoring_admin_jump_node?workflow_id=${/parameter/@workflow_id}" lovWidth="480" prompt="跳转到节点" title="跳转到节点">
+                        <a:mapping>
+                            <a:map from="node_desc" to="jump_node_desc"/>
+                            <a:map from="node_id" to="node_id"/>
+                            <a:map from="parent_node_id" to="parent_node_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="finish_status_desc" displayField="code_value_name" options="adminDo_statusDs" returnField="finish_status" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:fieldSet title="工作流信息">
+                <a:hBox>
+                    <a:textField name="workflow_code" bindTarget="adminDoDs" prompt="工作流代码" readOnly="true" width="200"/>
+                    <a:textField name="workflow_desc" bindTarget="adminDoDs" prompt="工作流描述" readOnly="true" width="200"/>
+                </a:hBox>
+                <a:hBox>
+                    <a:textField name="current_node_desc" bindTarget="adminDoDs" prompt="当前节点" readOnly="true" width="200"/>
+                </a:hBox>
+            </a:fieldSet>
+            <a:fieldSet title="工作流结束">
+                <a:hBox>
+                    <a:comboBox name="finish_status_desc" bindTarget="adminDoDs" prompt="结束类型" width="200"/>
+                    <a:button click="adminDo_wfl_finish" text="确定"/>
+                </a:hBox>
+            </a:fieldSet>
+            <a:fieldSet title="工作流跳转">
+                <a:hBox>
+                    <a:lov name="jump_node_desc" bindTarget="adminDoDs" width="200"/>
+                    <a:button click="adminDo_jump_node" text="确定"/>
+                </a:hBox>
+            </a:fieldSet>
+        </a:screenBody>
+    </a:view>
+</a:screen>

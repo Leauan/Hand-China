@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query model="sys.sys_user_role_groups" rootPath="role_list"/>
+        <a:model-query model="sys.sys_user_last_login_info" rootPath="last_user_login"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="login_link" url="${/request/@context_path}/login.screen"/>
+        <a:link id="role_select_link" url="${/request/@context_path}/role_select.svc"/>
+        <a:link id="loading_link" url="${/request/@context_path}/loading.screen"/>
+        <style><![CDATA[
+            body,html {
+                overflow:hidden;
+            }
+            .roleBox {
+                margin-left:18px;
+            }
+            .roleBox input {
+                font-size: 14px;
+                border: none;
+                padding-left:5px;
+                background: transparent!important;
+            }
+            .item-comboBox-view li {
+                font-size: 14px;
+                padding:5px;
+            }
+            .item-btn-bs {
+                font-size:16px;
+            }
+            .roleFormTitle {
+                font-size:20px;
+                font-weight:bold;
+                text-align:center;
+                margin-left:-80px;
+                padding-bottom:15px;
+                color:#002d4f
+            }
+        ]]></style>
+        <script><![CDATA[
+        
+            var canGoToMainService = false;
+            function openwin() {
+                var aw = window.screen.availWidth; 
+                var ah = window.screen.availHeight;
+                popsizewin(0,0,aw-10,ah-20,1,1); 
+            }
+            
+            function popsizewin(tleft,ttop,twidth,theight,tscrollbar,tresizable){
+                var jsid = Aurora.getCookie('JSID');
+                window._mainwin = window.open($('loading_link').getUrl() + location.search,jsid);
+            }
+            
+            Aurora.Status.enable = false;
+            Aurora.SideBar.enable = false;
+            function goToMain(){
+				var record = $('role_ds').getAt(0);
+                if(record){
+                    openwin();
+                    Aurora.request({url:$('role_select_link').getUrl(), para:record.data, success:selectRoleSuccess, scope:this});
+                }else{
+                    Aurora.showWarningMessage('${l:PROMPT}', "${l:NO_ROLE_SELECTABLE}");
+                }
+                
+            }
+            function afterOpen(){
+                canGoToMainService = false;
+                window._mainwin.focus();
+            }
+            
+            
+            function selectRoleSuccess(){
+                window._mainwin.location.href = '${/request/@context_path}/main.screen';
+                canGoToMainService = true;
+            }
+            
+            function backToLogin(){
+                window.location.href = $('login_link').getUrl();
+            }
+            
+        
+
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="allRoleDs">
+                <a:datas dataSource="/model/role_list"/>
+            </a:dataSet>
+            <a:dataSet id="role_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="role_id" defaultValue="${/model/role_list/record/@role_id}"/>
+                    <a:field name="company_id" defaultValue="${/model/role_list/record/@company_id}"/>
+                    <a:field name="role_company" defaultValue="${/model/role_list/record/@role_company}"/>
+                    <a:field name="top_biz_company_id" defaultValue="${/model/role_list/record/@top_biz_company_id}"/>
+                    <a:field name="role_company_name" defaultValue="${/model/role_list/record/@role_company_name}" displayField="role_company_name" options="allRoleDs">
+                        <a:mapping>
+                            <a:map from="company_id" to="company_id"/>
+                            <a:map from="top_biz_company_id" to="top_biz_company_id"/>
+                            <a:map from="role_id" to="role_id"/>
+                            <a:map from="role_company" to="role_company"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <img id="zoomWallpaper" src="${/request/@context_path}/images/bestseller/login_bg.jpg" style="left: 0px; top: 0px; position: absolute;z-index:0" width="100%"/>
+        <div id="roleForm" style="position:absolute;left:-2000px;top:-2000px;background-image:url(${/request/@context_path}/images/bestseller/bg.png);width:395px;height:216px;">
+            <div style="padding-left:45px;padding-top:40px;">
+                <div class="roleFormTitle"><![CDATA[角色选择]]></div>
+                <a:comboBox name="role_company_name" bindTarget="role_ds" className="roleBox" height="30" width="264"/>
+                <a:hBox style="padding-top:15px;">
+                    <a:button className="item-btn-bs" click="backToLogin" height="30" style="margin-left:15px;" text="HAP_BACK" width="120"/>
+                    <a:button id="continue_id" className="item-btn-bs" click="goToMain" height="30" style="margin-left:20px;" text="LOGIN_SELECT_ROLE.CONTINUE" width="120"/>
+                </a:hBox>
+            </div>
+        </div>
+        <script><![CDATA[
+            Aurora.onReady(function() {
+            
+                Aurora.center('roleForm');
+                Aurora.get('roleForm').show();
+            
+                var records = $('allRoleDs').getAll();
+            
+            
+                if (records.length == 1) {
+                    //如果只有一条记录
+                    goToMain();
+                }
+            });
+            document.onkeydown = function(event) {
+                var e = event || window.event || arguments.callee.caller.arguments[0];
+                if (e && e.keyCode == 13) { // enter 键
+                    goToMain();
+                }
+            };
+        ]]></script>
+    </a:view>
+</a:screen>

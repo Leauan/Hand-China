@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: jack  
+    $Date: 2014-6-11 上午10:15:32  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query model="wfl_screen.PRJ_PROJECT.prj_project_info" rootPath="prj_doc_project_record"/>
+        <a:model-query defaultWhereClause="t1.layout_code=&apos;PROJECT_WFL_CDD&apos; and t1.tab_code=&apos;ATTACH&apos;" model="wfl_screen.PRJ_PROJECT.prj_project_tab_group_id_query" rootPath="tab_group_rp"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="cdd_uploadfile_link" url="${/request/@context_path}/uploadFile.screen"/>
+        <!-- <a:link id="print_project_application_id" url="${/request/@context_path}/modules/prj/PRJ501/print_project_application.screen"/> -->
+        <script><![CDATA[
+            function cdd_editorFunction(record, name) {
+                if (name == 'description') {
+                    if (record.get('sys_flag') == 'Y') {
+                        return '';
+                    }
+                    return 'cdd_tf_id';
+                } else if (name == 'paper_required' || name == 'attachment_required' || name == 'not_applicable') {
+                    return 'cdd_ck_id';
+                } else if (name == 'note') {
+                    return 'cdd_tf_id';
+                } else if (name == 'attachment_tab_group' && record.isNew) {
+                    return 'cdd_lov_id';
+                } else {
+                    return '';
+                }
+            }
+            
+            function set_guar_type(ds) {
+                // ds = $('guar_ds').getAll();
+                // var value = '';
+                // for (i = 0;i < ds.length;i++) {
+                    // value = value + (i + 1) + '.' + ds[i].get('names') + ds[i].get('all_type') + '\n';
+            
+                // }
+                // $('types').setValue(value);
+                $('rates').setValue('每天按未偿付租金千分之三');
+            }
+            
+            function doloading_application() {
+                location.href = $('print_project_application_id').getUrl() + "?project_id=${/parameter/@project_id}";
+            }
+            
+            
+            function prj_cdd_item_ds_add(ds) {
+                var current_record = ds.getCurrentRecord();
+                current_record.data['document_table'] = 'PRJ_PROJECT';
+                current_record.data['document_id'] = '${/parameter/@project_id}';
+                current_record.data['cdd_list_id'] = '${/model/prj_doc_project_record/record/@cdd_list_id}';
+                current_record.data['project_tab_group'] = '${/model/tab_group_rp/record/@attachment_tab_group}';
+                current_record.data['project_required_flag'] = 'Y';
+                current_record.data['project_display_flag'] = 'Y';
+                current_record.data['lender_required_flag'] = 'Y';
+                current_record.data['lender_display_flag'] = 'Y';
+                current_record.data['tab_group_id'] = '${/model/tab_group_rp/record/@attachment_tab_group}';
+            }
+            
+            function prj_cdd_item_ds_load(ds) {
+                var records = ds.getAll();
+                if (records.length) {
+                    for (var i = 0;i < records.length;i++) {
+                        var record = records[i];
+                        if (Ext.isEmpty(record.get('check_id'))) {
+                            record.dirty = true;
+                        }
+                    }
+                }
+            }
+            
+            function cdd_attachment_render(value, record, name) {
+                attach_count = record.get('attach_count');
+                var check_id = record.get('check_id');
+                if (!record.isNew && check_id && attach_count > 0) {
+                    return '<a href="javascript:cdd_attachtment_upload(\'' + check_id + '\');"><div style="color:red">${l:HLS.ATTACHMENT}</div></a>';
+                } else if(!record.isNew && check_id) {
+                    return '<a href="javascript:cdd_attachtment_upload(\'' + check_id + '\');">${l:HLS.ATTACHMENT}</a>';
+                }
+            }
+            
+            function cdd_attachtment_upload(check_id) {
+                
+                var url = $('cdd_uploadfile_link').getUrl() + '?table_name=PRJ_CDD_ITEM_CHECK&header_id=' + check_id;
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'cdd_uploadfile_screen_id',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {
+                    $('prj_cdd_item_ds').query();
+                });
+            }
+            
+            function description_renderer(value, record, name) {
+                var cdd_require = '${/parameter/@cdd_item}';
+                var cdd_items = cdd_require.split(',');
+                for (var i = 0;i < cdd_items.length;i++) {
+                    if (record.get('cdd_item') == cdd_items[i]) {
+                        return '<div style="color:red">' + value + '</div>';
+                    }
+                }
+                return value;
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="less_item_ds" autoQuery="true" queryUrl="${/request/@context_path}/autocrud/prj.PRJ501.survey_less_item/query?project_id=${/parameter/@project_id}"/>
+            <a:dataSet id="ca_culator_ds" autoQuery="true" queryUrl="${/request/@context_path}/autocrud/prj.PRJ511.prj_wfl_calculator_hd/query?prj_wfl_calc_hd_id=${/parameter/@prj_wfl_calc_hd_id}"/>
+            <a:dataSet id="guar_ds" autoQuery="true" queryUrl="${/request/@context_path}/autocrud/prj.PRJ501.guar_type/query?project_id=${/parameter/@project_id}">
+                <a:events>
+                    <a:event name="load" handler="set_guar_type"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="prj_cdd_item_query" autoCreate="true">
+                <a:fields>
+                    <a:field name="document_table" defaultValue="PRJ_PROJECT"/>
+                    <a:field name="base_table_pk" defaultValue="${/parameter/@project_id}"/>
+                    <a:field name="cdd_list_id" defaultValue="${/model/prj_doc_project_record/record/@cdd_list_id}"/>
+                    <a:field name="document_category" defaultValue="PROJECT"/>
+                    <a:field name="attachment_tab_group" defaultValue="${/model/tab_group_rp/record/@attachment_tab_group}"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="prj_cdd_item_ds" autoQuery="true" fetchAll="true" model="prj.PRJ500.prj_project_doc_cdd_item" queryDataSet="prj_cdd_item_query" queryUrl="${/request/@context_path}/autocrud/prj.PRJ500.prj_project_doc_cdd_item/query?project_id=${/parameter/@project_id}" selectable="true">
+                <a:fields>
+                    <a:field name="paper_required" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="not_applicable" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="attachment_required" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="sys_flag" defaultValue="N"/>
+                    <a:field name="document_id"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="prj_cdd_item_ds_add"/>
+                    <a:event name="load" handler="prj_cdd_item_ds_load"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:tabPanel height="360" width="1200">
+                <a:tabs>
+                    <a:tab prompt="项目方案" width="100">
+                        <a:tab prompt="项目方案" width="100">
+                            <a:form width="1150">
+                                <a:hBox labelWidth="100">
+                                    <a:textField name="tenant_name" bindTarget="less_item_ds" prompt="承租人" readOnly="true" span="2" width="408"/>
+                                    <a:textField name="business_type_name" bindTarget="less_item_ds" prompt="租赁方式" readOnly="true"/>
+                                    <a:numberField name="finance_amount" allowFormat="true" bindTarget="ca_culator_ds" prompt="租赁本金" readOnly="true"/>
+                                </a:hBox>
+                                <a:hBox labelWidth="100">
+                                    <a:textField name="lease_subject" bindTarget="less_item_ds" prompt="租赁物" readOnly="true" span="2" width="408"/>
+                                    <a:textField name="lease_get_method" bindTarget="less_item_ds" prompt="租赁物取得方式" readOnly="true"/>
+                                    <!-- <a:numberField name="original_asset_value_1" allowFormat="true" bindTarget="less_item_ds" prompt="租赁物原值" readOnly="true"/> -->
+                                    <a:numberField name="net_asset_value_1" allowFormat="true" bindTarget="less_item_ds" prompt="租赁物净值" readOnly="true"/>
+                                </a:hBox>
+                                <a:hBox labelWidth="100">
+                                    <a:textField name="lease_term" bindTarget="ca_culator_ds" prompt="租赁期限" readOnly="true"/>
+                                    <a:textField name="pay_type" bindTarget="ca_culator_ds" prompt="还租方式" readOnly="true"/>
+                                    <a:percentField name="orginal_int_rate_display" bindTarget="ca_culator_ds" prompt="租赁利率" readOnly="true"/>
+                                    <a:numberField name="residual_value" allowFormat="true" bindTarget="ca_culator_ds" prompt="留购价" readOnly="true"/>
+                                    <!-- <a:textField name="business_type_name" bindTarget="less_item_ds" prompt="租赁方式" readOnly="true"/>
+                                    <a:numberField name="finance_amount" allowFormat="true" bindTarget="ca_culator_ds" prompt="租赁本金" readOnly="true"/> -->
+                                </a:hBox>
+                                <a:hBox labelWidth="100">
+                                    <a:percentField name="down_payment_ratio" bindTarget="ca_culator_ds" prompt="首付款比例" readOnly="true"/>
+                                    <a:percentField name="lease_charge_ratio" bindTarget="ca_culator_ds" prompt="手续费比例" readOnly="true"/>
+                                    <a:percentField name="deposit_ratio" bindTarget="ca_culator_ds" prompt="保证金比例" readOnly="true"/>
+                                    <a:percentField name="btb_finance_ratio" bindTarget="ca_culator_ds" prompt="预估融资额比例" readOnly="true"/>
+                                </a:hBox>
+                                <a:hBox labelWidth="100">
+                                    <a:numberField name="down_payment" allowFormat="true" bindTarget="ca_culator_ds" prompt="首付款" readOnly="true"/>
+                                    <a:numberField name="lease_charge" allowFormat="true" bindTarget="ca_culator_ds" prompt="手续费" readOnly="true"/>
+                                    <a:numberField name="deposit" allowFormat="true" bindTarget="ca_culator_ds" prompt="保证金" readOnly="true"/>
+                                    <a:numberField name="btb_finance_amount" allowFormat="true" bindTarget="ca_culator_ds" prompt="预估融资额" readOnly="true"/>
+                                </a:hBox>
+                                <a:hBox labelWidth="100">
+                                    <a:numberField name="project_income" allowFormat="true" bindTarget="ca_culator_ds" prompt="项目收入" readOnly="true"/>
+                                    <a:numberField name="porject_cost" allowFormat="true" bindTarget="ca_culator_ds" prompt="预估项目成本" readOnly="true"/>
+                                    <a:numberField name="project_tax" allowFormat="true" bindTarget="ca_culator_ds" prompt="增值税及附加" readOnly="true"/>
+                                    <a:percentField name="btb_int_rate" bindTarget="ca_culator_ds" prompt="预估融资利率" readOnly="true"/>
+                                </a:hBox>
+                                <a:hBox labelWidth="100">
+                                    <a:numberField name="project_profit_net" allowFormat="true" bindTarget="ca_culator_ds" prompt="预估项目净利" readOnly="true"/>
+                                    <a:percentField name="orginal_irr" bindTarget="ca_culator_ds" prompt="IRR" readOnly="true"/>
+                                    <a:percentField name="roe" bindTarget="ca_culator_ds" prompt="预估项目ROE" readOnly="true"/>
+                                </a:hBox>
+                                <a:hBox labelWidth="100">
+                                    <a:textArea name="risk_measure" bindTarget="less_item_ds" height="60" prompt="风险措施" readOnly="true" width="920"/>
+                                </a:hBox>
+                            </a:form>
+                        </a:tab>
+                    </a:tab>
+                    <a:tab prompt="附件信息" width="100">
+                        <a:grid id="prj_cdd_grid_id" bindTarget="prj_cdd_item_ds" height="210" style="margin-top:5px;margin-left:5px" width="1150">
+                            <a:toolBar>
+                                <a:button type="add"/>
+                                <a:button type="clear"/>
+                                <a:button type="delete"/>
+                                <a:button type="save"/>
+                            </a:toolBar>
+                            <a:columns>
+                                <a:column name="description" editorFunction="cdd_editorFunction" prompt="HLS.DOCUMENT_NAME" renderer="description_renderer" showTitle="true" width="250"/>
+                                <a:column name="attachment_required" editorFunction="cdd_editorFunction" prompt="HLS.DIGITAL_FILE" showTitle="true" width="45"/>
+                                <a:column name="paper_required" editorFunction="cdd_editorFunction" prompt="HLS.ALREADY_SUBMIT" showTitle="true" width="45"/>
+                                <a:column name="not_applicable" editorFunction="cdd_editorFunction" prompt="确认" showTitle="true" width="45"/>
+                                <a:column name="attachment" align="center" prompt="" renderer="cdd_attachment_render" width="45"/>
+                                <a:column name="note" editorFunction="cdd_editorFunction" prompt="HLS.COMMENT" showTitle="true" width="490"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:lov id="cdd_lov_id"/>
+                                <a:checkBox id="cdd_ck_id"/>
+                                <a:textField id="cdd_tf_id"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            //importPackage(java.util.zip);
+            importPackage(java.util.zip);
+            importPackage(java.io); /*可以传入参数*/
+            //importPackage(java.util.zip);
+            
+            /* function writeFile(zos, fn, fp) {
+             // var ze = new ZipEntry(fn);
+             // zos.putNextEntry(ze);
+             // transfer(fp, zos);
+             var ze = new ZipEntry(fn);
+             zos.setEncoding("UTF-8"); //如果是org.apache.tools.zip需要追加字符集
+             zos.putNextEntry(ze);
+             var fis = new FileInputStream(fp);
+             var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+             var len = -1;
+             while ((len = fis.read(b)) != -1) {
+             zos.write(b, 0, len);
+             }
+             fis.close();
+             } */
+            
+            function writeFile(zos, fn, fp) {
+                var ze = new ZipEntry(fn);
+                //zos.setEncoding("UTF-8");//如果是org.apache.tools.zip需要追加字符集
+                zos.putNextEntry(ze);
+                var fis = new FileInputStream(fp);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    zos.write(b, 0, len);
+                }
+                fis.close();
+            }
+            
+            function transfer(file, os) {
+                var fis = new FileInputStream(file);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    os.write(b, 0, len);
+                }
+                fis.close();
+            }
+            
+            
+            function getdate() {
+                var now = new Date()
+                y = now.getFullYear()
+                m = now.getMonth() + 1
+                d = now.getDate()
+                m = m < 10 ? "0" + m : m
+                d = d < 10 ? "0" + d : d
+                return y + "" + m + "" + d
+            }
+            $ctx["__request_type__"] = 'file'; //to indicate this request is not a JSON_REQUEST
+            var resp = $ctx['_instance.javax.servlet.http.HttpServletResponse'];
+            resp.setHeader("Pragma", "No-cache");
+            resp.setHeader("Cache-Control", "no-cache, must-revalidate");
+            var date_str = getdate();
+            var doc_code = '合同明细附件'
+            var type = $ctx.parameter.type;
+            var zip_filename = doc_code + '-' + date_str + ".zip";
+            var file_path;
+            //
+            resp.setDateHeader("Expires", 0);
+            resp.setContentType("application/x-msdownload");
+            
+            try {
+                var attachment_batch_dl = $bm('zx.ZX5020.zx_query_file_download');
+                var result = attachment_batch_dl.queryAsMap({
+                    session_id: $ctx.parameter.session_id
+                });
+                var arr = result.getChildren();
+                if (arr.length >= 1) {
+                    if (type == 'SIN') {
+                        //单个下载
+                        file_name = arr[0].file_name;
+                        file_path = arr[0].file_path;
+                        resp.setHeader("Content-disposition", "attachment; filename=" + encodeURI(file_name, 'utf-8'));
+                        var os = resp.getOutputStream();
+                        transfer(file_path, os);
+                        os.flush();
+                    }
+                    if (type == 'ZIP') {
+                        //打包下载
+                        zip_filename = "征信明细附件.zip";
+                        resp.setHeader("Content-disposition", "attachment; filename=" + encodeURI(zip_filename));
+                        var zos = new ZipOutputStream(resp.getOutputStream());
+            
+                        //zos.setEncoding("GBK"); //如果是org.apache.tools.zip需要追加字符集
+            
+            
+
+                        var file_exist_list = {};
+                        debugger;
+                        for (var i = 0;i < arr.length;i++) {
+                            var f = arr[i];
+                            debugger;
+                            // if (f.file_path && !file_exist_list[f.file_name2]) {
+                            print(f.file_name);
+                                writeFile(zos, f.rn+f.bp_name+f.project_number+f.file_name, f.file_path);
+                                file_exist_list[f.file_name] = 1;
+                            // } else {
+                                // file_exist_list[f.file_name2] = file_exist_list[f.file_name2] * 1 + 1;
+                                // var last_index = f.file_name2.lastIndexOf(".");
+                                // var temp_exists_file_name2 = f.file_name2.substr(0, last_index);
+                                // var temp_exists_file_type = f.file_name2.substr(last_index, f.file_name2.length);
+                                // temp_exists_file_name2 = temp_exists_file_name2 + '-' + file_exist_list[f.file_name2] + temp_exists_file_type;
+                                // writeFile(zos, temp_exists_file_name2, f.file_path);
+                            // }
+                        }
+                        zos.close();
+                    }
+                }
+            } catch (e) {
+                println(e);
+                var logger = $logger("server-script");
+                logger.severe(e.message);
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

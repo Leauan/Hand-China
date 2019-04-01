@@ -1,0 +1,915 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ZLF  
+    $Date: 2014-11-20 下午8:50:38  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <s:server-script import="con_print_path.js"><![CDATA[
+            set_parameter_file_path();
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_content_asset_detail_link_id" url="${/request/@context_path}/modules/cont/CON505/con_contract_content_asset_detail.screen"/>
+        <!--         <a:link id="con_contract_update_print_fin_link_id" url="${/request/@context_path}/modules/cont/CON500/con_contract_update_print_word.screen"/> -->
+        <a:link id="con_contract_create_content_link_id" model="cont.CON761.con_contract_create_content" modelaction="update"/>
+        <a:link id="con_contract_save_print_information_link_id" model="cont.CON505.con_contract_save_print_information" modelaction="update"/>
+        <a:link id="con_contract_uploadfile" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="con_contract_content_confirm_link" url="${/request/@context_path}/modules/cont/CON504/con_contract_content_print.screen"/>
+        <a:link id="con_contract_content_delete_link" model="cont.CON505.con_contract_content_delete" modelaction="batch_update"/>
+        <!-- <a:link id="con_contract_dowload_uploadfile" url="${/request/@context_path}/modules/cont/CON500/con_atm_batch_dl.svc"/> -->
+        <a:link id="con_atm_batch_download_pdf_link_id" url="${/request/@context_path}/modules/cont/CON761/con_atm_batch_download_pdf.svc"/>
+        <!-- <a:link id="con_atm_batch_download_pdf_link_id" url="${/request/@context_path}/modules/cont/CON500/con_atm_batch_dl.svc"/> -->
+        <a:link id="con504_change_confirm_status_link" model="cont.CON504.con_change_content_confirm_status" modelaction="execute"/>
+        <a:link id="con_contract_update_print_fin_link_id" url="${/request/@context_path}/modules/cont/CON504/con_contract_update_print_word.svc"/>
+        <a:link id="file_copy_from_template_link_id" url="${/request/@context_path}/office_edit_online/file_copy_from_template.svc"/>
+        <a:link id="con_contract_content_edit_office_online_link_id" url="${/request/@context_path}/modules/cont/CON500/con_contract_content_edit_office_online.screen"/>
+        <a:link id="con_doc_batch_create_link_id" url="${/request/@context_path}/modules/cont/CON500/con_doc_batch_create.svc"/>
+        <script><![CDATA[
+            var numnn = 'Y';
+            
+            function on_result_query(ds) {
+                debugger;
+                if (change_flag == numnn) {
+                    if (ds.id == 'con_contract_update_print_detail_line_ds') {
+                        records = $('con_contract_update_print_detail_line_ds').getAll();
+                        var datas = [];
+                        for (var i = 0;i < records.length;i++) {
+                            var obj = {};
+                            obj['content_id'] = records[i].get('content_id');
+                            obj['_status'] = 'delete';
+                            datas[i] = obj;
+                        }
+                        Aurora.request({
+                            url: $('con_contract_content_delete_link').getUrl(),
+                            para: datas,
+                            success: function() {
+                                Aurora.SideBar.show({
+                                    msg: '操作成功',
+                                    duration: 2000
+                                });
+                                $('con_contract_update_print_detail_line_ds').query();
+                            },
+                            scope: this
+                        });
+                        change_flag = 'N';
+            
+                    }
+            
+                }
+            }
+            
+            function set_print_detail_btn_disable() {
+                $('con_print_detail_print_id').disable();
+            }
+            
+            function set_print_detail_btn_enable() {
+                $('con_print_detail_print_id').enable();
+            }
+            
+            function con_print_detail_query() {
+                $('con_contract_update_print_detail_line_ds').query();
+                $('con_print_detail_print_id').enable();
+            }
+            
+            function con_print_detail_clear() {
+                $('con_contract_update_print_detail_grid_id').clear();
+            }
+            
+            function line_refresh() {
+                $('con_contract_update_print_detail_line_ds').query();
+            }
+            
+            
+            function con_print_detail_print() {
+                debugger;
+                var result_ds = $('con_contract_update_print_detail_line_ds');
+                var records = result_ds.getAll();
+                var total_count = 0;
+                for (var m = 0;m < records.length;m++) {
+                    if (records[m].get('file_exists_flag') != 'Y') {
+                        total_count = total_count + 1;
+                    }
+                }
+                if (total_count === 0) {
+                    Aurora.showMessage('${l:PROMPT}', '文本都已生成');
+                    return;
+                }
+                var rd = result_ds.getSelected();
+                var content_id = rd[0].get('content_id');
+                Aurora.request({
+                    url: $('file_copy_from_template_link_id').getUrl(),
+                    para: {
+                        contract_id: '${/parameter/@contract_id}',
+                        content_id: content_id,
+                        file_path: '${/parameter/@file_path}',
+                        batch_flag: 'Y'
+                    },
+                    success: function(res) {
+                        var global_i = 0;
+                        var execute_i = 0;
+            
+                        function open_batch_window(i) {
+                            var record = records[i];
+                            if (record.get('content_id') && record.get('file_exists_flag') != 'Y') {
+                                execute_i++;
+                                Aurora.Masker.mask($('${/parameter/@winid}').wrap, '正在执行第' + execute_i + '条,' + record.get('content_number') + ',请等待,' + '总计' + total_count + '条');
+                                var win = new Aurora.Window({
+                                    id: 'edit_office_online_link_winid' + i,
+                                    url: $('con_contract_content_edit_office_online_link_id').getUrl(),
+                                    params: {
+                                        content_id: record.get('content_id'),
+                                        winid: 'edit_office_online_link_winid' + i,
+                                        first_copy_flag: 'Y',
+                                        contract_id: '${/parameter/@contract_id}',
+                                        batch_flag: 'Y'
+                                    },
+                                    width: 1000,
+                                    height: 1000,
+                                    x: -10000,
+                                    y: -10000,
+                                    draggable: true,
+                                    modal: false
+                                });
+                                win.on('close', function() {
+                                    Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+                                    if (global_i == records.length - 1) {
+                                        result_ds.query(result_ds.currentPage);
+                                    } else {
+                                        global_i++;
+                                        open_batch_window(global_i);
+                                    }
+                                });
+                            } else {
+                                global_i++;
+                                open_batch_window(global_i);
+                            }
+                        }
+                        open_batch_window(global_i);
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            
+            }
+            
+            
+            
+            //保留历史版本
+            // function con_print_rec(record) {
+            // Aurora.request({
+            // url: $('con_contract_save_print_information_link_id').getUrl(),
+            // para: {
+            // contract_id: '${/parameter/@contract_id}',
+            // content_id: record.get('content_id')
+            // },
+            // sync: true,
+            // // 同步请求，保证批量打印顺序进行
+            // success: function() {
+            // var ds1 = $('con_contract_update_print_detail_header_ds');
+            // var rec = ds1.getCurrentRecord();
+            // var contract_number = rec.get('contract_number');
+            // var templt_name, clause_usage = record.get('clause_usage'),
+            // business_type = '${/parameter/@business_type}',
+            // templet_id = record.get('templet_id'),
+            // templet_code = record.get('templet_code'),
+            // bp_id = record.get('bp_id'),
+            // bp_class = record.get('bp_class'),
+            // mortgage_id = record.get('mortgage_id') || '',
+            // couple_guarantee_flag = record.get('couple_guarantee_flag'),
+            // content_number = record.get('content_number'),
+            // content_id = record.get('content_id'),
+            // spv_company_code = rec.get('spv_company_code');
+            // var link;
+            // var pdf_key_path = 'D:/projects/HLS/web/WEB-INF/aurora.plugin.export.word/';
+            // var doc_name = 'D:/projects/HLS/excel/' + clause_usage + '/'; // server path
+            // if (clause_usage == 'FIN') {
+            // templt_name = 'yonda_fin_contract.xml';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // con_name = '零售业租赁合同';
+            // } else if (clause_usage == 'MOR') {
+            // templt_name = 'yonda_mor_contract.xml';
+            // con_name = '抵押合同(上海)';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // } else if (clause_usage == 'FIN_ADMIN') {
+            // templt_name = 'yonda_fin_contract.xml';
+            // con_name = '管理人员租赁合同';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // } else if (clause_usage == 'FIN_TEST_DRIVE') {
+            // templt_name = 'yonda_fin_contract.xml';
+            // con_name = '试乘试驾租赁合同';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // } else if (clause_usage == 'PAY_AGR') {
+            // templt_name = 'yonda_other_contract.xml';
+            // con_name = '付款承诺书';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // } else if (clause_usage == 'MOR_OUT_SH') {
+            // templt_name = 'yonda_mor_contract.xml';
+            // con_name = '抵押合同(外地)';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // } else if (clause_usage == 'LOAN_AGR') {
+            // templt_name = 'yonda_loan_agr_contract.xml';
+            // con_name = '借款协议书';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // } else if (clause_usage == 'MOR_CONFIROM') {
+            // templt_name = 'yonda_other_contract.xml';
+            // con_name = '抵押确认书';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // } else if (clause_usage == 'RISK_CONFIROM') {
+            // templt_name = 'yonda_other_contract.xml';
+            // con_name = '风险确认书';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // } else if (clause_usage == 'CAR_TRANS') {
+            // templt_name = 'yonda_other_contract.xml';
+            // con_name = '汽车转让协议';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // } else if (clause_usage == 'SUP_TRANS') {
+            // templt_name = 'yonda_other_contract.xml';
+            // con_name = '补充协议';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // } else if (clause_usage == 'COMMON_TENANT_ADMIN') {
+            // templt_name = 'yonda_other_contract.xml';
+            // con_name = '共同承租人确认书(管理人员)';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // } else if (clause_usage == 'COMMON_TENANT_RETAIL') {
+            // templt_name = 'yonda_other_contract.xml';
+            // con_name = '共同承租人确认书(零售)';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // } else if (clause_usage == 'PRINCIPAL_PROD') {
+            // templt_name = 'yonda_prod_contract.xml';
+            // con_name = '委托采购合同';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // } else if (clause_usage == 'FINISH') {
+            // templt_name = 'yonda_other_contract.xml';
+            // con_name = '结清用表单';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // } else if (clause_usage == 'ABNORMAL_FINISH') {
+            // templt_name = 'yonda_other_contract.xml';
+            // con_name = '非正常结清用表单';
+            // link = $('con_contract_update_print_fin_link_id').getUrl();
+            // }
+            // //templet_id租赁物件验收证明    上牌过户确认书不存在签章字段的，
+            // var sign_flag;
+            // if (templet_id == 1363 || templet_id == 1283) {
+            // sign_flag = 'N';
+            // } else {
+            // sign_flag = 'Y';
+            // }
+            // var url = link + '?templt_name=' + templt_name + '&contract_id=' + '${/parameter/@contract_id}' + '&document_category=' + '${/parameter/@document_category}' + '&clause_usage=' + clause_usage + '&templet_id=' + templet_id + '&bp_id=' + bp_id + '&mortgage_id=' + mortgage_id + '&content_number=' + content_number + '&contract_number=' + contract_number + '&couple_guarantee_flag=' + couple_guarantee_flag + '&content_id=' + content_id + '&doc_name=' + doc_name + '&company_id=' + '${/parameter/@company_id}' + '&business_type=' + business_type + '&templet_code=' + templet_code + '&con_name=' + con_name + '&pdf_key_path=' + pdf_key_path + '&spv_company_code=' + spv_company_code + '&sign_flag=' + sign_flag;
+            // var form = document.createElement("form");
+            // form.target = "word_export_window";
+            // form.method = "post";
+            // form.action = url;
+            // var iframe = Ext.get('word_export_window') || new Ext.Template('<iframe id ="word_export_window" name="word_export_window" style="position:absolute;left:-10000px;top:-10000px;width:1px;height:1px;display:none"></iframe>').insertFirst(document.body, {}, true);
+            // document.body.appendChild(form);
+            // form.submit();
+            // Ext.fly(form).remove();
+            // //unlock_current_window();
+            // set_print_detail_btn_enable();
+            // },
+            // failure: function() {
+            // //unlock_current_window();
+            // set_print_detail_btn_enable();
+            // },
+            // error: function() {
+            // //unlock_current_window();
+            // set_print_detail_btn_enable();
+            // },
+            // scope: this
+            // });
+            
+            // }
+            
+            function con_print_rec(record) {
+                Aurora.request({
+                    url: $('con_contract_save_print_information_link_id').getUrl(),
+                    para: {
+                        contract_id: '${/parameter/@contract_id}',
+                        content_id: record.get('content_id')
+                    },
+                    sync: true,
+                    // 同步请求，保证批量打印顺序进行
+                    success: function() {
+                        var ds1 = $('con_contract_update_print_detail_header_ds');
+                        var rec = ds1.getCurrentRecord();
+                        var contract_number = rec.get('contract_number');
+                        var templt_name, clause_usage = record.get('clause_usage'),
+                            business_type = '${/parameter/@business_type}',
+                            templet_id = record.get('templet_id'),
+                            templet_code = record.get('templet_code'),
+                            bp_id = record.get('bp_id'),
+                            bp_class = record.get('bp_class'),
+                            mortgage_id = record.get('mortgage_id') || '',
+                            couple_guarantee_flag = record.get('couple_guarantee_flag'),
+                            content_number = record.get('content_number'),
+                            content_id = record.get('content_id'),
+                            spv_company_code = rec.get('spv_company_code');
+                        var link;
+                        var pdf_key_path = get_pdf_key_path();
+                        var doc_name = get_doc_path() + clause_usage + '/'; // server path
+                        if (clause_usage == 'FIN') {
+                            templt_name = 'yonda_fin_contract.xml';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                            con_name = '零售业租赁合同';
+                        } else if (clause_usage == 'MOR') {
+                            templt_name = 'yonda_mor_contract.xml';
+                            con_name = '抵押合同(上海)';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        } else if (clause_usage == 'FIN_ADMIN') {
+                            templt_name = 'yonda_fin_contract.xml';
+                            con_name = '管理人员租赁合同';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        } else if (clause_usage == 'FIN_TEST_DRIVE') {
+                            templt_name = 'yonda_fin_contract.xml';
+                            con_name = '试乘试驾租赁合同';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        } else if (clause_usage == 'PAY_AGR') {
+                            templt_name = 'yonda_other_contract.xml';
+                            con_name = '付款承诺书';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        } else if (clause_usage == 'MOR_OUT_SH') {
+                            templt_name = 'yonda_mor_contract.xml';
+                            con_name = '抵押合同(外地)';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        } else if (clause_usage == 'LOAN_AGR') {
+                            templt_name = 'yonda_loan_agr_contract.xml';
+                            con_name = '借款协议书';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        } else if (clause_usage == 'MOR_CONFIROM') {
+                            templt_name = 'yonda_other_contract.xml';
+                            con_name = '抵押确认书';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        } else if (clause_usage == 'RISK_CONFIROM') {
+                            templt_name = 'yonda_other_contract.xml';
+                            con_name = '风险确认书';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        } else if (clause_usage == 'CAR_TRANS') {
+                            templt_name = 'yonda_other_contract.xml';
+                            con_name = '汽车转让协议';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        } else if (clause_usage == 'SUP_TRANS') {
+                            templt_name = 'yonda_other_contract.xml';
+                            con_name = '补充协议';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        } else if (clause_usage == 'COMMON_TENANT_ADMIN') {
+                            templt_name = 'yonda_other_contract.xml';
+                            con_name = '共同承租人确认书(管理人员)';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        } else if (clause_usage == 'COMMON_TENANT_RETAIL') {
+                            templt_name = 'yonda_other_contract.xml';
+                            con_name = '共同承租人确认书(零售)';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        } else if (clause_usage == 'PRINCIPAL_PROD') {
+                            templt_name = 'yonda_prod_contract.xml';
+                            con_name = '委托采购合同';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        } else if (clause_usage == 'FINISH') {
+                            templt_name = 'yonda_other_contract.xml';
+                            con_name = '结清用表单';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        } else if (clause_usage == 'ABNORMAL_FINISH') {
+                            templt_name = 'yonda_other_contract.xml';
+                            con_name = '非正常结清用表单';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        } else if (clause_usage == 'PRJ') {
+                            templt_name = 'yonda_fin_contract.xml';
+                            con_name = '项目类合同';
+                            link = $('con_contract_update_print_fin_link_id').getUrl();
+                        }
+                        //templet_id租赁物件验收证明    上牌过户确认书不存在签章字段的，
+                        var sign_flag;
+                        if (templet_id == 1363 || templet_id == 1283) {
+                            sign_flag = 'N';
+                        } else {
+                            sign_flag = 'Y';
+                        }
+                        var url = link + '?templt_name=' + templt_name + '&contract_id=' + '${/parameter/@contract_id}' + '&document_category=' + '${/parameter/@document_category}' + '&clause_usage=' + clause_usage + '&templet_id=' + templet_id + '&bp_id=' + bp_id + '&mortgage_id=' + mortgage_id + '&content_number=' + content_number + '&contract_number=' + contract_number + '&couple_guarantee_flag=' + couple_guarantee_flag + '&content_id=' + content_id + '&doc_name=' + doc_name + '&company_id=' + '${/parameter/@company_id}' + '&business_type=' + business_type + '&templet_code=' + templet_code + '&con_name=' + con_name + '&pdf_key_path=' + pdf_key_path + '&spv_company_code=' + spv_company_code + '&sign_flag=' + sign_flag;
+                        Aurora.request({
+                            url: url,
+                            para: null,
+                            success: function(obj) {
+                                var status = obj.result.sign_status;
+                                if (status == true) {
+                                    Aurora.showMessage('${l:PROMPT}', content_number + '打印合同成功！');
+                                    $('con_contract_update_print_detail_line_ds').query();
+                                    // 修改合同打印字段信息
+                                } else {
+                                    Aurora.showMessage('${l:PROMPT}', content_number + '合同打印失败，请重新打印！');
+                                }
+                                unlock_current_window();
+                            },
+                            failure: function() {
+                                Aurora.showMessage('${l:PROMPT}', content_number + '合同打印失败，请重新打印！');
+                                unlock_current_window();
+                            },
+                            error: function() {
+                                Aurora.showMessage('${l:PROMPT}', content_number + '合同打印错误，请重新打印！');
+                                unlock_current_window();
+                            },
+                            scope: this
+                        });
+                    },
+                    failure: function() {
+                        unlock_current_window();
+            
+                    },
+                    error: function() {
+                        unlock_current_window();
+            
+                    },
+                    scope: this
+                });
+            
+            }
+            
+            function on_print_detail_lov(record, name) {
+                if (record.isNew) {
+                    return 'print_detail_grid_lov_id';
+                } else {
+                    return '';
+                }
+            }
+            
+            function on_print_detail_combobox(record, name) {
+                if (record.isNew) {
+                    return 'print_detail_grid_combobox_id';
+                } else {
+                    return '';
+                }
+            }
+            
+            function con_print_detail_add() {
+                $('con_contract_update_print_detail_grid_id').showEditorByRecord($('con_contract_update_print_detail_line_ds').create());
+            }
+            
+            function lock_current_window() {
+                Aurora.Masker.mask($('${/parameter/@winid}').wrap, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_current_window() {
+                Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+            }
+            
+            function con_print_detail_create() {
+                debugger;
+                lock_current_window();
+                Aurora.request({
+                    url: $('con_contract_create_content_link_id').getUrl(),
+                    para: {
+                        contract_id: '${/parameter/@contract_id}'
+                    },
+                    success: function(res) {
+						$('con_contract_update_print_detail_line_ds').query();
+                        unlock_current_window();
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            function con_print_detail_save() {
+                lock_current_window();
+                if ($('con_contract_update_print_detail_line_ds').validate(true)) {
+                    //$('con_contract_update_print_detail_line_ds').submitSelected();
+                    $('con_contract_update_print_detail_line_ds').submit();
+                } else {
+                    unlock_current_window();
+                }
+            }
+            
+            function on_result_submitsuccess() {
+                unlock_current_window();
+                line_refresh();
+            }
+            
+            function on_result_submitfailed() {
+                unlock_current_window();
+                line_refresh();
+            }
+            
+            function on_result_add(ds, record, index) {
+                record.set('contract_id', '${/parameter/@contract_id}');
+            }
+            
+            function see_asset_detail_renderer(value, record, name) {
+                if (name == 'asset_detail' && record.get('content_id')) {
+                    return '<a href="javascript:con505_asset_detail(' + record.get('content_id') + ',' + record.get('con_contract_bp_id') + ',\'' + record.get('bp_category') + '\');">' + '资产明细' + '</a>';
+                }
+            }
+            
+            function con505_asset_detail(content_id, con_contract_bp_id, bp_category) {
+                new Aurora.Window({
+                    id: 'con_contract_content_asset_detail_winid',
+                    url: $('con_contract_content_asset_detail_link_id').getUrl(),
+                    params: {
+                        contract_id: '${/parameter/@contract_id}',
+                        content_id: content_id,
+                        con_contract_bp_id: con_contract_bp_id,
+                        bp_category: bp_category,
+                        winid: 'con_contract_content_asset_detail_winid'
+                    },
+                    title: '${l:CON505.CON_CONTENT_ASSET_DETAIL}',
+                    width: 500,
+                    height: 460
+                });
+            }
+            
+            function on_print_detail_lov_focus(lov) {
+                var record = lov.record,
+                    display_name = lov.binder.name;
+                record.getField(display_name).setLovPara('templet_usage', record.get('clause_usage'));
+            }
+            
+            function set_required_field(record, set_name, value) {
+                var set_field = record.getField(set_name);
+                if (value == 'N') {
+                    set_field.setRequired(false);
+                } else {
+                    set_field.setRequired(true);
+                }
+            }
+            
+            function on_result_update(ds, record, name, value, old_value) {
+                if (name == 'available_flag') {
+                    //set_required_field(record, 'content_number', value);
+                    set_required_field(record, 'templet_name', value);
+                } else if (name == 'templet_name') {
+                    var ds1 = $('con_contract_update_print_detail_header_ds');
+                    var rec = ds1.getCurrentRecord();
+                    var contract_number = rec.get('contract_number');
+            
+                    record.set('content_number', contract_number + '-' + record.get('clause_usage') + '-' + record.get('templet_id'), false);
+                }
+            }
+            
+            function on_result_load(ds) {
+                var records = ds.getAll();
+                for (var i = 0;i < records.length;i++) {
+                    var record = records[i];
+                    //set_required_field(record, 'content_number', record.get('available_flag'));
+                    set_required_field(record, 'templet_name', record.get('available_flag'));
+                }
+            
+                // 20160427 合同初审 页面 设置只读
+                var action = '${/parameter/@action}';
+                if (action == 'VIEW') {
+                    debugger;
+                    for (var m = 0;m < records.length;m++) {
+                        records[m].getField('clause_usage_name').setReadOnly(true);
+                        records[m].getField('bp_name').setReadOnly(true);
+                        records[m].getField('bp_category_desc').setReadOnly(true);
+                        records[m].getField('bp_class_desc').setReadOnly(true);
+                        records[m].getField('templet_name').setReadOnly(true);
+                        records[m].getField('content_number').setReadOnly(true);
+                    }
+                }
+            
+            }
+            
+            function update_attachment_renderer(value, record, name) {
+                var content_id = record.get('content_id');
+                return '<a href="javascript:open_uploadfile_win(' + content_id + ')">附件</a>';
+            }
+            
+            function open_uploadfile_win(content_id) {
+                new Aurora.Window({
+                    url: $('con_contract_uploadfile').getUrl(),
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    params: {
+                        'table_name': 'CON_CONTRACT_CONTENT',
+                        'header_id': content_id
+                    },
+                    width: 850,
+                    height: 400
+                });
+            }
+            
+            function download_renderer(value, record, name) {
+                var content_id = record.get('content_id');
+                var content_print_flag = record.get('content_print_flag');
+                if (content_print_flag == 'Y') {
+            
+                    return '<input id="button_i" type="button" value="下载" style="border:none;color:blue;cursor:pointer;" onmouseover="this.style.color=\'red\'" onmouseout="this.style.color=\'blue\'"   onclick = "download_uploadfile_win(\'' + content_id + '\')"/>';
+                    // return '<a href="javascript:download_uploadfile_win(\'' + content_id + '\')">下载</a>';
+                } else {
+                    return '';
+                }
+            }
+            
+            function download_uploadfile_win(content_id) {
+            
+                //var content_id = record.get('content_id');
+                var doc_code = '合同文本附件';
+                var url_l = $('con_atm_batch_download_pdf_link_id').getUrl() + '?content_id=' + content_id + '&doc_code=' + encodeURI(doc_code) + '&type=SIN&fnd_atm_flag=Y';
+                window.open(href = url_l, target = "_self");
+            }
+            
+            function con_content_delete() {
+                Aurora.showConfirm('确认', '确认删除合同文本？', function() {
+                    records = $('con_contract_update_print_detail_line_ds').getAll();
+                    if (records.length < 1) {
+                        Aurora.showMessage('${l:PROMPT}', '请选择记录！');
+                        return;
+                    }
+                    var datas = [];
+                    for (var i = 0;i < records.length;i++) {
+                        var obj = {};
+                        obj['content_id'] = records[i].get('content_id');
+                        obj['_status'] = 'delete';
+                        datas[i] = obj;
+                    }
+                    Aurora.request({
+                        url: $('con_contract_content_delete_link').getUrl(),
+                        para: datas,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '操作成功',
+                                duration: 2000
+                            });
+                            $('con_contract_update_print_detail_line_ds').query();
+                        },
+                        scope: this
+                    });
+                });
+            }
+            
+            function con_atm_download() {
+            
+                var contract_id = $('con_contract_update_print_detail_line_ds').getAt(0).get('contract_id');
+                var doc_code = '合同文本附件';
+                var url_l = $('con_atm_batch_download_pdf_link_id').getUrl() + '?contract_id=' + contract_id + '&doc_code=' + encodeURI(doc_code) + '&type=ZIP&fnd_atm_flag=Y';
+            
+                window.open(href = url_l, target = "_self");
+            }
+            
+            function con_contract_content_confirm() {
+                if ($('con_contract_update_print_detail_line_ds').getAll().length <= 0) {
+                    Aurora.showMessage('提示', '请先生成合同文本！');
+                    return;
+                }
+                records = $('con_contract_update_print_detail_line_ds').getAll();
+                var confirm_flag = true;
+                for (i = 0;i < records.length;i++) {
+                    if (records[i].get('content_print_flag') != 'Y') {
+                        confirm_flag = false;
+                        break;
+                    }
+                }
+                if (confirm_flag) {
+                    Aurora.showConfirm('提示', '您确定该合同信息无误？', function() {
+                        Aurora.request({
+                            url: $('con504_change_confirm_status_link').getUrl(),
+                            para: {
+                                contract_id: ${/parameter/@contract_id}
+                            },
+                            success: function() {
+                                Aurora.SideBar.show({
+                                    msg: '已确认',
+                                    duration: 2000
+                                });
+                                Aurora.go($('con_contract_content_confirm_link').getUrl());
+                                $('con505_contract_result_ds').query();
+                            },
+                            scope: this
+                        });
+                    });
+                } else {
+                    Aurora.showMessage('提示', '请先确认所有合同已经确认打印！');
+                    return;
+                }
+            
+            }
+            
+            function edit_office_attachment_renderer(value, record, name) {
+                //if (record.get('file_exists_flag') == 'Y') {
+                    return '<a href="javascript:open_office_link(' + record.id + ')">在线编辑</a>';
+                //}
+            }
+            
+            function open_office_link(record_id) {
+                doc_plugin_template_copy(record_id);
+            }
+            
+            function doc_plugin_template_copy(record_id) {
+                var result_ds = $('con_contract_update_print_detail_line_ds');
+                var record = result_ds.findById(record_id);
+                var content_id = record.get('content_id');
+                Aurora.request({
+                    url: $('file_copy_from_template_link_id').getUrl(),
+                    para: {
+                        content_id: record.get('content_id'),
+                        file_path: '${/parameter/@file_path}'
+                    },
+                    success: function(res) {
+                        var win = new Aurora.Window({
+                            id: 'edit_office_online_link_winid',
+                            url: $('con_contract_content_edit_office_online_link_id').getUrl(),
+                            params: {
+                                content_id: content_id,
+                                winid: 'edit_office_online_link_winid',
+                                first_copy_flag: res.result.first_copy_flag,
+                                contract_id: record.get('contract_id'),
+                                bar_code: record.get('bar_code')
+                            },
+                            fullScreen: true,
+                            draggable: true
+                        });
+                        win.on('close', function() {
+                            result_ds.query(result_ds.currentPage);
+                        });
+                        unlock_current_window();
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            function con_print_detail_print_new() {
+                debugger;
+                lock_current_window();
+                var result_ds = $('con_contract_update_print_detail_line_ds');
+                var records = result_ds.getAll();
+                var total_count = 0;
+                for (var m = 0;m < records.length;m++) {
+                    if (records[m].get('file_exists_flag') != 'Y') {
+                        total_count = total_count + 1;
+                    }
+                }
+                if (!records.length) {
+                    Aurora.showMessage('${l:PROMPT}', '请先生成文本！');
+                    unlock_current_window();
+                    return;
+                }
+            
+                if (total_count === 0 && records.length) {
+                    Aurora.showMessage('${l:PROMPT}', '文本都已生成');
+                    unlock_current_window();
+                    return;
+                }
+                Aurora.request({
+                    url: $('con_doc_batch_create_link_id').getUrl(),
+                    para: {
+                        contract_id: '${/parameter/@contract_id}',
+                        file_path: '${/parameter/@file_path}',
+                        batch_flag: 'Y'
+                    },
+                    success: function(res) {
+                        Aurora.SideBar.enable = true;
+                        Aurora.SideBar.show({
+                            msg: '生成完毕',
+                            duration: 2000
+                        });
+                        result_ds.query(result_ds.currentPage);
+                        unlock_current_window();
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            /* function print_detail_header_load(ds) {
+            debugger;
+                var records = ds.getCurrentRecord();
+                alert('${/parameter/@contract_number}');
+                records.set('contract_number', '${/parameter/@contract_number}');
+                records.set('contract_name', '${/parameter/@contract_name}');
+            } */
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="basic_clause_tmplet_usage_ds" lookupCode="CON_TMPLET_USAGE"/>
+            <a:dataSet id="con_contract_update_print_detail_header_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="contract_number" defaultValue="${/parameter/@contract_number}" readOnly="true"/>
+                    <a:field name="contract_name" defaultValue="${/parameter/@contract_name}" readOnly="true"/>
+                </a:fields>
+                <!-- <a:events>
+                    <a:event name="load" handler="print_detail_header_load"/>
+                </a:events> -->
+            </a:dataSet>
+            <a:dataSet id="con_contract_update_print_detail_line_ds" autoQuery="true" fetchAll="true" pageSize="100" queryUrl="${/request/@context_path}/autocrud/cont.CON761.con_contract_content_v/query?contract_id=${/parameter/@contract_id}" selectable="true" submitUrl="${/request/@context_path}/modules/cont/CON505/con_contract_content_save.svc">
+                <a:fields>
+                    <a:field name="bp_name" lovGridHeight="350" lovHeight="500" lovLabelWidth="100" lovService="cont.CON505.con_contract_content_bp_for_lov?contract_id=${/parameter/@contract_id}" lovWidth="550" required="true" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="record_id" to="con_contract_bp_id"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="bp_category" to="bp_category"/>
+                            <a:map from="bp_category_desc" to="bp_category_desc"/>
+                            <a:map from="bp_class" to="bp_class"/>
+                            <a:map from="bp_class_desc" to="bp_class_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="clause_usage_name" displayField="code_value_name" options="basic_clause_tmplet_usage_ds" required="true" returnField="clause_usage" valueField="code_value"/>
+                    <a:field name="clause_usage"/>
+                    <a:field name="templet_name" lovGridHeight="350" lovHeight="500" lovService="basic.con_clause_templet_for_lov" lovWidth="500" readOnly="true" required="true" title="CON505.CON_CONTENT_TEMPLET_NAME">
+                        <a:mapping>
+                            <a:map from="templet_id" to="templet_id"/>
+                            <a:map from="description" to="templet_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_id"/>
+                    <a:field name="content_number" readOnly="true"/>
+                    <a:field name="available_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_result_update"/>
+                    <a:event name="load" handler="on_result_load"/>
+                    <a:event name="submitsuccess" handler="on_result_submitsuccess"/>
+                    <a:event name="submitfailed" handler="on_result_submitfailed"/>
+                    <a:event name="add" handler="on_result_add"/>
+                    <!--   <a:event name="load" handler="on_result_query"/> -->
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <div id="screenTopToolbardiv">
+                <a:screenTopToolbar style="width:1100px">
+                    <a:gridButton id="con_print_id" click="con_print_detail_create" text="生成文本"/>
+                    <!-- <a:gridButton click="con_print_detail_add" text="HLS.NEW"/>
+                <a:gridButton click="con_print_detail_clear" text="HLS.CLEAR"/> -->
+                    <!-- <a:gridButton click="con_print_detail_save" text="HLS.SAVE"/> -->
+                    <a:gridButton id="con_delete_id" click="con_content_delete" text="删除"/>
+                    <!-- <a:gridButton id="con_print_detail_print_id" click="con_print_detail_print" text="HLS.PRINT_CONFIRM"/> -->
+                    <a:gridButton id="con_print_detail_print_id" click="con_print_detail_print_new" text="HLS.PRINT_CONFIRM"/>
+                    <a:gridButton id="con_atm_download_id" click="con_atm_download" text="一键下载"/>
+                    <!-- <a:gridButton id="con_atm_download_id" click="con_atm_download" text="打包下载"/> -->
+                    <!-- <a:gridButton click="con_contract_content_confirm" text="合同审核通过"/> -->
+                </a:screenTopToolbar>
+                <a:form column="2" title="CON505.CON_CONTENT_PRINT" width="1100">
+                    <a:textField name="contract_number" bindTarget="con_contract_update_print_detail_header_ds" prompt="HLS.CONTRACT_NUMBER"/>
+                    <a:textField name="contract_name" bindTarget="con_contract_update_print_detail_header_ds" prompt="HLS.CONTRACT_NAME" width="330"/>
+                </a:form>
+            </div>
+            <a:grid id="con_contract_update_print_detail_grid_id" bindTarget="con_contract_update_print_detail_line_ds" height="400" navBar="true" width="1280">
+                <a:toolBar><![CDATA[
+                ]]></a:toolBar>
+                <a:columns>
+                    <a:column name="templet_name" editor="print_detail_grid_lov_id" prompt="CON505.CON_CONTENT_TEMPLET_NAME" width="260"/>
+                    <a:column name="bp_name" editorFunction="on_print_detail_lov" prompt="HLS.BP_NAME" width="155"/>
+                    <a:column name="bp_category_desc" prompt="HLS.BP_CATEGORY"/>
+                    <a:column name="bp_class_desc" prompt="HLS.BP_CLASS"/>
+                    <a:column name="clause_usage_name" editorFunction="on_print_detail_combobox" prompt="HLS.CONTRACT_USAGE" width="220"/>
+                    <a:column name="content_number" editor="print_detail_grid_textfield_id" prompt="CON505.CON_CONTENT_NUMBER" width="180"/>
+                    <!-- <a:column name="content_print_flag_name" align="center" prompt="CON505.CON_CONTENT_STATUS" width="80"/> -->
+                    <!-- <a:column name="available_flag" editor="print_detail_grid_checkbox_id" prompt="CON505.AVAILABLE_FLAG" width="60"/> -->
+                    <!-- <a:column name="edit_office" align="center" prompt="在线编辑" renderer="edit_office_attachment_renderer" width="80"/> -->
+                    <a:column name="download" align="center" prompt="下载" renderer="download_renderer" width="50"/>
+                </a:columns>
+                <a:editors>
+                    <a:lov id="print_detail_grid_lov_id">
+                        <a:events>
+                            <a:event name="focus" handler="on_print_detail_lov_focus"/>
+                        </a:events>
+                    </a:lov>
+                    <a:comboBox id="print_detail_grid_combobox_id"/>
+                    <a:textField id="print_detail_grid_textfield_id"/>
+                    <!-- <a:checkBox id="print_detail_grid_checkbox_id"/> -->
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+        <script><![CDATA[
+            // Aurora.onReady(init);
+            // 20160427 合同初审 页面 设置隐藏
+            function init() {
+                var action = '${/parameter/@action}';
+                if (action == 'VIEW') {
+                    var grid_id = $('con_contract_update_print_detail_grid_id');
+                    grid_id.hideColumn('edit_office');
+                    document.getElementById('con_print_id').style.display = "none";
+                    document.getElementById('con_delete_id').style.display = "none";
+                    document.getElementById('con_print_detail_print_id').style.display = "none";
+                    // document.getElementById('con_atm_download_id').style.display = "none";
+                    // document.getElementById('con_print_detail_create').style.display = "none";
+                    // document.getElementById('con_print_detail_save_id').style.display = "none";
+                    // document.getElementById('con_content_delete_id').style.display = "none";
+                    // document.getElementById('con_print_detail_print_id').style.display = "none";
+                }
+               
+            
+            }
+            
+            init();
+        ]]></script>
+    </a:view>
+</a:screen>

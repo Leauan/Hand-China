@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:c="aurora.application.action" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure>
+        <a:model-update model="sys.SYS999.general_init_columns"/>
+        <a:model-query fetchAll="true" model="sys.SYS999.general_sheets" rootPath="gerneral_sheets"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="general_confirm" model="sys.SYS999.main" modelaction="execute"/>
+        <a:link id="general_import_upload_link" url="${/request/@context_path}/modules/sys/SYS999/general_upload.screen"/>
+        <script><![CDATA[
+            var general_ds_list = []; //用于存放所有被加载的ds_id
+            
+            function load_all_ds_list() {//加载所有的已打开的tab_ds
+                for (var i = 0;i < general_ds_list.length;i++) {
+                    var ds_id = general_ds_list[i].ds_id;
+                    $(ds_id).query();
+                }
+            }
+            function general_execute() {
+                var header_id = '${/parameter/@header_id}';
+                if(!header_id){
+                    return;
+                }
+                Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+                Aurora.request({
+                    url: $('general_confirm').getUrl(),
+                    para: {
+                        interface_header_id: header_id
+                    },
+                    success: function(res) {
+                        Aurora.Masker.unmask(Ext.getBody());
+                        var error_count = res.result.error_count;
+                        if (error_count == 0) {
+                            Aurora.showMessage('HLS.PROMPT', '导入成功', function() {
+                                load_all_ds_list();
+                            });
+                        } else {
+                            Aurora.showMessage('HLS.PROMPT', '导入失败请查看错误信息', function() {
+                                load_all_ds_list();
+                            });
+                        }
+                    },
+                    failure: function() {
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    error: function() {
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    scope: this
+                });
+            }
+            
+            function general_import() {
+                new Aurora.Window({
+                    id: 'upload_window',
+                    url: $('general_import_upload_link').getUrl(),
+                    title: '导入',
+                    width: 420,
+                    height: 275
+                });
+            }
+            
+            function indexchange_fun(ds, record) {
+                var line_id = record.get('line_id');
+                $('general_error_mes_ds').setQueryParameter('line_id', line_id);
+                $('general_error_mes_ds').query();
+            }
+            
+            function tab_select(tab, index) {
+                var ds_id = general_ds_list[index].ds_id;
+                if ($(ds_id).getAll().length!=0){
+	                var record = $(ds_id).getCurrentRecord();
+	                var line_id = record.get('line_id');
+	                $('general_error_mes_ds').setQueryParameter('line_id', line_id);
+	                $('general_error_mes_ds').query();
+                }
+            }
+            function general_save(){
+                for (var i = 0;i < general_ds_list.length;i++) {
+                    var ds_id = general_ds_list[i].ds_id;
+                    $(ds_id).submit();
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="general_error_mes_ds" model="sys.SYS999.fnd_interface_log"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="general_import" text="导入"/>
+                <a:gridButton click="general_save" text="保存"/>
+                <a:gridButton click="general_execute" text="确认数据"/>
+            </a:screenTopToolbar>
+            <a:tabPanel id="general_detail_tabpanel_id" marginHeight="300" marginWidth="50">
+                <a:tabs>
+                    <a:placeHolder id="dynamic_tab"/>
+                </a:tabs>
+                <a:events>
+                    <a:event name="select" handler="tab_select"/>
+                </a:events>
+            </a:tabPanel>
+            <!-- <a:grid bindTarget="general_detail_ds" marginHeight="320" marginWidth="50" navBar="true">
+                <a:columns>
+                    <a:column name="line_number" prompt="行号"/>
+                    <a:column name="err_flag" prompt="错误标志" sortable="true" />
+                    <a:placeHolder id="dynamic_cols"/>
+                </a:columns>
+                <a:editors>
+                	<a:textField id="general_texted" />
+                </a:editors>
+            </a:grid> -->
+            <a:form title="错误消息">
+                <a:grid bindTarget="general_error_mes_ds" marginHeight="450" marginWidth="50" navBar="true">
+                    <a:columns>
+                        <a:column name="line_number" prompt="行号"/>
+                        <a:column name="message" prompt="错误信息" width="400"/>
+                    </a:columns>
+                </a:grid>
+            </a:form>
+        </a:screenBody>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="dynamic_tab">
+            <p:loop source="/model/gerneral_sheets">
+                <c:process-config>
+                    <a:tab id="${@sheet_name}" prompt="${@sheet_name}" ref="general_dynamic_grid.screen?header_id=${/parameter/@header_id}&amp;sheet_name=${@sheet_name}" width="120"><![CDATA[
+                    ]]></a:tab>
+                </c:process-config>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

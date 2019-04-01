@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-6-24 下午07:14:16  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.tab_code=${/parameter/@attach_tab_code}" fetchAll="true" model="prj.PRJ500.prj_hls_doc_layout_tab_query" rootPath="tab_layout_attach_path"/>
+        <a:model-query defaultWhereClause="t1.enabled_flag=&apos;Y&apos;" fetchAll="true" model="prj.PRJ500.prj_hls_doc_layout_tab_query" rootPath="tab_layout_ref_attach_path"/>
+        <!-- <s:server-script><![CDATA[
+        	var m=$ctx.get('/model/tab_layout_ref_attach_path');
+        	println(m.toXML());
+        	println('******************');
+        ]]></s:server-script> -->
+    </a:init-procedure>
+    <a:view>
+        <a:link id="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_downloadFile_id" url="${/request/@context_path}/downloadFile.screen"/>
+        <style><![CDATA[
+		.item-options{
+		    background:#ffffff;
+		}
+		.cell-editor{
+    		border:none;
+    		margin-left:3px;
+    	}
+        ]]></style>
+        <script><![CDATA[
+            window['${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_editorFunction'] = function(record, name) {
+                if ('${/model/tab_layout_attach_path/record/@query_only}' == 'Y') {
+                    return '';
+                } else {
+                    if (name == 'description') {
+                        if (record.get('sys_flag') == 'N') {
+                            return '${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_tf_id';
+                        }
+                        return '';
+                    } else if (name == 'paper_required' || name == 'attachment_required' || name == 'not_applicable') {
+                        return '${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_ck_id';
+                    } else if (name == 'note') {
+                        return '${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_tf_id';
+                    } else if (name == 'attachment_tab_group' && record.isNew) {
+                        return '${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_lov_id';
+                    } else {
+                        return '';
+                    }
+                }
+            };
+            
+            
+            
+            window['${/parameter/@bp_seq}${/parameter/@attach_tab_code}_description_render'] = function(value, record, name) {
+                var import_flag=record.get('important_flag');
+                
+                if (import_flag == 'Y') {
+                    return '<div style="color:red">' + value + '</div>';
+                } else {
+                    return value;
+                }
+            };	
+            
+            window['${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_attachment_render'] = function(value, record, name) {
+                var attach_count = record.get('attach_count');
+                var check_id = record.get('check_id');
+                if (!record.isNew && check_id && attach_count > 0) {
+                    return '<a href="javascript:window[\'${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_attachtment_upload\'](\'' + check_id + '\');"><div style="color:red">${l:HLS.ATTACHMENT}</div></a>';
+                } else if(!record.isNew && check_id) {
+                    return '<a href="javascript:window[\'${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_attachtment_upload\'](\'' + check_id + '\');">${l:HLS.ATTACHMENT}</a>';
+                }
+            };
+            
+            window['${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_attachtment_upload'] = function(check_id) {
+                var url;
+                if ('${/model/tab_layout_attach_path/record/@query_only}' == 'Y') {
+                    url = $('${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_downloadFile_id').getUrl() + '?table_name=PRJ_CDD_ITEM_CHECK&header_id=' + check_id;
+                } else {
+                    url = $('${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_uploadFile_id').getUrl() + '?table_name=PRJ_CDD_ITEM_CHECK&header_id=' + check_id;
+                }
+                var win=new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: '${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_uploadFile_screen_id',
+                    width: 850,
+                    height: 400
+                });
+                
+                win.on('close',function(){
+                    $('${/parameter/@bp_seq}${/parameter/@attach_tab_code}_${/model/tab_layout_attach_path/record/@base_table}_ds').query();
+                });
+            };
+            window['${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_attach_add'] = function(ds) {
+                var record = $('${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_tab_layout_ref_attach_path_ds').find('tab_code', '${/model/tab_layout_attach_path/record/@ref_tab_code}'),
+                    parent_ds = $('${/parameter/@bp_seq}' + record.get('form_binder_tab_code') + '_' + record.get('base_table') + '_ds'),
+                    document_table = record.get('base_table').toUpperCase(),
+                    current_record = ds.getCurrentRecord();
+                current_record.data['document_table'] = document_table;
+                current_record.data['document_id'] = parent_ds.getCurrentRecord().get(record.get('base_table_pk').toLowerCase());
+                current_record.data['cdd_list_id'] = '${/parameter/@cdd_list_id}';
+                current_record.data['project_tab_group'] = '${/model/tab_layout_attach_path/record/@attachment_tab_group}';
+                current_record.data['project_required_flag'] = 'Y';
+                current_record.data['project_display_flag'] = 'Y';
+            };
+            window['${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_attach_load'] = function(ds) {
+                var records = ds.getAll();
+                if (records.length) {
+                    for (var i = 0;i < records.length;i++) {
+                        var record = records[i];
+                        if (Ext.isEmpty(record.get('check_id'))) {
+                            record.dirty = true;
+                        }
+                    }
+                }
+            };
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_tab_layout_ref_attach_path_ds">
+                <a:datas dataSource="/model/tab_layout_ref_attach_path"/>
+            </a:dataSet>
+            <a:dataSet id="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_${/model/tab_layout_attach_path/record/@base_table}_ds" autoPageSize="true" bindName="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_${/model/tab_layout_attach_path/record/@base_table}" bindTarget="${/model/tab_layout_attach_path/record/@repeat_bp_seq}${/model/tab_layout_attach_path/record/@parent_table_tab_code}_${/model/tab_layout_attach_path/record/@parent_table}_ds" fetchAll="true" model="prj.PRJ500.prj_project_doc_cdd_item" queryUrl="${/request/@context_path}/autocrud/prj.PRJ500.prj_project_doc_cdd_item/query?attachment_tab_group=${/model/tab_layout_attach_path/record/@attachment_tab_group}&amp;document_category=${/parameter/@document_category}" selectable="true">
+                <a:fields>
+                    <a:field name="tab_group_id" defaultValue="${/model/tab_layout_attach_path/record/@attachment_tab_group}"/>
+                    <a:field name="paper_required" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="not_applicable" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="attachment_required" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="sys_flag" defaultValue="N"/>
+                    <a:field name="document_id"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_attach_add&apos;]"/>
+                    <a:event name="load" handler="window[&apos;${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_attach_load&apos;]"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <script><![CDATA[
+            Aurora.onReady(function() {
+                var record = $('${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_tab_layout_ref_attach_path_ds').find('tab_code', '${/model/tab_layout_attach_path/record/@ref_tab_code}');
+                if (record) {
+                    var document_table = record.get('base_table');
+                    var ds = $('${/parameter/@bp_seq}' + record.get('form_binder_tab_code') + '_' + record.get('base_table') + '_ds');
+                    var result_ds = $('${/parameter/@bp_seq}${/parameter/@attach_tab_code}_${/model/tab_layout_attach_path/record/@base_table}_ds');
+                    result_ds.on('query', function(result_ds, qpara) {
+                        qpara['document_table'] = document_table.toUpperCase();
+                        qpara['base_table_pk'] = ds.getCurrentRecord().get(record.get('base_table_pk').toLowerCase());
+                        qpara['cdd_list_id'] = '${/parameter/@cdd_list_id}';
+                    });
+                    (function(callback) {
+                        if (ds.getCurrentRecord()) {
+                            callback();
+                        } else {
+                            function parent_ds_complete() {
+                                callback();
+                                ds.un('load', parent_ds_complete);
+                                ds.un('add', parent_ds_complete);
+                            }
+                            ds.on('load', parent_ds_complete);
+                            ds.on('add', parent_ds_complete);
+                        }
+                    })(function() {
+                        result_ds.query();
+                    });
+                }
+            });
+        ]]></script>
+        <a:grid id="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj_cdd_grid_id" bindTarget="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_${/model/tab_layout_attach_path/record/@base_table}_ds" height="${/model/tab_layout_attach_path/record/@height}" marginHeight="${/model/tab_layout_attach_path/record/@margin_height}" marginWidth="${/model/tab_layout_attach_path/record/@margin_width}" navBar="true" width="${/model/tab_layout_attach_path/record/@width}">
+            <a:toolBar>
+                <a:placeHolder id="layout_attach_button_dymanic_id"/>
+            </a:toolBar>
+            <a:columns>
+                <!-- <a:column name="cdd_item" editorFunction="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_editorFunction" prompt="HLS.DOCUMENT_CODE" showTitle="true" width="150"/> -->
+                <a:column name="description" editorFunction="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_editorFunction" prompt="HLS.DOCUMENT_NAME" renderer="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_description_render" showTitle="true" width="250"/>
+                <a:column name="attachment_required" editorFunction="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_editorFunction" prompt="HLS.DIGITAL_FILE" showTitle="true" width="45"/>
+                <a:column name="paper_required" editorFunction="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_editorFunction" prompt="HLS.ALREADY_SUBMIT" showTitle="true" width="45"/>
+                <a:column name="not_applicable" editorFunction="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_editorFunction" prompt="确认" showTitle="true" width="45"/>
+                <a:column name="attachment" align="center" prompt="" renderer="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_attachment_render" width="45"/>
+                <a:column name="note" editorFunction="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_editorFunction" prompt="HLS.COMMENT" showTitle="true" width="490"/>
+            </a:columns>
+            <a:editors>
+                <a:lov id="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_lov_id"/>
+                <a:checkBox id="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_ck_id"/>
+                <a:textField id="${/parameter/@bp_seq}${/parameter/@attach_tab_code}_prj500_cdd_tf_id"/>
+            </a:editors>
+        </a:grid>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="layout_attach_button_dymanic_id">
+            <p:loop source="/model/tab_layout_attach_path">
+                <p:switch test="@query_only">
+                    <p:case value="N">
+                        <c:process-config>
+                            <a:button type="add"/>
+                            <a:button type="save"/>
+                            <a:button type="delete"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

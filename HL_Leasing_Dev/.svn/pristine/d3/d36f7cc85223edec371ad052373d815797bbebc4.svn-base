@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-8-29 下午5:42:15  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query autoCount="false" defaultWhereClause=" document_category=&apos;PAYMENT_REQ&apos; and  enabled_flag=&apos;Y&apos;" fetchAll="true" model="hls.HLS003.hls_document_type" rootPath="payment_document_type"/>
+        <a:model-query autoCount="false" defaultWhereClause=" enabled_flag=&apos;Y&apos;" fetchAll="true" model="gld.gld_exchangerate_types" rootPath="exchangerate_types"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="prj_cdd_item_for_wfl_link" url="${/request/@context_path}/modules/csh/CSH504/prj_cdd_item_payment_terms_for_wfl.screen"/>
+        <div/>
+        <script><![CDATA[
+            function render_objectDs_grid(value, record, name) {
+                if (!record.isNew) {
+                    return '<a href="javascript:winOpen_req_pay(' + record.get('contract_id') + ',' + record.get('cashflow_id')+ ')">'+'${l:DETAIL}'+'</a>';
+                }
+            }
+            function winOpen_req_pay(contract_id,cashflow_id) {
+                new Aurora.Window({
+                    id: 'prj_cdd_item_window',
+                    url: $('prj_cdd_item_for_wfl_link').getUrl(),
+                    params:{
+	                	contract_id:contract_id,
+	                	cashflow_id :cashflow_id,
+	                	winId:'prj_cdd_item_window'
+	                },
+                    title: '',
+                    height:300,
+                    width:600
+                    
+                });
+            }
+            
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="document_type_ds">
+                <a:datas dataSource="/model/payment_document_type"/>
+            </a:dataSet>
+            <a:dataSet id="exchangerate_types_ds">
+                <a:datas dataSource="/model/exchangerate_types"/>
+            </a:dataSet>
+            <a:dataSet id="csh_payment_req_create_ds" loadData="true" model="csh.CSH504.csh_payment_req_hd_upd_query">
+                <a:fields>
+                    <a:field name="document_type_dis" displayField="description" options="document_type_ds" readOnly="true" required="true" returnField="document_type" valueField="document_type"/>
+                    <a:field name="bp_code" lovGridHeight="300" lovHeight="500" lovLabelWidth="100" lovService="basic.hls_bp_master_v_for_lov" lovWidth="530" readOnly="true" required="false" title="付款对象">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_category" to="bp_category"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="csh_payment_req_ln_ds" autoQuery="true" model="csh.CSH504.csh_payment_req_ln_upd_query" queryDataSet="csh_payment_req_create_ds" selectable="true">
+                <a:fields>
+                    <a:field name="residual_amount"/>
+                    <a:field name="apply_pay_date" required="true"/>
+                    <a:field name="due_date"/>
+                    <a:field name="amount" required="true"/>
+                    <a:field name="bp_code" lovGridHeight="300" lovHeight="500" lovLabelWidth="100" lovService="basic.hls_bp_master_v_for_lov" lovWidth="530" required="true" title="付款对象">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_category" to="bp_category"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="payment_terms_flag" checkedValue="Y" defaultValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="cf_item_5_flag" checkedValue="Y" defaultValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="cf_item_3_4_flag" checkedValue="Y" defaultValue="Y" readOnly="true" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form title="CSH501.CSH_REQ_MAINTAIN" width="1250">
+                <a:box column="4" labelWidth="120">
+                    <a:datePicker name="req_date" bindTarget="csh_payment_req_create_ds" prompt="CSH501.CSH_REQ_DATE" readOnly="true" width="150"/>
+                    <a:comboBox name="document_type_dis" bindTarget="csh_payment_req_create_ds" prompt="CSH501.CSH_REQ_TYPE" readOnly="true" typeCase="upper" width="150"/>
+                    <a:textField name="bp_code" bindTarget="csh_payment_req_create_ds" prompt="CSH501.CSH_PAYMENT_OBJ" readOnly="true" width="150"/>
+                    <a:textField name="bp_name" bindTarget="csh_payment_req_create_ds" prompt="CSH501.CSH_PAYMENT_OBJ_NAME" readOnly="true" width="150"/>
+                </a:box>
+                <a:box column="4" labelWidth="120">
+                    <a:numberField name="amount" bindTarget="csh_payment_req_create_ds" prompt="CSH501.CSH_PAYMENT_AMOUNT" readOnly="true" renderer="Aurora.formatMoney" typeCase="upper" width="150"/>
+                    <a:textField name="currency_code" bindTarget="csh_payment_req_create_ds" prompt="HLS.CURRENCY" readOnly="true" width="150"/>
+                    <a:textField name="description" bindTarget="csh_payment_req_create_ds" prompt="HLS.COMMENT" readOnly="true" width="428"/>
+                </a:box>
+            </a:form>
+            <a:grid id="csh_payment_req_create_grid_ds" bindTarget="csh_payment_req_ln_ds" marginHeight="520" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" prompt="HLS.CONTRACT_NUMBER" width="120"/>
+                    <a:column name="contract_name" prompt="HLS.CONTRACT_NAME" width="150"/>
+                    <a:column name="bp_name" prompt="CSH501.CSH_PAYMENT_OBJ_NAME" width="150"/>
+                    <a:column name="cf_description" prompt="CSH501.CSH_PAYMENT_PRJ" width="100"/>
+                    <a:column name="amount" align="right" prompt="CSH501.CSH_REQ_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="due_amount" align="right" prompt="CSH501.CSH_PAYMENT_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="currency_code" prompt="HLS.CURRENCY" width="60"/>
+                    <a:column name="due_date" prompt="CSH501.CSH_DUE_DATE" renderer="Aurora.formatDate"/>
+                    <a:column name="payment_terms_flag" prompt="CSH501.PAYMENT_TERMS_FLAG"/>
+                    <a:column name="cf_item_3_4_flag" prompt="CSH504.LEASE_CHARGE_LEASE_MGT_FEE" width="89"/>
+                    <a:column name="cf_item_5_flag" prompt="CSH504.DEPOSIT" width="60"/>
+                    <a:column name="payment_terms_detail" prompt="CSH501.PAYMENT_TERMS_DETAIL" renderer="render_objectDs_grid" width="80"/>
+                    <a:column name="residual_amount" align="right" prompt="CSH501.CSH_RESIDUAL_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="apply_pay_date" prompt="CSH501.CSH_REQ_PAY_DATE" renderer="Aurora.formatDate"/>
+                </a:columns>
+                <a:editors>
+                    <a:checkBox id="grid_checkbox"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+        <script><![CDATA[
+             
+        ]]></script>
+    </a:view>
+</a:screen>

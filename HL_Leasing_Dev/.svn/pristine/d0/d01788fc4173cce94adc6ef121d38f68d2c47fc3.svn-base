@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            importPackage(java.io);
+            importPackage(org.apache.tools.zip); /*可以传入参数*/
+            
+            function writeFile(zos, fn, fp) {
+                var ze = new ZipEntry(fn);
+                zos.setEncoding("UTF-8"); //如果是org.apache.tools.zip需要追加字符集
+                zos.putNextEntry(ze);
+                var fis = new FileInputStream(fp);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    zos.write(b, 0, len);
+                }
+                fis.close();
+            }
+            
+            function transfer(file, os) {
+                var fis = new FileInputStream(file);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    os.write(b, 0, len);
+                }
+                fis.close();
+            }
+            
+            $ctx["__request_type__"] = 'file'; //to indicate this request is not a JSON_REQUEST
+            var resp = $ctx['_instance.javax.servlet.http.HttpServletResponse'];
+            resp.setHeader("Pragma", "No-cache");
+            resp.setHeader("Cache-Control", "no-cache, must-revalidate");
+            var file_path;
+            resp.setDateHeader("Expires", 0);
+            resp.setContentType("application/x-msdownload");
+            var file_name;
+            try {
+                file_name = $ctx.parameter.file_name;
+                file_path = $ctx.parameter.file_path;
+                println(file_name);
+                println(file_path);
+                resp.setHeader("Content-disposition", "attachment; filename=" + encodeURI(file_name, 'utf-8'));
+                var os = resp.getOutputStream();
+                transfer(file_path, os);
+                os.flush();
+            } catch (e) {
+                println(e);
+                var logger = $logger("server-script");
+                logger.severe(e.message);
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

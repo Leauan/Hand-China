@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangyi2652 $
+    $Date: 2010/11/03 04:08:03 $
+    $Revision: 1.1 $
+    $Purpose: "会计期间控制"页面文件
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query autoCount="false" fetchAll="true" model="gld.FND5800.gld_period_status_fieldset" rootPath="fieldset"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="gld_period_pkg_init_period_link" model="db.gld_period_pkg.init_period" modelaction="update"/>
+        <a:link id="gld_period_pkg_close_period_link" model="db.gld_period_pkg.close_period" modelaction="execute"/>
+        <a:link id="gld_period_pkg_open_period_link" model="db.gld_period_pkg.open_period" modelaction="execute"/>
+        <script><![CDATA[
+            function openPeriodDs(value, record, name) {
+                
+                var period_status_code = record.get('period_status_code');
+                var ds = "close_open_ds";
+                if (period_status_code == 'C' || period_status_code == 'U') {
+                    var url = $('gld_period_pkg_open_period_link').getUrl();
+                    return '<a href="javascript:executeOpen(\'' + ds + '\',\'' + url + '\',' + record.id + ')">${l:OPEN_PERIOD}</a>';
+                } else if (period_status_code == 'O') {
+                    return '';
+                }
+            }
+            
+            function closePeriodDs(value, record, name) {
+                var period_status_code = record.get('period_status_code');
+                var ds = "close_open_ds";
+                if (period_status_code == 'C' || period_status_code == 'U') {
+                    return '';
+                } else if (period_status_code == 'O') {
+                    var url = $('gld_period_pkg_close_period_link').getUrl();
+                    return '<a href="javascript:executeClose(\'' + ds + '\',\'' + url + '\',' + record.id + ')">${l:CLOSE_PERIOD}</a>';
+                }
+            }
+          
+            
+            function statusRenderer(value, record, name) {
+                
+                if (value == null || value == undefined) {
+                    return '${l:PROMPT.NOT_OPEN}';
+                } else if (value == 'O') {
+                    return '${l:PROMPT.OPENED}';
+                } else if (value == 'C') {
+                    return '${l:PROMPT.CLOSED}';
+                }
+            }
+            
+            function executeOpen(ds, url, id) {
+                	record = $(ds).findById(id);
+                    Aurora.request({
+                        url: url,
+                        para: record.data,
+                        success: function() {
+            				
+            				record.set('period_status_code','O');
+            			    Aurora.SideBar.enable = true;
+                            Aurora.SideBar.show({
+                                msg: '打开成功',
+                                duration: 3000
+                            });
+            
+                        },
+                        scope: this
+                    });
+            }
+            
+            function executeClose(ds, url, id) {
+                record = $(ds).findById(id);
+                if ($('close_open_ds').getAll().length == 0) {
+                    Aurora.request({
+                        url: $('gld_period_pkg_init_period_link').getUrl(),
+                        para: record.data,
+                        success: function() {
+            					Aurora.showMessage('${l:PROMPT}', '${l:FND_DIMENSION_VALUES.OPR_SUC}', function(cmp) {
+                                document.location.reload();
+                                cmp.close();
+                            });
+                        },
+                        scope: this
+                    });
+                } else {
+                    Aurora.request({
+                        url: url,
+                        para: record.data,
+                        success: function() {
+                           
+                            record.set('period_status_code','C');
+                            
+                           	Aurora.SideBar.enable = true;
+                            Aurora.SideBar.show({
+                                msg: '关闭成功',
+                                duration: 3000
+                            });
+            
+                        },
+                        scope: this
+                    });
+                }
+            }
+            
+            
+            function doQuery() {
+                $('close_open_ds').setQueryParameter('period_set_code', '${/model/fieldset/record/@period_set_code}');
+                $('close_open_ds').query();
+            
+            }
+            
+            function find_index() {
+                var close_open_ds = $('close_open_ds');
+                var ds_length = close_open_ds.getAll().length;
+                var internal_period_num_max = close_open_ds.getCurrentRecord(0).get('internal_period_num_max');
+                var record = close_open_ds.find('internal_period_num', internal_period_num_max);
+                var index = close_open_ds.indexOf(record);
+                index = index + 3;
+            
+                // 如果查询的数据是倒数第一条至倒数第三条，则直接定位到倒数第一条
+                if (index > ds_length) {
+                    close_open_ds.locate(ds_length);
+                } else {
+                    close_open_ds.locate(index);
+                }
+            
+            }
+            function monthly_closed_flag_save(){
+                $('close_open_ds').submit();
+            }
+            
+            function close_open_cellclick(grid, row, name, record){
+                if (name == 'monthly_closed_flag_desc') {
+                    grid.setEditor('monthly_closed_flag_desc','closed_grid_comb');
+                }
+                
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="monthly_closed_flag_ds" lookupCode="YES_NO"/>
+            <a:dataSet id="status_fieldset_ds">
+                <a:datas dataSource="/model/fieldset"/>
+                <a:fields>
+                    <a:field name="period_set_code" prompt="GLD_PERIOD_SET.PERIOD_SET_CODE" readOnly="true"/>
+                    <a:field name="total_period_num" prompt="GLD_PERIOD_SET.TOTAL_PERIOD_NUM" readOnly="true"/>
+                    <a:field name="period_set_name" prompt="GLD_PERIOD_SET.PERIOD_SET_NAME" readOnly="true"/>
+                    <a:field name="company_short_name" prompt="FND_COMPANIES.COMPANY_SHORT_NAME" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="close_open_ds" autoQuery="true" fetchAll="true" model="gld.FND5800.gld_period_status_u_query" queryDataSet="status_fieldset_ds" queryUrl="${/request/@context_path}/autocrud/gld.FND5800.gld_period_status_u_query/query?period_set_code=${/model/fieldset/record/@period_set_code}">
+                <a:fields>
+                    <a:field name="monthly_closed_flag_desc" displayField="code_value_name" options="monthly_closed_flag_ds" returnField="monthly_closed_flag" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="find_index"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton id="monthly_closed_flag_save_id" click="monthly_closed_flag_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:fieldSet column="4" marginWidth="30" title="GLD_PERIOD_STATUS.TITLE">
+                <a:textField name="period_set_code" bindTarget="status_fieldset_ds"/>
+                <a:textField name="total_period_num" bindTarget="status_fieldset_ds"/>
+                <a:textField name="period_set_name" bindTarget="status_fieldset_ds"/>
+                <a:textField name="company_short_name" bindTarget="status_fieldset_ds"/>
+            </a:fieldSet>
+            <a:grid id="close_open_grid" bindTarget="close_open_ds" marginHeight="165" marginWidth="30">
+                <a:columns>
+                    <a:column name="period_year" align="center" prompt="GLD_PERIODS.PERIOD_YEAR" sortable="true" width="100"/>
+                    <a:column name="period_num" align="center" prompt="FND_DIMENSIONS.DIMENSION_SEQUENCE" sortable="true" width="80"/>
+                    <a:column name="start_date_c" align="center" prompt="GLD_EXCHANGE_RATE.START_DATE" sortable="true" width="150"/>
+                    <a:column name="end_date_c" align="center" prompt="GLD_EXCHANGE_RATE.END_DATE" sortable="true" width="150"/>
+                    <a:column name="quarter_num" align="center" prompt="GLD_PERIOD_STATUS.QUARTER" sortable="true" width="80"/>
+                    <a:column name="period_name" align="center" prompt="GLD_PERIODS.PERIOD_NAME" sortable="true" width="120"/>
+                    <a:column name="adjustment_flag" align="center" prompt="GLD_PERIOD_STATUS.ADJUST" width="70"/>
+                    <a:column name="period_status_code" align="center" prompt="GLD_PERIOD_STATUS.PERIOD_STATUS" renderer="statusRenderer" width="100"/>
+                    <a:column name="monthly_closed_flag_desc" align="center" prompt="月结关闭标志" width="100"/>
+                    <a:column name="actionOpen" align="center" prompt="HLS.OPEN_PERIOD" renderer="openPeriodDs" sortable="true" width="120"/>
+                    <a:column name="actionClose" align="center" prompt="HLS.CLOSE_PERIOD" renderer="closePeriodDs" sortable="true" width="120"/>
+                </a:columns>
+                <a:editors>
+                    <a:checkBox id="closed_grid_cb"/>
+                    <a:comboBox id="closed_grid_comb"/>
+                </a:editors>
+                <a:events>
+                    <a:event name="cellclick" handler="close_open_cellclick"/>
+                </a:events>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

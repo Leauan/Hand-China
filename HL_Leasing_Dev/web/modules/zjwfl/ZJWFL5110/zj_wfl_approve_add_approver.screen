@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:c="aurora.application.action" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure><![CDATA[
+    ]]></a:init-procedure>
+    <a:view>
+        <a:link id="svcLink_add_approver" url="${/request/@context_path}/modules/zjwfl/ZJWFL5110/zj_wfl_approve_add_approver.svc"/>
+        <a:screen-include screen="modules/zjwfl/zj_wfl_common_javascript.screen"/>
+        <script><![CDATA[
+        	
+        	function close_addApproverPage()
+        	{
+        	    var win = $('zj_wfl_approve_add_approver_win');
+        	    win.close();
+        	}
+        	
+            function add_approver()
+            {
+                var win = $('zj_wfl_approve_add_approver_win');
+                
+                f_zjwfl.winMask(win);
+                
+                var ds = $('addApproverDs');
+                if(!ds.validate)
+                {
+                    f_zjwfl.winNoMask(win);
+                    return;
+                }
+                
+                headRecord=$('head_addApproverDs').getAt(0);
+                
+                var data={};
+                data['add_method_priority'] = headRecord.get('add_method_priority');
+                data['comment'] = headRecord.get('comment');
+                data['rcpt_record_id'] = '${/parameter/@record_id}';
+                var approver_info = [];
+                
+                var records=ds.getAll();
+                
+                var j=records.length;
+                if(j==0)
+                {
+                    f_zjwfl.winNoMask(win);
+                    return ;
+                }
+                for (var i=0;i<j;i++)
+                {
+                    var obj={};
+                    obj['rcpt_record_id']='${/parameter/@record_id}';
+                    obj['seq_number']=records[i].get('seq_number');
+                    obj['user_id']=records[i].get('user_id');
+                    approver_info[i]=obj;
+                }
+                data['approver_info']=approver_info;
+                
+                Aurora.showConfirm('是否确认', '添加审批人', function() {
+                
+	                Aurora.request({
+	                    url: $('svcLink_add_approver').getUrl(),
+	                    para: data,
+	                    success: function(res) {
+	                        //解锁
+	                        f_zjwfl.winNoMask(win);
+	                        
+	                        // if($('head_addApproverDs').getAt(0).get('add_method_priority')=='BEFORE')
+	                        // {
+	                            // close_addApproverPage();
+	                        	// close_approvePage();
+	                        // }
+	                        // else
+	                        // {
+	                            // close_addApproverPage();
+	                        // }
+	            			Aurora.SideBar.show({
+	                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+	                            duration: 2000
+	                        });
+	                        
+	                        close_addApproverPage();
+	                    },
+	                    failure: function() {
+	                        f_zjwfl.winNoMask(win);
+	                    },
+	                    error: function() {
+	                        f_zjwfl.winNoMask(win);
+	                    },
+	                    scope: this
+	                });
+                }, function() {
+                    f_zjwfl.winNoMask(win);
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="approverPriorityDs" lookupCode="ZJ_WFL_ADD_APPROVER_PRIORITY"/>
+            <a:dataSet id="head_addApproverDs" autoCreate="true">
+                <a:fields>
+                    <a:field name="add_method_priority"/>
+                    <a:field name="add_method_priority_desc" displayField="code_value_name" options="approverPriorityDs" required="true" returnField="add_method_priority" valueField="code_value"/>
+                    <a:field name="comment"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="addApproverDs" model="zjwfl.ZJWFL5110.zj_wfl_add_approval_list" selectable="true">
+                <a:fields>
+                    <a:field name="seq_number" required="true"/>
+                    <a:field name="user_name" lovGridHeight="300" lovHeight="450" lovService="zjwfl.zj_wfl_users_v_lov" lovWidth="500" required="true" title="添加审批人">
+                        <a:mapping>
+                            <a:map from="user_id" to="user_id"/>
+                            <a:map from="user_name" to="user_name"/>
+                            <a:map from="employee_name" to="employee_name"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form>
+                <a:hBox padding="0">
+                    <a:comboBox name="add_method_priority_desc" bindTarget="head_addApproverDs" prompt="添加顺序"/>
+                </a:hBox>
+                <a:hBox padding="0">
+                    <a:textArea name="comment" bindTarget="head_addApproverDs" prompt="备注" width="373"/>
+                </a:hBox>
+            </a:form>
+            <a:grid id="addApproverDs_grid" bindTarget="addApproverDs" height="300" width="600">
+                <a:toolBar>
+                    <a:button type="add"/>
+                    <a:button type="delete"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="seq_number" align="right" editor="addApproverDs_grid_nf_integer" prompt="顺序"/>
+                    <a:column name="user_name" editor="addApproverDs_grid_lov" prompt="添加用户" width="200"/>
+                    <a:column name="employee_name" prompt="添加人姓名" width="200"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="addApproverDs_grid_nf_integer" allowDecimals="false" allowNegative="false"/>
+                    <a:lov id="addApproverDs_grid_lov"/>
+                </a:editors>
+            </a:grid>
+            <a:hBox style="float:right;">
+                <a:button click="add_approver" text="确定"/>
+            </a:hBox>
+        </a:screenBody>
+    </a:view>
+</a:screen>

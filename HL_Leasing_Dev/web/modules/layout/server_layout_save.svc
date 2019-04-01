@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:ns1="aurora.application.action" xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            // println($ctx.parameter.toXML());
+            
+            function recursive_dynamic_repeat(sub_child, sub_base_table, pk, q) {
+                if (sub_base_table.base_table) {
+                    var bind_name = q + $ctx.parameter.layout_code + '_' + sub_base_table.tab_code + '_' + sub_base_table.base_table.toLowerCase();
+                    var sub_root = sub_child.getChild(bind_name);
+                    if (sub_root) {
+                        var sub_children = sub_root.getChildren();
+                        if (bind_name.indexOf('prj_cdd_item_doc_ref') == -1) {
+                            for (var m = 0;m < sub_children.length;m++) {
+                                if (pk) {
+                                    sub_children[m][pk] = sub_child[pk];
+                                }
+                                if (sub_base_table.base_table.toLowerCase() == 'prj_quotation' && !sub_children[m]['document_id']) {
+                                    sub_children[m]['document_id'] = sub_child[pk];
+                                }
+                            }
+                            recursive_dynamic_save(sub_root, sub_base_table.base_table, sub_base_table.query_only, sub_base_table.parent_table, sub_base_table.parent_base_table_pk, sub_base_table.check_before_delete_bm, sub_base_table.check_after_save_bm, sub_base_table.tab_code);
+                        } else {
+                            var spec_bm = $bm('layout.server_layout_doc_cdd_item');
+                            for (var m = 0;m < sub_children.length;m++) {
+                                sub_children[m]['document_id'] = sub_child[pk];
+                                spec_bm[sub_children[m]['_status']](sub_children[m]);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            function document_check_before_delete(record, check_before_delete_bm) {
+                var check_before_delete_bm = $bm(check_before_delete_bm);
+                try {
+                    check_before_delete_bm.update(record);
+                } catch (e) {
+                    raise_app_error(parseErrorMessage(e));
+                }
+            }
+            
+            function layout_field_bak_save(_status, detail, base_table, base_table_pk, parent_table, parent_base_table_pk, layout_code, tab_code) {
+                for (var name in detail) {
+                    var bak_name = name + '_bak';
+                    if (name == '_status' || name == '_id' || !detail[bak_name]) {
+                        continue;
+                    }
+                    if (detail[bak_name] == 'LAYOUT_FIELD_VALUE_INIT_NULL') {
+                        if (_status == 'insert') {
+                            detail[bak_name] = '此记录为新增记录';
+                        } else if (_status == 'delete') {
+                            detail[bak_name] = '此记录为删除记录';
+                        }
+                    }
+                    var value = detail[name];
+                    var old_value = detail[bak_name];
+                    var field_bak_bm = $bm('layout.server_layout_field_value_bak');
+                    var parent_table_pk_value = '';
+                    if (parent_table) {
+                        parent_table_pk_value = detail[parent_base_table_pk];
+                    }
+                    if (value != old_value && old_value) {
+                        if (old_value == 'LAYOUT_FIELD_VALUE_INIT_NULL') {
+                            old_value = '';
+                        }
+                        field_bak_bm.update({
+                            layout_code: layout_code,
+                            tab_code: tab_code,
+                            table_name: base_table,
+                            table_pk_value: detail[base_table_pk],
+                            parent_table: parent_table,
+                            parent_table_pk_value: parent_table_pk_value,
+                            source_table: dynamic_source_table,
+                            source_table_pk_value: dynamic_source_table_pk_value,
+                            column_name: name,
+                            from_column_value: old_value,
+                            to_column_value: value,
+                            confirm_flag: 'N'
+                        });
+                    }
+                }
+            }
+            
+            var dynamic_source_table = $ctx.parameter.dynamic_source_table || '';
+            var dynamic_source_table_pk_value = $ctx.parameter.dynamic_source_table_pk_value || '';
+            
+            function recursive_dynamic_save(root, base_table, query_only, parent_table, parent_base_table_pk, check_before_delete_bm, check_after_save_bm, tab_code) {
+                if (!root) return;
+                var children = root.getChildren();
+                if (!children.length) return;
+                var query_base_table_bm = '';
+                if ($ctx.parameter.tree_code) {
+                    query_base_table_bm = $bm('layout.server_doc_layout_tree_tab_query');
+                } else {
+                    query_base_table_bm = $bm('layout.server_doc_layout_tab_query');
+                }
+                var sub_tn_map = '';
+                var pk = '';
+                var bm = '';
+                var sub_base_tables = '';
+                if (base_table) {
+                    sub_tn_map = query_base_table_bm.queryAsMap({
+                        "parent_table": base_table.toUpperCase(),
+                        'layout_code': $ctx.parameter.layout_code,
+                        'enabled_flag': 'Y'
+                    });
+                    $ctx.dynamic_base_table = base_table;
+                    sub_base_tables = sub_tn_map.getChildren();
+                    if (query_only == 'Y' && sub_base_tables.length == 0) {
+                        return;
+                    }
+                    bm = $bm('layout.server_layout_common');
+                    pk = $ctx.pkmap[base_table];
+                } else {
+                    sub_tn_map = query_base_table_bm.queryAsMap({
+                        "virtual_parent_flag": 'Y',
+                        'layout_code': $ctx.parameter.layout_code,
+                        'enabled_flag': 'Y'
+                    });
+                    sub_base_tables = sub_tn_map.getChildren();
+                    if (query_only == 'Y' && sub_base_tables.length == 0) {
+                        return;
+                    }
+                }
+                for (var i = 0;i < children.length;i++) {
+                    var _status = children[i]._status;
+                    if (base_table) {
+                        var parent_error_code = '';
+                        if (!parent_table && !dynamic_source_table) {
+                            dynamic_source_table = base_table;
+                            dynamic_source_table_pk_value = children[i][pk];
+                        }
+                        if (_status == 'delete') {
+                            if (!check_before_delete_bm) {
+                                var delete_map = query_base_table_bm.queryAsMap({
+                                    'layout_code': $ctx.parameter.layout_code,
+                                    'tab_code': $ctx.parameter.tab_code,
+                                    'enabled_flag': 'Y'
+                                });
+                                var delete_map_tables = delete_map.getChildren();
+                                if (delete_map_tables.length && delete_map_tables[0].check_before_delete_bm) {
+                                    document_check_before_delete(children[i], delete_map_tables[0].check_before_delete_bm);
+                                }
+                            } else {
+                                document_check_before_delete(children[i], check_before_delete_bm);
+                            }
+                        }
+                        try {
+                            if (parent_table && parent_base_table_pk && !children[i][parent_base_table_pk]) {
+                                parent_error_code = 'HLS_TABLE_UNIQUE.SAVE_PARENT_FIRST';
+                                raise_app_error(parent_error_code);
+                            }
+                            if (query_only != 'Y') {
+                                if (_status != 'insert') {
+                                    layout_field_bak_save(_status, children[i], base_table, pk, parent_table, parent_base_table_pk, $ctx.parameter.layout_code, tab_code);
+                                }
+                                bm.option = {
+                                    updatePassedFieldOnly: 'true'
+                                }
+                                bm[_status](children[i]);
+                                if (_status == 'insert') {
+                                    layout_field_bak_save(_status, children[i], base_table, pk, parent_table, parent_base_table_pk, $ctx.parameter.layout_code, tab_code);
+                                }
+                                if (check_after_save_bm && i == children.length - 1) {
+                                    document_check_after_save(children[i], check_after_save_bm);
+                                }
+                            }
+                        } catch (e) {
+                            if (e.javaException) e = e.javaException;
+                            while (e && e.getCause && e.getCause()) e = e.getCause();
+							 if (e.getErrorCode && e.getErrorCode() == 1) {
+                                raise_app_error('HLS_TABLE_UNIQUE.' + base_table.toUpperCase());
+                            }
+                            //var error_code = e.getErrorCode();
+                           // if (error_code == 1) {
+						   
+                               // raise_app_error('HLS_TABLE_UNIQUE.' + base_table.toUpperCase());
+                           // }
+                            if (parent_error_code) {
+                                raise_app_error(parent_error_code);
+                            } else {
+                                raise_app_error($ctx.get('/error/@message') || String(e));
+                            }
+                        }
+                    }
+                    for (var j = 0;j < sub_base_tables.length;j++) {
+                        if (sub_base_tables[j].repeat_bindname_object == 'TENANT') {
+                            for (var q = 1;q <= $ctx.parameter.number_of_tenant;q++) {
+                                recursive_dynamic_repeat(children[i], sub_base_tables[j], pk, q);
+                            }
+                        } else if (sub_base_tables[j].repeat_bindname_object == 'GUARANTOR') {
+                            for (var q = 1;q <= $ctx.parameter.number_of_guarantor;q++) {
+                                recursive_dynamic_repeat(children[i], sub_base_tables[j], pk, q);
+                            }
+                        } else if (sub_base_tables[j].repeat_bindname_object == 'ACTUAL_CONTROLLER') {
+                            for (var q = 1;q <= $ctx.parameter.number_of_actual_controller;q++) {
+                                recursive_dynamic_repeat(children[i], sub_base_tables[j], pk, q);
+                            }
+                        } else if (sub_base_tables[j].repeat_bindname_object == 'QUOTATION') {
+                            for (var q = 1;q <= $ctx.parameter.number_of_quotation;q++) {
+                                recursive_dynamic_repeat(children[i], sub_base_tables[j], pk, q);
+                            }
+                        } else {
+                            recursive_dynamic_repeat(children[i], sub_base_tables[j], pk, '');
+                        }
+                    }
+                }
+            }
+            
+            function document_check_after_save(record, check_after_save_bm) {
+                var last_check_bm = $bm(check_after_save_bm);
+                last_check_bm.update(record);
+            }
+            
+            function parseErrorMessage(e) {
+                var err = $ctx.getChild('error');
+                if (err) {
+                    return err.message;
+                }
+                if (e.javaException) e = e.javaException;
+                else return e.message;
+                while (e && e.getCause && e.getCause())
+                e = e.getCause();
+                var serviceContext = Packages.aurora.service.ServiceContext.createServiceContext($ctx.getData());
+                var ed = $instance('aurora.service.exception.IExceptionDescriptor')
+                var map = new CompositeMap(ed.process(serviceContext, e));
+                return map.message;
+            }
+            
+            recursive_dynamic_save($ctx.parameter, $ctx.parameter.base_table, $ctx.parameter.query_only, $ctx.parameter.parent_table, $ctx.parameter.parent_base_table_pk);
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:service-output output="/parameter"/>
+</a:service>

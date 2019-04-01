@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wdd 
+    $Date: 2018-05-12 下午1:42:02  
+    $Revision: 1.0  
+    $Purpose: 查询银联代扣
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="ccb301_query_transaction_link" url="${/request/@context_path}/modules/ccb/ccb301/hl_cup_manual_transaction_query.svc"/>
+        <script><![CDATA[
+            //查询代扣并核销
+            window['${/parameter/@layout_code}_user_button4_layout_dynamic_click'] = function() {
+                //debugger;
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_ebank_ccb_transaction');
+                var tra_ds_id = $(ds_id);
+                var records = tra_ds_id.getSelected();
+                var length = records.length;
+                if (!records.length) {
+                    Aurora.showMessage('${l:PROMPT}', '请至少勾选一条数据!');
+                    return;
+                }
+                if (records.length) {
+                    for (var i = 0;i < records.length;i++) {
+                        var record = records[i];
+                        var status = record.get('status');
+                        if (status != 'NEW' && status != 'DEAL') {
+                            Aurora.showMessage('${l:PROMPT}', '状态不为新建或正在受理，请核实!');
+                            return;
+                        }
+                        var detail_mask = Ext.getBody();
+                        Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                        Aurora.request({
+                            url: $('ccb301_query_transaction_link').getUrl(),
+                            para: {
+                                transaction_id: record.get('transaction_id')
+                            },
+                            success: function(res) {
+                                window['${/parameter/@layout_code}_QUERY_LAYOUT_DYNAMIC_CLICK']();
+                                Aurora.Masker.unmask(detail_mask);
+                            },
+                            error: function(res) {
+                                Aurora.Masker.unmask(detail_mask);
+                            },
+                            faliure: function() {
+                                Aurora.Masker.unmask(detail_mask);
+                            },
+                            scope: this
+                        });
+                    }
+                }
+            
+            
+            
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

@@ -1,0 +1,392 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-5-23 下午03:42:50  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:s="aurora.plugin.script" xmlns:f="aurora.database.features" xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        t.contract_id,
+                        t.contract_name,
+                        f.cashflow_id,
+                        t.search_term_1,
+                        f.times,
+                        t.contract_number,
+                        p.project_number,
+                        p.project_name,
+                        t.bp_id_tenant,
+                        (SELECT b.bp_code FROM hls_bp_master b WHERE b.bp_id = t.bp_id_tenant
+                        ) bp_id_tenant_c,
+                        (SELECT b.bp_name FROM hls_bp_master b WHERE b.bp_id = t.bp_id_tenant
+                        ) bp_id_tenant_n,
+                        csh_payment_req_pkg.get_bp_id(t.contract_id) tenant_bp_id,
+                        (SELECT
+                            b.bp_name
+                        FROM
+                            hls_bp_master b
+                        WHERE
+                            b.bp_id =csh_payment_req_pkg.get_bp_id(t.contract_id)
+                        ) bp_name,
+                        (SELECT
+                            b.bp_code
+                        FROM
+                            hls_bp_master b
+                        WHERE
+                            b.bp_id =csh_payment_req_pkg.get_bp_id(t.contract_id)
+                        ) bp_code,
+                        h.description cf_item_desc,
+                        h.cf_item,
+                        f.due_amount,
+                        t.currency,
+                        (SELECT
+                            dbms_lob.substr(wmsys.wm_concat(ci.serial_number))
+                        FROM
+                            con_contract_lease_item ci
+                        WHERE
+                            ci.contract_id    = t.contract_id AND
+                            ci.serial_number IS NOT NULL
+                        ) serial_number,
+						(SELECT
+                            dbms_lob.substr(wmsys.wm_concat(ci.item_frame_number))
+                        FROM
+                            con_contract_lease_item ci
+                        WHERE
+                            ci.contract_id    = t.contract_id AND
+                            ci.item_frame_number IS NOT NULL
+                        ) item_frame_number,
+                        TO_CHAR(f.due_date,'yyyy-mm-dd') due_date,
+                        f.received_amount,
+                        NVL(f.due_amount,0)-NVL(f.received_amount,0) residual_amount,
+                        ( NVL(
+                        (SELECT
+                            SUM(l.amount_paid)
+                        FROM
+                            csh_payment_req_ln l,
+                            csh_payment_req_hd h
+                        WHERE
+                            l.ref_doc_line_id       = f.cashflow_id AND
+                            l.payment_req_id        = h.payment_req_id AND
+                            h.submitted_flag        = 'Y' AND
+                            h.approval_status       = 'APPROVED' AND
+                            NVL(h.closed_flag, 'N') = 'Y'
+                        ), 0) + NVL(
+                        (SELECT
+                            SUM(l.amount)
+                        FROM
+                            csh_payment_req_ln l,
+                            csh_payment_req_hd h
+                        WHERE
+                            l.ref_doc_line_id        = f.cashflow_id AND
+                            l.payment_req_id         = h.payment_req_id AND
+                          
+                            h.approval_status        = 'APPROVED' AND
+                            NVL(h.closed_flag, 'N') <> 'Y'
+                        ), 0) + NVL(
+                        (SELECT
+                            SUM(l.amount)
+                        FROM
+                            csh_payment_req_ln l,
+                            csh_payment_req_hd h
+                        WHERE
+                            l.ref_doc_line_id = f.cashflow_id AND
+                            l.payment_req_id  = h.payment_req_id AND
+                            h.submitted_flag  = 'Y' AND
+                            h.approval_status in ( 'APPROVING','APPROVED')
+                        ), 0) ) applied_pay_amount,
+                        t.vat_flag,
+                        (SELECT
+                            fc.company_short_name
+                        FROM
+                            fnd_companies fc
+                        WHERE
+                            fc.company_id = t.company_id
+                        ) lessor_name,
+                        t.business_type con_business_type,
+                        (SELECT
+                            hbt.description
+                        FROM
+                            hls_business_type hbt
+                        WHERE
+                            t.business_type = hbt.business_type AND
+                            rownum          = 1
+                        ) con_business_type_n,
+                        (SELECT
+                            m.taxpayer_type
+                        FROM
+                            hls_bp_master_lv m
+                        WHERE
+                            m.bp_id = csh_payment_req_pkg.get_bp_id(t.contract_id)
+                        ) taxpayer_type,
+                        (SELECT
+                            v.code_value_name AS value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code                    = 'HLS211_TAXPAYER_TYPE' AND
+                            v.code_enabled_flag       = 'Y' AND
+                            v.code_value_enabled_flag = 'Y' AND
+                            v.code_value              =
+                            (SELECT
+                                m.taxpayer_type
+                            FROM
+                                hls_bp_master_lv m
+                            WHERE
+                                m.bp_id = csh_payment_req_pkg.get_bp_id(t.contract_id)
+                            )
+                        ) taxpayer_type_n,
+                        (SELECT
+                            v.code_value_name
+                        FROM
+                            hls_product_plan_definition hls,
+                            con_contract_lease_item ccl,
+                            con_contract cc,
+                            sys_code_values_v v
+                        WHERE
+                            ccl.contract_id     = t.contract_id AND
+                            cc.contract_id      = ccl.contract_id AND
+                            ccl.product_plan_id = hls.product_plan_id AND
+                            cc.data_class       = 'NORMAL' AND
+                            v.code              = 'PRODUCT_CATEGORY' AND
+                            v.code_value        = hls.product_type
+                        )product_type_n,
+                        (SELECT
+                            hls.product_name_write
+                        FROM
+                            hls_product_plan_definition hls,
+                            con_contract cc,
+                            con_contract_lease_item ccl
+                        WHERE
+                            ccl.contract_id     = t.contract_id AND
+                            cc.contract_id      = ccl.contract_id AND
+                            ccl.product_plan_id = hls.product_plan_id AND
+                            cc.data_class       = 'NORMAL'
+                        ) product_name_write,
+						 (NVL(
+                        (SELECT
+                            'Y'
+                        FROM
+                            dual
+                        WHERE
+                            EXISTS
+                            (SELECT
+                                1
+                            FROM
+                                ast_car_license a,
+                                con_contract_item_detail cc
+                            WHERE
+                                a.item_detail_id = cc.item_detail_id AND
+                                cc.contract_id   = t.contract_id AND
+                                a.enabled_flag   = 'Y'
+                            )
+                        ), 'N')) enabled_flag,
+                        (NVL(
+                        (SELECT
+                            'Y'
+                        FROM
+                            dual
+                        WHERE
+                            EXISTS
+                            (Select 1
+                              From CON_CONTRACT_MORTGAGE ccu
+                             Where ccu.contract_id = t.contract_id
+                            )
+                        ), 'N')) mortgage_flag,
+						 (NVL(
+                        (SELECT
+                            '是'
+                        FROM
+                            dual
+                        WHERE
+                            EXISTS
+                            (SELECT
+                                1
+                            FROM
+                                ast_car_license a,
+                                con_contract_item_detail cc
+                            WHERE
+                                a.item_detail_id = cc.item_detail_id AND
+                                cc.contract_id   = t.contract_id AND
+                                a.enabled_flag   = 'Y'
+                            )
+                        ), '否')) enabled_flag_desc,
+                        (NVL(
+                        (SELECT
+                            '是'
+                        FROM
+                            dual
+                        WHERE
+                            EXISTS
+                            (Select 1
+                              From CON_CONTRACT_MORTGAGE ccu
+                             Where ccu.contract_id = t.contract_id
+                            )
+                        ), '否')) mortgage_flag_desc,
+						 (SELECT
+                            TO_CHAR(cw.write_off_date,'yyyy-mm-dd')
+                        FROM
+                            csh_write_off cw
+                        WHERE
+                            cw.contract_id = t.contract_id AND
+                            cw.cf_item     = 5 AND
+                            rownum         = 1
+                        ) write_off_date,
+                        NVL(t.archive_status, '10') archive_status,
+                        NVL(
+                        (SELECT
+                            v.code_value_name AS value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code       = 'ARCHIVE_STATUS' AND
+                            v.code_value = t.archive_status
+                        ), '未归档') archive_status_n
+                    FROM
+                        con_contract t,
+                        con_contract_cashflow f,
+                        prj_project p,
+                        hls_cashflow_item h
+                    WHERE
+                        t.contract_id     = f.contract_id AND
+                        t.project_id      = p.project_id(+) AND
+                        f.cf_item         =h.cf_item(+) AND
+                        h.CF_DIRECTION(+) ='OUTFLOW' AND
+                        f.write_off_flag <>'FULL' AND
+                        f.cf_status      IN ('RELEASE','BLOCK') AND
+                        f.cf_direction    = 'OUTFLOW' AND
+                        (
+                            NVL(f.due_amount, 0) - NVL(
+                            (SELECT
+                                SUM(NVL(l.amount_paid,0))
+                            FROM
+                                csh_payment_req_ln l,
+                                csh_payment_req_hd h
+                            WHERE
+                                l.ref_doc_line_id       = f.cashflow_id AND
+                                l.payment_req_id        = h.payment_req_id AND
+                                h.approval_status       = 'APPROVED' AND
+                                NVL(h.closed_flag, 'N') = 'Y'
+                            ), 0) - NVL(
+                            (SELECT
+                                SUM(l.amount)
+                            FROM
+                                csh_payment_req_ln l,
+                                csh_payment_req_hd h
+                            WHERE
+                                l.ref_doc_line_id        = f.cashflow_id AND
+                                l.payment_req_id         = h.payment_req_id AND
+                                h.approval_status        = 'APPROVED' AND
+                                NVL(h.closed_flag, 'N') <> 'Y'
+                            ), 0) - NVL(
+                            (SELECT
+                                SUM(l.amount)
+                            FROM
+                                csh_payment_req_ln l,
+                                csh_payment_req_hd h
+                            WHERE
+                                l.ref_doc_line_id = f.cashflow_id AND
+                                l.payment_req_id  = h.payment_req_id AND
+                                h.approval_status = 'APPROVING'
+                            ), 0)- NVL(
+                            (SELECT
+                                SUM(l.amount)
+                            FROM
+                                csh_payment_req_ln l,
+                                csh_payment_req_hd h
+                            WHERE
+                                l.ref_doc_line_id            = f.cashflow_id AND
+                                l.payment_req_id             = h.payment_req_id AND
+                                NVL(h.approval_status,'NEW') = 'NEW'
+                            ), 0)
+                        )
+                                               > 0 AND
+                        t.data_class           ='NORMAL' AND
+                        t.lease_channel = '00'
+                        and t.contract_status ='INCEPT'
+			and t.payment_enabled_flag='Y'
+                    ) t1 #WHERE_CLAUSE#
+                ORDER BY
+                    contract_number DESC,
+                    times
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="contract_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONTRACT_NUMBER" prompt="HLS.CONTRACT_NUMBER"/>
+        <bm:field name="contract_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONTRACT_NAME" prompt="HLS.CONTRACT_NAME"/>
+        <bm:field name="project_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PROJECT_NAME" prompt="HLS.PROJECT_NAME"/>
+        <bm:field name="tenant_bp_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="TENANT_BP_ID"/>
+        <bm:field name="cf_item_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CF_ITEM_DESC" prompt="CSH501.CSH_PAYMENT_PRJ"/>
+        <bm:field name="due_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="DUE_AMOUNT" prompt="CSH501.CSH_PAYMENT_AMOUNT"/>
+        <bm:field name="currency" databaseType="CHAR" datatype="java.lang.String" physicalName="CURRENCY" prompt="HLS.CURRENCY"/>
+        <bm:field name="due_date" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DUE_DATE" prompt="CSH501.CSH_DUE_DATE"/>
+        <bm:field name="residual_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="RESIDUAL_AMOUNT" prompt="CSH501.CSH_RESIDUAL_AMOUNT"/>
+        <bm:field name="bp_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="bp_name" prompt="供应商名称"/>
+        <bm:field name="contract_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="cashflow_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="applied_pay_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="received_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="project_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PROJECT_NUMBER"/>
+        <bm:field name="bp_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="bp_code"/>
+        <bm:field name="times" databaseType="NUMBER" datatype="java.lang.Long" prompt="HLS.PERIOD_NUMBER"/>
+        <bm:field name="search_term_1"/>
+        <bm:field name="serial_number"/>
+        <bm:field name="bp_id_tenant_n"/>
+        <bm:field name="bp_id_tenant_c"/>
+        <bm:field name="vat_flag"/>
+        <bm:field name="lessor_name"/>
+        <bm:field name="con_business_type"/>
+        <bm:field name="con_business_type_n"/>
+        <bm:field name="taxpayer_type"/>
+        <bm:field name="taxpayer_type_n"/>
+        <bm:field name="product_type_n"/>
+        <bm:field name="product_name_write"/>
+        <bm:field name="cf_item"/>
+        <bm:field name="item_frame_number"/>
+		<bm:field name="enabled_flag"/>
+        <bm:field name="mortgage_flag"/>
+		<bm:field name="enabled_flag_desc"/>
+        <bm:field name="mortgage_flag_desc"/>
+        <bm:field name="write_off_date"/>
+        <bm:field name="archive_status"/>
+        <bm:field name="archive_status_n"/>
+    </bm:fields>
+    <bm:features>
+        <s:bm-script><![CDATA[
+            var cx = Packages.aurora.javascript.Context.getCurrentContext();
+            Packages.aurora.plugin.script.engine.ScriptImportor.defineExternScript(cx, this, $ctx.getData(), "aut_authority_bm_validate.js");
+        ]]></s:bm-script>
+    </bm:features>
+    <bm:query-fields>
+        <bm:query-field name="pay_contract_from" datatype="java.lang.String" queryExpression="t1.contract_number&gt;=${@pay_contract_from}"/>
+        <bm:query-field name="pay_contract_to" datatype="java.lang.String" queryExpression="t1.contract_number&lt;=${@pay_contract_to}"/>
+        <bm:query-field name="due_date_from" datatype="java.lang.String" queryexpression="t1.due_date &gt;= ${@due_date_from}"/>
+        <bm:query-field name="due_date_to" datatype="java.lang.String" queryexpression="t1.due_date &lt;= ${@due_date_to}"/>
+        <bm:query-field name="due_amount_from" datatype="java.lang.String" queryExpression="t1.due_amount&gt;=${@due_amount_from}"/>
+        <bm:query-field name="due_amount_to" datatype="java.lang.String" queryExpression="t1.due_amount&lt;=${@due_amount_to}"/>
+        <bm:query-field name="project_name" datatype="java.lang.String" queryExpression="t1.project_name LIKE ${@project_name}"/>
+        <bm:query-field name="bp_code_tenant_from" datatype="java.lang.String" queryExpression="t1.bp_code&gt;=${@bp_code_tenant_from}"/>
+        <bm:query-field name="bp_code_tenant_to" datatype="java.lang.String" queryExpression="t1.bp_code&lt;=${@bp_code_tenant_to}"/>
+        <bm:query-field name="bp_code_tenant" datatype="java.lang.String" queryExpression="t1.bp_id_tenant_c= ${@bp_code_tenant}"/>
+        <bm:query-field name="bp_id_tenant" datatype="java.lang.String" queryExpression="t1.bp_id_tenant= ${@bp_id_tenant}"/>
+        <bm:query-field name="currency" datatype="java.lang.String" queryExpression="t1.currency = ${@currency}"/>
+        <bm:query-field name="cf_item" datatype="java.lang.String" queryExpression="t1.cf_item = ${@cf_item}"/>
+        <bm:query-field name="serial_number" queryExpression="t1.serial_number like ${@serial_number}"/>
+        <bm:query-field name="project_number_from" datatype="java.lang.String" queryExpression="t1.project_number&gt;=${@project_number_from}"/>
+        <bm:query-field name="project_number_to" datatype="java.lang.String" queryExpression="t1.project_number&lt;=${@project_number_to}"/>
+        <bm:query-field name="bp_id" queryExpression="exists(select 1 from con_contract_bp ccb where ccb.contract_id=t1.contract_id and ccb.bp_id=${@bp_id})"/>
+        <bm:query-field name="vat_flag" queryExpression="t1.vat_flag = ${@vat_flag}"/>
+        <bm:query-field name="lessor_name" queryExpression="t1.lessor_name = ${@lessor_name}"/>
+        <bm:query-field name="enabled_flag" queryExpression="t1.enabled_flag = ${@enabled_flag}"/>
+        <bm:query-field name="mortgage_flag" queryExpression="t1.mortgage_flag = ${@mortgage_flag}"/>
+		<bm:query-field name="write_off_date_from" datatype="java.lang.String" queryexpression="t1.write_off_date &gt;= ${@write_off_date_from}"/>
+        <bm:query-field name="write_off_date_to" datatype="java.lang.String" queryexpression="t1.write_off_date &lt;= ${@write_off_date_to}"/>
+        <bm:query-field  name="archive_status" datatype="java.lang.String" queryExpression="t1.archive_status&gt;=${@archive_status}"/>
+    </bm:query-fields>
+</bm:model>

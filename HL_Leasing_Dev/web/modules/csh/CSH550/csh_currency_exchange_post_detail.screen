@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-10-10 下午02:22:53  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="detail_currency_path"/>
+        <a:model-query fetchAll="true" model="gld.gld_exchangerate_type_lov" rootPath="exchangerate_type_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="csh_currency_exchange_save_after_post_link_id" model="csh.CSH550.csh_transaction_currency_exchange_save_after_post" modelaction="batch_update"/>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <script><![CDATA[
+            function csh_currency_exchange_post_detail_return() {
+                $('${/parameter/@winid}').close();
+            }
+            
+            function lock_currency_exchange_detail_win() {
+                Aurora.Masker.mask($('${/parameter/@winid}').wrap, '${l:HLS.SAVING}');
+            }
+            
+            function unlock_currency_exchange_detail_win() {
+                Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+            }
+            
+            function execute_after_save_success() {
+                Aurora.SideBar.show({
+                    msg: '${l:HLS.SUBMIT_SUCCESS}',
+                    duration: 2000
+                });
+            }
+            
+            function set_record_status(record) {
+                if (record.dirty) {
+                    record.set('_status', 'update');
+                }
+            }
+            
+            function set_record_status_after_success(record) {
+                record.isDirty = false;
+            }
+            
+            
+            function csh_currency_exchange_post_detail_save() {
+                lock_currency_exchange_detail_win();
+                if ($('csh_currency_exchange_post_detail_out_ds').validate() && $('csh_currency_exchange_post_detail_in_ds').validate()) {
+                    var currency_exchange_out_record = $('csh_currency_exchange_post_detail_out_ds').getCurrentRecord(),
+                        currency_exchange_in_record = $('csh_currency_exchange_post_detail_in_ds').getCurrentRecord();
+                    set_record_status(currency_exchange_out_record);
+                    set_record_status(currency_exchange_in_record);
+                    saveData = [];
+                    saveData.push(currency_exchange_out_record.data);
+                    saveData.push(currency_exchange_in_record.data);
+                    Aurora.request({
+                        url: $('csh_currency_exchange_save_after_post_link_id').getUrl(),
+                        para: saveData,
+                        success: function(res) {
+                            set_record_status_after_success(currency_exchange_out_record);
+                            set_record_status_after_success(currency_exchange_in_record);
+                            execute_after_save_success();
+                            unlock_currency_exchange_detail_win();
+                            $('${/parameter/@dsid}').query();
+                        },
+                        failure: function(res) {
+                            unlock_currency_exchange_detail_win();
+                        },
+                        error: function(res) {
+                            unlock_currency_exchange_detail_win();
+                        },
+                        scope: this
+                    });
+                } else {
+                    unlock_currency_exchange_detail_win();
+                }
+            }
+            
+            function set_amount_decimalprecision(record, from_head) {
+                if (record) {
+                    var precision = record.get('precision');
+                    if (from_head) {
+                        record.getField('profit_and_loss_amount').setPropertity('decimalprecision', precision);
+                    } else {
+                        record.getField('transaction_amount').setPropertity('decimalprecision', precision);
+                        record.getField('transaction_functional_amount').setPropertity('decimalprecision', precision);
+                        record.getField('handling_charge').setPropertity('decimalprecision', precision);
+            
+                    }
+                }
+            }
+            
+            var profit_and_loss_amount_flag = 'N';
+            
+            function set_profit_and_loss_amount() {
+                var currency_exchange_out_record = $('csh_currency_exchange_post_detail_out_ds').getCurrentRecord(),
+                    currency_exchange_in_record = $('csh_currency_exchange_post_detail_in_ds').getCurrentRecord(),
+                    head_record = $('csh_currency_exchange_post_detail_header_ds').getCurrentRecord();
+                if (!Ext.isEmpty(head_record.get('transaction_id')) && !Ext.isEmpty(currency_exchange_out_record.get('transaction_id')) && !Ext.isEmpty(currency_exchange_in_record.get('transaction_id'))) {
+                    set_amount_decimalprecision(currency_exchange_in_record);
+                    set_amount_decimalprecision(currency_exchange_out_record);
+                    set_amount_decimalprecision(head_record, true);
+                    head_record.set('profit_and_loss_amount', minus(currency_exchange_in_record.get('transaction_functional_amount'), currency_exchange_out_record.get('transaction_functional_amount')));
+                    profit_and_loss_amount_flag = 'Y';
+                }
+            }
+            
+            function on_exchange_detail_header_load(ds) {
+                if (profit_and_loss_amount_flag == 'N') {
+                    set_profit_and_loss_amount();
+                }
+            }
+            
+            function on_exchange_detail_in_out_load(ds) {
+                if (profit_and_loss_amount_flag == 'N') {
+                    set_profit_and_loss_amount();
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="detail_currency_ds">
+                <a:datas dataSource="/model/detail_currency_path"/>
+            </a:dataSet>
+            <a:dataSet id="exchangerate_type_ds">
+                <a:datas dataSource="/model/exchangerate_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="csh_currency_exchange_post_detail_header_ds" autoCreate="true" autoQuery="true" queryUrl="${/request/@context_path}/autocrud/csh.CSH550.csh_transaction_currency_exchange_query/query?transaction_id=${/parameter/@transaction_id}&amp;transaction_type=EXCHANGE_OUT">
+                <a:fields>
+                    <a:field name="transaction_num" readOnly="true"/>
+                    <a:field name="period_name" readOnly="true"/>
+                    <a:field name="internal_period_num" readOnly="true"/>
+                    <a:field name="profit_and_loss_amount" readOnly="true"/>
+                    <a:field name="transaction_date" datatype="java.util.Date" readOnly="true"/>
+                    <a:field name="transaction_category"/>
+                    <a:field name="transaction_type"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="on_exchange_detail_header_load"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="csh_currency_exchange_post_detail_out_ds" autoCreate="true" autoQuery="true" queryUrl="${/request/@context_path}/autocrud/csh.CSH550.csh_transaction_currency_exchange_query/query?transaction_id=${/parameter/@transaction_id}&amp;transaction_type=EXCHANGE_OUT">
+                <a:fields>
+                    <a:field name="bank_account_code" lovGridHeight="350" lovHeight="530" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="550" readOnly="true" title="HLS.BANK_ACCOUNT_NAME">
+                        <a:mapping>
+                            <a:map from="precision" to="precision"/>
+                            <a:map from="zero_amounts_allowed" to="zero_amounts_allowed"/>
+                            <a:map from="bank_account_id" to="bank_account_id"/>
+                            <a:map from="bank_account_num" to="bank_account_num"/>
+                            <a:map from="bank_account_name" to="bank_account_name"/>
+                            <a:map from="bank_account_code" to="bank_account_code"/>
+                            <a:map from="currency_code" to="currency_code"/>
+                            <a:map from="currency_name" to="currency_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_account_id"/>
+                    <a:field name="precision"/>
+                    <a:field name="zero_amounts_allowed"/>
+                    <a:field name="bank_account_num" readOnly="true"/>
+                    <a:field name="bank_account_name" readOnly="true"/>
+                    <a:field name="currency_name" displayField="currency_name" options="detail_currency_ds" readOnly="true" returnField="currency_code" valueField="currency_code"/>
+                    <a:field name="currency_code"/>
+                    <a:field name="functional_currency_code"/>
+                    <a:field name="exchange_rate_type_display" displayField="type_name" options="exchangerate_type_ds" readOnly="true" returnField="exchange_rate_type" valueField="type_code">
+                        <a:mapping>
+                            <a:map from="type_code" to="exchange_rate_type"/>
+                            <a:map from="rate_method_code" to="rate_method_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="exchange_rate_type"/>
+                    <a:field name="exchange_rate" readOnly="true"/>
+                    <a:field name="rate_method_code"/>
+                    <a:field name="exchange_rate_quotation"/>
+                    <a:field name="bank_slip_num"/>
+                    <a:field name="transaction_amount" readOnly="true"/>
+                    <a:field name="handling_charge" readOnly="true"/>
+                    <a:field name="transaction_functional_amount" readOnly="true"/>
+                    <a:field name="description"/>
+                    <a:field name="transaction_category"/>
+                    <a:field name="transaction_type"/>
+                    <a:field name="period_name"/>
+                    <a:field name="internal_period_num"/>
+                    <a:field name="transaction_date"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="on_exchange_detail_in_out_load"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="csh_currency_exchange_post_detail_in_ds" autoCreate="true" autoQuery="true" queryUrl="${/request/@context_path}/autocrud/csh.CSH550.csh_transaction_currency_exchange_query/query?transaction_id=${/parameter/@transaction_id}&amp;transaction_type=EXCHANGE_IN">
+                <a:fields>
+                    <a:field name="bank_account_code" lovGridHeight="350" lovHeight="530" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="550" readOnly="true" title="HLS.BANK_ACCOUNT_NAME">
+                        <a:mapping>
+                            <a:map from="precision" to="precision"/>
+                            <a:map from="zero_amounts_allowed" to="zero_amounts_allowed"/>
+                            <a:map from="bank_account_id" to="bank_account_id"/>
+                            <a:map from="bank_account_num" to="bank_account_num"/>
+                            <a:map from="bank_account_name" to="bank_account_name"/>
+                            <a:map from="bank_account_code" to="bank_account_code"/>
+                            <a:map from="currency_code" to="currency_code"/>
+                            <a:map from="currency_name" to="currency_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_account_id"/>
+                    <a:field name="precision"/>
+                    <a:field name="zero_amounts_allowed"/>
+                    <a:field name="bank_account_num" readOnly="true"/>
+                    <a:field name="bank_account_name" readOnly="true"/>
+                    <a:field name="currency_name" displayField="currency_name" options="detail_currency_ds" readOnly="true" returnField="currency_code" valueField="currency_code"/>
+                    <a:field name="currency_code"/>
+                    <a:field name="functional_currency_code"/>
+                    <a:field name="exchange_rate_type_display" displayField="type_name" options="exchangerate_type_ds" readOnly="true" returnField="exchange_rate_type" valueField="type_code">
+                        <a:mapping>
+                            <a:map from="type_code" to="exchange_rate_type"/>
+                            <a:map from="rate_method_code" to="rate_method_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="exchange_rate_type"/>
+                    <a:field name="exchange_rate" readOnly="true" required="true"/>
+                    <a:field name="rate_method_code"/>
+                    <a:field name="exchange_rate_quotation"/>
+                    <a:field name="bank_slip_num"/>
+                    <a:field name="period_name"/>
+                    <a:field name="transaction_amount" readOnly="true"/>
+                    <a:field name="handling_charge" readOnly="true"/>
+                    <a:field name="transaction_functional_amount" readOnly="true"/>
+                    <a:field name="description"/>
+                    <a:field name="transaction_category"/>
+                    <a:field name="transaction_type"/>
+                    <a:field name="period_name"/>
+                    <a:field name="internal_period_num"/>
+                    <a:field name="transaction_date"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="on_exchange_detail_in_out_load"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="csh_currency_exchange_post_detail_return" text="HLS.RETURN"/>
+                <a:gridButton click="csh_currency_exchange_post_detail_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:fieldSet column="4" labelWidth="100" title="CSH550.CSH_CURRENCY_EXCHANGE">
+                <a:textField name="transaction_num" bindTarget="csh_currency_exchange_post_detail_header_ds" prompt="HLS.TRANSACTION_NUMBER"/>
+                <a:datePicker name="transaction_date" bindTarget="csh_currency_exchange_post_detail_header_ds" prompt="CSH550.CURRENCY_EXCHANGE_DATE"/>
+                <a:lov name="period_name" bindTarget="csh_currency_exchange_post_detail_header_ds" prompt="HLS.ACCOUNT_PERIOD_NAME"/>
+                <a:numberField name="profit_and_loss_amount" bindTarget="csh_currency_exchange_post_detail_header_ds" prompt="CSH550.PROFIT_AND_LOSS_AMOUNT"/>
+            </a:fieldSet>
+            <a:fieldSet column="4" labelWidth="100" title="CSH550.EXCHANGE_OUT_INFORMATION">
+                <a:lov name="bank_account_code" bindTarget="csh_currency_exchange_post_detail_out_ds" prompt="CSH550.EXCHANGE_OUT_BANK_ACCOUNT_CODE"/>
+                <a:lov name="bank_account_num" bindTarget="csh_currency_exchange_post_detail_out_ds" prompt="CSH550.EXCHANGE_OUT_BANK_ACCOUNT_NUM"/>
+                <a:lov name="currency_name" bindTarget="csh_currency_exchange_post_detail_out_ds" prompt="HLS.CURRENCY"/>
+                <a:comboBox name="exchange_rate_type_display" bindTarget="csh_currency_exchange_post_detail_out_ds" prompt="HLS.EXCHANGE_RATE_TYPE_DESC"/>
+                <a:textField name="bank_account_name" bindTarget="csh_currency_exchange_post_detail_out_ds" colspan="2" prompt="CSH550.BANK_ACCOUNT_NAME" width="408"/>
+                <a:textField name="bank_slip_num" bindTarget="csh_currency_exchange_post_detail_out_ds" prompt="CSH550.BANK_SLIP_NUM"/>
+                <a:numberField name="exchange_rate" allowNegative="false" bindTarget="csh_currency_exchange_post_detail_out_ds" decimalPrecision="-1" prompt="HLS.EXCHANGE_RATE"/>
+                <a:numberField name="transaction_amount" allowNegative="false" bindTarget="csh_currency_exchange_post_detail_out_ds" prompt="CSH550.EXCHANGE_OUT_TRX_AMOUNT"/>
+                <a:numberField name="handling_charge" allowNegative="false" bindTarget="csh_currency_exchange_post_detail_out_ds" prompt="HLS.HANDLING_CHARGE"/>
+                <a:numberField name="transaction_functional_amount" allowNegative="false" bindTarget="csh_currency_exchange_post_detail_out_ds" colspan="2" prompt="HLS.FUNCTIONAL_AMOUNT"/>
+                <a:textArea name="description" bindTarget="csh_currency_exchange_post_detail_out_ds" colspan="4" prompt="HLS.COMMENT" width="920"/>
+            </a:fieldSet>
+            <a:fieldSet column="4" labelWidth="100" title="CSH550.EXCHANGE_IN_INFORMATION">
+                <a:lov name="bank_account_code" bindTarget="csh_currency_exchange_post_detail_in_ds" prompt="CSH550.EXCHANGE_IN_BANK_ACCOUNT_CODE"/>
+                <a:lov name="bank_account_num" bindTarget="csh_currency_exchange_post_detail_in_ds" prompt="CSH550.EXCHANGE_IN_BANK_ACCOUNT_NUM"/>
+                <a:lov name="currency_name" bindTarget="csh_currency_exchange_post_detail_in_ds" prompt="HLS.CURRENCY"/>
+                <a:comboBox name="exchange_rate_type_display" bindTarget="csh_currency_exchange_post_detail_in_ds" prompt="HLS.EXCHANGE_RATE_TYPE_DESC"/>
+                <a:textField name="bank_account_name" bindTarget="csh_currency_exchange_post_detail_in_ds" colspan="2" prompt="CSH550.BANK_ACCOUNT_NAME" width="408"/>
+                <a:textField name="bank_slip_num" bindTarget="csh_currency_exchange_post_detail_in_ds" prompt="CSH550.BANK_SLIP_NUM"/>
+                <a:numberField name="exchange_rate" allowNegative="false" bindTarget="csh_currency_exchange_post_detail_in_ds" decimalPrecision="-1" prompt="HLS.EXCHANGE_RATE"/>
+                <a:numberField name="transaction_amount" allowNegative="false" bindTarget="csh_currency_exchange_post_detail_in_ds" prompt="CSH550.EXCHANGE_IN_TRX_AMOUNT"/>
+                <a:numberField name="transaction_functional_amount" allowNegative="false" bindTarget="csh_currency_exchange_post_detail_in_ds" colspan="3" prompt="HLS.FUNCTIONAL_AMOUNT"/>
+                <a:textArea name="description" bindTarget="csh_currency_exchange_post_detail_in_ds" colspan="4" prompt="HLS.COMMENT" width="920"/>
+            </a:fieldSet>
+        </a:screenBody>
+    </a:view>
+</a:screen>

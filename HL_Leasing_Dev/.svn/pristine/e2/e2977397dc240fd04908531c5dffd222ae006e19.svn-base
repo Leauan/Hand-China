@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-2-26 下午2:37:49  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="hls.HLS030.hls_doc_layout_tab_for_tab_config" rootpath="screen_config_record"/>
+        <a:model-query fetchAll="true" model="hls.HLS030.hls_doc_layout_sequence" rootpath="total_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="svcLink_layoutTab" url="${/request/@context_path}/modules/hls/HLS030/hls_doc_layout_tab.svc"/>
+        <script><![CDATA[
+            function tooltip_update(record, name) {
+                record.getField(name).setPropertity('tooltip', record.get(name));
+            }
+            
+            function onUpdate_propertyDs(ds, record, name, value, oldValue) {
+                if (name == 'input_mode' || name == 'input_mode_desc' || name == 'rowspan' || name == 'colspan') {
+                    if (record.get('write_back_flag') == true) {
+                        var write_record = $(record.get('ds_name')).getAt(0);
+                        write_record.set(record.get('name') + '_' + name, value);
+                    }
+                }
+            }
+            
+            function propertyDs_set(record, name) {
+                var prop_record = $('propertyDs').getAt(0);
+                prop_record.set('write_back_flag', false);
+                prop_record.set('ds_name', record.get('ds_name'));
+                prop_record.set('name', name);
+                var total = Number(name.substr('column_'.length));
+                var max_column = Number(record.get('column_count'));
+                var row = Math.ceil(total / max_column);
+                var col = total % (max_column);
+                if (col == 0) {
+                    col = max_column;
+                }
+                prop_record.set('row_col', String(row) + '/' + String(col));
+                prop_record.set('input_mode', record.get(name + '_input_mode'));
+                prop_record.set('input_mode_desc', record.get(name + '_input_mode_desc'));
+                prop_record.set('desc', record.get(name + '_desc'));
+                prop_record.set('rowspan', record.get(name + '_rowspan'));
+                prop_record.set('colspan', record.get(name + '_colspan'));
+                prop_record.set('write_back_flag', true);
+            }
+            
+            function unmask_screen() {
+                Aurora.Masker.unmask($('hls_doc_layout_column_position').wrap);
+            }
+            
+            function mask_screen() {
+                Aurora.Masker.mask($('hls_doc_layout_column_position').wrap, '${l:HLS.SAVING}');
+            }
+            
+            function screen_close() {
+                $('hls_doc_layout_column_position').close();
+            }
+            
+            function screen_save() {
+                mask_screen();
+                var ds = $('screenDs');
+                var record = ds.getAt(0);
+            
+                var data = {};
+                data['layout_code'] = '${/parameter/@layout_code}';
+                data['tab_code'] = record.get('tab_code');
+                data['tab_list'] = [];
+            
+                for (var i = 0,
+                    j = record.get('total_count');i < j;i++) {
+                    var n = i + 1;
+                    data['tab_list'][i] = {
+                        column_name: record.get('column_' + n),
+                        input_mode: record.get('column_' + n + '_input_mode'),
+                        rowspan: record.get('column_' + n + '_rowspan'),
+                        colspan: record.get('column_' + n + '_colspan'),
+                        order_seq: n
+                    };
+                }
+            
+                Aurora.request({
+                    url: $('svcLink_layoutTab').getUrl(),
+                    para: data,
+                    success: function(res) {
+                        unmask_screen();
+                        Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 2000
+                        });
+                    },
+                    failure: function() {
+                        unmask_screen();
+                    },
+                    error: function() {
+                        unmask_screen();
+                    },
+                    scope: this
+                });
+            }
+            
+            function onAdd_screenDs(ds, record, index) {
+                for (var i = 1,
+                    j = record.get('total_count');i <= j;i++) {
+                    tooltip_update(record, 'column_' + i);
+                }
+            }
+            
+            function onUpdate_screenDs(ds, record, name, value, oldValue) {
+                var regx = /^column_\d+$/;
+                if (regx.test(name)) {
+                    tooltip_update(record, name);
+                    propertyDs_set(record, name);
+                }
+            }
+            
+            
+            function onLovClick_screenDs_form_lov(el) {
+                var display_name = el.binder.name;
+                var record = el.record || el.binder.ds.create();
+                record.getField(display_name).setLovPara('column_name', '');
+                propertyDs_set(el.record, el.binder.name);
+            }
+            
+            function onFocus_screenDs_form_lov(el) {
+                var display_name = el.binder.name;
+                var record = el.record || el.binder.ds.create();
+                record.getField(display_name).setLovPara('layout_code', '${/parameter/@layout_code}');
+                record.getField(display_name).setLovPara('tab_code', '${/parameter/@tab_code}');
+                record.getField(display_name).setLovPara('column_name', record.get(display_name));
+                propertyDs_set(el.record, el.binder.name);
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="inputModeDs" lookupCode="HLS050_INPUT_MODE"/>
+            <a:dataSet id="propertyDs" autoCreate="true">
+                <a:fields>
+                    <a:field name="row_col" readOnly="true"/>
+                    <a:field name="desc" readOnly="true"/>
+                    <a:field name="input_mode"/>
+                    <a:field name="input_mode_desc" displayField="code_value_name" options="inputModeDs" returnField="input_mode" valueField="code_value"/>
+                    <a:field name="ds_name"/>
+                    <a:field name="name"/>
+                    <a:field name="rowspan"/>
+                    <a:field name="colspan"/>
+                    <a:field name="write_back_flag"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_propertyDs"/>
+                </a:events>
+            </a:dataSet>
+            <a:freeMarker><![CDATA[
+        		<a:dataSet id="screenDs" autoCreate="true">
+	        		<a:fields>
+	        			<a:field name="column_count" defaultValue="${model.getObject('/model/screen_config_record/record/@column_count')}"/>
+	        			<a:field name="row_count" defaultValue="${model.getObject('/model/screen_config_record/record/@row_count')}"/>
+	        			<a:field name="total_count" defaultValue="${model.getObject('/model/screen_config_record/record/@total_count')}"/>
+	        			<a:field name="tab_code" defaultValue="${model.getObject('/model/screen_config_record/record/@tab_code')}"/>
+	        			<a:field name="layout_code" defaultValue="${model.getObject('/model/screen_config_record/record/@layout_code')}"/>
+	        			<a:field name="form_column_count" defaultValue="${model.getObject('/model/screen_config_record/record/@form_column_count')}"/>
+	        			<a:field name="ds_name" defaultValue="screenDs"/>
+	                    <#if model.getObject("/model/total_list").getChilds()??>
+	                    	<#list model.getObject("/model/total_list").getChilds() as item>
+		                    	<a:field name="column_${item.getString('sequence')}" defaultValue="${item.getString('column_name')!""}" autoComplete="true" lovService="hls.HLS030.hls_doc_layout_config_lov?layout_code=${model.getObject('/model/screen_config_record/record/@layout_code')}&amp;tab_code=${model.getObject('/model/screen_config_record/record/@tab_code')}" lovWidth="800" lovHeight="450" lovGridHeight="300" title="HLS030.HLS_FIN_CALC_CONFIG_TEMPLT.COLUMN_NAME">
+		                    		<a:mapping>
+			                			<a:map from="prompt" to="column_${item.getString('sequence')}_desc" />
+			                			<a:map from="input_mode" to="column_${item.getString('sequence')}_input_mode" />
+			                			<a:map from="input_mode_desc" to="column_${item.getString('sequence')}_input_mode_desc" />
+			                			<a:map from="column_name" to="column_${item.getString('sequence')}" />
+			                		</a:mapping>
+			                	</a:field>
+			                	<a:field name="column_${item.getString('sequence')}_desc" defaultValue="${item.getString('prompt')!""}"/>
+			                	<a:field name="column_${item.getString('sequence')}_input_mode_desc" defaultValue="${item.getString('input_mode_desc')!""}"/>
+			                	<a:field name="column_${item.getString('sequence')}_input_mode" defaultValue="${item.getString('input_mode')!""}"/>
+			                	<a:field name="column_${item.getString('sequence')}_rowspan" defaultValue="${item.getString('rowspan')!""}"/>
+			                	<a:field name="column_${item.getString('sequence')}_colspan" defaultValue="${item.getString('colspan')!""}"/>
+		                	</#list>
+		                </#if>
+	                </a:fields>
+	                <a:events>
+        				<a:event name="add" handler="onAdd_screenDs" />
+        				<a:event name="update" handler="onUpdate_screenDs" />
+        			</a:events>
+	            </a:dataSet>
+        	]]></a:freeMarker>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="screen_close" text="HLS.CLOSE"/>
+                <a:gridButton click="screen_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:form column="4" title=" ">
+                <a:textField name="row_col" bindTarget="propertyDs" prompt="行/列"/>
+                <a:textField name="desc" bindTarget="propertyDs" prompt="显示字段"/>
+                <!--
+                <a:comboBox name="input_mode_desc" bindTarget="propertyDs" prompt="输入控制"/>
+                -->
+                <a:numberField name="rowspan" allowDecimals="false" allowNegative="false" bindTarget="propertyDs" prompt="所占行数"/>
+                <a:numberField name="colspan" allowDecimals="false" allowNegative="false" bindTarget="propertyDs" prompt="所占列数"/>
+            </a:form>
+            <a:freeMarker><![CDATA[
+            	<#if model.getObject("/model/total_list").getChilds()??>
+            		<#if model.getObject("/model/screen_config_record/record/@show_box")=='Y'>
+            			<a:form title=" "  labelSeparator=" ">
+	            			<a:box column="${model.getObject('/model/screen_config_record/record/@form_column_count')!""}"  width="${model.getObject('/model/screen_config_record/record/@box_width')!""}">
+	            				<#list model.getObject("/model/total_list").getChilds() as item>
+			                		<a:label name="column_${item.getString('sequence')}_desc" bindTarget="screenDs" style="text-align:right;margin-top:${model.getObject('/model/screen_config_record/record/@margin_top')!""}px;" width="${model.getObject('/model/screen_config_record/record/@label_width')!""}"/>
+			                		<a:lov name="column_${item.getString('sequence')}" bindTarget="screenDs" style="margin-top:${model.getObject('/model/screen_config_record/record/@margin_top')!""}px;" width="${model.getObject('/model/screen_config_record/record/@field_width')!""}">
+			                			<a:events>
+					                		<a:event name="focus" handler="onFocus_screenDs_form_lov" />
+					                		<a:event name="beforetriggerclick" handler="onLovClick_screenDs_form_lov" />
+					                	</a:events>
+			                		</a:lov>
+			            		</#list>
+	            			</a:box>
+            			</a:form>
+	            	<#else>
+	        			<a:form column="${model.getObject('/model/screen_config_record/record/@form_column_count')}" title=" "  labelSeparator=" ">
+		        			<#list model.getObject("/model/total_list").getChilds() as item>
+		                		<a:label name="column_${item.getString('sequence')}_desc" bindTarget="screenDs" style="text-align:right;margin-top:${model.getObject('/model/screen_config_record/record/@margin_top')!""}px;" width="${model.getObject('/model/screen_config_record/record/@label_width')!""}"/>
+		                		<a:lov name="column_${item.getString('sequence')}" bindTarget="screenDs" style="margin-top:${model.getObject('/model/screen_config_record/record/@margin_top')!""}px;" width="${model.getObject('/model/screen_config_record/record/@field_width')!""}">
+		                			<a:events>
+				                		<a:event name="focus" handler="onFocus_screenDs_form_lov" />
+				                		<a:event name="beforetriggerclick" handler="onLovClick_screenDs_form_lov" />
+				                	</a:events>
+		                		</a:lov>
+		            		</#list>
+	            		</a:form>
+            		</#if>
+                </#if>
+        	]]></a:freeMarker>
+        </a:screenBody>
+    </a:view>
+    <a:view-config><![CDATA[
+    ]]></a:view-config>
+</a:screen>

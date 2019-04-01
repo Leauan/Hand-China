@@ -1,0 +1,450 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Guoxuezhao  
+    $Date: 2013-5-28 下午7:38:35  
+    $Revision: 1.0  
+    $Purpose: 保理合同调息  只读导入
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.document_category=&apos;LOAN_CONTRACT&apos; and t1.business_type=&apos;FACTORING&apos;" fetchAll="true" model="basic.hls_document_type_for_lov" rootPath="document_type_path"/>
+        <a:model-query defaultWhereClause="t.code=&apos;TRE502_REPAYMENT_TYPE&apos; and t.code_value in (&apos;FACTORING&apos;,&apos;FACTORING_FEE&apos;) and t.code_enabled_flag=&apos;Y&apos; and t.code_value_enabled_flag=&apos;Y&apos;" fetchAll="true" model="sys.sys_code_values_v" rootPath="repayment_type_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="tre_loan_contract_save_link" url="${/request/@context_path}/modules/tre/tre503/tre_loan_contract_save.svc"/>
+        <a:link id="tre_loan_contract_repayment_plan_import_link_id" url="${/request/@context_path}/modules/tre/tre503/tre_loan_contract_repayment_plan_import.screen"/>
+        <a:link id="tre_factoring_contract_maintain_link_id" url="${/request/@context_path}/modules/tre/TRE523/tre_factoring_contract_chg_inter_import.screen"/>
+        <script><![CDATA[
+            Aurora.Masker.mask(document.documentElement, '${l:HLS.LOADING}');
+            
+            function lock_current_window() {
+                Aurora.Masker.mask(document.documentElement, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_current_window() {
+                Aurora.Masker.unmask(document.documentElement);
+            }
+            
+            function tre_factoring_repayment_plan_import() {
+                lock_current_window();
+                var record = $('loan_contract_ds').getCurrentRecord();
+                var loan_contract_id = record.get('loan_contract_id');
+                if (!loan_contract_id) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:TRE503.SAVE_FIRST}');
+                    unlock_current_window();
+                    return;
+                }
+                var win = new Aurora.Window({
+                    id: 'tre_loan_contract_repayment_plan_import_winid',
+                    params: {
+                        loan_contract_id: loan_contract_id,
+                        winid: 'tre_loan_contract_repayment_plan_import_winid',
+                        dsid: 'loan_contract_ds',
+                        validate_source: 'INTEREST_RESET'
+                    },
+                    url: $('tre_loan_contract_repayment_plan_import_link_id').getUrl(),
+                    title: '${l:TRE503.REPAYMENT_PLAN_IMPORT}',
+                    width: 420,
+                    height: 275
+                });
+                win.on('close', function() {
+                    unlock_current_window();
+                });
+            }
+            
+            
+            
+            function wcl_goBack() {
+                window.history.go(-1);
+            }
+            
+            function loan_contract_ds_update(dataSet, record, name, value, oldvalue) {
+                if (name == 'factoring_financing_method') {
+                    record.set('discount_rate', '');
+                    record.set('bank_financing_scale', '');
+                    record.set('financing_scale', '');
+                    record.set('interest_rate', '');
+                    record.set('base_rate', '');
+                    if (value == 'DISCOUNT') {
+                        record.getField('discount_rate').setRequired(true);
+                        record.getField('bank_financing_scale').setRequired(false);
+                        record.getField('financing_scale').setRequired(false);
+                        record.getField('interest_rate').setRequired(false);
+                        record.getField('base_rate').setRequired(false);
+                        Ext.fly('FC_Discount').setStyle({
+                            display: ''
+                        });
+                        Ext.fly('FC_Prepay').setStyle({
+                            display: 'none'
+                        });
+                    } else if (value == 'PREPAID') {
+                        record.getField('discount_rate').setRequired(false);
+                        record.getField('bank_financing_scale').setRequired(true);
+                        record.getField('financing_scale').setRequired(true);
+                        record.getField('interest_rate').setRequired(true);
+                        record.getField('base_rate').setRequired(true);
+                        Ext.fly('FC_Discount').setStyle({
+                            display: 'none'
+                        });
+                        Ext.fly('FC_Prepay').setStyle({
+                            display: ''
+                        });
+                    }
+                } else if (name == 'loan_amount') {
+                    var loan_currentrecord = $('loan_con_fin_con_ds').getCurrentRecord();
+                    loan_currentrecord.set('amount', value);
+                }
+            }
+            
+            
+            function loanConDsLoad(ds) {
+                var record = ds.getCurrentRecord(),
+                    financing_method = record.get('factoring_financing_method');
+                if (financing_method == 'DISCOUNT') {
+                    Ext.fly('FC_Discount').setStyle({
+                        display: ''
+                    });
+                    Ext.fly('FC_Prepay').setStyle({
+                        display: 'none'
+                    });
+                } else {
+                    Ext.fly('FC_Discount').setStyle({
+                        display: 'none'
+                    });
+                    Ext.fly('FC_Prepay').setStyle({
+                        display: ''
+                    });
+                }
+                unlock_current_window();
+            }
+            
+            function set_factoring_repayment_plan_field(value, record) {
+                if (value == 'FACTORING') {
+                    record.getField('times').setRequired(true);
+                    record.getField('cashflow_amount').setRequired(false);
+                    record.getField('principal').setRequired(true);
+                    record.getField('interest').setRequired(true);
+                } else {
+                    record.getField('times').setRequired(false);
+                    record.getField('cashflow_amount').setRequired(false);
+                    record.getField('principal').setRequired(false);
+                    record.getField('interest').setRequired(false);
+                }
+            }
+            
+            function on_factoring_repayment_plan_update(ds, record, name, value, old_value) {
+                if (name == 'repayment_type') {
+                    set_factoring_repayment_plan_field(value, record);
+                } else if (name == 'principal' || name == 'interest') {
+                    var principal = record.get('principal') || 0,
+                        interest = record.get('interest') || 0;
+                    record.set('amount', plus(principal, interest));
+                }
+            }
+            
+            function on_factoring_repayment_plan_load(ds) {
+                var records = ds.getAll();
+                for (var i = 0;i < records.length;i++) {
+                    var record = records[i];
+                    set_factoring_repayment_plan_field(record.get('repayment_type'), record);
+                }
+            }
+            
+            function on_factoring_repayment_plan_add(ds, record, index) {
+                var head_record = $('loan_contract_ds').getCurrentRecord();
+                record.set('loan_contract_id', head_record.get('loan_contract_id'));
+            }
+            
+            function on_repayment_plan_focus(object) {
+                var record = object.record || object.binder.ds.create();
+                var display_name = object.binder.name,
+                    field = record.getField(display_name);
+                if (display_name == 'times') {
+                    var loan_currentrecord = $('loan_con_fin_con_ds').getCurrentRecord();
+                    if (loan_currentrecord) {
+                        field.setLovPara('contract_id', loan_currentrecord.get('contract_id'));
+                    }
+                }
+            }
+            
+            function dateValidator(record, name, value) { //日期校验方法
+                if (name == 'loan_date_from' || name == 'loan_date_to') {
+                    var start_date = Aurora.formatDate(record.get('loan_date_from'));
+                    var end_date = Aurora.formatDate(record.get('loan_date_to'));
+                    if ( !! end_date) { //由于结束日期非必填，只有在结束日期填了才进行比较
+                        if (!compareDate(start_date, end_date)) {
+                            return '${l:TRE503.LOAN_DATE_FROM_BEYOND_TO}'; //校验不通过返回字符串
+                        }
+                    }
+                    return true; //校验通过返回true
+                }
+            }
+            
+            function compareDate(start, end) {
+                if (start > end) {
+                    return false;
+                }
+                return true;
+            }
+            
+            function wcl_save() {
+                lock_current_window();
+                var record = $('loan_contract_ds').getCurrentRecord();
+                record.set('validate_source', 'INTEREST_RESET');
+            
+                if ($('loan_contract_ds').validate()) {
+                    var tre_loan_contract_save_link = $('tre_loan_contract_save_link').getUrl();
+                    $('loan_contract_ds').submit(tre_loan_contract_save_link);
+                } else {
+                    unlock_current_window();
+                }
+            
+            }
+            
+            function loanConSaveSuccess(dataSet, res) {
+                var record = dataSet.getCurrentRecord();
+                window.location.href = $('tre_factoring_contract_maintain_link_id').getUrl() + '?loan_contract_id=' + record.get('loan_contract_id') + '&business_type=' + record.get('business_type');
+                unlock_current_window();
+            }
+            
+            function loanConSaveSubmitFailed() {
+                unlock_current_window();
+            }
+            
+              function on_repayment_plan_grid_editorfunction(record, name) {
+                var repayment_type = record.get('repayment_type');
+                if (repayment_type == 'FACTORING') {
+                    return 'repayment_plan_grid_lov_id';
+                } else if (repayment_type == 'FACTORING_FEE') {
+                    return 'repayment_plan_grid_textfield_id';
+                } else {
+                    return '';
+                }
+            }
+            
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="document_type_name_ds">
+                <a:datas dataSource="/model/document_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="repayment_type_ds">
+                <a:datas dataSource="/model/repayment_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="loan_contract_type_ds" lookupCode="TRE502_LOAN_CONTRACT_TYPE"/>
+            <a:dataSet id="yes_no_ds" lookupCode="YES_NO"/>
+            <a:dataSet id="factoring_loan_amount_type_ds" lookupCode="TRE502_FACTORING_LOAN_AMOUNT_TYPE"/>
+            <a:dataSet id="factoring_financing_method_ds" lookupCode="TRE502_FACTORING_FINANCING_METHOD"/>
+            <a:dataSet id="payment_method_ds" lookupCode="TRE502_PAYMENT_METHOD"/>
+            <a:dataSet id="loan_contract_ds" autoQuery="true" model="tre.tre502.tre_loan_contract" queryUrl="${/request/@context_path}/autocrud/tre.tre502.tre_loan_contract/query?loan_contract_id=${/parameter/@loan_contract_id}">
+                <a:fields>
+                    <a:field name="document_type_desc" displayField="description" options="document_type_name_ds" readOnly="true" returnField="document_type" valueField="document_type"/>
+                    <!-- <a:field name="loan_contract_type" defaultValue="${/parameter/@loan_contract_type}"/>
+                    <a:field name="loan_contract_type_desc" displayField="code_value_name" options="loan_contract_type_ds" readOnly="true" returnField="loan_contract_type" valueField="code_value"/> -->
+                    <a:field name="loan_contract_number" readOnly="true"/>
+                    <a:field name="bank_credit_contract_id" readOnly="true"/>
+                    <a:field name="bank_credit_contract_number" lovAutoQuery="true" lovGridHeight="270" lovHeight="400" lovService="tre.tre501.tre_bank_credit_contract_lov" lovWidth="700" readOnly="true" title="TRE_LOAN_CONTRACT.BANK_CREDIT_CONTRACT_ID">
+                        <a:mapping>
+                            <a:map from="credit_contract_number" to="bank_credit_contract_number"/>
+                            <a:map from="credit_contract_id" to="bank_credit_contract_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_id" readOnly="true"/>
+                    <a:field name="bank_account_num" readOnly="true"/>
+                    <a:field name="bank_branch_name" autoComplete="true" autoCompleteField="bank_account_num" lovGridHeight="350" lovHeight="510" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" readOnly="true" required="true" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_id" to="bank_account_id"/>
+                            <a:map from="bank_account_num" to="bank_account_num"/>
+                            <a:map from="bank_branch_name" to="bank_branch_name"/>
+                            <a:map from="currency_code" to="currency"/>
+                            <a:map from="currency_name" to="currency_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="loan_certificate_flag_desc" displayField="code_value_name" options="yes_no_ds" readOnly="true" required="true" returnField="loan_certificate_flag" valueField="code_value"/>
+                    <a:field name="related_party_flag_desc" displayField="code_value_name" options="yes_no_ds" readOnly="true" required="true" returnField="related_party_flag" valueField="code_value"/>
+                    <a:field name="currency" readOnly="true"/>
+                    <a:field name="currency_desc" readOnly="true"/>
+                    <a:field name="annual_days" readOnly="true"/>
+                    <a:field name="loan_amount" readOnly="true"/>
+                    <a:field name="loan_amount_type_desc" displayField="code_value_name" options="factoring_loan_amount_type_ds" readOnly="true" required="true" returnField="loan_amount_type" valueField="code_value"/>
+                    <a:field name="factoring_financing_method_desc" displayField="code_value_name" options="factoring_financing_method_ds" readOnly="true" returnField="factoring_financing_method" valueField="code_value"/>
+                    <a:field name="discount_rate" readOnly="true"/>
+                    <a:field name="financing_scale" readOnly="true"/>
+                    <a:field name="interest_rate" readOnly="true"/>
+                    <a:field name="payment_method_desc" displayField="code_value_name" options="payment_method_ds" readOnly="true" returnField="payment_method" valueField="code_value"/>
+                    <a:field name="payment_date" readOnly="true"/>
+                    <a:field name="bank_financing_scale" readOnly="true"/>
+                    <a:field name="base_rate" readOnly="true"/>
+                    <a:field name="total_repayment" readOnly="true"/>
+                    <a:field name="total_interest" readOnly="true"/>
+                    <a:field name="total_fee_pv" readOnly="true"/>
+                    <a:field name="total_fee_pv" readOnly="true"/>
+                    <a:field name="net_finance_amount" readOnly="true"/>
+                    <a:field name="interest_margin" readOnly="true"/>
+                    <a:field name="loan_date_from" readOnly="true" validator="dateValidator"/>
+                    <a:field name="loan_date_to" readOnly="true" validator="dateValidator"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="loanConDsLoad"/>
+                    <a:event name="update" handler="loan_contract_ds_update"/>
+                    <a:event name="submitsuccess" handler="loanConSaveSuccess"/>
+                    <a:event name="submitfailed" handler="loanConSaveSubmitFailed"/>
+                </a:events>
+            </a:dataSet>
+            <!-- <a:dataSet id="factoring_fee_ds" bindName="factoring_fee" bindTarget="loan_contract_ds" model="tre.tre503.tre_factoringt_fees" selectable="true"/> -->
+            <a:dataSet id="factoring_repayment_plan_ds" autoQuery="true" bindName="repayment_plan" bindTarget="loan_contract_ds" model="tre.tre503.tre_loan_con_repayment_plan" selectable="true">
+                <a:fields>
+                    <a:field name="loan_contract_id" defaultValue="${/parameter/@loan_contract_id}"/>
+                    <a:field name="repayment_type_desc" displayField="code_value_name" options="repayment_type_ds" required="true" returnField="repayment_type" valueField="code_value"/>
+                    <a:field name="times" fuzzyFetch="false" lovGridHeight="350" lovHeight="500" lovService="tre.tre503.tre_con_contract_cashflow_for_lov" lovWidth="500" required="true" title="HLS.CONTRACT">
+                        <a:mapping>
+                            <a:map from="times" to="times"/>
+                            <a:map from="due_amount" to="cashflow_amount"/>
+                            <a:map from="cashflow_id" to="cashflow_id"/>
+                            <a:map from="contract_id" to="contract_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="cashflow_amount"/>
+                    <a:field name="repayment_date" required="true"/>
+                    <a:field name="maturity_date"/>
+                    <a:field name="amount" required="true"/>
+                    <a:field name="principal" required="true"/>
+                    <a:field name="interest" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_factoring_repayment_plan_update"/>
+                    <a:event name="load" handler="on_factoring_repayment_plan_load"/>
+                    <a:event name="add" handler="on_factoring_repayment_plan_add"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="loan_con_fin_con_ds" bindName="fin_con" bindTarget="loan_contract_ds" model="tre.tre503.tre_loan_con_fin_con" pageSize="10000" selectable="true">
+                <a:fields>
+                    <a:field name="contract_number" lovGridHeight="250" lovHeight="400" lovService="cont.CON500.con_contract_lov" lovWidth="500" required="true">
+                        <a:mapping>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="contract_name" to="contract_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_name" readOnly="true"/>
+                    <a:field name="amount" required="true"/>
+                </a:fields>
+                <a:field name="loan_contract_id" defaultValue="${/parameter/@loan_contract_id}"/>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="wcl_goBack" text="HLS.BACK"/>
+                <a:gridButton click="wcl_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:form marginWidth="30" title="TRE502.FORM_TITLE.FACTORING_LOAN_CONTRACT">
+                <a:box column="4" labelWidth="120" width="1112">
+                    <a:textField name="loan_contract_number" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.LOAN_CONTRACT_NUMBER_FACTORING"/>
+                    <a:comboBox name="document_type_desc" bindTarget="loan_contract_ds" prompt="HLS.CONTRACT_TYPE"/>
+                    <a:datePicker name="loan_contract_book_date" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.LOAN_CONTRACT_BOOK_DATE" readOnly="true"/>
+                    <a:lov name="bank_credit_contract_number" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.BANK_CREDIT_CONTRACT_ID"/>
+                    <a:lov name="bank_branch_name" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.BP_ID_FACTORING"/>
+                    <a:textField name="bank_account_num" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.BANK_ACCOUNT_NUM"/>
+                    <a:comboBox name="loan_certificate_flag_desc" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.LOAN_CERTIFICATE_FLAG"/>
+                    <a:comboBox name="related_party_flag_desc" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.RELATED_PARTY_FLAG"/>
+                    <a:lov name="contract_number" bindTarget="loan_contract_ds" prompt="TRE503.CONTRACT_NUMBER" readOnly="true"/>
+                    <a:textField name="contract_name" bindTarget="loan_contract_ds" prompt="TRE503.CONTRACT_NAME" readOnly="true"/>
+                </a:box>
+            </a:form>
+            <a:fieldSet title="TRE502.FIELDSET.FACTORING_FINANCING_LINES">
+                <a:box column="4" labelWidth="120" width="1112">
+                    <a:numberField name="loan_amount" allowFormat="true" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.LOAN_AMOUNT_FACTORING"/>
+                    <a:lov name="currency_desc" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.CURRENCY"/>
+                    <a:datePicker name="loan_date_from" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.LOAN_DATE_FROM_FACTORING"/>
+                    <a:datePicker name="loan_date_to" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.LOAN_DATE_TO_FACTORING"/>
+                    <a:comboBox name="loan_amount_type_desc" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.AMOUNT_TYPE"/>
+                </a:box>
+            </a:fieldSet>
+            <a:fieldSet title="TRE502.FIELDSET.FACTORING_FINANCING_METHOD">
+                <a:box column="4" labelWidth="120" width="836">
+                    <a:comboBox name="factoring_financing_method_desc" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.FACTORING_FINANCING_METHOD"/>
+                    <a:comboBox name="payment_method_desc" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.PAYMENT_METHOD"/>
+                    <a:datePicker name="payment_date" bindTarget="loan_contract_ds" prompt="TRE503.PAYMENT_DATE"/>
+                </a:box>
+                <div id="FC_Discount" style="display:none;">
+                    <a:box labelWidth="120" width="278">
+                        <a:percentField name="discount_rate" allowNegative="false" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.DISCOUNT_RATE"/>
+                    </a:box>
+                </div>
+                <div id="FC_Prepay" style="display:none;">
+                    <a:box column="4" labelWidth="120" width="1112">
+                        <a:percentField name="bank_financing_scale" allowNegative="false" bindTarget="loan_contract_ds" prompt="TRE503.BANK_FINANCING_SCALE"/>
+                        <a:percentField name="interest_rate" allowNegative="false" bindTarget="loan_contract_ds" prompt="TRE503.INTEREST_RATE"/>
+                        <a:percentField name="financing_scale" allowNegative="false" bindTarget="loan_contract_ds" prompt="TRE503.FINANCING_SCALE"/>
+                        <a:percentField name="base_rate" allowNegative="false" bindTarget="loan_contract_ds" prompt="TRE503.BASE_RATE"/>
+                    </a:box>
+                </div>
+            </a:fieldSet>
+            <a:fieldSet title="TRE503.PAYMENT_PLAN">
+                <a:box column="4" labelWidth="120" width="1112">
+                    <a:numberField name="total_repayment" allowFormat="true" allowNegative="false" bindTarget="loan_contract_ds" prompt="TRE503.TOTAL_REPAYMENT"/>
+                    <a:numberField name="total_interest" allowFormat="true" allowNegative="false" bindTarget="loan_contract_ds" prompt="TRE503.TOTAL_INTEREST"/>
+                    <a:numberField name="total_fee" allowNegative="false" bindTarget="loan_contract_ds" prompt="TRE503.TOTAL_FEE" rallowFormat="true" readOnly="true"/>
+                    <a:numberField name="total_fee_pv" allowFormat="true" allowNegative="false" bindTarget="loan_contract_ds" prompt="TRE503.TOTAL_FEE_PV"/>
+                    <a:numberField name="net_finance_amount" allowFormat="true" allowNegative="false" bindTarget="loan_contract_ds" prompt="TRE503.NET_FINANCE_AMOUNT"/>
+                    <a:numberField name="interest_margin" allowFormat="true" allowNegative="false" bindTarget="loan_contract_ds" prompt="TRE503.INTEREST_MARGIN"/>
+                </a:box>
+                <a:box width="1112">
+                    <a:grid bindTarget="factoring_repayment_plan_ds" marginHeight="400" marginWidth="100" navBar="true">
+                        <a:toolBar>
+                            <!-- <a:button type="add"/> -->
+                            <!-- <a:button type="delete"/> -->
+                            <a:button click="tre_factoring_repayment_plan_import" icon="${/request/@context_path}/images/addbm.png" text="HLS.IMPORT"/>
+                        </a:toolBar>
+                        <a:columns>
+                            <a:column name="repayment_type_desc" editor="repayment_plan_grid_combobox_id" prompt="TRE503.REPAYMENT_TYPE"/>
+                            <a:column name="times" editorFunction="on_repayment_plan_grid_editorfunction" prompt="HLS.PERIOD_NUMBER"/>
+                            <a:column name="rental" prompt="TRE503.RENTAL"/>
+                            <a:column name="deposit_date" editor="repayment_plan_grid_datepicker_id" prompt="TRE503.DEPOSIT_DATE" renderer="Aurora.formatDate"/>
+                            <a:column name="maturity_date" editor="repayment_plan_grid_datepicker_id" prompt="TRE503.MATURITY_DATE" renderer="Aurora.formatDate"/>
+                            <a:column name="repayment_date" editor="repayment_plan_grid_datepicker_id" prompt="TRE503.REPAYMENT_DATE" renderer="Aurora.formatDate"/>
+                            <a:column name="expire_date" editor="repayment_plan_grid_datepicker_id" prompt="TRE503.EXPIRE_DATE" renderer="Aurora.formatDate"/>
+                            <a:column name="discount_days" editor="repayment_plan_grid_numberField2_id" prompt="TRE503.DISCOUNT_DAYS" renderer="Aurora.formatNumber"/>
+                            <a:column name="amount" editor="repayment_plan_grid_numberField2_id" prompt="TRE503.AMOUNT" renderer="Aurora.formatNumber"/>
+                            <a:column name="principal" editor="repayment_plan_grid_numberField2_id" prompt="TRE503.PRINCIPAL" renderer="Aurora.formatNumber"/>
+                            <a:column name="interest" editor="repayment_plan_grid_numberField2_id" prompt="TRE502.REPAYMENT_INTEREST" renderer="Aurora.formatNumber"/>
+                            <a:column name="amount_implicit_rt" editor="repayment_plan_grid_numberField2_id" prompt="TRE503.AMOUNT_IMPLICIT_RT" renderer="Aurora.formatNumber"/>
+                            <a:column name="factoring_fee" editor="repayment_plan_grid_numberField2_id" prompt="TRE503.FACTORING_FEE" renderer="Aurora.formatNumber"/>
+                            <a:column name="factoring_fee_pv" editor="repayment_plan_grid_numberField2_id" prompt="TRE503.FACTORING_FEE_PV" renderer="Aurora.formatNumber"/>
+                            <a:column name="residue_rental" editor="repayment_plan_grid_numberField2_id" prompt="TRE503.RESIDUE_RENTAL" renderer="Aurora.formatNumber"/>
+                        </a:columns>
+                        <a:editors>
+                            <a:lov id="repayment_plan_grid_lov_id">
+                                <a:events>
+                                    <a:event name="focus" handler="on_repayment_plan_focus"/>
+                                </a:events>
+                            </a:lov>
+                            <a:textField id="repayment_plan_grid_textfield_id"/>
+                            <a:comboBox id="repayment_plan_grid_combobox_id"/>
+                            <a:numberField id="repayment_plan_grid_numberField1_id" allowDecimals="false" allowNegative="false"/>
+                            <a:numberField id="repayment_plan_grid_numberField2_id" allowNegative="false"/>
+                            <a:datePicker id="repayment_plan_grid_datepicker_id"/>
+                        </a:editors>
+                    </a:grid>
+                </a:box>
+            </a:fieldSet>
+            <!-- 对应融资租赁合同 -->
+            <!-- <a:fieldSet column="1" title="对应融资租赁合同">
+                <a:grid bindTarget="loan_con_fin_con_ds" height="200" navBar="true" width="450">
+                    <a:toolBar>
+                        <a:button type="add"/>
+                        <a:button type="delete"/>
+                    </a:toolBar>
+                    <a:columns>
+                        <a:column name="contract_number" editor="con_fin_con_lv" prompt="租赁合同号" width="150"/>
+                        <a:column name="contract_name" prompt="租赁合同名称" width="150"/>
+                        <a:column name="amount" editor="con_fin_con_nf" prompt="TRE_LOAN_CON_REPAYMENT_PLAN.AMOUNT" renderer="Aurora.formatNumber" width="100"/>
+                    </a:columns>
+                    <a:editors>
+                        <a:numberField id="con_fin_con_nf" allowFormat="true"/>
+                        <a:lov id="con_fin_con_lv"/>
+                    </a:editors>
+                </a:grid>
+            </a:fieldSet> -->
+        </a:screenBody>
+    </a:view>
+</a:screen>

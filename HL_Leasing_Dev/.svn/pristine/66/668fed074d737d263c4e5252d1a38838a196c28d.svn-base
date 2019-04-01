@@ -1,0 +1,1096 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:t="aurora.application.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <!--
+    		权限控制
+    	-->
+        <s:server-script><![CDATA[
+            var bm = $bm('zjwfl.ZJWFL5110.zj_wfl_check_approve_privilege');
+            var result = bm.queryAsMap().getChildren();
+            if (result[0].HAS_PRIVILEGE != 'Y') {
+                var config = $config();
+                var view = CompositeUtil.findChild(config, 'view');
+                var list = view.getChilds();
+                list.clear();
+                var script = view.createChild('script');
+                script.setText("$('zj_wfl_approve_win').close();alert('您没有权限查看');");
+            }
+        ]]></s:server-script>
+        <a:model-query defaultWhereClause="t1.node_id = ${/parameter/@node_id}" model="zjwfl.zj_wfl_workflow_node_filter_node_id" rootPath="node_record"/>
+        <a:model-query autocount="true" fetchall="true" model="zjwfl.zj_wfl_workflow_node_action" rootpath="node_action"/>
+        <a:model-query autocount="true" fetchall="true" model="zjwfl.zj_wfl_workflow_node_action_group" rootpath="node_action_group"/>
+        <a:model-query autoCount="true" defaultWhereClause="t1.record_id = ${/parameter/@record_id}" fetchAll="true" model="zjwfl.ZJWFL5110.zj_wfl_instance_node_recipient" rootPath="instance_one"/>
+        <a:model-query defaultWhereClause="t1.record_id = ${/parameter/@record_id}" model="zjwfl.zj_wfl_node_service_wait_to_do" rootPath="node_service_record" trace="true"/>
+        <a:model-query fetchAll="true" model="zjwfl.zj_wfl_get_bp_category" rootPath="zjwfl_bp_category"/>
+        <s:server-script import="zjwfl_user_define.js"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="zjwfl_btn_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <style><![CDATA[
+         .buttongroup .item-btn-tl,.buttongroup .item-btn-tc,.buttongroup .item-btn-tr,.buttongroup .item-btn-bl,.buttongroup .item-btn-bc,.buttongroup .item-btn-br,.buttongroup .item-btn-mr{
+            display:none;
+         }
+         
+         .buttongroup .item-btn{
+            height:30px;
+            border:none;
+         }
+         
+         .buttongroup .item-btn-ml{
+            background:url(${/request/@context_path}/images/button2.gif)
+         }
+         
+         .buttongroup .item-btn-mc{
+             background:url(${/request/@context_path}/images/button2.gif) right 0;
+             padding:9px 8px 5px 0;
+         }
+         
+         .buttongroup .item-btn-mc button div{
+             color:#ffffff;
+         }
+         
+         .buttongroup .item-btn-over .item-btn-mc{
+             background:url(${/request/@context_path}/images/button2.gif) right -30px;
+         }
+         
+         .buttongroup .item-btn-over .item-btn-ml{
+             background:url(${/request/@context_path}/images/button2.gif) left -30px;
+         }
+         
+         .buttongroup .item-btn-over button div{
+             color:#000000;
+         }
+        ]]></style>
+        <a:link id="svcLink_agree" url="${/request/@context_path}/modules/zjwfl/ZJWFL5110/zj_wfl_approve_agree.svc"/>
+        <a:link id="svcLink_refuse" url="${/request/@context_path}/modules/zjwfl/ZJWFL5110/zj_wfl_approve_refuse.svc"/>
+        <a:link id="svcLink_skip" url="${/request/@context_path}/modules/zjwfl/ZJWFL5110/zj_wfl_approve_skip.svc"/>
+        <a:link id="svcLink_do_proc" url="${/request/@context_path}/modules/zjwfl/ZJWFL5110/zj_wfl_approve_do_procedure.svc"/>
+        <a:link id="svcLink_view_page" url="${/request/@context_path}/modules/zjwfl/ZJWFL5110/zj_wfl_approve_view_page.svc"/>
+        <a:link id="pageLink_transfer" url="${/request/@context_path}/modules/zjwfl/ZJWFL5110/zj_wfl_approve_transfer.screen"/>
+        <a:link id="pageLink_add_approver" url="${/request/@context_path}/modules/zjwfl/ZJWFL5110/zj_wfl_approve_add_approver.screen"/>
+        <a:link id="pageLink_view_graphics" url="${/request/@context_path}/modules/zjwfl/zj_wfl_graphics.screen"/>
+        <a:link id="zjwfl5110_notice_link" model="zjwfl.ZJWFL5110.zj_wfl_approve_agree" modelaction="execute"/>
+        <script><![CDATA[
+            function zjwfl5110_approveCheck(type) {
+
+                if (type == 'agree') {
+                    var ds = $('comment_text_ds');
+                    var record = ds.getCurrentRecord();
+                    var comment_text_out = record.get('comment_text_out');
+                    if (!comment_text_out || comment_text_out == undefined) {
+                        Aurora.showMessage('提示', '审批意见不能为空');
+                        return;
+                    }
+                }
+                
+                
+            
+                if (type == 'agree') {
+                    return true;
+                } else if (type == 'refuse') {
+                    return true;
+                } else if (type == 'do_proc') {
+                    return true;
+                } else if (type == 'jump') {
+                    return true;
+                } else if (type == 'view_page') {
+                    return true;
+                } else if (type == 'transfer_approver') {
+                    return true;
+                } else if (type == 'add_approver') {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            
+            (function() {
+                var checker_list = {};
+            
+                zjwfl5110_ApproveChecker_add = function(name, fun) {
+                    checker_list[name] = fun;
+                };
+            
+                zjwfl5110_ApproveChecker_remove = function(name) {
+                    delete checker_list[name];
+                };
+            
+                zjwfl5110_ApproveChecker_check = function(type) {
+                    for (var key in checker_list) {
+                        if (checker_list[key](type) == true) {
+            
+                           } else {
+                            return false;
+                        }
+                    }
+                    return true;
+                };
+            
+            })();
+            
+            function zjwfl5110_approveCheckNew(type) {
+                if (zjwfl5110_approveCheck(type) && zjwfl5110_ApproveChecker_check(type)) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            
+            function zjwfl5110_approvePage_close() {
+                $('zj_wfl_approve_win').close();
+            }
+            
+            function zjwfl5110_approvePage_mask() {
+                Aurora.Masker.mask($('zj_wfl_approve_win').wrap, '正在提交');
+            }
+            
+            function zjwfl5110_approvePage_noMask() {
+                Aurora.Masker.unmask($('zj_wfl_approve_win').wrap);
+            }
+            
+            
+            function zjwfl5110_actionTypeRenderer(value, record, name) {
+                var action_type = record.get('action_type');
+                var action_type_desc = record.get('action_type_desc');
+                if (action_type == '1') {
+                    return "<div style='background-color:rgb(127,255,0)'>" + action_type_desc + "</div>"; //同意,绿色
+                } else if (action_type == '2') {
+                    return "<div style='background-color:rgb(255,69,0)'>" + action_type_desc + "</div>"; //拒绝,红色
+                } else if (action_type == '3') {
+                    return "<div style='background-color:rgb(255,255,0)'>" + action_type_desc + "</div>"; //跳转,黄色
+                } else {
+                    return "";
+                }
+            }
+            
+            function zjwfl5110_viewGraphics() {
+                new Aurora.Window({
+                    id: 'zj_wfl_graphics',
+                    url: $('pageLink_view_graphics').getUrl(),
+                    params: {
+                        instance_id: '${/parameter/@instance_id}',
+                        workflow_id: '${/parameter/@workflow_id}'
+                    },
+                    title: '流程图',
+                    fullScreen: true
+                });
+            }
+            
+            //初始化意见框内容
+            
+            function comment_text_ds_add(ds, record, index) {
+                var comment_text = '';
+                var position_code = '${/model/instance_one/record/@position_code}';
+                var node_sequence_num = '${/model/instance_one/record/@node_sequence_num}';
+                var workflow_code = '${/model/instance_one/record/@workflow_code}';
+            
+                if (position_code == '07' && workflow_code == 'PROJECT_APPLY' && node_sequence_num == '30') {
+                    comment_text = "项目结构:\n\n担保方式:\n\n资金来源:";
+                } else if (position_code == '03' && workflow_code == 'PROJECT_APPLY' && node_sequence_num == '30') {
+                    comment_text = "项目结构:\n\n税收筹划:\n\n财务分析:";
+                }
+                record.set('comment_text', comment_text);
+            }
+            
+            function zjwfl5110_notice() {
+                var comment_text = $('comment_text_ds').getAt(0).get('comment_text');
+                var record_id = '${/parameter/@record_id}';
+                Aurora.showConfirm('提示', '是否关闭通知', function() {
+                    Aurora.request({
+                        url: $('zjwfl5110_notice_link').getUrl(),
+                        para: {
+                            record_id: record_id,
+                            comment_text: comment_text
+                        },
+                        success: function(response) {
+                            //解锁
+                            zjwfl5110_approvePage_noMask();
+                            if (response.result.result_num == 0) {
+                                Aurora.SideBar.show({
+                                    msg: '提交成功',
+                                    duration: 2000
+                                });
+                                zjwfl5110_approvePage_close();
+                            }
+                        },
+                        failure: function() {
+                            zjwfl5110_approvePage_noMask();
+                        },
+                        error: function() {
+                            zjwfl5110_approvePage_noMask();
+                        },
+                        scope: this
+                    });
+                });
+            }
+            console.log('${/model/node_service_record/record/@service_url}');
+        ]]></script>
+        <a:dataSets id="zjwfl_approve_datasets_id">
+            <a:dataSet id="nodeActionDs">
+                <a:datas dataSource="/model/node_action"/>
+            </a:dataSet>
+            <a:dataSet id="comment_text_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="comment_text"/>
+                    <a:field name="comment_text_out"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="comment_text_ds_add"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="zjwfl5110_bp_category_ds">
+                <a:datas dataSource="/model/zjwfl_bp_category"/>
+            </a:dataSet>
+        </a:dataSets>
+        <!-- <a:screenBody>
+            <a:fieldSet marginWidth="30" title="工作流信息">
+                <table border="0" cellpadding="0" cellspacing="0" class="item-table" style="outline:none;width:100%;">
+                    <tr>
+                        <td atype="table-cell" class="table-hc" style="width:16%"><![CDATA[节点描述]]></td>
+                        <td atype="table-cell" style="width:16%"><![CDATA[${/model/instance_one/record/@node_desc}]]></td>
+                        <td atype="table-cell" class="table-hc" style="width:16%"><![CDATA[到达时间]]></td>
+                        <td atype="table-cell" style="width:16%"><![CDATA[${/model/instance_one/record/@creation_date_format}]]></td>
+                        <td atype="table-cell" class="table-hc" style="width:16%"><![CDATA[流程图]]></td>
+                        <td atype="table-cell" style="width:16%">
+                            <a href="javascript:zjwfl5110_viewGraphics();"><![CDATA[查看]]></a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td atype="table-cell" class="table-hc"><![CDATA[工作流代码]]></td>
+                        <td atype="table-cell"><![CDATA[${/model/instance_one/record/@workflow_code}]]></td>
+                        <td atype="table-cell" class="table-hc"><![CDATA[工作流描述]]></td>
+                        <td atype="table-cell"><![CDATA[${/model/instance_one/record/@workflow_desc}]]></td>
+                    </tr>
+                </table>
+            </a:fieldSet>
+        </a:screenBody> -->
+        <a:switch test="/model/node_service_record/record/@service_url">
+            <a:case value="DEFAULT">
+                <a:screen-include screen="modules/zjwfl/zj_wfl_default_document_info.screen?instance_id=${/parameter/@instance_id}&amp;approve_count=${/model/instance_one/record/@approve_count}"/>
+            </a:case>
+            <a:case value="ERROR">
+                <div style="color:red;"><![CDATA[自定义页面获取失败]]></div>
+            </a:case>
+            <a:case value="*">
+                <a:screen-include screen="${/model/node_service_record/record/@service_url}&amp;winid=zj_wfl_approve_win"/>
+            </a:case>
+        </a:switch>
+        <a:switch test="/model/node_record/record/@show_approve_history_flag">
+            <a:case value="Y">
+                <a:screen-include screen="modules/zjwfl/zj_wfl_approve_history.screen?workflow_id=${/parameter/@workflow_id}&amp;instance_id=${/parameter/@instance_id}&amp;reader_type=APPROVER&amp;node_id=${/parameter/@node_id}"/>
+            </a:case>
+        </a:switch>
+        <a:screenBody>
+            <a:vBox>
+                <a:hBox>
+                    <a:box>
+                        <div id="comment_inner_id"><![CDATA[内部信审意见]]></div>
+                        <a:textArea name="comment_text" id="comment_text_id" bindTarget="comment_text_ds" height="40" prompt="" width="300"/>
+                    </a:box>
+                    <a:box>
+                        <div id="comment_out_id"><![CDATA[审批意见]]></div>
+                        <a:textArea name="comment_text_out" id="comment_text_id2" bindTarget="comment_text_ds" height="45" prompt="" required="true" width="500"/>
+                    </a:box>
+                    <table id="showbutton" class="buttongroup">
+                        <tr>
+                            <td id="showbuttongroup"/>
+                            <a:switch test="/model/node_record/record/@can_transfer_approver_flag">
+                                <a:case value="Y">
+                                    <script><![CDATA[
+	                            		function zjwfl5110_winOpen_transfer_approve() {
+	                            		    if(!zjwfl5110_approveCheckNew('transfer_approver'))
+							                {
+							                    return;
+							                }
+							                var win = new Aurora.Window({
+								                id: 'zj_wfl_approve_transfer_win',
+								                url: $('pageLink_transfer').getUrl(),
+								                params: {
+								                    record_id : '${/parameter/@record_id}'
+								                },
+								                title: '转交',
+								                width:500,
+								                height:200
+								            });
+								            
+								            win.on('close',function (){
+								            	zjwfl5110_approvePage_close();
+								            });
+							            }
+							        ]]></script>
+                                    <td style="padding-right: 15px;">
+                                        <a:button class="buttongroup" click="zjwfl5110_winOpen_transfer_approve" text="转交"/>
+                                    </td>
+                                </a:case>
+                            </a:switch>
+                            <a:switch test="/model/node_record/record/@can_add_approver_flag">
+                                <a:case value="Y">
+                                    <script><![CDATA[
+	                            		function zjwfl5110_winOpen_add_approver() {
+	                            		    if(!zjwfl5110_approveCheckNew('add_approver'))
+							                {
+							                    return;
+							                }
+							                var win = new Aurora.Window({
+								                id: 'zj_wfl_approve_add_approver_win',
+								                url: $('pageLink_add_approver').getUrl(),
+								                params: {
+								                    record_id : '${/parameter/@record_id}'
+								                },
+								                title: '添加审批人',
+								                width:650,
+								                height:500
+								            });
+								            
+								            win.on('close',function (){
+								            	zjwfl5110_approvePage_close();
+								            });
+							            }
+							        ]]></script>
+                                    <td style="padding-right: 15px;">
+                                        <a:button class="buttongroup" click="zjwfl5110_winOpen_add_approver" text="添加审批人"/>
+                                    </td>
+                                </a:case>
+                            </a:switch>
+                            <a:switch test="/parameter/@workflow_id">
+                                <a:case value="225">
+                                    <script><![CDATA[
+                                		function zjwfl5110_prj_atm_upload() {
+                                		    var url = $('prj_attachment_uploadFile_id').getUrl() + '?table_name=ZJ_WFL_APPROVE_RECORD&header_id=' + ${/parameter/@record_id};
+                                		    var win = new Aurora.Window({
+                                		        url: url,
+                                		        title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                                		        id: 'prj_project_approve_uploadFile_id',
+                                		        width: 850,
+                                		        height: 400
+                                		    });
+                                		    win.on('close', function() {});
+                                		
+                                		}
+                            		]]></script>
+                                    <td style="padding-right: 15px;">
+                                        <a:button class="buttongroup" click="zjwfl5110_prj_atm_upload" text="附件上传"/>
+                                    </td>
+                                </a:case>
+                            </a:switch>
+                            <td style="padding-right: 15px;">
+                                <a:button class="buttongroup" click="zjwfl5110_approvePage_close" text="返回"/>
+                            </td>
+                        </tr>
+                    </table>
+                </a:hBox>
+            </a:vBox>
+        </a:screenBody>
+        <script><![CDATA[
+            (function init() {
+                var ds = $('zjwfl5110_bp_category_ds');
+                var bp_category = ds.getAt(0).get('bp_category'); //user_name
+                var user_name = ds.getAt(0).get('user_name');
+                var workflow_code = '${/model/instance_one/record/@workflow_code}';
+                /* if (bp_category != 'EMPLOYEE' || workflow_code == 'EXT_CHANGE' || workflow_code == 'BASIC_CHANGE' || workflow_code == 'PAYCARD_CHANGE' || workflow_code == 'WFL_ET') {
+                    document.getElementById('comment_inner_id').style.display = "none";
+                    document.getElementById('comment_text_id').style.display = "none";
+                } */
+                document.getElementById('comment_inner_id').style.display = "none";
+                document.getElementById('comment_text_id').style.display = "none";
+                if (bp_category != 'EMPLOYEE') {
+                    if ($A.CmpManager.get('comment_text_ds') && user_name == 'JF') {
+                        var comment_text_ds = $('comment_text_ds');
+                        comment_text_ds.getAt(0).getField('comment_text_out').setReadOnly(true);
+                    }
+                }
+            })();
+            
+            var wfl_approve_save_flag = 'N';
+            var confirm_message = null;
+            
+            function zjwfl5110_onButtonGroup(record, combobox_ds_id, wfl_node_action_id, wfl_node_action_prompt, wfl_action_type, wfl_service_id) { //zh
+                //在提交请求的过程中锁屏
+                zjwfl5110_approvePage_mask();
+                var node_action_id = '';
+                var node_action_prompt = '';
+                var action_type = '';
+                if (record) {
+                    node_action_id = record.get('node_action_id');
+                    node_action_prompt = record.get('node_action_prompt');
+                    action_type = record.get('action_type');
+                } else {
+                    if (combobox_ds_id) {
+                        if ($(combobox_ds_id).validate()) {
+                            var current_record = $(combobox_ds_id).getCurrentRecord();
+                            node_action_id = current_record.get('node_action_id');
+                            node_action_prompt = current_record.get('node_action_prompt');
+                            action_type = current_record.get('action_type');
+                        } else {
+                            zjwfl5110_approvePage_noMask();
+                            return;
+                        }
+                    } else {
+                        if (wfl_node_action_id) {
+                            node_action_id = wfl_node_action_id;
+                            node_action_prompt = wfl_node_action_prompt;
+                            action_type = wfl_action_type;
+                        } else {
+                            zjwfl5110_approvePage_noMask();
+                            return;
+                        }
+                    }
+                }
+                var checkActionType = '';
+                if (action_type == 1) {
+                    checkActionType = 'agree';
+                } else if (action_type == 2) {
+                    checkActionType = 'refuse';
+                } else if (action_type == 3) {
+                    checkActionType = 'jump';
+                    if (wfl_service_id) {
+                        zjwfl5110_onViewPage(record, combobox_ds_id, wfl_node_action_id, wfl_node_action_prompt, action_type);
+                        return;
+                    }
+                } else if (action_type == 4) {
+                    checkActionType = 'do_proc';
+                } else if (action_type == 5) {
+                    checkActionType = 'view_page';
+                    zjwfl5110_onViewPage(record, combobox_ds_id, wfl_node_action_id, wfl_node_action_prompt, action_type);
+                    return;
+                } else if (action_type == 7) {
+                    zjwfl5110_uploadAttach();
+                    zjwfl5110_approvePage_noMask();
+                    return;
+                } else {
+                    zjwfl5110_approvePage_noMask();
+                    return;
+                }
+            
+                if (!zjwfl5110_approveCheckNew(checkActionType)) {
+                    zjwfl5110_approvePage_noMask();
+                    return;
+                }
+            
+                function execute_finnaly() {
+                    if (wfl_approve_save_flag != 'N' && wfl_approve_save_flag != 'Y') {
+                        zjwfl5110_approvePage_noMask();
+                        return;
+                    }
+            
+                    var comment_record = $('comment_text_ds').getCurrentRecord();
+                    if (action_type == 1 && comment_record && !comment_record.get('comment_text')) {
+                        //comment_record.set('comment_text', '同意');
+                    }
+            
+                    if (!$('comment_text_ds').validate()) {
+                        zjwfl5110_approvePage_noMask();
+                        return;
+                    }
+                    var record_id = '${/parameter/@record_id}';
+                    var comment_text = $('comment_text_id').getValue();
+                    var comment_text_out = $('comment_text_id2').getValue();
+                    var wfl_ajax_flag = 'N';
+            
+            
+                    var win = Aurora.showConfirm('是否确认', node_action_prompt, function() {
+                        wfl_ajax_flag = 'Y';
+            
+                        //设置请求的时间
+                        Ext.Ajax.timeout = 20 * 60 * 1000;
+            
+                        Aurora.request({
+                            url: $('svcLink_agree').getUrl(),
+                            para: {
+                                record_id: record_id,
+                                comment_text: comment_text,
+                                comment_text_out: comment_text_out,
+                                node_action_id: node_action_id
+                            },
+                            success: function(response) {
+                                //解锁
+                                zjwfl5110_approvePage_noMask();
+                                if (response.result.result_num == 0) {
+                                    Aurora.SideBar.show({
+                                        msg: '提交成功',
+                                        duration: 2000
+                                    });
+            
+                                    zjwfl5110_approvePage_close();
+                                }
+                            },
+                            failure: function() {
+                                zjwfl5110_approvePage_noMask();
+                            },
+                            error: function() {
+                                zjwfl5110_approvePage_noMask();
+                            },
+                            scope: this
+                        });
+            
+                    }, function() {
+                        zjwfl5110_approvePage_noMask();
+                    });
+                    win.on('close', function() {
+                        if (action_type == 1 && comment_record && comment_record.get('comment_text') == '同意') {
+                            comment_record.set('comment_text', '');
+                        }
+                        if (wfl_ajax_flag == 'N') {
+                            zjwfl5110_approvePage_noMask();
+                        }
+                    });
+                }
+                if (confirm_message) {
+                    var temp_confirm_flag = 'N';
+                    var wfl_confirm_win = Aurora.showConfirm('确认', confirm_message, function() {
+                        temp_confirm_flag = 'Y';
+                        execute_finnaly();
+                    }, function() {
+                        zjwfl5110_approvePage_noMask();
+                    });
+                    wfl_confirm_win.on('close', function() {
+                        if (temp_confirm_flag == 'N') {
+                            zjwfl5110_approvePage_noMask();
+                        }
+                    });
+                } else {
+                    execute_finnaly();
+                }
+            }
+            
+            function zjwfl5110_onAgree(record) {
+                //在提交请求的过程中锁屏
+                zjwfl5110_approvePage_mask();
+            
+                if (!zjwfl5110_approveCheckNew('agree')) {
+                    zjwfl5110_approvePage_noMask();
+                    return;
+                }
+            
+                if (!$('comment_text_ds').validate()) {
+                    zjwfl5110_approvePage_noMask();
+                    return;
+                }
+                var record_id = '${/parameter/@record_id}';
+                var comment_text = $('comment_text_id').getValue();
+                var node_action_id = record.get('node_action_id');
+            
+                Aurora.showConfirm('是否确认', record.get('node_action_prompt'), function() {
+            
+                    //设置请求的时间
+                    Ext.Ajax.timeout = 20 * 60 * 1000;
+            
+                    Aurora.request({
+                        url: $('svcLink_agree').getUrl(),
+                        para: {
+                            record_id: record_id,
+                            comment_text: comment_text,
+                            node_action_id: node_action_id
+                        },
+                        success: function(response) {
+                            //解锁
+                            zjwfl5110_approvePage_noMask();
+                            if (response.result.result_num == 0) {
+                                Aurora.SideBar.show({
+                                    msg: '提交成功',
+                                    duration: 2000
+                                });
+            
+                                zjwfl5110_approvePage_close();
+                            }
+                        },
+                        failure: function() {
+                            zjwfl5110_approvePage_noMask();
+                        },
+                        error: function() {
+                            zjwfl5110_approvePage_noMask();
+                        },
+                        scope: this
+                    });
+            
+                }, function() {
+                    zjwfl5110_approvePage_noMask();
+                });
+            }
+            
+            function zjwfl5110_onRefuse(record) {
+            
+                //在提交请求的过程中锁屏
+                zjwfl5110_approvePage_mask();
+            
+                if (!zjwfl5110_approveCheckNew('refuse')) {
+                    zjwfl5110_approvePage_noMask();
+                    return;
+                }
+                if (!$('comment_text_ds').validate()) {
+                    zjwfl5110_approvePage_noMask();
+                    return;
+                }
+                var record_id = '${/parameter/@record_id}';
+                var comment_text = $('comment_text_id').getValue();
+                var node_action_id = record.get('node_action_id');
+            
+                Aurora.showConfirm('是否确认', record.get('node_action_prompt'), function() {
+            
+                    //设置请求的时间
+                    Ext.Ajax.timeout = 20 * 60 * 1000;
+            
+                    Aurora.request({
+                        url: $('svcLink_refuse').getUrl(),
+                        para: {
+                            record_id: record_id,
+                            comment_text: comment_text,
+                            node_action_id: node_action_id
+                        },
+                        success: function(response) {
+                            //解锁
+                            zjwfl5110_approvePage_noMask();
+            
+                            if (response.result.result_num == 0) {
+                                Aurora.SideBar.show({
+                                    msg: '提交成功',
+                                    duration: 2000
+                                });
+            
+                                zjwfl5110_approvePage_close();
+                            }
+                        },
+                        failure: function() {
+                            zjwfl5110_approvePage_noMask();
+                        },
+                        error: function() {
+                            zjwfl5110_approvePage_noMask();
+                        },
+                        scope: this
+                    });
+            
+                }, function() {
+                    zjwfl5110_approvePage_noMask();
+                });
+            }
+            
+            function zjwfl5110_onSkip(record) {
+            
+                //在提交请求的过程中锁屏
+                zjwfl5110_approvePage_mask();
+            
+                if (!zjwfl5110_approveCheckNew('jump')) {
+                    zjwfl5110_approvePage_noMask();
+                    return;
+                }
+                if (!$('comment_text_ds').validate()) {
+            
+                    zjwfl5110_approvePage_noMask();
+                    return;
+                }
+                var record_id = '${/parameter/@record_id}';
+                var comment_text = $('comment_text_id').getValue();
+                var node_action_id = record.get('node_action_id');
+            
+            
+                Aurora.showConfirm('是否确认', record.get('node_action_prompt'), function() {
+            
+                    //设置请求的时间
+                    Ext.Ajax.timeout = 20 * 60 * 1000;
+            
+                    Aurora.request({
+                        url: $('svcLink_skip').getUrl(),
+                        para: {
+                            record_id: record_id,
+                            comment_text: comment_text,
+                            node_action_id: node_action_id
+                        },
+                        success: function(response) {
+                            //解锁
+                            zjwfl5110_approvePage_noMask();
+            
+                            if (response.result.result_num == 0) {
+                                Aurora.SideBar.show({
+                                    msg: '提交成功',
+                                    duration: 2000
+                                });
+            
+                                zjwfl5110_approvePage_close();
+                            }
+                        },
+                        failure: function() {
+                            zjwfl5110_approvePage_noMask();
+                        },
+                        error: function() {
+                            zjwfl5110_approvePage_noMask();
+                        },
+                        scope: this
+                    });
+            
+                }, function() {
+                    zjwfl5110_approvePage_noMask();
+                });
+            }
+            
+            function zjwfl5110_onProcedure(record) {
+            
+                //在提交请求的过程中锁屏
+                zjwfl5110_approvePage_mask();
+            
+                if (!zjwfl5110_approveCheckNew('do_proc')) {
+                    zjwfl5110_approvePage_noMask();
+                    return;
+                }
+            
+                var record_id = '${/parameter/@record_id}';
+                var node_action_id = record.get('node_action_id');
+            
+                Aurora.showConfirm('是否确认', record.get('node_action_prompt'), function() {
+            
+                    //设置请求的时间
+                    Ext.Ajax.timeout = 20 * 60 * 1000;
+                    Aurora.request({
+                        url: $('svcLink_do_proc').getUrl(),
+                        para: {
+                            record_id: record_id,
+                            node_action_id: node_action_id
+                        },
+                        success: function(response) {
+                            //解锁
+                            zjwfl5110_approvePage_noMask();
+            
+                            if (response.result.result_num == 0) {
+                                Aurora.SideBar.show({
+                                    msg: '提交成功',
+                                    duration: 2000
+                                });
+            
+                                zjwfl5110_approvePage_close();
+                            }
+                        },
+                        failure: function() {
+                            zjwfl5110_approvePage_noMask();
+                        },
+                        error: function() {
+                            zjwfl5110_approvePage_noMask();
+                        },
+                        scope: this
+                    });
+            
+                }, function() {
+                    zjwfl5110_approvePage_noMask();
+                });
+            }
+            
+            //上传附件
+            
+            function zjwfl5110_uploadAttach() {
+                var rcpt_record_id = '${/parameter/@record_id}';
+                new Aurora.Window({
+                    id: 'zj_wfl_approve_history_downloadfile_win',
+                    url: $('zjwfl_btn_uploadFile_id').getUrl() + '?table_name=ZJ_WFL_INSTANCE_NODE_RECIPIENT&header_id=' + rcpt_record_id,
+                    title: '附件查看',
+                    width: 850,
+                    height: 400
+                });
+            }
+            
+            function zjwfl5110_onViewPage(record, combobox_ds_id, wfl_node_action_id, wfl_node_action_prompt, action_type) {
+                debugger;
+                //在提交请求的过程中锁屏
+                zjwfl5110_approvePage_mask();
+            
+                if (!zjwfl5110_approveCheckNew('view_page')) {
+                    zjwfl5110_approvePage_noMask();
+                    return;
+                }
+            
+                var record_id = '${/parameter/@record_id}';
+                var node_action_id = '';
+                if (record) {
+                    node_action_id = record.get('node_action_id');
+                } else {
+                    if (combobox_ds_id) {
+                        if ($(combobox_ds_id).validate()) {
+                            var current_record = $(combobox_ds_id).getCurrentRecord();
+                            node_action_id = current_record.get('node_action_id');
+                        } else {
+                            zjwfl5110_approvePage_noMask();
+                            return;
+                        }
+                    } else {
+                        if (wfl_node_action_id) {
+                            node_action_id = wfl_node_action_id;
+                        } else {
+                            zjwfl5110_approvePage_noMask();
+                            return;
+                        }
+                    }
+                }
+            
+                //Aurora.showConfirm('是否确认', record.get('node_action_prompt'), function() {
+            
+                //设置请求的时间
+                Ext.Ajax.timeout = 20 * 60 * 1000;
+            
+                Aurora.request({
+                    url: $('svcLink_view_page').getUrl(),
+                    para: {
+                        record_id: record_id,
+                        node_action_id: node_action_id
+                    },
+                    success: function(response) {
+                        //解锁
+                        zjwfl5110_approvePage_noMask();
+            
+                        var result = response.result;
+                        if (result.result_num == 0) {
+                            
+                        	var w = result.service_url.indexOf('?');
+            				var service_name = result.service_url.substring(0, w);
+            				// add panhong 
+            				// 补电核经销商提醒不全屏
+            				if(service_name.trim() == 'modules/prj/PRJ501RM/prj_supply_agreement.screen'){
+	                            new Aurora.Window({
+	                                id: 'zj_wfl_workflow_service_window',
+	                                url: '${/request/@context_path}/' + result.service_url,
+	                                title: wfl_node_action_prompt,
+	                                params: {
+	                                    combobox_ds_id: combobox_ds_id,
+	                                    wfl_node_action_id: wfl_node_action_id,
+	                                    wfl_node_action_prompt: wfl_node_action_prompt,
+	                                    winid:"zj_wfl_workflow_service_window",
+	                                    action_type: action_type
+	                                },
+	                                width: 650,
+	                                height: 230
+	                            });
+	                        }else{
+	                            new Aurora.Window({
+	                                id: 'zj_wfl_workflow_service_window',
+	                                url: '${/request/@context_path}/' + result.service_url,
+	                                title: '',
+	                                params: {
+	                                    combobox_ds_id: combobox_ds_id,
+	                                    wfl_node_action_id: wfl_node_action_id,
+	                                    wfl_node_action_prompt: wfl_node_action_prompt,
+	                                    winid:"zj_wfl_workflow_service_window",
+	                                    action_type: action_type
+	                                },
+	                                fullScreen: true
+	                            });
+            				}
+                        }
+                    },
+                    failure: function() {
+                        zjwfl5110_approvePage_noMask();
+                    },
+                    error: function() {
+                        zjwfl5110_approvePage_noMask();
+                    },
+                    scope: this
+                });
+            
+                //}, function() {
+                //    zjwfl5110_approvePage_noMask();
+                //});
+            }
+            
+            function initButton() {
+            
+                var node_action_ds = $('nodeActionDs');
+                var datalist = node_action_ds.getAll();
+            
+                var record_type = '${/parameter/@record_type}';
+            
+                if (record_type == 'APPROVER') {
+            
+                    for (var n = datalist.length;n > 0;n--) {
+                        var i = n - 1;
+                        var node_action = datalist[i];
+                        var table = document.getElementById("showbutton");
+                        // var newTD = table.rows[0].insertCell(0);
+                        // newTD.style.cssText = 'padding-right:15px';
+                        // var buttonTpl = "<TABLE action_id='{action_id}'  class='item-btn' style=';width:60px;' id='{id}' cellSpacing='0'><TBODY><TR><TD class='item-btn-tl'><I></I></TD><TD class='item-btn-tc'></TD><TD class='item-btn-tr'><I></I></TD></TR><TR><TD class='item-btn-ml'><I></I></TD><TD class='item-btn-mc'><BUTTON type='button' hidefocus='true' atype='btn' title='' style='height:16px;' class=''><div style='line-height:16px;height:16px;'>{action_desc}</div></BUTTON></TD><TD class='item-btn-mr'><I></I></TD></TR><TR><TD class='item-btn-bl'><I></I></TD><TD class='item-btn-bc'></TD><TD class='item-btn-br'><I></I></TD></TR></TBODY></TABLE>";
+                        // var btnid = 'btn_' + i;
+                        // var bindaction_id = node_action.get('node_action_id');
+                        // var bindaction_desc = node_action.get('node_action_desc');
+                        // new Ext.Template(buttonTpl).insertFirst(newTD, {
+                        // id: btnid,
+                        // action_desc: bindaction_desc,
+                        // action_id: bindaction_id
+                        // });
+            
+            
+                        //根据动作类型，动态设置按钮的执行事件
+                        // var action_type = node_action.get('action_type');
+            
+                        // function create_sigle_button(action_type) {
+                        // switch (action_type) {
+                        // case '1':
+                        // new Aurora.Button({
+                        // "id": btnid,
+                        // "listeners": {
+                        // "click": zjwfl5110_onAgree.createDelegate(this, [node_action])
+                        // },
+                        // "height": 16,
+                        // "width": 60,
+                        // "required": false,
+                        // "readonly": false
+                        // });
+                        // break;
+                        // case '2':
+                        // new Aurora.Button({
+                        // "id": btnid,
+                        // "listeners": {
+                        // "click": zjwfl5110_onRefuse.createDelegate(this, [node_action])
+                        // },
+                        // "height": 16,
+                        // "width": 60,
+                        // "required": false,
+                        // "readonly": false
+                        // });
+                        // break;
+                        // case '3':
+                        // new Aurora.Button({
+                        // "id": btnid,
+                        // "listeners": {
+                        // "click": zjwfl5110_onSkip.createDelegate(this, [node_action])
+                        // },
+                        // "height": 16,
+                        // "width": 60,
+                        // "required": false,
+                        // "readonly": false
+                        // });
+                        // break;
+                        // case '4':
+                        // new Aurora.Button({
+                        // "id": btnid,
+                        // "listeners": {
+                        // "click": zjwfl5110_onProcedure.createDelegate(this, [node_action])
+                        // },
+                        // "height": 16,
+                        // "width": 60,
+                        // "required": false,
+                        // "readonly": false
+                        // });
+                        // break;
+                        // case '6':
+                        // new Aurora.Button({
+                        // "id": btnid,
+                        // "listeners": {
+                        // "click": zjwfl5110_uploadAttach.createDelegate(this, [node_action])
+                        // },
+                        // "height": 16,
+                        // "width": 60,
+                        // "required": false,
+                        // "readonly": false
+                        // });
+                        // break;
+                        // default:
+                        // new Aurora.Button({
+                        // "id": btnid,
+                        // "listeners": {
+                        // "click": zjwfl5110_onViewPage.createDelegate(this, [node_action])
+                        // },
+                        // "height": 16,
+                        // "width": 60,
+                        // "required": false,
+                        // "readonly": false
+                        // });
+                        // }
+                        // }
+            
+                        // function create_button_group(action_type) {
+                        // switch (action_type) {
+                        // case '1':
+                        // new Aurora.Button({
+                        // "id": btnid,
+                        // "listeners": {
+                        // "click": zjwfl5110_onAgree.createDelegate(this, [node_action])
+                        // },
+                        // "height": 16,
+                        // "width": 60,
+                        // "required": false,
+                        // "readonly": false
+                        // });
+                        // break;
+                        // case '2':
+                        // new Aurora.Button({
+                        // "id": btnid,
+                        // "listeners": {
+                        // "click": zjwfl5110_onRefuse.createDelegate(this, [node_action])
+                        // },
+                        // "height": 16,
+                        // "width": 60,
+                        // "required": false,
+                        // "readonly": false
+                        // });
+                        // break;
+                        // case '3':
+                        // new Aurora.Button({
+                        // "id": btnid,
+                        // "listeners": {
+                        // "click": zjwfl5110_onSkip.createDelegate(this, [node_action])
+                        // },
+                        // "height": 16,
+                        // "width": 60,
+                        // "required": false,
+                        // "readonly": false
+                        // });
+                        // break;
+                        // case '4':
+                        // new Aurora.Button({
+                        // "id": btnid,
+                        // "listeners": {
+                        // "click": zjwfl5110_onProcedure.createDelegate(this, [node_action])
+                        // },
+                        // "height": 16,
+                        // "width": 60,
+                        // "required": false,
+                        // "readonly": false
+                        // });
+                        // break;
+                        // case '6':
+                        // new Aurora.Button({
+                        // "id": btnid,
+                        // "listeners": {
+                        // "click": zjwfl5110_uploadAttach.createDelegate(this, [node_action])
+                        // },
+                        // "height": 16,
+                        // "width": 60,
+                        // "required": false,
+                        // "readonly": false
+                        // });
+                        // break;
+                        // default:
+                        // new Aurora.Button({
+                        // "id": btnid,
+                        // "listeners": {
+                        // "click": zjwfl5110_onViewPage.createDelegate(this, [node_action])
+                        // },
+                        // "height": 16,
+                        // "width": 60,
+                        // "required": false,
+                        // "readonly": false
+                        // });
+                        // }
+                        // }
+                    }
+                } else if (record_type == 'NOTICE') {
+                    var table = document.getElementById("showbutton");
+                    var newTD = table.rows[0].insertCell(0);
+                    newTD.style.cssText = 'padding-right:15px';
+                    var buttonTpl = "<TABLE action_id='{action_id}'  class='item-btn' style=';width:60px;' id='{id}' cellSpacing='0'><TBODY><TR><TD class='item-btn-tl'><I></I></TD><TD class='item-btn-tc'></TD><TD class='item-btn-tr'><I></I></TD></TR><TR><TD class='item-btn-ml'><I></I></TD><TD class='item-btn-mc'><BUTTON type='button' hidefocus='true' atype='btn' title='' style='height:16px;' class=''><div style='line-height:16px;height:16px;'>{action_desc}</div></BUTTON></TD><TD class='item-btn-mr'><I></I></TD></TR><TR><TD class='item-btn-bl'><I></I></TD><TD class='item-btn-bc'></TD><TD class='item-btn-br'><I></I></TD></TR></TBODY></TABLE>";
+                    var btnid = 'btn_notice';
+                    new Ext.Template(buttonTpl).insertFirst(newTD, {
+                        id: btnid,
+                        action_desc: '关闭',
+                        action_id: 'btn_notice_action'
+                    });
+                    new Aurora.Button({
+                        "id": btnid,
+                        "listeners": {
+                            "click": zjwfl5110_notice
+                        },
+                        "height": 16,
+                        "width": 60,
+                        "required": false,
+                        "readonly": false
+                    });
+                }
+            }
+            initButton();
+        ]]></script>
+    </a:view>
+</a:screen>

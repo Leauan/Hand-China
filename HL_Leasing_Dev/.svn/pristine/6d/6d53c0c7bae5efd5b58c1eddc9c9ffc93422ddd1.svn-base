@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.document_category=&apos;CONTRACT&apos;" fetchAll="true" model="basic.hls_document_type_for_lov" rootPath="con501_document_type_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_update_link_id" url="${/request/@context_path}/modules/cont/CON500/con_contract_update.screen"/>
+        <a:link id="con_contract_collection_payment_app_link" url="${/request/@context_path}/modules/cont/CON763/con_contract_collection_payment_applocation.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <script><![CDATA[
+        	function go_back(){
+        	    history.go(-1);
+        	}
+        	function query(){
+        	    $('col_pay_result_ds').query();
+        	}
+        	function reset(){
+        	    $('col_pay_query_ds').reset();
+        	}
+        	function contract_detail_renderer(value,record,name){
+        	    if(name == 'contract_number'){
+        	        return '<a href="javascript:contract_view_detail('+ record.id +');">' + value + '</a>';
+        	    }
+        	    return '';
+        	}
+        	function contract_view_detail(id){
+        	    //debugger;
+        	    var record = $('col_pay_result_ds').findById(id);
+        	    var param = record.data;
+        	    param['document_id'] = record.get('contract_id');
+                param['function_code'] = 'CON301';
+                param['function_usage'] = 'QUERY';
+                param['maintain_type'] = 'READONLY';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_update_link_id');
+        	}
+        	function collection_payment_application(){
+        	    //debugger;
+        	    var current_record = $('col_pay_result_ds').getCurrentRecord();
+        	    var contract_id = current_record.get('contract_id');
+        	    var win = new Aurora.Window({
+        	        id:'collection_payment_application_win',
+        	        params:{
+        	            contract_id:contract_id,
+        	            contract_number:current_record.get('contract_number'),
+        	            contract_name:current_record.get('contract_name'),
+        	            customer_manager:current_record.get('employee_id_n'),
+        	            lease_org_n:current_record.get('lease_organization_n'),
+        	            contract_status_n:current_record.get('contract_status_n'),
+        	            document_type_n:current_record.get('document_type_n'),
+        	            winid:'collection_payment_application_win'
+        	        },
+        	        url:$('con_contract_collection_payment_app_link').getUrl(),
+        	        title:'代收代付申请',
+        	        fullScreen:true,
+        	        draggable:false
+        	    });
+        	}
+        	    
+        	
+		]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:dataSets>
+            <a:dataSet id="col_pay_organization_ds" loadData="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="con501_document_type_name_ds">
+                <a:datas dataSource="/model/con501_document_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="con501_status_name_ds" lookupCode="CON500_CONTRACT_STATUS"/>
+            <a:dataSet id="settle_flag_ds">
+                <a:datas>
+                    <a:record name="是" value="Y"/>
+                    <a:record name="否" value="N"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="col_pay_query_ds">
+                <a:fields>
+                    <a:field name="settle_flag_n" displayField="name" options="settle_flag_ds" returnField="settle_flag" valueField="value"/>
+                    <a:field name="bp_id_tenant_n" lovGridHeight="300" lovHeight="450" lovService="cont.CON610.hls_bp_master_tenant_lov" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id_tenant"/>
+                            <a:map from="bp_name" to="bp_id_tenant_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_id_tenant"/>
+                    <a:field name="employee_id_n" lovGridHeight="300" lovHeight="450" lovService="basic.hls_salesman_v_for_lov" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="employee_id" to="employee_id"/>
+                            <a:map from="name" to="employee_id_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="vender_id_n" lovGridHeight="300" lovHeight="450" lovService="hls.HLS201.hls_bp_master_vender_lov" lovWidth="530">
+                        <a:mapping>
+                            <a:map from="bp_id" to="vender_id"/>
+                            <a:map from="bp_name" to="vender_id_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="lease_organization_n" displayField="description" options="col_pay_organization_ds" returnField="lease_organization" valueField="lease_organization"/>
+                    <a:field name="document_type_n" displayField="description" options="con501_document_type_name_ds" returnField="document_type" valueField="document_type"/>
+                    <a:field name="contract_status_n" displayField="code_value_name" options="con501_status_name_ds" returnField="contract_status" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="col_pay_result_ds" autoQuery="true" model="cont.CON763.con_contract_collection_payment" pageSize="10" queryDataSet="col_pay_query_ds" selectable="true" selectionModel="single"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="go_back" text="返回"/>
+                <a:gridButton click="query" text="查询"/>
+                <a:gridButton click="reset" text="重置"/>
+                <a:gridButton click="collection_payment_application" text="代收代付申请"/>
+            </a:screenTopToolbar>
+            <a:form column="4" title="合同查询">
+                <a:textField name="contract_number" bindTarget="col_pay_query_ds" prompt="合同编号"/>
+                <a:textField name="contract_name" bindTarget="col_pay_query_ds" prompt="合同名称"/>
+                <a:datePicker name="lease_start_date_from" bindTarget="col_pay_query_ds" prompt="起租日从"/>
+                <a:datePicker name="lease_start_date_end" bindTarget="col_pay_query_ds" prompt="起租日到"/>
+                <a:lov name="bp_id_tenant_n" bindTarget="col_pay_query_ds" prompt="承租人"/>
+                <a:textField name="project_number" bindTarget="col_pay_query_ds" prompt="案件申请编号"/>
+                <a:lov name="employee_id_n" bindTarget="col_pay_query_ds" prompt="客户经理"/>
+                <a:comboBox name="lease_organization_n" bindTarget="col_pay_query_ds" prompt="事业部"/>
+                <a:comboBox name="document_type_n" bindTarget="col_pay_query_ds" prompt="合同类型"/>
+                <a:comboBox name="contract_status_n" bindTarget="col_pay_query_ds" prompt="合同状态"/>
+                <a:numberField name="finance_amount_from" bindTarget="col_pay_query_ds" prompt="融资金额从"/>
+                <a:numberField name="finance_amount_to" bindTarget="col_pay_query_ds" prompt="融资金额到"/>
+                <a:lov name="vender_id_n" bindTarget="col_pay_query_ds" prompt="供应商"/>
+                <a:comboBox name="settle_flag_n" bindTarget="col_pay_query_ds" prompt="是否结清款项"/>
+            </a:form>
+            <a:grid bindTarget="col_pay_result_ds" height="300" navBar="true" width="932">
+                <a:columns>
+                    <a:column name="contract_number" prompt="合同编号" renderer="contract_detail_renderer" width="120"/>
+                    <a:column name="contract_name" prompt="合同名称" width="150"/>
+                    <a:column name="employee_id_n" prompt="客户经理" width="100"/>
+                    <a:column name="bp_id_tenant_n" prompt="承租人" width="100"/>
+                    <a:column name="lease_organization_n" prompt="事业部" width="100"/>
+                    <a:column name="document_type_n" prompt="合同类型" width="100"/>
+                    <a:column name="contract_status_n" prompt="合同状态" width="100"/>
+                    <a:column name="lease_start_date" prompt="起租日" width="100"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

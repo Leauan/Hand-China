@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-7-4 下午05:17:01  
+    $Revision: 1.0  
+    $Purpose: 融资合同查询
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.business_type in (&apos;FACTORING&apos;)" fetchAll="true" model="basic.hls_business_type_for_lov" rootPath="business_type"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="tre_loan_contract_close_link_id" model="tre.TRE509.tre_loan_contract_close" modelaction="update"/>
+        <a:link id="tre_working_capital_loan_readonly_link_id" url="${/request/@context_path}/modules/tre/TRE311/tre_working_capital_loan_readonly.screen"/>
+        <a:link id="tre_factoring_contract_readonly_link_id" url="${/request/@context_path}/modules/tre/TRE311/tre_factoring_contract_readonly.screen"/>
+        <a:link id="tre_entrustment_loan_contract_readonly_link_id" url="${/request/@context_path}/modules/tre/TRE311/tre_entrustment_loan_contract_readonly.screen"/>
+        <a:link id="tre_other_contract_readonly_link_id" url="${/request/@context_path}/modules/tre/TRE311/tre_other_contract_readonly.screen"/>
+        <a:link id="tre_finance_contract_attach_link" url="${/request/@context_path}/modules/tre/TRE600/tre_finance_contract_attach.screen"/>
+        <a:link id="con_contract_update_link_id" url="${/request/@context_path}/modules/cont/CON500/con_contract_update.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <script><![CDATA[
+            var loanConTypeLink = {
+                //流动资金借款合同  	
+                'WORKING_CAPITAL_LOAN': $('tre_working_capital_loan_readonly_link_id').getUrl() + '?loan_contract_id=',
+                //公开型无追索权保理合同
+                'FACTORING': $('tre_factoring_contract_readonly_link_id').getUrl() + '?business_type=FACTORING&loan_contract_id=',
+                //委托债权合同
+                'ENTRUSTMENT_LOAN': $('tre_entrustment_loan_contract_readonly_link_id').getUrl() + '?loan_contract_id=',
+                //其它合同
+                'OTHERS': $('tre_other_contract_readonly_link_id').getUrl() + '?loan_contract_id='
+            };
+            
+            function tre_finance_contract_query() {
+                $('tre_finance_contract_result_ds').query();
+            }
+            
+            function loan_contract_number_render(value, record, name) {
+                var loan_contract_id = record.get('loan_contract_id');
+                if (loan_contract_id) {
+                    return '<a href="' + loanConTypeLink[record.get('business_type')] + record.get('loan_contract_id') + '">' + value + '</a>';
+                }
+            }
+            
+            function open_attach_info_win(contract_id, loan_contract_id) {
+                new Aurora.Window({
+                    id: 'tre_finance_contract_attach',
+                    url: $('tre_finance_contract_attach_link').getUrl(),
+                    params: {
+                        'winid': 'tre_finance_contract_attach',
+                        'contract_id': contract_id,
+                        'loan_contract_id': loan_contract_id
+                    },
+                    fullScreen: true
+                });
+            }
+            
+            function attach_info_render(value, record, name) {
+                var contract_id = record.get('contract_id');
+                var loan_contract_id = record.get('loan_contract_id');
+                if (contract_id) {
+                    return '<a href="javascript:open_attach_info_win(' + contract_id + ',' + loan_contract_id + ')">附加信息</a>';
+                }
+            }
+            
+            function contractMaintainDs_grid_update(id) {
+                var current_record = $('tre_finance_contract_result_ds').findById(id);
+                var param = current_record.data;
+                param['document_id'] = current_record.get('contract_id');
+                param['function_code'] = 'CON301';
+                param['function_usage'] = 'QUERY';
+                param['maintain_type'] = 'READONLY';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_update_link_id');
+            }
+            
+            function contract_number_renderer(value, record, name) {
+                if (name == 'contract_number') {
+                    return '<a href="javascript:contractMaintainDs_grid_update(' + record.id + ');">' + value + '</a>';
+                }
+            }
+            
+            
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:dataSets>
+            <a:dataSet id="tre_loan_project_type_ds" lookupCode="TRE_LOAN_PROJECT_TYPE"/>
+            <a:dataSet id="business_type_ds">
+                <a:datas dataSource="/model/business_type"/>
+            </a:dataSet>
+            <a:dataSet id="tre_finance_contract_query_ds">
+                <a:fields>
+                    <a:field name="recorder_id"/>
+                    <a:field name="recorder" lovGridHeight="350" lovHeight="500" lovService="wfl_screen.PRJ_PROJECT.exp_emp_assign_e_v_for_lov?unit_code=06" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="employee_name" to="recorder"/>
+                            <a:map from="user_id" to="recorder_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_name"/>
+                    <a:field name="employee_name" lovGridHeight="350" lovHeight="500" lovService="basic.hls_salesman_v_for_lov" lovWidth="500" title="HLS.SALESMAN">
+                        <a:mapping>
+                            <a:map from="employee_id" to="employee_id"/>
+                            <a:map from="name" to="employee_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="business_type"/>
+                    <a:field name="business_type_desc" displayField="description" options="business_type_ds" returnField="business_type" valueField="business_type"/>
+                    <a:field name="project_type"/>
+                    <a:field name="project_type_desc" displayField="code_value_name" options="tre_loan_project_type_ds" returnField="project_type" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="tre_finance_contract_result_ds" autoPageSize="true" autoQuery="true" model="tre.TRE600.tre_finance_contract_query" queryDataSet="tre_finance_contract_query_ds"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="tre_finance_contract_query" text="HLS.QUERY"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="120" marginWidth="30" title="查询条件">
+                <a:textField name="contract_number" bindTarget="tre_finance_contract_query_ds" prompt="合同编号"/>
+                <a:textField name="contract_name" bindTarget="tre_finance_contract_query_ds" prompt="合同名称"/>
+                <a:textField name="loan_contract_number" bindTarget="tre_finance_contract_query_ds" prompt="借款合同号"/>
+                <a:comboBox name="business_type_desc" bindTarget="tre_finance_contract_query_ds" prompt="借款业务类型"/>
+                <a:lov name="employee_name" bindTarget="tre_finance_contract_query_ds" prompt="项目经理"/>
+                <a:comboBox name="project_type_desc" bindTarget="tre_finance_contract_query_ds" prompt="项目类型"/>
+                <a:lov name="recorder" bindTarget="tre_finance_contract_query_ds" prompt="记录人"/>
+            </a:form>
+            <a:grid bindTarget="tre_finance_contract_result_ds" marginHeight="220" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" prompt="合同编号" renderer="contract_number_renderer" width="120"/>
+                    <a:column name="contract_name" prompt="合同名称" width="200"/>
+                    <a:column name="employee_name" align="center" prompt="项目经理" width="80"/>
+                    <a:column name="loan_contract_number" prompt="借款合同号" renderer="loan_contract_number_render" width="120"/>
+                    <a:column name="business_type_desc" prompt="借款业务类型" width="100"/>
+                    <a:column name="project_type_desc" align="center" prompt="项目类型" width="80"/>
+                    <a:column name="attach_info" align="center" prompt="融资合同附加信息" renderer="attach_info_render" width="100"/>
+                    <a:column name="recorder" align="center" prompt="记录人" width="80"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qm  
+    $Date: 2014-4-21 上午10:14:25  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="ast510_insurance_attach_downloadfile_link" url="${/request/@context_path}/downloadFile.screen"/>
+        <script><![CDATA[
+        	function insurance_attachment_renderer(val,rec,name){
+        	   return '<a href=javascript:open_insurance_attachment_window('+rec.get('ast_car_insurance_id')+')>附件查看</a>';
+        	}
+        	
+        	function open_insurance_attachment_window(record_id){
+        	    var url = $('ast510_insurance_attach_downloadfile_link').getUrl() + '?table_name=AST_CAR_INSURANCE&header_id=' + record_id;
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'ast510_insurance_downloadfile_window',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {
+                });
+        	}      
+        	
+        	function insurance_record_attachment_renderer(val,rec,name) {
+        	    return '<a href=javascript:open_insurance_record_attachment_window('+rec.get('ast_car_insurance_records_id')+')>附件查看</a>';
+        	}
+        	
+        	function open_insurance_record_attachment_window(record_id) {
+        	    var url = $('ast510_insurance_attach_downloadfile_link').getUrl() + '?table_name=AST_CAR_INSURANCE_RECORDS&header_id=' + record_id;
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'ast510_insurance_record_downloadfile_window',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {
+                });
+        	}    
+        	
+            function insuranceUpdateHandler(ds, rec, name, val, oldVal) {
+                if (name == 'insurance_date_from') {
+                    rec.set('insurance_year', val.getFullYear());
+                } else if (name == 'insurance_date_to' && val != null) {
+                    if (val < rec.get('insurance_date_from')) {
+                        Aurora.showMessage('提示', '终止日期不能小于于开始日期');
+                        rec.set('insurance_date_to', null);
+                    }
+                } else if (name == 'compulsory_rebate_rate') { // 计算返利
+                    var val1 = rec.get('compulsory_insurance_amount');
+                    rec.set('compulsory_rebate', val1 * val / 100);
+                } else if (name == 'combustion_rebate_rate') {
+                    var val2 = rec.get('commercial_insurance_amount');
+                    rec.set('combustion_rebate', val2 * val / 100);
+            
+                } else if (name == 'commercial_insurance_amount') {
+                    if (val == null || val == '') {
+                        rec.getField('combustion_rebate_rate').setReadOnly(true);
+                    } else {
+                        rec.getField('combustion_rebate_rate').setReadOnly(false);
+                    }
+                } else if (name == 'compulsory_insurance_amount') {
+                    if (val == null || val == '') {
+                        rec.getField('compulsory_rebate_rate').setReadOnly(true);
+                    } else {
+                        rec.getField('compulsory_rebate_rate').setReadOnly(false);
+                    }
+                }
+            }
+            
+            function insuranceSelectHandler(ds, rec) {
+                if ( !! rec.get('ast_car_insurance_id')) {
+                    $('ast_car_insurance_records_ds').setQueryParameter('ast_car_insurance_id', rec.get('ast_car_insurance_id'));
+                    $('ast_car_insurance_records_ds').query();
+                }
+            }
+            
+            function commercial_renderer(val, rec, name) {
+                if (rec.get('commercial_insurance_amount') == null || rec.get('commercial_insurance_amount') == '') {
+                    rec.getField('combustion_rebate_rate').setReadOnly(true);
+                } else {
+                    rec.getField('combustion_rebate_rate').setReadOnly(false);
+                }
+                return Aurora.formatMoney(val);
+            }
+            
+            function compulsory_renderer(val, rec, name) {
+                if (rec.get('compulsory_insurance_amount') == null || rec.get('compulsory_insurance_amount') == '') {
+                    rec.getField('compulsory_rebate_rate').setReadOnly(true);
+                } else {
+                    rec.getField('compulsory_rebate_rate').setReadOnly(false);
+                }
+                return Aurora.formatMoney(val);
+            }
+            /*function remove()
+             {
+             ds = $('ast_car_insurance_grid_id');
+             ds.remove();
+             }*/
+             
+        ]]></script>
+        <a:dataSets>
+            <!-- <a:dataSet id="ast_car_insurance_result_ds" model="ast.AST503.ast_car_insurance" selectable="true" selectionModel="single" submitUrl="${/request/@context_path}/modules/ast/AST503/ast_car_insurance_save.svc">
+                <a:fields>
+                    <a:field name="ast_car_insurance_id"/>
+                    <a:field name="item_detail_id"/>
+                    <a:field name="bp_id"/>
+                    <a:field name="insurer_dis" lovHeight="500" lovService="ast.AST503.ast_query_insurer_info" lovWidth="500" required="true" title="保险公司">
+                        <a:mapping>
+                            <a:map from="bp_name" to="insurer_dis"/>
+                            <a:map from="bp_id" to="bp_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="insurance_number"/>
+                    <a:field name="insurance_description"/>
+                    <a:field name="insure_date"/>
+                    <a:field name="insurance_date_from"/>
+                    <a:field name="insurance_date_to"/>
+                    <a:field name="insurance_year"/>
+                    <a:field name="compulsory_insurance_amount"/>
+                    <a:field name="commercial_insurance_amount"/>
+                    <a:field name="damage_insurance_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="third_party_insurance_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="pilfer_insurance_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="basic_non_deductible_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="glass_insurance_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="seat_insurance_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="combustion_insurance_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="add_non_deductible_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="compulsory_rebate_rate"/>
+                    <a:field name="combustion_rebate_rate"/>
+                    <a:field name="compulsory_rebate"/>
+                    <a:field name="combustion_rebate"/>
+                    <a:field name="insure_place"/>
+                    <a:field name="insure_name"/>
+                    <a:field name="first_beneficiary"/>
+                    <a:field name="insurance_party"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="insuranceUpdateHandler"/>
+                    <a:event name="select" handler="insuranceSelectHandler"/>
+                </a:events>
+            </a:dataSet> -->
+            <!-- queryUrl="${/request/@context_path}/autocrud/ast.AST501.ast_car_insurance_records" -->
+            <!-- <a:dataSet id="ast_car_insurance_records_ds" bindName="records_info" bindTarget="ast_car_insurance_result_ds" model="ast.AST503.ast_car_insurance_records" selectable="true"><![CDATA[
+            ]]></a:dataSet> --><![CDATA[
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+        ]]></a:dataSets>
+        <a:grid id="ast_car_insurance_grid_id" bindTarget="ast_car_insurance_result_ds" height="200" marginWidth="80" navBar="true">
+            <a:columns>
+                <a:column name="insurer_dis" prompt="保险公司" width="100"/>
+                <a:column name="insurance_number" prompt="保单号" width="100"/>
+                <a:column name="insurance_type_desc" prompt="保险类型" width="100"/>
+                <a:column name="document_status_des" align="center" prompt="单据状态" width="100"/>
+                <a:column name="payment_finish_flag" prompt="是否完成支付" width="100"/>
+                <a:column name="insure_date" prompt="投保日" renderer="Aurora.formatDate" width="100"/>
+                <a:column name="insure_name" prompt="投保人" width="100"/>
+                <a:column name="insurance_date_from" prompt="保险起始日" renderer="Aurora.formatDate" width="100"/>
+                <a:column name="insurance_date_to" prompt="保险终止日" renderer="Aurora.formatDate" width="100"/>
+                <a:column name="compulsory_insurance_amount" align="right" prompt="交强险金额" renderer="compulsory_renderer" width="100"/>
+                <a:column name="damage_insurance_amount" align="right" prompt="车损险金额" renderer="compulsory_renderer" width="100"/>
+                <a:column name="third_party_insurance_amount" align="right" prompt="第三者责任险金额" renderer="compulsory_renderer" width="100"/>
+                <a:column name="basic_non_deductible_amount" align="right" prompt="车损不计免赔金额" renderer="compulsory_renderer" width="100"/>
+                <a:column name="pilfer_insurance_amount" align="right" prompt="盗抢险金额" renderer="compulsory_renderer" width="100"/>
+                <a:column name="commercial_insurance_amount" align="right" prompt="商业险" renderer="compulsory_renderer" width="100"/>
+                <a:column name="glass_insurance_amount" align="right" prompt="玻璃险" renderer="compulsory_renderer" width="100"/>
+                <a:column name="seat_insurance_amount" align="right" prompt="座位险" renderer="compulsory_renderer" width="100"/>
+                <a:column name="combustion_insurance_amount" align="right" prompt="自燃险" renderer="compulsory_renderer" width="100"/>
+                <a:column name="insure_place" editor="ast_car_insurance_tf" prompt="投保地点" width="100"/>
+                <a:column name="first_beneficiary" editor="ast_car_insurance_tf" prompt="第一受益人" width="100"/>
+                <a:column align="center" prompt="附件查看" renderer="insurance_attachment_renderer" width="80"/>
+            </a:columns>
+        </a:grid>
+        <a:hBox/>
+        <a:grid id="ast_car_insurance_record_id" bindTarget="ast_car_insurance_records_ds" height="200" marginWidth="80" navBar="true">
+            <a:columns>
+                <a:column name="record_date" prompt="出险时间" renderer="Aurora.formatDate" width="120"/>
+                <a:column name="report_number" prompt="报案号" width="120"/>
+                <a:column name="document_status_des" align="center" prompt="单据状态" width="100"/>
+                <a:column name="payment_finish_flag" prompt="是否完成支付" width="100"/>
+                <a:column name="insurance_type" prompt="险种" width="200"/>
+                <a:column name="record_description" prompt="出险内容" width="350"/>
+                <a:column name="settle_claim_amount" align="right" prompt="理赔金额" renderer="Aurora.formatMoney" width="120"/>
+                <a:column name="damage_serious_flag" prompt="车损是否严重" width="120"/>
+                <a:column name="damage_level_description" prompt="车损严重程度" width="120"/>
+                <a:column align="center" prompt="附件上传" renderer="insurance_record_attachment_renderer" width="80"/>
+            </a:columns>
+        </a:grid>
+    </a:view>
+</a:screen>

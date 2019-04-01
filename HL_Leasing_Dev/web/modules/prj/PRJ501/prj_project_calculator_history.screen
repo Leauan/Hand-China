@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-5-8 下午04:43:26  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="prj_fin_calculator_update_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calculator_update.screen"/>
+        <a:link id="prj_fin_calculator_readonly_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calculator_readonly.screen"/>
+        <a:link id="prj_quotation_history_choose_id" url="${/request/@context_path}/modules/prj/PRJ501/prj_quotation_history_choose.screen"/>
+        <script><![CDATA[
+            function history_seedetail_readonly(value, record, name) {
+                return '<a href="javascript:open_prj_history_window(\'' + record.get('calc_session_id') + '\');">' + '${l:PRJ501.PRJ_QUERY}' + '</a>';
+            }
+            
+            function history_seedetail_update(value, record, name) {
+                if ('${/parameter/@maintain_type}' != 'READONLY') {
+                    return '<a href="javascript:open_prj_update_window(\'' + record.get('calc_session_id') + '\',\'' + record.get('quotation_id') + '\');">' + '${l:PRJ501.PRJ_UPDATE}' + '</a>';
+                }
+            }
+            
+            function open_prj_update_window(calc_session_id, quotation_id) {
+                new Aurora.Window({
+                    id: 'global_prj_fin_calculator_update_id',
+                    params: {
+                        calc_session_id: calc_session_id,
+                        quotation_id: quotation_id,
+                        document_id:'${/parameter/@document_id}',
+                        document_category: '${/parameter/@document_category}',
+                        dsId: 'prj_project_calculator_history_result_id',
+                        dsId1: '${/parameter/@dsId}',
+                        winId: 'global_prj_fin_calculator_update_id',
+                        winId1: '${/parameter/@winId}',
+                        global_flag: 'Y'
+                    },
+                    url: $('prj_fin_calculator_update_id').getUrl(),
+                    title: '${l:HLS.FIN_CALCULATOR}',
+                    fullScreen: true
+                });
+            }
+            
+            function open_prj_history_window(calc_session_id) {
+                new Aurora.Window({
+                    id: 'global_prj_fin_calculator_readonly_id',
+                    params: {
+                        calc_session_id: calc_session_id,
+                        winId: 'global_prj_fin_calculator_readonly_id',
+                        global_flag: 'Y'
+                    },
+                    url: $('prj_fin_calculator_readonly_id').getUrl(),
+                    title: '${l:HLS.FIN_CALCULATOR}',
+                    fullScreen: true
+                });
+            }
+            
+            function prj_prj501_history_return() {
+                $('prj_project_calculator_history_winid').close();
+            }
+            
+            function prj_prj501_history_override() {
+                $('prj_prj501_history_override_id').disable();
+                var records = $('prj_project_calculator_history_result_id').getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    $('prj_prj501_history_override_id').enable();
+                    return;
+                }
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/hls.HLS500.hls_quotation_save/update',
+                    para: {
+                        quotation_id: records[0].get('quotation_id'),
+                        document_category: '${/parameter/@document_category}',
+                        override_flag: 'Y'
+                    },
+                    success: function(res) {
+                        $('quotationDs_projectMaintainScreen').query();
+                        Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 2000
+                        });
+                        $('prj_project_calculator_history_winid').close();
+                    },
+                    failure: function() {
+                        $('prj_prj501_history_override_id').enable();
+                    },
+                    error: function() {
+                        $('prj_prj501_history_override_id').enable();
+                    },
+                    scope: this
+                });
+                /* new Aurora.Window({
+                 id: 'prj_quotation_history_choose_winid',
+                 params: {
+                 quotation_id: records[0].get('quotation_id'),
+                 document_category:'${/parameter/@document_category}'
+                 },
+                 url: $('prj_quotation_history_choose_id').getUrl(),
+                 title: '${l:PROMPT}',
+                 height:200,
+                 width:400
+                 }); */
+            }
+            
+            function onLoad_calculator_history_update(ds) {
+                if ('${/parameter/@maintain_type}' == 'READONLY') {
+                    $('prj_project_calculator_grid_id').hideColumn('calc_session_update');
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="prj_project_calculator_history_result_id" autoQuery="true" model="prj.PRJ501.prj_quotation" queryUrl="${/request/@context_path}/autocrud/prj.PRJ501.prj_quotation/query?document_id=${/parameter/@document_id}&amp;enabled_flag=N" selectable="true">
+                <a:events>
+                    <a:event name="load" handler="onLoad_calculator_history_update"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton id="prj_prj501_history_override_id" click="prj_prj501_history_override" text="PRJ501.PRJ_EXCHANGE_VERSION"/>
+                <a:gridButton click="prj_prj501_history_return" text="HLS.RETURN"/>
+            </a:screenTopToolbar>
+            <a:grid id="prj_project_calculator_grid_id" bindTarget="prj_project_calculator_history_result_id" height="250" navBar="true" width="550">
+                <a:columns>
+                    <a:column name="project_no" align="center" width="120"/>
+                    <a:column name="caculate_date" align="center" renderer="Aurora.formatDate"/>
+                    <a:column name="version" align="center"/>
+                    <a:column name="calc_session_query" align="center" prompt="PRJ501.PRJ_QUERY" renderer="history_seedetail_readonly"/>
+                    <a:column name="calc_session_update" align="center" prompt="PRJ501.PRJ_UPDATE" renderer="history_seedetail_update"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

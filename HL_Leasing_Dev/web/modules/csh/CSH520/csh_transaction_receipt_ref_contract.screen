@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-5-21 下午07:36:37  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="csh.CSH511.csh_transaction" rootPath="csh_transaction_path"/>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootPath="sys_default_value"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+        	function csh513_receipt_ref_con_query(){
+        	    $('receipt_ref_contract_result_ds').query();
+        	}
+        	function csh513_receipt_ref_con_reset(){
+        	    $('receipt_ref_contract_query_ds').reset();
+        	}
+        	function griddbclick(grid, record, row, name) {
+                $('${/parameter/@lovid}').commit(record);
+            
+            }
+            function con_dateValidator(record, name, value) { //日期校验方法
+                if (name == 'due_date_from' || name == 'due_date_to') {
+                    var start_date = Aurora.formatDate(record.get('due_date_from'));
+                    var end_date = Aurora.formatDate(record.get('due_date_to'));
+                    if ( !! end_date) { //由于结束日期非必填，只有在结束日期填了才进行比较
+                        if (!compareDate(start_date, end_date)) {
+                            return '${l:CSH510.CSH_RECEIPT_DATE_CHECK}'; //校验不通过返回字符串
+                        }
+                    }
+                    return true; //校验通过返回true
+                }
+            }
+            
+            function compareDate(start, end) {
+                if (start > end) {
+                    return false;
+                }
+                return true;
+            }
+            function on_receipt_ref_contract_update(ds,record,name,value,oldvalue){
+                if(name=='bp_name'){
+                    if(!value){
+                        record.set('bp_id','');
+                    }
+                }
+            }
+   		]]></script>
+        <a:dataSets>
+            <a:dataSet id="receipt_ref_contract_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="bp_name" defaultValue="${/model/csh_transaction_path/record/@bp_name}" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov?bp_category=TENANT" lovWidth="500" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id_tenant"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_id_tenant" defaultValue="${/model/csh_transaction_path/record/@bp_id}"/>
+                    <a:field name="project_name" readOnly="true"/>
+                    <a:field name="contract_number" lovGridHeight="350" lovHeight="550" lovService="basic.con_contract_for_lov" lovWidth="550" title="合同">
+                        <a:mapping>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="project_name" to="project_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_id"/>
+                    <a:field name="due_date_from" validator="con_dateValidator"/>
+                    <!-- <a:field name="due_date_to" defaultValue="${/model/sys_default_value/record/@now_time}" validator="con_dateValidator"/> -->
+                    <a:field name="due_date_to" validator="con_dateValidator"/>
+                    <a:field name="not_write_off_flag_f" defaultValue="FULL"/>
+                    <a:field name="cf_direction" defaultValue="INFLOW"/>
+                    <a:field name="cf_status" defaultValue="RELEASE"/>
+                    <a:field name="no_cf_type"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_receipt_ref_contract_update"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="receipt_ref_contract_result_ds" autoQuery="true" model="cont.CON500.con_contract_cashflow_v" queryDataSet="receipt_ref_contract_query_ds" queryUrl="${/request/@context_path}/autocrud/cont.CON500.con_contract_cashflow_v/query"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="csh513_receipt_ref_con_query" text="HLS.QUERY"/>
+                <a:gridButton click="csh513_receipt_ref_con_reset" text="HLS.RESET"/>
+            </a:screenTopToolbar>
+            <a:form column="3" labelWidth="110" title="CSH513.WRITE_OFF_OBJECT_QUERY" width="900">
+                <a:lov name="bp_name" bindTarget="receipt_ref_contract_query_ds" prompt="CSH513.BP_TENANT"/>
+                <a:lov name="contract_number" bindTarget="receipt_ref_contract_query_ds" prompt="HLS.CONTRACT_NUMBER"/>
+                <!-- <a:textField name="project_name" bindTarget="receipt_ref_contract_query_ds" prompt="PRJ501.PRJ_PROJECT.PROJECT_NAME"/> -->
+                <!-- <a:comboBox name="project_tmp" bindTarget="receipt_ref_contract_query_ds" prompt="应收项目"/> -->
+                <a:datePicker name="due_date_from" bindTarget="receipt_ref_contract_query_ds" prompt="CSH513.DUE_DATE_FROM"/>
+                <a:datePicker name="due_date_to" bindTarget="receipt_ref_contract_query_ds" prompt="CSH513.DUE_DATE_TO"/>
+                <a:numberField name="due_amount_from" allowFormat="true" bindTarget="receipt_ref_contract_query_ds" prompt="CSH513.DUE_AMOUNT_FROM"/>
+                <a:numberField name="due_amount_to" allowFormat="true" bindTarget="receipt_ref_contract_query_ds" prompt="CSH513.DUE_AMOUNT_TO"/>
+            </a:form>
+            <a:grid id="receipt_ref_contract_grid_ds" bindTarget="receipt_ref_contract_result_ds" height="350" navBar="true" width="1000">
+                <a:columns>
+                    <a:column name="contract_number" prompt="HLS.CONTRACT_NUMBER" width="120"/>
+                    <a:column name="times" prompt="HLS.PERIOD_NUMBER" width="40"/>
+                    <!-- <a:column name="project_name" prompt="PRJ501.PRJ_PROJECT.PROJECT_NAME"/> -->
+                    <!--<a:column name="bp_vender_disp" prompt="HLS.VENDER" width="200"/>-->
+                    <a:column name="bp_name" prompt="CSH513.BP_TENANT"/>
+                    <a:column name="cf_type_name" prompt="CSH513.CF_TYPE"/>
+                    <a:column name="due_date" prompt="CSH513.DUE_DATE" renderer="Aurora.formatDate"/>
+                    <a:column name="due_amount" prompt="CSH513.DUE_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="principal" prompt="CSH513.PRINCIPAL" renderer="Aurora.formatMoney"/>
+                    <a:column name="interest" prompt="CSH513.INTEREST" renderer="Aurora.formatMoney"/>
+                    <a:column name="received_amount" prompt="CSH513.RECEIVED_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="received_principal" prompt="CSH513.RECEIVED_PRINCIPAL" renderer="Aurora.formatMoney"/>
+                    <a:column name="received_interest" prompt="CSH513.RECEIVED_INTEREST" renderer="Aurora.formatMoney"/>
+                    <a:column name="penalty" prompt="CSH513.WRITE_OFF_PENALTY" renderer="Aurora.formatMoney"/>
+                    <a:column name="unreceived_amount" prompt="CSH513.PRINCIPAL_BALANCE" renderer="Aurora.formatMoney"/>
+                    <a:column name="unreceived_interest" prompt="CSH513.INTEREST_BALANCE" renderer="Aurora.formatMoney"/>
+                </a:columns>
+                <a:events>
+                    <a:event name="dblclick" handler="griddbclick"/>
+                </a:events>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

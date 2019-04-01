@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-5-30 下午02:30:47  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        t.transaction_id,
+                        t.transaction_num,
+                        TO_CHAR(t.transaction_date,'yyyy-mm-dd') transaction_date,
+                        t.transaction_amount,
+                        t.currency_code,
+                        (SELECT
+                            g.currency_name
+                        FROM
+                            gld_currency_v g
+                        WHERE
+                            g.currency_code = t.currency_code
+                        ) currency_name,
+                        t.bp_bank_account_id,
+                        t.bp_bank_account_num,
+                        (SELECT
+                            b.bank_account_name
+                        FROM
+                            csh_bank_account b
+                        WHERE
+                            b.bank_account_id = t.bank_account_id
+                        ) bank_account_name,
+                        (SELECT
+                            b.bank_account_code
+                        FROM
+                            csh_bank_account b
+                        WHERE
+                            b.bank_account_id = t.bank_account_id
+                        ) bank_account_code,
+                        t.bp_id,
+                        (SELECT m.bp_name FROM hls_bp_master m WHERE m.bp_id = t.bp_id
+                        ) bp_name,
+                        h.payment_req_number,
+                      -- (select count(1)  from con_contract cc where cc.contract_id in (select cl.ref_doc_id from csh_payment_req_ln cl where cl.payment_req_id=h.payment_req_id) and cc.contract_status in('REDEMPTING','REDEMPTED'))contract_count  ,             
+                 -- (select count(1)
+              -- from con_contract_cashflow cc
+             -- where  exists (select 1
+                       -- from csh_payment_req_ln cl
+                      -- where cl.payment_req_id = h.payment_req_id
+                      -- and cc.contract_id = cl.ref_doc_id)
+                -- and cc.cf_item=301
+                -- and cc.cf_status='RELEASE'
+                -- and nvl(write_off_flag,'NOT') !='NOT') write301_count,
+                (select 'Y' 
+                from df_unearned_finance_income v 
+                where finance_income_recognized='Y'
+                 and v.contract_id in  (select contract_id 
+                                         from csh_write_off
+                                         where csh_transaction_id =t.transaction_id)
+                   and rownum=1) finance_income_recognized
+                       
+                    FROM
+                        csh_transaction t,
+                        csh_payment_req_hd h
+                    WHERE
+                        t.transaction_type = 'PAYMENT' AND
+                        t.source_doc_id    = h.payment_req_id AND
+                        t.posted_flag      = 'Y' AND
+                        t.reversed_flag    = 'N' AND
+                        t.write_off_flag   = 'FULL' AND
+                        t.returned_flag    = 'NOT' AND
+                        EXISTS
+                        (SELECT
+                            1
+                        FROM
+                            con_contract_cashflow cc
+                        WHERE
+                            cc.cashflow_id =
+                            (SELECT
+                                l.ref_doc_line_id
+                            FROM
+                                csh_payment_req_ln l
+                            WHERE
+                                l.payment_req_id = h.payment_req_id AND
+                                rownum           = 1
+                            ) 
+                           -- AND cc.cf_item = '52'
+                        )
+                    ) v #WHERE_CLAUSE#
+                ORDER BY
+                    transaction_date DESC,
+                    transaction_num
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="payment_req_number_from" datatype="java.lang.String" queryExpression="v.payment_req_number&gt;=${@payment_req_number_from}"/>
+        <bm:query-field name="payment_req_number_to" datatype="java.lang.String" queryExpression="v.payment_req_number&lt;=${@payment_req_number_to}"/>
+        <bm:query-field name="transaction_num_from" datatype="java.lang.String" queryExpression="v.transaction_num&gt;=${@transaction_num_from}"/>
+        <bm:query-field name="transaction_num_to" datatype="java.lang.String" queryExpression="v.transaction_num&lt;=${@transaction_num_to}"/>
+        <bm:query-field name="transaction_date_from" datatype="java.lang.String" queryexpression="v.transaction_date &gt;= ${@transaction_date_from}"/>
+        <bm:query-field name="transaction_date_to" datatype="java.lang.String" queryexpression="v.transaction_date &lt;= ${@transaction_date_to}"/>
+        <bm:query-field name="transaction_amount_from" datatype="java.lang.String" queryExpression="v.transaction_amount&gt;=${@transaction_amount_from}"/>
+        <bm:query-field name="transaction_amount_to" datatype="java.lang.String" queryExpression="v.transaction_amount&lt;=${@transaction_amount_to}"/>
+        <bm:query-field name="bank_account_code_from" datatype="java.lang.String" queryexpression="v.bank_account_code &gt;= ${@bank_account_code_from}"/>
+        <bm:query-field name="bank_account_code_to" datatype="java.lang.String" queryexpression="v.bank_account_code &lt;= ${@bank_account_code_to}"/>
+        <bm:query-field name="currency_code" datatype="java.lang.String" queryexpression="v.currency_code = ${@currency_code}"/>
+        <bm:query-field name="bp_id" datatype="java.lang.String" queryexpression="v.bp_id = ${@bp_id}"/>
+    </bm:query-fields>
+</bm:model>

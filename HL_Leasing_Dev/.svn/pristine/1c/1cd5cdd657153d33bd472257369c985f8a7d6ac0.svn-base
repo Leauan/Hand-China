@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hp  
+    $Date: 2013-9-30 下午03:49:20  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="FND_SC_SCORE_OBJECT">
+    <bm:fields>
+        <bm:field name="sc_score_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="SC_SCORE_ID" prompt="FND_SC_SCORE_OBJECT.SC_SCORE_ID"/>
+        <bm:field name="object_type" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="OBJECT_TYPE" prompt="FND_SC_SCORE_OBJECT.OBJECT_TYPE"/>
+        <bm:field name="object_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="OBJECT_ID" prompt="FND_SC_SCORE_OBJECT.OBJECT_ID"/>
+        <bm:field name="enabled_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="ENABLED_FLAG" prompt="FND_SC_SCORE_OBJECT.ENABLED_FLAG"/>
+        <bm:field name="object_name" databaseType="VARCHAR2" datatype="java.lang.String" forUpdate="false" physicalName="OBJECT_NAME"/>
+    </bm:fields>
+    <bm:features>
+        <f:standard-who/>
+    </bm:features>
+    <bm:primary-key>
+        <bm:pk-field name="sc_score_id"/>
+        <bm:pk-field name="object_type"/>
+        <bm:pk-field name="object_id"/>
+    </bm:primary-key>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+    	
+    		select  so.sc_score_id,
+    				so.object_type,
+    				so.object_id,
+    				enabled_flag,
+    		         decode(so.object_type,
+			              'RRG',
+			              (select prj.bp_name  
+            from prj_project_bp prj 
+            where prj.prj_bp_id=so.object_id
+             and prj.bp_category='GUARANTOR'),
+                          'RRB',
+                          (select prj.bp_name  
+                          from prj_project_bp prj where prj.prj_bp_id=so.object_id 
+                          and prj.bp_category='TENANT'),
+                          'RRL',
+                          (select prj.full_name
+              from prj_project_lease_item prj 
+              where prj.project_lease_item_id=so.object_id),
+                           'RRC',
+                          (select prj.mortgage_name
+              from prj_project_mortgage prj 
+              where prj.prj_mortgage_id=so.object_id),'') object_name
+                    
+         from fnd_sc_score_object so
+         where so.sc_score_id=${@sc_score_id} 
+    	
+    	]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="execute">
+            <bm:update-sql><![CDATA[
+    			begin
+    				fnd_sc_score_pkg.fnd_reflash_object(
+							    						p_sc_score_id =>${@sc_score_id},
+							                            p_project_id  =>${@project_id},
+							                            p_user_id     =>${/session/@user_id});
+    			end;
+    		]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

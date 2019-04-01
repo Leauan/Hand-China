@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Yenick  
+    $Date: 2018-03-30
+    $Revision: 1.0  
+    $Purpose:催收T+2：（发送客户）
+-->
+<a:service xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            importPackage(java.io);
+            importPackage(Packages.cn.emay);
+            //系统做个配置功能 ，配置服务端密码，不用在jar里写死
+            //获取密码
+            var pwd_bm = $bm('sys.SYS403.sys_sms_server');
+            var pwd_result = pwd_bm.queryAsMap().getChildren();
+            var pwd = pwd_result[0].password;
+			 //var pwd = '4046697294383027';
+            //逾期两天的合同
+          var contract_collection = $bm('sys.SYS403.sys_collection_t2_sms_list');
+            var contract_result = contract_collection.queryAsMap();
+            var contract_list = contract_result.getChildren();
+            for (var i = 0;i < contract_list.length;i++) {
+                //插入短信发送表(sys_sms_list)
+                contract_collection.update({
+                    contract_id: contract_list[i].contract_id
+                });
+                 //根据sms_id查询短信发送列表，发送短信
+                var sms_list_bm = $bm('sys.SYS403.sys_immediate_sms_list');
+                var sms_result = sms_list_bm.queryAsMap({
+                    sms_id: $ctx.parameter.sms_id
+                });
+                var sms_list = sms_result.getChildren();
+                phone = sms_list[0].phone_number;
+                var content = sms_list[0].text;
+           
+                try {
+                    var result=new Example.setSingleSms(pwd, content, phone);
+                    
+                    //println("result"+JSON.stringify(result));
+                } catch (e) {
+                    println("错误信息" + e);
+                }
+                //短信发送后 插入短信历史表，并修改原短信状态
+                sms_list_bm.update({
+                sms_id: $ctx.parameter.sms_id,
+                sendResult:result
+                });
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

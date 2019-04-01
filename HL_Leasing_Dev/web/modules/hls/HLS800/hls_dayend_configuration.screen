@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	&author:DJ
+	$date:2013/05/08
+	$purpose:日结定义
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query model="basic.sys_session_info" rootPath="default_value_record"/>
+        <a:model-query model="hls.HLS800.hls_dayend_configuration" rootPath="dayend_config_list"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+	        function configProcDs_grid_query() {
+	            $('configProcDs').query();
+	        }
+	        
+	        function configProcDs_grid_add() {
+	            $('configProcDs_grid').showEditorByRecord($('configProcDs').create());
+	        }
+	        
+	        function configProcDs_grid_remove() {
+	            $('configProcDs_grid').remove();
+	        }
+	        
+	        function configDs_grid_save() {
+	            var ds = $('configDs');
+	            if (ds.validate()) {
+	                ds.submit();
+	            }
+	        }
+	        
+			function editorFunction_configProcDs_grid(record,name){
+				if(record.isNew){
+					if(name=='bank_type_name'){
+						return 'configProcDs_grid_comb';
+					}
+					if(name=='bank_code'){
+						return 'configProcDs_grid_tf_upper';
+					}
+				}
+				return '';
+			}
+			
+		]]></script>
+        <a:dataSets>
+            <a:dataSet id="mailFlagDs" lookupCode="HLS800_DAYEND_CONFIG_MAIL_FLAG"/>
+            <a:dataSet id="configDs" model="hls.HLS800.hls_dayend_configuration" submitUrl="${/request/@context_path}/modules/hls/HLS800/hls_dayend_configuration.svc">
+                <a:datas dataSource="/model/dayend_config_list"/>
+                <a:fields>
+                    <a:field name="mail_flag_desc" displayField="code_value_name" options="mailFlagDs" required="true" returnField="mail_flag" valueField="code_value"/>
+                    <a:field name="configuration_name" required="true"/>
+                    <a:field name="dayend_start_date" required="true"/>
+                    <a:field name="company_id" defaultValue="${/session/@company_id}"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+            <script><![CDATA[
+            	(function(){
+            	    var ds = $('configDs');
+            	    var records = ds.getAll();
+            	    if(records.length==0)
+            	    {
+            	        ds.create();
+            	    }
+            	    var record = ds.getAt(0);
+            	    if(!Ext.isEmpty(record.get('last_dayend_date')))
+            	    {
+            	        record.getField('dayend_start_date').setReadOnly(true);
+            	    }
+            		
+            	})();
+            ]]></script>
+            <a:dataSet id="configProcDs" autoQuery="true" bindName="proc_list" bindTarget="configDs" fetchAll="true" model="hls.HLS800.hls_dayend_procedure" queryUrl="${/request/@context_path}/autocrud/hls.HLS800.hls_dayend_procedure/query?configuration_id=${/model/dayend_config_list/record/@configuration_id}" selectable="true">
+                <a:fields>
+                    <a:field name="start_date" defaultValue="${/model/default_value_record/record/@today}" required="true"/>
+                    <a:field name="end_date" defaultValue="${/model/default_value_record/record/@never_date}" required="true"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="procedure_name" required="true"/>
+                    <a:field name="procedure_proc" required="true"/>
+                    <a:field name="execute_seq" required="true"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="configProcDs_grid_add" text="程序新增"/>
+                <a:gridButton click="configProcDs_grid_remove" text="程序删除"/>
+                <a:gridButton click="configDs_grid_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:form column="2" title=" ">
+                <a:textField name="configuration_name" bindTarget="configDs" prompt="配置名称"/>
+                <a:checkBox name="enabled_flag" bindTarget="configDs" prompt="HLS.ENABLED_FLAG"/>
+                <a:datePicker name="dayend_start_date" bindTarget="configDs" prompt="日结起始日"/>
+                <a:datePicker name="last_dayend_date" bindTarget="configDs" prompt="上次日结日" readOnly="true"/>
+                <a:comboBox name="mail_flag_desc" bindTarget="configDs" prompt="邮件通知"/>
+                <a:textField name="mail_to" bindTarget="configDs" prompt="收件人"/>
+            </a:form>
+            <a:hBox>
+                <div style="color:red;"><![CDATA[*程序名必须为函数，返回字符。接收3个参数，p_company_id，p_calc_date，p_user_id]]></div>
+            </a:hBox>
+            <a:grid id="configProcDs_grid" bindTarget="configProcDs" marginHeight="300" marginWidth="30">
+                <a:columns>
+                    <a:column name="execute_seq" align="right" editor="configProcDs_grid_nf_integer" prompt="执行顺序" width="100"/>
+                    <a:column name="procedure_proc" editor="configProcDs_grid_tf" prompt="程序名" width="350"/>
+                    <a:column name="procedure_name" editor="configProcDs_grid_tf" prompt="程序说明" width="300"/>
+                    <a:column name="start_date" editor="configProcDs_grid_dp" prompt="开始日期" renderer="Aurora.formatDate" width="120"/>
+                    <a:column name="end_date" editor="configProcDs_grid_dp" prompt="结束日期" renderer="Aurora.formatDate" width="120"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="configProcDs_grid_nf_integer" allowDecimals="false"/>
+                    <a:datePicker id="configProcDs_grid_dp"/>
+                    <a:textField id="configProcDs_grid_tf"/>
+                    <a:comboBox id="configProcDs_grid_comb"/>
+                    <a:checkBox id="configProcDs_grid_check"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

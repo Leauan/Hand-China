@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: LR  
+    $Date: 2013-7-30 下午06:35:02  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="sys200_create_condition_table_entry_link" url="${/request/@context_path}/modules/sys/SYS200/sys_create_condition_table_entry.screen"/>
+        <script><![CDATA[
+            function sys200_right_selected() {
+                var left_selectedAll = $('sys200_condition_field_catalog_ds').getSelected();
+                var ds = $('sys200_create_condition_table_entry_ds');
+                var condition_table = ds.getAt(0).get('condition_table');
+                for (var i = 0;i < left_selectedAll.length;i++) {
+                    left_selectedAll[i].set('condition_table', condition_table);
+                    $('sys200_condition_table_field_ds').add(left_selectedAll[i]);
+                }
+                $('sys200_condition_field_catalog_grid').clear();
+            }
+            
+            function sys200_right_all() {
+                var leftAll = $('sys200_condition_field_catalog_ds').getAll();
+                var ds = $('sys200_create_condition_table_entry_ds');
+                var condition_table = ds.getAt(0).get('condition_table');
+                for (var i = 0;i < leftAll.length;i++) {
+                    leftAll[i].set('condition_table', condition_table);
+                    $('sys200_condition_table_field_ds').add(leftAll[i]);
+                }
+                $('sys200_condition_field_catalog_ds').removeAll();
+            }
+            
+            function sys200_left_selected() {
+                var right_selectedAll = $('sys200_condition_table_field_ds').getSelected();
+                for (var i = 0;i < right_selectedAll.length;i++) {
+                    $('sys200_condition_field_catalog_ds').add(right_selectedAll[i]);
+                }
+                $('sys200_condition_table_field_grid').clear();
+            }
+            
+            function sys200_left_all() {
+                var rightAll = $('sys200_condition_table_field_ds').getAll();
+                for (var i = 0;i < rightAll.length;i++) {
+                    $('sys200_condition_field_catalog_ds').add(rightAll[i]);
+                }
+                $('sys200_condition_table_field_ds').removeAll();
+            }
+            
+            function sys200_create_condition_table_back() {
+                Aurora.go($('sys200_create_condition_table_entry_link').getUrl());
+            }
+            
+            function sys200_create_condition_table_save() {
+                // $('sys200_condition_table_field_ds').setSubmitParameter('condition_table', '${/parameter/@condition_table}');
+                $('sys200_create_condition_table_save_id').disable();
+                var records = $('sys200_condition_table_field_ds').getAll();
+                var not_exists_unkey = true;
+                var not_exists_key = true;
+                for (var i = 0;i < records.length;i++) {
+                    if (records[i].get('key_field') == 'Y') {
+                        not_exists_key = false;
+                    } else {
+                        not_exists_unkey = false;
+                    }
+                }
+                if (not_exists_key) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:SYS200.SYS_CONDITION_TABLE_KEYFIELD}');
+                    $('sys200_create_condition_table_save_id').enable();
+                } else if (not_exists_unkey) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:SYS200.SYS_CONDITION_TABLE_UNKEYFIELD}');
+                    $('sys200_create_condition_table_save_id').enable();
+                } else {
+                    $('sys200_create_condition_table_entry_ds').submit();
+                }
+            }
+            
+            function sys200_condition_table_field_copy_ds_load(ds) {
+                var records = ds.getAll();
+                var condition_table = $('sys200_create_condition_table_entry_ds').getAt(0).get('condition_table');
+                for (var i = 0;i < records.length;i++) {
+                    records[i].set('condition_table', condition_table);
+                    $('sys200_condition_table_field_ds').create(Ext.apply({}, records[i].data));
+                }
+            }
+            
+            function sys200_condition_table_field_ds_update(ds, record, name, value, oldvalue) {
+                if (name == 'line_field') {
+                    if (value == 'N') {
+                        record.set('show_description', 'N');
+                    }
+                }
+            }
+            
+            function sys200_condition_table_field_grid_editorFunction(record, name) {
+                if (record.get('line_field') == 'Y') {
+                    return 'sys200_condition_table_field_grid_ck';
+                }
+                return '';
+            }
+            
+            function sys200_condition_table_field_ds_submitsuccess() {
+                sys200_create_condition_table_back();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="sys200_condition_field_catalog_ds" autoQuery="true" fetchAll="true" model="sys.SYS200.sys_condition_field_catalog" queryDataSet="sys200_create_condition_table_entry_ds" selectable="true"/>
+            <a:dataSet id="sys200_condition_table_field_ds" bindName="field_result" bindTarget="sys200_create_condition_table_entry_ds" model="sys.SYS200.sys_condition_table_field" selectable="true">
+                <a:fields>
+                    <a:field name="key_field" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="line_field" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="show_description" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="condition_table" defaultValue="${/parameter/@condition_table}"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="sys200_condition_table_field_ds_update"/>
+                    <a:event name="submitsuccess" handler="sys200_condition_table_field_ds_submitsuccess"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="sys200_condition_table_field_copy_ds" model="sys.SYS200.sys_condition_table_field">
+                <a:events>
+                    <a:event name="load" handler="sys200_condition_table_field_copy_ds_load"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton id="sys200_create_condition_table_save_id" click="sys200_create_condition_table_save" text="HLS.CREATE" width="80"/>
+                <a:gridButton click="sys200_create_condition_table_back" text="HLS.RETURN" width="80"/>
+            </a:screenTopToolbar>
+            <a:hBox labelSeparator=" " labelWidth="100">
+                <a:lov name="condition_usage_type" bindTarget="sys200_create_condition_table_entry_ds" prompt="SYS200.SYS_CONDITION_USAGE_TYPE.CONDITION_USAGE_TYPE" readOnly="true"/>
+                <a:textField name="condition_usage_type_desc" bindTarget="sys200_create_condition_table_entry_ds" prompt="SYS200.SYS_CONDITION_USAGE_TYPE.DESCRIPTION" readOnly="true"/>
+            </a:hBox>
+            <a:hBox labelSeparator=" " labelWidth="100">
+                <a:textField name="condition_table" bindTarget="sys200_create_condition_table_entry_ds" prompt="SYS200.SYS_CONDITION_TABLE.CONDITION_TABLE" readOnly="true"/>
+                <a:textField name="description" bindTarget="sys200_create_condition_table_entry_ds" prompt="SYS200.SYS_CONDITION_TABLE.DESCRIPTION" readOnly="true"/>
+            </a:hBox>
+            <a:hBox>
+                <a:grid id="sys200_condition_field_catalog_grid" bindTarget="sys200_condition_field_catalog_ds" marginHeight="180" width="350">
+                    <a:columns>
+                        <a:column name="condition_field" prompt="SYS200.SYS_CONDITION_TABLE_FIELD.CONDITION_FIELD" width="145"/>
+                        <a:column name="condition_field_name" prompt="SYS200.SYS_CONDITION_TABLE_FIELD.CONDITION_FIELD_NAME" width="160"/>
+                    </a:columns>
+                </a:grid>
+                <a:vBox>
+                    <a:button click="sys200_right_selected" height="25" style="margin-top:30px;" text="&gt;"/>
+                    <a:button click="sys200_right_all" height="25" style="margin-top:10px;" text="&gt;&gt;"/>
+                    <a:button click="sys200_left_selected" height="25" style="margin-top:10px;" text="&lt;"/>
+                    <a:button click="sys200_left_all" height="25" style="margin-top:10px;" text="&lt;&lt;"/>
+                </a:vBox>
+                <a:grid id="sys200_condition_table_field_grid" bindTarget="sys200_condition_table_field_ds" marginHeight="180" width="800">
+                    <a:columns>
+                        <a:column name="condition_field" width="145"/>
+                        <a:column name="condition_field_name"/>
+                        <a:column name="key_field" editor="sys200_condition_table_field_grid_ck"/>
+                        <a:column name="short_name" prompt="SYS200.SYS_CONDITION_TABLE_FIELD.SHORT_NAME"/>
+                        <a:column name="layout_priority" editor="sys200_condition_table_field_grid_nf"/>
+                        <a:column name="line_field" editor="sys200_condition_table_field_grid_ck"/>
+                        <a:column name="show_description" editorFunction="sys200_condition_table_field_grid_editorFunction"/>
+                    </a:columns>
+                    <a:editors>
+                        <a:checkBox id="sys200_condition_table_field_grid_ck"/>
+                        <a:numberField id="sys200_condition_table_field_grid_nf" allowDecimals="false" allowNegative="false"/>
+                    </a:editors>
+                </a:grid>
+            </a:hBox>
+            <script><![CDATA[
+                Aurora.onReady(function() {
+                    var ds = $('sys200_create_condition_table_entry_ds');
+                    var condition_table = ds.getAt(0).get('condition_table');
+                    var condition_table_copy = ds.getAt(0).get('condition_table_copy');
+                    var condition_usage_type = ds.getAt(0).get('condition_usage_type');
+                    if (!Aurora.isEmpty(condition_table_copy)) {
+                        $('sys200_condition_table_field_copy_ds').setQueryParameter('condition_table', condition_table_copy);
+                        $('sys200_condition_table_field_copy_ds').query();
+                    }
+                });
+            ]]></script>
+        </a:screenBody>
+    </a:view>
+</a:screen>

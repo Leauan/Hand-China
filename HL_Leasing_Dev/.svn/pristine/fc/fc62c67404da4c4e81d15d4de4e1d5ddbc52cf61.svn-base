@@ -1,0 +1,182 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxign5129  
+    $Date: 2014-11-24 下午07:01:12  
+    $Revision: 1.0  
+    $Purpose: 文档借阅
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:view>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="yonda_document_lend_record_add_link" url="${/request/@context_path}/modules/cont/CON556/yonda_document_lend_record_add.screen"/>
+        <a:link id="con_contract_modify_link" url="${/request/@context_path}/modules/cont/CON505/con_contract_modify.screen"/>
+        <script><![CDATA[
+            function yonda_document_lend_record_add() {
+                var add_win = new Aurora.Window({
+                    id: 'yonda_document_lend_record_add_win',
+                    params: {
+                        'winid': 'yonda_document_lend_record_add_win'
+                    },
+                    url: $('yonda_document_lend_record_add_link').getUrl(),
+                    fullScreen: true
+                });
+                add_win.on('close', function() {
+                    $('yonda_document_lend_record_hd_ds').query();
+                });
+            }
+            
+            function yonda_document_lend_record_save() {
+                $('yonda_document_lend_record_ln_ds').submit();	
+		//var record = $('yonda_document_lend_record_ln_ds').getCurrentRecord()
+		//var returnDateField = record.getMeta().getField("return_date");
+		//returnDateField.setReadOnly(true);
+            }
+            
+            function yonda_document_lend_record_query() {
+                $('yonda_document_lend_record_hd_ds').query();
+		
+            }
+            
+            function yonda_document_lend_record_reset() {
+                $('con_contract_query_ds').reset();
+            }
+            
+            //index发生改变，重新查询
+            
+            function yonda_document_lend_record_hd_ds_indexchange(ds, record) {
+                $('yonda_document_lend_record_ln_ds').setQueryParameter('contract_id', record.get('contract_id'));
+                $('yonda_document_lend_record_ln_ds').setQueryParameter('lend_header_id', record.get('lend_header_id'));
+                $('yonda_document_lend_record_ln_ds').query();
+            }
+            
+            function open_contract_win(record_id) {
+                var record = $('yonda_document_lend_record_hd_ds').findById(record_id);
+                var param = record.data;
+                param['function_code'] = 'CON301';
+                param['function_usage'] = 'QUERY';
+                param['maintain_type'] = 'UPDATE';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_modify_link');
+            }
+            
+            function contract_number_renderer(value, record, name) {
+                if (record.get('contract_id')) {
+                    return '<a href="javascript:open_contract_win(' + record.id + ')">' + value + '<a>';
+                }
+            }
+
+		function return_date_readOnly(record,name){
+			
+			var returnDateField = record.getMeta().getField(name);
+			if(record.get('return_flag') == 'N')
+			returnDateField.setReadOnly(false);
+			else
+			returnDateField.setReadOnly(true);
+			return "yonda_document_lend_record_ln_grid_dp";
+		}
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:dataSets>
+            <a:dataSet id="status_ds" lookupCode="DOCUMENT_LEND_STATUS"><![CDATA[
+        	]]></a:dataSet>
+	    <a:dataSet id="return_flag_ds">
+    		<a:datas>
+        		<a:record name="是" code="Y"/>
+        		<a:record name="否" code="N"/>
+    		</a:datas>
+	    </a:dataSet>
+            <a:dataSet id="con_contract_query_ds">
+                <a:fields>
+                    <a:field name="license_number"/>
+                    <a:field name="gua_bp_name" autoComplete="true" lovGridHeight="350" lovHeight="500" lovLabelWidth="100" lovService="cont.CON555.hls_bp_master_all_v?bp_category=GUARANTOR" lovWidth="520" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_name" to="gua_bp_name"/>
+                            <a:map from="bp_id" to="bp_id_gua"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_id_gua"/>
+                    <a:field name="contract_number"/>
+                    <a:field name="contract_name"/>
+                    <a:field name="borrower_name"/>
+                    <a:field name="bp_name"/>
+                    <a:field name="borrow_date_from"/>
+                    <a:field name="borrow_date_to"/>
+                    <a:field name="status_desc" displayField="code_value_name" options="status_ds" returnField="status" valueField="code_value"/>
+		    <a:field name="ref_d01_from"/>
+                    <a:field name="ref_d01_to"/>
+		    <a:field name="return_flag"/>
+		    <a:field name="return_flag_n" displayField="name" options="return_flag_ds" returnField="return_flag" valueField="code"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="yonda_document_lend_record_hd_ds" autoPageSize="true" autoQuery="true" model="cont.CON556.yonda_document_lend_record_hd" queryDataSet="con_contract_query_ds" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="contract_number"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="indexchange" handler="yonda_document_lend_record_hd_ds_indexchange"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="yonda_document_lend_record_ln_ds" fetchAll="true" model="cont.CON556.yonda_document_lend_record_ln">
+                <a:fields>
+                    <a:field name="contract_number"/>
+                    <a:field name="lend_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="return_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="return_date"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="yonda_document_lend_record_add" text="HLS.NEW"/>
+                <a:gridButton click="yonda_document_lend_record_save" text="HLS.SAVE"/>
+                <a:gridButton click="yonda_document_lend_record_query" text="HLS.QUERY"/>
+                <a:gridButton click="yonda_document_lend_record_reset" text="HLS.RESET"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="120" marginWidth="30" title="查询条件">
+                <a:textField name="contract_number" bindTarget="con_contract_query_ds" prompt="合同编号"/>
+                <a:textField name="contract_name" bindTarget="con_contract_query_ds" prompt="合同名称"/>
+                <a:textField name="borrower_name" bindTarget="con_contract_query_ds" prompt="借阅人名称"/>
+                <a:textField name="lender_name" bindTarget="con_contract_query_ds" prompt="出借人"/>
+                <a:textField name="bp_name" bindTarget="con_contract_query_ds" prompt="承租人名称"/>
+                <a:datePicker name="borrow_date_from" bindTarget="con_contract_query_ds" prompt="档案借出日期从"/>
+                <a:datePicker name="borrow_date_to" bindTarget="con_contract_query_ds" prompt="档案借出日期到"/>
+                <a:comboBox name="status_desc" bindTarget="con_contract_query_ds" prompt="状态"/>
+                <a:lov name="gua_bp_name" bindTarget="con_contract_query_ds" prompt="担保人"/>
+                <a:textField name="license_number" bindTarget="con_contract_query_ds" prompt="车牌号"/>
+		<a:datePicker name="ref_d01_from" bindTarget="con_contract_query_ds" prompt="预计归还日期从"/>
+		<a:datePicker name="ref_d01_to" bindTarget="con_contract_query_ds" prompt="预计归还日期到"/>
+		<a:comboBox name="return_flag_n" bindTarget="con_contract_query_ds" prompt="是否归还"/>
+            </a:form>
+            <a:grid bindTarget="yonda_document_lend_record_hd_ds" height="200" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" prompt="合同编号" renderer="contract_number_renderer" width="150"/>
+                    <a:column name="contract_name" prompt="合同名称" width="200"/>
+                    <a:column name="borrower_name" prompt="借阅人名称" width="80"/>
+                    <a:column name="borrower_phone" prompt="借阅人电话" width="100"/>
+                    <a:column name="lender_name" prompt="出借人" width="90"/>
+                    <a:column name="bp_name" prompt="承租人名称" width="200"/>
+                    <!-- <a:column name="bp_type_desc" prompt="承租人类型" width="100"/> -->
+                    <!-- <a:column name="lease_channel_desc" prompt="商业模式" width="100"/> -->
+                    <a:column name="borrower_date" prompt="档案借出日期" renderer="Aurora.formatDate" width="100"/>
+                    <a:column name="license_number" prompt="车牌号" width="150"/>
+                    <a:column name="status_desc" prompt="状态"/>
+                    <a:column name="ref_v01" prompt="出借理由" width="200"/>
+                </a:columns>
+            </a:grid>
+            <a:grid id="yonda_document_lend_record_ln_grid" bindTarget="yonda_document_lend_record_ln_ds" marginHeight="380" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="cdd_item_desc" prompt="文档名称" width="600"/>
+                    <a:column name="lend_flag" prompt="是否借出" width="80"/>
+                    <a:column name="return_flag" prompt="是否归还" width="80"/> 
+                    <a:column name="return_date" editor="yonda_document_lend_record_ln_grid_dp" prompt="归还日期" renderer="Aurora.formatDate" width="120" editorFunction="return_date_readOnly"/>
+		    <a:column name="ref_d01" editor="yonda_document_lend_record_ln_grid_dp" prompt="预计归还日期" renderer="Aurora.formatDate" width="120"/>
+                </a:columns>
+                <a:editors>
+                    <a:checkBox id="yonda_document_lend_record_ln_grid_checkBox"/>
+                    <a:datePicker id="yonda_document_lend_record_ln_grid_dp" />
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

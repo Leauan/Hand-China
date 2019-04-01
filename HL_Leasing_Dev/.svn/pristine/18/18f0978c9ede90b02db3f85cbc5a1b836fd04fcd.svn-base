@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang 
+    $Date: 2015-1-28 上午10:51:52  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:view>
+        <a:link id="csh_payment_req_prepayment_dk_link_id" url="${/request/@context_path}/modules/csh/CSH501/csh_payment_req_prepayment_dk.svc"/>
+        <script><![CDATA[
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                var ln_ds = $(lnds_id);
+                var ln_records = ln_ds.getSelected();
+                if (ln_records.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '请先选择可抵扣的预付款');
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    return;
+                }
+                window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                Aurora.showConfirm('${l:HLS.PROMPT}', '是否确认分配？', function okFun() {
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                    var pre_lnds_id = get_dsid_by_basetable(window['${/parameter/@pre_layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                    var pre_line_records = $(pre_lnds_id).getSelected();
+                    var param = {};
+                    var saveData = [];
+                    param['payment_req_id'] = '${/parameter/@payment_req_id}';
+                    for (var i = 0;i < pre_line_records.length;i++) {
+                        var pre_line_record = pre_line_records[i];
+                        pre_line_record.set('type', 'PAYMENT_REQ_LN');
+                        pre_line_record.set('id', pre_line_record.get('payment_req_ln_id'));
+                        pre_line_record.set('_status', 'insert');
+                        saveData.push(pre_line_record.data);
+                    }
+            
+                    for (var j = 0;j < ln_records.length;j++) {
+                        var line_record = ln_records[j];
+                        line_record.set('type', 'PREPAYMENT_TRX');
+                        line_record.set('id', line_record.get('transaction_id'));
+                        line_record.set('_status', 'insert');
+                        saveData.push(line_record.data);
+                    }
+            
+                    param['details'] = saveData;
+                    Aurora.request({
+                        url: $('csh_payment_req_prepayment_dk_link_id').getUrl(),
+                        para: param,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '分配成功！',
+                                duration: 2000
+                            });
+                            ln_ds.query(ln_ds.currentPage);
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        error: function() {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        failure: function() {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        scope: this
+                    });
+                });
+            };
+            window['${/parameter/@layout_code}_on_layout_dynamic_grid_query'] = function(ds, qpara, bp_seq) {
+                var lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                var pre_lnds_id = get_dsid_by_basetable(window['${/parameter/@pre_layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                var pre_line_records = $(pre_lnds_id).getSelected();
+                if (lnds_id == ds.id) {
+                    qpara['bp_id'] = pre_line_records[0].get('bp_id');
+                }
+            };
+        ]]></script>
+    </a:view>
+</a:screen>

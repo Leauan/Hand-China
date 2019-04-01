@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: 吴团森  
+    $Date: 2018-12-25 上午9:45:35  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="con650_update_status_to_stock_in_link" model="cont.CON650.update_status_to_stock_in" modelaction="batch_update"/>
+        <a:link id="con650_update_agent_inventory_id_link" model="cont.CON650.update_agent_inventory_id" modelaction="batch_update"/>
+        <!--add by lara 11355 20190101 增加车辆出库导入 -->
+        <a:link id="con_df_import_upload_link" url="${/request/@context_path}/modules/cont/CON650/con_df_car_import.screen"/>
+        <a:link id="con_df_imp_car_confirm_link" url="${/request/@context_path}/modules/cont/CON650/con_df_car_add.screen"/>
+        <!--end add by lara 11355 20190101-->
+        <script><![CDATA[
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_df_car_info');
+                var records = $(ds_id).getSelected();
+                if (records.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+            
+                var param = [];
+                for (var i = 0;i < records.length;i++) {
+                    var record = records[i];
+                    var car_info_id = record.get('car_info_id');
+                    if (record.dirty) {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        Aurora.showMessage('提示', '请先保存!');
+                        return;
+                    }
+                    param.push({
+                        'car_info_id': car_info_id,
+                        '_status': 'update'
+                    });
+                }
+                Aurora.showConfirm('${l:HLS.PROMPT}', '确认车辆信息无误？', function() {
+                    Aurora.Masker.mask(Ext.getBody());
+                    Aurora.request({
+                        url: $('con650_update_status_to_stock_in_link').getUrl(),
+                        para: param,
+                        success: function(res) {
+                            Aurora.Masker.unmask(Ext.getBody());
+                            $(ds_id).query();
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                }, null);
+            };
+            
+            //批量录入库点信息并确认
+            window['${/parameter/@layout_code}_user_button4_layout_dynamic_click'] = function() {
+                    var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_df_car_info');
+                var records = $(ds_id).getSelected();
+                if (records.length < 1) {
+                    Aurora.showInfoMessage('', '请选择一条', null, 250, 100);
+                    return;
+                }
+                var param = {};
+                // param['function_code'] = 'CON650R';
+                // param['function_usage'] = 'CREATE';
+                // param['url_title'] = '库点信息录入并确认';
+                // param['screen_width'] = 410;
+                // param['screen_height'] = 300;
+                // param['width'] = 410;
+                // param['height'] = 300;
+                // param['winid'] = 'con650_car_info_confirm_winid';
+                // param['pre_layout_code'] = '${/parameter/@layout_code}';
+                // hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_df_imp_car_confirm_link', ds_id,'${/parameter/@layout_code}');
+               var win = new Aurora.Window({
+                    id: 'con_df_imp_car_confirm_winid',
+                    url: $('con_df_imp_car_confirm_link').getUrl(),
+                    params: {
+                        pre_layout_code: '${/parameter/@layout_code}',
+                        pre_function_code: '${/parameter/@function_code}',
+                        function_code:'CON650R',
+                        function_usage:'CREATE'
+                    },
+                    title: '库点信息录入并确认',
+                    width: 280,
+                    height: 120
+                });
+            };
+            //add by lara 11355 20190101 增加车辆出库导入
+            window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function() {
+                var win = new Aurora.Window({
+                    id: 'con_car_info_import_upload_winid',
+                    url: $('con_df_import_upload_link').getUrl(),
+                    params: {
+                        import_type: 'CONFIRM'
+                    },
+                    title: '车辆出库导入',
+                    width: 420,
+                    height: 275
+                });
+            };
+            //end add by lara 11355 20190101 增加车辆出库导入
+            
+            
+           window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_df_car_info');
+                var records = $(ds_id).getSelected();
+            
+                window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                if (records.length == 0) {
+                    records = $(ds_id).getAll();
+                }
+            
+                var param = [];
+                for (var i = 0;i < records.length;i++) {
+                    var record = records[i];
+                    var car_info_id = record.get('car_info_id');
+                    var agent_inventory_id = record.get('agent_inventory_id');
+                    if (record.dirty) {
+                        param.push({
+                            'car_info_id': car_info_id,
+                            'agent_inventory_id': agent_inventory_id,
+                            '_status': 'update'
+                        });
+                    }
+                }
+                Aurora.request({
+                    url: $('con650_update_agent_inventory_id_link').getUrl(),
+                    para: param,
+                    success: function(res) {
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window'] ();
+            
+                        Aurora.SideBar.show({
+                            msg: '保存成功',
+                            duration: 2000
+                        });
+                        $(ds_id).query();
+                    },
+                    failure: function() {
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window'] ();
+                    },
+                    error: function() {
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window'] ();
+                    },
+                    scope: this
+                });
+            
+            }; 
+            
+            //加载时调用(grid,table,gridBox)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_load'] = function(ds, record, config_records, bp_seq) {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_df_car_info');
+                var records = $(ds_id).getAll();
+                for (var i = 0;i < records.length;i++) {
+                    var record = records[i];
+                    var status = record.data['car_status'];
+                    if (status == 'STOCK_OUT') {} else {
+                        record.getField('agent_inventory_id').setReadOnly(true);
+                        record.getField('agent_inventory_id_n').setReadOnly(true);
+                    }
+                }
+            };
+            //选择事件(grid,attach,gridbox,table)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_select'] = function(ds, record, bp_seq) {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_df_car_info');
+                if (ds_id == ds.id && ds_id) {
+                    var status = record.get('car_status');
+                    if (status != 'STOCK_OUT') {
+                        //实际为不选中
+                        Aurora.showMessage('${l:HLS.PROMPT}', '状态有误，仅可确认  <已出库> 的车辆');
+                        ds.unSelect(record);
+                        ds.Select(record);
+                    }
+                }
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

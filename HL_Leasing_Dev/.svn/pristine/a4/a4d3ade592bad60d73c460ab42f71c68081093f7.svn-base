@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qianming  
+    $Date: 2014-8-27 上午11:05:28  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" alias="t1">
+    <bm:fields>
+        <bm:field name="bp_id"/>
+        <bm:field name="transaction_id"/>
+        <bm:field name="bp_code" prompt="商业伙伴编码"/>
+        <bm:field name="bp_name" prompt="商业伙伴名称"/>
+        <bm:field name="bp_class"/>
+        <bm:field name="bp_category"/>
+        <bm:field name="bp_category_dis" prompt="商业伙伴类别"/>
+        <bm:field name="agent_type_n" prompt="经销商类型"/>
+        <!--         <bm:field name="fin_amount_num" prompt="融资余额" />
+        <bm:field name="credit_amount" prompt="信用余额" /> -->
+        <bm:field name="deposit_total_amount" datatype="java.lang.Double" prompt="保证金余额"/>
+        <bm:field name="credit_flag"/>
+        <bm:field name="credit_flag_dis" prompt="是否授信"/>
+        <bm:field name="insurance_company" prompt="保险公司"/>
+        <bm:field name="total_amount"/>
+        <bm:field name="transaction_amount"/>
+        <bm:field name="returned_amount"/>
+        <bm:field name="write_off_amount"/>
+        <bm:field name="agent_type"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+    			SELECT t1.*,
+       decode(transaction_amount,
+              0,
+              0,
+              transaction_amount) deposit_total_amount
+              -- decode(fin_amount,0,'0.00',to_char(fin_amount,'FM999,999,999.00')) fin_amount_num,
+              -- decode(0.1*fin_amount-transaction_amount,0,'0.00',to_char(0.1*fin_amount - transaction_amount,'FM999,999,999.00')) credit_amount
+  FROM (SELECT bp_id,
+               bp_code,
+               bp_name,
+               bp_category,
+               t.bp_class,
+               t.agent_type,
+               (select code_value_name value_name
+                  from sys_code_values_vl sv, sys_codes sc
+                 where sv.code_id = sc.code_id
+                   and sc.code = 'HLS_AGENT_TYPE'
+                   and sv.code_value = t.agent_type) agent_type_n,
+                -- nvl((select sum(nvl(ccc.due_amount，0) - nvl(ccc.received_amount, 0))
+        -- from con_contract_cashflow ccc
+       -- where ccc.times <> 0
+         -- and (ccc.cf_item = 1 or ccc.cf_item = 913)
+         -- and ccc.cf_status = 'RELEASE'
+         -- and ccc.contract_id in
+             -- (select c1.contract_id
+                -- from con_contract c1
+               -- where c1.bp_id_agent_level1 = t.bp_id
+                 -- and c1.contract_status = 'INCEPT'
+                 -- and c1.data_class = 'NORMAL'
+              -- union all
+              -- select c.contract_id
+                -- from con_contract c, hls_bp_master h
+               -- where c.bp_id_agent_level1 = h.bp_id
+                 -- and c.contract_status = 'INCEPT'
+                 -- and c.data_class = 'NORMAL'
+                 -- and h.parent_id = t.bp_id)),0) fin_amount,
+               nvl((SELECT b.bp_name
+                     FROM HLS_BP_MASTER_RELATION a, hls_bp_master b
+                    WHERE a.relation_type = '3010'
+                      AND a.relation_category = '3000'
+                      and a.related_bp_id = b.bp_id
+                      and a.bp_id = t.bp_id),
+                   '--') insurance_company,
+               (SELECT description
+                  FROM hls_bp_category
+                 WHERE bp_category = t.bp_category) bp_category_dis,
+               nvl((SELECT nvl(transaction_amount, 0) -
+                          nvl(write_off_amount, 0)
+                     FROM csh_transaction
+                    WHERE bp_id = t.bp_id
+                      AND transaction_category = 'BUSINESS'
+                      AND transaction_type = 'DEPOSIT'
+                      and returned_flag != 'RETURN'),
+                   0) transaction_amount,
+               nvl((SELECT transaction_id
+                     FROM csh_transaction
+                    WHERE bp_id = t.bp_id
+                      AND transaction_category = 'BUSINESS'
+                      AND transaction_type = 'DEPOSIT'
+                      and returned_flag != 'RETURN'),
+                   -1) transaction_id,
+               nvl(credit_flag, 'N') credit_flag,
+               decode(credit_flag, 'Y', '是', '否') credit_flag_dis,
+               nvl((SELECT nvl(write_off_amount, 0)
+                     FROM csh_transaction
+                    WHERE bp_id = t.bp_id
+                      AND transaction_category = 'BUSINESS'
+                      AND transaction_type = 'DEPOSIT'
+                      and returned_flag != 'RETURN'),
+                   0) write_off_amount,
+               nvl((SELECT nvl(transaction_amount, 0)
+                     FROM csh_transaction
+                    WHERE bp_id = t.bp_id
+                      AND transaction_category = 'BUSINESS'
+                      AND transaction_type = 'DEPOSIT'
+                      and returned_flag != 'RETURN'),
+                   0) total_amount,
+               nvl((SELECT nvl(returned_amount, 0)
+                     FROM csh_transaction
+                    WHERE bp_id = t.bp_id
+                      AND transaction_category = 'BUSINESS'
+                      AND transaction_type = 'DEPOSIT'
+                      and returned_flag != 'RETURN'),
+                   0) returned_amount
+          FROM hls_bp_master t
+         where t.enabled_flag = 'Y'
+           and (t.bp_category = 'BPO' or t.bp_category = 'AGENT')
+         order by transaction_amount desc) t1
+ #WHERE_CLAUSE#
+    		]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field field="bp_id" queryOperator="="/>
+        <bm:query-field field="bp_category" queryOperator="="/>
+        <bm:query-field field="agent_type" queryOperator="="/>
+        <bm:query-field name="deposit_total_amount_from" queryExpression="t1.transaction_amount &gt;= ${@deposit_total_amount_from}"/>
+        <bm:query-field name="deposit_total_amount_to" queryExpression="t1.transaction_amount &lt;= ${@deposit_total_amount_to}"/>
+    </bm:query-fields>
+</bm:model>

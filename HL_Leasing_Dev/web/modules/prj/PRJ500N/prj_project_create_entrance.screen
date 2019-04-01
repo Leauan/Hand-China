@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei5743 
+    $Date: 2014-10-8 下午1:13:25  
+    $Revision: 1.0  
+    $Purpose: 租赁申请创建入口  
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.role_id=${/session/@role_id} and t1.company_id=${/session/@company_id}" fetchAll="true" model="hls.HLS109.hls_default_parameter" rootPath="hls_default_parameter_path"/>
+        <a:model-query fetchAll="true" model="prj.PRJ500D.prj_project_get_4s" rootPath="4s_root_path"/>
+        <a:model-query fetchAll="true" model="prj.PRJ500D.prj_project_invoice_agent_id_dafault_value" rootPath="prj_project_invoice_agent_id_dafault_value_path"/>
+        <a:model-query fetchAll="true" model="prj.PRJ500D.prj_project_invoice_agent_place_dafault_value" rootPath="prj_project_invoice_agent_place_dafault_value_path"/>
+        <a:model-query defaultWhereClause="t1.company_id=${/session/@company_id}" fetchAll="true" model="prj.PRJ500D.get_company_info" rootPath="company_info_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="prj_chance_create_link" url="${/request/@context_path}/modules/prj/PRJ500N/prj_project_create.screen"/>
+        <a:link id="prj_project_create_manager_link" url="${/request/@context_path}/modules/prj/PRJ500N/prj_project_create_manager.screen"/>
+        <a:link id="prj_project_create_special_link" url="${/request/@context_path}/modules/prj/PRJ500N/prj_project_create_special.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <script><![CDATA[
+            //确定
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                debugger;
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                var record = $(ds_id).getCurrentRecord();
+                if ($(ds_id).validate()) {
+                    if (record.get('special_permit_flag') == 'Y') {
+                        //零售特批
+                        record.set('function_code', 'PRJ500D_SPECIAL');
+                        record.set('function_usage', 'CREATE');
+                        record.set('document_category', 'PROJECT');
+                        record.set('default_value_dsid', ds_id);
+                        record.data['url_title'] = '租赁申请创建';
+                        record.set('winid', 'prj_porject_create_win_id');
+                        var param = record.data;
+                        hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'prj_project_create_special_link');
+                    } else if (record.get('lease_channel') == '02') {
+                        //管理人员
+                        record.set('function_code', 'PRJ500D');
+                        record.set('function_usage', 'CREATE');
+                        record.set('document_category', 'PROJECT');
+                        record.set('default_value_dsid', ds_id);
+                        record.data['url_title'] = '租赁申请创建';
+                        record.set('winid', 'prj_porject_create_win_id');
+                        var param = record.data;
+                        hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'prj_project_create_manager_link');
+                    } else {
+                        record.set('function_code', 'PRJ500D');
+                        record.set('function_usage', 'CREATE');
+                        record.set('document_category', 'PROJECT');
+                        record.set('default_value_dsid', ds_id);
+                        record.data['url_title'] = '租赁申请创建';
+                        var param = record.data;
+                        record.set('winid', 'prj_porject_create_win_id');
+                        hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'prj_chance_create_link');
+                    }
+                }
+            };
+            
+            Aurora.onReady(function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                var head_record = $(ds_id).getAt(0);
+                head_record.set('unit_id', '${/model/4s_root_path/record/@value_code}');
+                head_record.set('unit_id_n', '${/model/4s_root_path/record/@value_name}');
+                head_record.set('company_id', '${/model/company_info_path/record/@company_id}');
+                head_record.set('company_id_n', '${/model/company_info_path/record/@company_short_name}');
+                head_record.set('invoice_agent_id', '${/model/prj_project_invoice_agent_id_dafault_value_path/record/@bp_id}');
+                head_record.set('invoice_agent_id_n', '${/model/prj_project_invoice_agent_id_dafault_value_path/record/@bp_id_n}');
+                 head_record.set('registered_place', '${/model/prj_project_invoice_agent_place_dafault_value_path/record/@registered_place}');
+                head_record.set('registered_place_n', '${/model/prj_project_invoice_agent_place_dafault_value_path/record/@registered_place_n}');
+            });
+            
+            
+            //应张文要求 修改创建页面 start
+            //更新时调用
+            // window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+                // //debugger;
+                // var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                // if (ds.id == ds_id) {
+                    // var business_type = record.get('business_type');
+                    // if (name == 'business_type') {
+                        // if (business_type == 'LEASEBACK') {
+                            // record.set('division', '01');
+                            // record.set('division_n', '二手车');
+                            // record.getField('division').setReadOnly(true);
+                            // record.getField('division_n').setReadOnly(true);
+                        // } else if (business_type == 'FORMLB' || business_type == 'LEASE') {
+                            // record.getField('division').setReadOnly(false);
+                            // record.getField('division_n').setReadOnly(false);
+                        // }
+                    // }
+                // }
+            // };
+            //新增和加载时调用(form)
+            // window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_form_add_and_load'] = function(ds, record, config_records, bp_seq) {
+                // var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                // if (ds.id == ds_id) {
+                    // var business_type = record.get('business_type');
+                    // if (business_type == 'LEASEBACK') {
+                        // record.getField('division').setReadOnly(true);
+                        // record.getField('division_n').setReadOnly(true);
+                    // }
+                // }
+            // };
+            //end;
+                    	//新增和加载时调用(form)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_form_add_and_load'] = function(ds, record, config_records, bp_seq) {
+            	  var lease_channel = record.get('lease_channel');
+            	  // if (lease_channel=='01'){
+            	      // record.getField('first_flag_n').setReadOnly(false);
+            	      // record.getField('ka_prj_id_n').setReadOnly(false);
+            	  // }else{
+            	      record.getField('first_flag_n').setReadOnly(true);
+            	      record.getField('ka_prj_id_n').setReadOnly(true);
+            	      record.getField('first_flag_n').setRequired(false);
+            	      record.getField('ka_prj_id_n').setRequired(false);
+            	  // }
+               };  
+              //更新时调用
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+            		if (name=='lease_channel'){
+            		  record.set('first_flag','');
+            		  record.set('first_flag_n','');
+            		  record.set('ka_prj_id','');
+            		  record.set('ka_prj_id_n','');
+            		  // if (value=='01'){
+            		      // record.getField('first_flag_n').setReadOnly(false);
+            	      	  // record.getField('first_flag_n').setRequired(true);
+            		  // }else{
+            		      record.getField('first_flag_n').setReadOnly(true);
+            	      	  record.getField('first_flag_n').setRequired(false);
+            		  // }
+            		}else if(name=='first_flag'){
+            		    if (value=='Y'||!value){
+            		       record.getField('ka_prj_id_n').setRequired(false);
+            		       record.getField('ka_prj_id_n').setReadOnly(true); 
+            		    }else if(value=='N'){
+            		       record.getField('ka_prj_id_n').setRequired(true);
+            		       record.getField('ka_prj_id_n').setReadOnly(false); 
+            		    }
+            		}
+            		//modify by lara 11355 20181203 取消商业伙伴级联
+            		// else if(name=='bp_class'){
+            		    // if(value=='NP'){
+            		        // record.set('lease_channel','00');
+            		        // record.set('lease_channel_n','常规业务');
+            		    // }else{
+            		        // record.set('lease_channel','01');
+            		        // record.set('lease_channel_n','大客户业务');
+            		    // }
+            		// }
+            	
+               };    
+            
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

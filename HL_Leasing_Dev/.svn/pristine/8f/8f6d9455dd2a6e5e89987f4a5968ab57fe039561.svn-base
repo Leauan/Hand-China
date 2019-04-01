@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: xuls  
+    $Date: 2014-11-20 上午11:25:35  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true">
+    <a:init-procedure/>
+    <a:view>
+        <script><![CDATA[
+            var load_select = 'Y';
+            
+            function set_head_amount(line_ds, head_record) {
+                var sum = 0;
+                var add;
+                var lins = line_ds.getSelected();
+                for (var i = 0;i < lins.length;i++) {
+                    line_record = lins[i];
+                    add = line_record.get('amount');
+                    if (!add) {
+                        add = 0;
+                    }
+                    sum += add;
+                }
+                var left = (head_record.get('apply_amount') - sum);
+                head_record.set('left_deduction_amount', left);
+            }
+            
+            function csh504_db_click_fun(grid, record, row, name) {
+                if (name == 'principal') {
+                    var head_record = $('csh504_ddct_header').getAt(0);
+                    var left_deduction_amount = head_record.get('left_deduction_amount');
+                    var unreceived_amount = record.get('unreceived_amount');
+                    var unreceived_principal = record.get('unreceived_principal');
+                    var unreceived_interest = record.get('unreceived_interest');
+                    var calc = 0;
+                    if (left_deduction_amount >= unreceived_amount) {
+                        record.set('amount', unreceived_amount);
+                        record.set('principal', unreceived_principal);
+                        record.set('interest', unreceived_interest);
+                    } else {
+                        record.set('amount', left_deduction_amount);
+                        if (left_deduction_amount >= unreceived_interest) {
+                            record.set('interest', unreceived_interest);
+                            calc = left_deduction_amount - unreceived_interest;
+                            record.set('principal', calc);
+                        } else {
+                            record.set('interest', left_deduction_amount);
+                        }
+                    }
+            
+                }
+            }
+            
+            function csh504_ddct_add() {
+                $('csh504_ddct_result_gd').showEditorByRecord($('csh504_ddct_lines_ds').create());
+            }
+            
+            function csh504_ddct_delete() {
+                $('csh504_ddct_result_gd').remove();
+            }
+            
+            function chs504_ddct_save() {
+                $('csh504_ddct_lines_ds').submit();
+            }
+            
+            function csh504_ddct_line_update(ds, record, name, value, oldvalue) {
+                if (name == 'cf_item_name') {
+                    record.set('amount', null);
+                    record.set('principal', null);
+                    record.set('interest', null);
+                } else if (name == 'amount') {
+                    var head_record = $('csh504_ddct_header').getAt(0);
+                    var left_deduction_amount = head_record.get('left_deduction_amount');
+                    var unreceived_amount = record.get('un_due_amount');
+                    var unreceived_principal = record.get('un_principal');
+                    var unreceived_interest = record.get('un_interest');
+                    var calc = 0;
+                    if (value <= unreceived_amount) {
+                        if (value <= unreceived_interest) {
+                            record.set('interest', value);
+                            record.set('principal', 0);
+                        } else {
+                            calc = value - unreceived_interest;
+                            record.set('interest', unreceived_interest);
+                            record.set('principal', calc);
+                        }
+                    } else {
+                        Aurora.showMessage('${l:HLS.PROMPT}', '本次抵扣金额不能超过可抵扣金额');
+                        setTimeout(function() {
+                            record.set('amount', oldvalue);
+                        }, 10);
+            
+                    }
+                    var line_record;
+                    var sum = 0;
+                    var add;
+                    //设置头剩余可抵扣金额
+            
+                    set_head_amount(ds, head_record);
+                }
+            }
+            
+            function csh504_ddct_line_load(ds) {
+                load_select = 'Y';
+                var head_record = $('csh504_ddct_header').getAt(0);
+                var line_record;
+                var sum = 0;
+                var add;
+                var select_flag;
+                var all_lins = ds.getAll();
+                for (var j = 0;j < all_lins.length;j++) {
+                    record = all_lins[j];
+                    select_flag = record.get('select_flag');
+                    if (select_flag == 'Y') {
+                        load_select = 'Y';
+                        ds.select(record);
+                    }
+                }
+            
+                //设置头剩余可抵扣金额
+            
+                set_head_amount(ds, head_record);
+            
+                load_select = 'N';
+            }
+            
+            function csh504_ddct_line_select(ds, record) {
+                if (load_select == 'Y') {
+                    return;
+                }
+                var head_record = $('csh504_ddct_header').getAt(0);
+                var left_deduction_amount = head_record.get('left_deduction_amount');
+                var unreceived_amount = record.get('un_due_amount');
+                var unreceived_principal = record.get('un_principal');
+                var unreceived_interest = record.get('un_interest');
+                var calc = 0;
+                if (!record.get('amount')) {
+                    if (left_deduction_amount >= unreceived_amount) {
+                        record.set('amount', unreceived_amount);
+                        record.set('principal', unreceived_principal);
+                        record.set('interest', unreceived_interest);
+                    } else {
+                        record.set('amount', left_deduction_amount);
+                        if (left_deduction_amount >= unreceived_interest) {
+                            record.set('interest', unreceived_interest);
+                            calc = left_deduction_amount - unreceived_interest;
+                            record.set('principal', calc);
+                        } else {
+                            record.set('interest', left_deduction_amount);
+                        }
+                    }
+                }
+                set_head_amount(ds, head_record);
+                record.set('select_flag', 'Y');
+                record.dirty = true;
+            }
+            
+            function csh504_ddct_line_unselect(ds, record) {
+                record.dirty = true;
+                //设置头剩余可抵扣金额
+                var head_record = $('csh504_ddct_header').getAt(0);
+                set_head_amount(ds, head_record);
+                record.set('select_flag', 'N');
+                record.set('amount', null);
+                record.set('principal', null);
+                record.set('interest', null);
+            }
+            
+            function csh504_ddct_submit_suc(ds, res) {
+                ds.query();
+            }
+            
+            function chs504_ddct_return() {
+                $('${/parameter/@winid}').close();
+            }
+            
+            function csh504_ddct_lines_selectFunc(record) {
+                var function_usage = '${/parameter/@function_usage}';
+                if (function_usage == 'QUERY' || function_usage == 'READONLY' || Ext.isEmpty(function_usage)) {
+                    return false;
+                }
+			    return true;
+			}
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="csh504_ddct_header" autoCreate="true">
+                <a:fields>
+                    <a:field name="apply_amount" defaultValue="${/parameter/@apply_amount}" readOnly="true"/>
+                    <a:field name="contract_number" defaultValue="${/parameter/@contract_number}" readOnly="true"/>
+                    <a:field name="payment_req_id" defaultValue="${/parameter/@payment_req_id}" readOnly="true"/>
+                    <a:field name="left_deduction_amount" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="csh504_ddct_lines_ds" autoQuery="true" fetchAll="true" model="csh.CSH504.csh_payment_req_ln_ddct" queryUrl="${/request/@context_path}/autocrud/csh.CSH504.csh_payment_req_ln_ddct/query?payment_req_ln_id=${/parameter/@payment_req_ln_id}&amp;contract_id=${/parameter/@contract_id}&amp;payment_req_id=${/parameter/@payment_req_id}" selectFunction="csh504_ddct_lines_selectFunc" selectable="true">
+                <a:fields>
+                    <a:field name="amount"/>
+                    <a:field name="cf_item_name" lovGridHeight="290" lovHeight="500" lovService="csh.CSH504.csh_payment_cashflow_lov?contract_id=${/parameter/@contract_id}" lovWidth="900" required="true">
+                        <a:mapping>
+                            <a:map from="cashflow_id" to="ref_doc_line_id"/>
+                            <a:map from="contract_id" to="ref_doc_id"/>
+                            <a:map from="cf_item" to="cf_item_name"/>
+                            <a:map from="times" to="times"/>
+                            <a:map from="un_due_amount" to="unreceived_amount"/>
+                            <a:map from="un_principal" to="unreceived_principal"/>
+                            <a:map from="un_interest" to="unreceived_interest"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="ref_doc_category" defaultValue="CONTRACT"/>
+                    <a:field name="payment_req_ln_id" defaultValue="${/parameter/@payment_req_ln_id}"/>
+                    <a:field name="deduction_flag" defaultValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="csh504_ddct_line_update"/>
+                    <a:event name="load" handler="csh504_ddct_line_load"/>
+                    <a:event name="select" handler="csh504_ddct_line_select"/>
+                    <a:event name="unSelect" handler="csh504_ddct_line_unselect"/>
+                    <a:event name="submitsuccess" handler="csh504_ddct_submit_suc"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:switch test="/parameter/@function_usage">
+                <a:case value="QUERY">
+                    <a:screenTopToolbar>
+                        <!-- <a:gridButton click="csh504_ddct_add" text="HLS.NEW"/> -->
+                        <a:screenTitle/>
+                        <a:gridButton click="chs504_ddct_return" text="HLS.RETURN"/>
+                    </a:screenTopToolbar>
+                </a:case>
+                <a:case value="*">
+                    <a:screenTopToolbar>
+                        <!-- <a:gridButton click="csh504_ddct_add" text="HLS.NEW"/> -->
+                        <a:screenTitle/>
+                        <a:gridButton click="chs504_ddct_return" text="HLS.RETURN"/>
+                        <a:gridButton id="csh504_save_button_id" click="chs504_ddct_save" text="HLS.SAVE"/>
+                    </a:screenTopToolbar>
+                </a:case>
+            </a:switch>
+            <a:form column="4" labelWidth="130">
+                <a:textField name="contract_number" bindTarget="csh504_ddct_header" prompt="ACR310.CONTRACT_NUMBER" width="120"/>
+                <a:numberField name="apply_amount" bindTarget="csh504_ddct_header" prompt="CSH501.CSH_REQ_AMOUNT"/>
+                <a:numberField name="left_deduction_amount" bindTarget="csh504_ddct_header" prompt="CSH710.DEDUCTION_AMOUNT_LEFT"/>
+            </a:form>
+            <a:grid id="csh504_ddct_result_gd" bindTarget="csh504_ddct_lines_ds" height="350" navBar="true" width="950">
+                <a:columns>
+                    <a:column name="cf_item_name" prompt="款项名目" width="190"/>
+                    <a:column name="un_due_amount" align="right" prompt="计划金额" renderer="Aurora.formatMoney" width="110"/>
+                    <a:column name="un_principal" align="right" prompt="可抵扣本金" renderer="Aurora.formatMoney" width="110"/>
+                    <a:column name="un_interest" align="right" prompt="可抵扣利息" renderer="Aurora.formatMoney" width="110"/>
+                    <a:column name="amount" align="right" prompt="本次抵扣金额" renderer="Aurora.formatMoney" width="110"/>
+                    <a:column name="principal" align="right" prompt="本次抵扣本金" renderer="Aurora.formatMoney" width="110"/>
+                    <a:column name="interest" align="right" prompt="本次抵扣利息" renderer="Aurora.formatMoney" width="110"/>
+                </a:columns>
+                <a:editors>
+                    <a:lov id="csh504_ddct_loved"/>
+                    <a:numberField id="csh504_ddct_numed"/>
+                </a:editors>
+                <!-- <a:events>
+                    <a:event name="dblclick" handler="csh504_db_click_fun"/>
+                </a:events> -->
+            </a:grid>
+        </a:screenBody>
+        <script><![CDATA[
+            function init() {
+                var function_usage = '${/parameter/@function_usage}';
+                if (function_usage == 'QUERY' || function_usage == 'READONLY' || Ext.isEmpty(function_usage)) {
+                    document.getElementById("csh504_save_button_id").style.display = "none";
+                }
+            }
+            
+            Aurora.onReady(init);
+        ]]></script>
+    </a:view>
+</a:screen>

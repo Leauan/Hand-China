@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-9-6 下午04:32:20  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            select t1.*,
+       t1.due_amount - t1.received_amount unpaid_amount,
+       t1.total_fine - t1.received_fine unpaid_fine,
+       t1.received_amount + t1.received_fine total_amount
+  from (select 
+          cf.cashflow_id,
+          cf.times,
+          cf.cf_item,
+          (select i.description　from hls_cashflow_item i where i.cf_item=cf.cf_item) cf_item_desc,
+               cf.due_date,
+               (case
+                 when nvl(cf.received_amount,0) = 0 then
+                  null
+                 else
+                  cf.last_received_date
+               end) as last_received_date,
+               nvl(cf.due_amount, 0) due_amount,
+               nvl(cf.received_amount, 0) received_amount,
+               nvl((select sum(nvl(cf2.due_amount,0))
+                     from con_contract_cashflow cf2
+                    where cf2.cf_item = 9
+                      and cf2.times = cf.times
+                      and cf2.contract_id=ct.contract_id
+                      and cf2.cf_status in ('BLOCK', 'RELEASE')
+                      ),
+                   0) total_fine,
+               nvl((select sum(nvl(cf3.received_amount,0))
+                     from con_contract_cashflow cf3
+                    where cf3.cf_item = 9
+                      and cf3.times = cf.times
+                      and cf3.contract_id=ct.contract_id
+                      and cf3.cf_status in ('BLOCK', 'RELEASE')
+                      ),
+                   0) received_fine,
+                 cf.principal,
+                 cf.received_principal,
+                 cf.interest,
+                 cf.received_interest,
+                 cf.outstanding_prin_tax_incld,
+                 cf.outstanding_int_tax_incld,
+                 cf.outstanding_rental_tax_incld,
+                 cf.colour_scheme
+        
+          from con_contract_cashflow cf, con_contract_v ct
+         where cf.contract_id = ct.contract_id
+   
+           and ct.contract_id =${@contract_id}
+           and cf.cf_item in 
+           (select c.cf_item from hls_cashflow_item_company c where c.ref_v01='Y' 
+            union select 1 from dual)
+           and cf.cf_status in ('BLOCK', 'RELEASE')
+           and cf.cf_direction !='NONCASH') t1
+           #WHERE_CLAUSE#
+           
+           order by t1.times,t1.cf_item
+	       
+           
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="cashflow_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="times" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="unpaid_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="unpaid_fine" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="total_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="due_date" databaseType="DATE" datatype="java.util.Date"/>
+        <bm:field name="last_received_date" databaseType="DATE" datatype="java.util.Date"/>
+        <bm:field name="due_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="received_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="total_fine" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="received_fine" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="cf_item" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="cf_item_desc"/>
+        <bm:field name="principal" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="received_principal" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="interest" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="received_interest" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="outstanding_prin_tax_incld" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="outstanding_int_tax_incld" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="outstanding_rental_tax_incld" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="colour_scheme"/>
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field name="export_list" queryExpression="(t1.cashflow_id in (${:@export_list}))"/>
+    </bm:query-fields>
+</bm:model>

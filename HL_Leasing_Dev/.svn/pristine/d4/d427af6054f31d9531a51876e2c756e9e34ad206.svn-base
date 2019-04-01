@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ericyin  
+    $Date: 2012-12-18 下午4:00:22  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="rsc_five_class_rule_link" url="${/request/@context_path}/modules/rsc/RSC200/rsc_five_class_rule_detail.screen"/>
+        <a:link id="rsc_five_class_code_query_link" model="rsc.RSC200.rsc_five_class_code" modelaction="query"/>
+        <!-- <a:link id="rsc_five_class_code_update_link" model="rsc.RSC200.rsc_five_class_code_update" modelaction="update"/> -->
+        <a:link id="rsc_five_class_code_and_rule_link" url="${/request/@context_path}/modules/rsc/RSC200/rsc_five_class_rule_and_code.svc"/>
+        <script><![CDATA[
+            function rsc200_class_code_query() {
+                $('rsc200_class_code_result_ds').query();
+            }
+            function rsc200_class_code_grid_submit() {
+                var result_ds = $('rsc200_class_code_result_ds');
+                
+                //规则表插入数据
+                var rule_ds=$('rsc200_five_class_rule_ds');
+                // var usage_type='${/parameter/@usage_type}';
+                rule_ds.create();
+                var record=rule_ds.getAt(0);
+                record.set('usage_type','${/parameter/@usage_type}');
+                
+                if (result_ds.validate()) {
+                    result_ds.submit();
+                }
+            }
+            function rsc200_class_code_grid_add() {
+                $('rsc_class_code_grid').showEditorByRecord($('rsc200_class_code_result_ds').create());
+            }
+          
+            
+            function rsc200_class_code_quit() {
+                $('rsc_five_class_code_window').close();
+            }
+           
+            function rsc200ClassCodeFunction(record, name) {
+                if (record.isNew) {
+                    return 'rsc200_five_class_code_tf';
+                } else {
+                    return '';
+                }
+            }
+            function rsc200DetailPageRenderer(value, record, name) {
+                
+                var five_class_code=record.get('five_class_code');
+                var five_class_rule_id=record.get('five_class_rule_id');
+                if (record.isNew || '${/parameter/@usage_type}'=='SIGNAL_LAMP') {
+                    return '';
+                }
+                return '<a href="javascript:rsc200OpenDetailPage(\'' + five_class_code + '\','+five_class_rule_id+')">${l:RSC_FIVE_CLASS_PLANS.MODIFY_PAGE}</a>';
+            }
+            
+            //判断five_class_rule_detail表中是否有five_class_code,没有便创建一条记录
+            function rsc200OpenDetailPage(five_class_code,five_class_rule_id) {
+                
+                if(five_class_rule_id)
+                {
+                	open_window(five_class_rule_id);
+                }
+                
+		  	     else
+		  	     {
+		  	         Aurora.Masker.mask($('rsc_five_class_code_window').wrap,'正在加载...');
+		  	         var usage_type='${/parameter/@usage_type}';
+		  	         Aurora.request({
+		  	             url:$('rsc_five_class_code_and_rule_link').getUrl(),
+		  	             para:{
+			  	                 'five_class_code':five_class_code,
+			  	                 'usage_type':usage_type
+		  	             },
+		  	        	 success:function(resu){
+		  	        	     Aurora.Masker.unmask($('rsc_five_class_code_window').wrap);
+		              	     open_window(resu.result.five_class_rule_id);
+		  	         	 },
+		  	        	 error:function()
+				  	     {
+			  	              Aurora.Masker.unmask($('rsc_five_class_code_window').wrap);
+				  	     },
+				  	     failure:function()
+				  	     {
+				  	          Aurora.Masker.unmask($('rsc_five_class_code_window').wrap);
+				  	     }
+		  	         });
+		  	     }
+			  	
+            }
+            
+            function open_window(five_class_rule_id)
+            {
+                  new Aurora.Window({
+                    id: 'rsc_five_class_rule_window',
+                    url: $('rsc_five_class_rule_link').getUrl() ,
+                    params:{
+                        'five_class_rule_id':five_class_rule_id
+                        },
+                    title: '${l:RSC_FIVE_CLASS_PLANS.SET_RULE}',
+                    height: 555,
+                    width: 890
+                });
+            }
+            function classCodeValidator(record, name, value) {
+                if (name == 'five_class_code' && record.isNew && !Aurora.isEmpty(record.get('five_class_code'))) {
+                    var records = $('rsc200_class_code_result_ds').getAll();
+
+                    for (var i = 0,length = records.length;i < length;i++) {
+                        var r = records[i],v = r.get(name);
+                        if (r != record && v == value) {
+                            return '${l:RSC_FIVE_CLASS_PLANS.E003}';
+                        }
+                    }
+                } 
+                return true;
+            }
+            function rsc200ClassCodeOnAdd(ds, record, index) {
+                record.set('five_class_plan', '${/parameter/@plan_code}');
+            }
+            function rsc200ClassCodeUpdate(ds, record, name, valid) {
+                if (name == 'five_class_code' && !valid) {
+                    Aurora.showInfoMessage('错误', '${l:RSC_FIVE_CLASS_PLANS.E003}');
+                }
+            }
+            
+            function submitsuccess(ds,record)
+            {
+                $('rsc200_class_code_result_ds').query();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="rsc200_class_code_query_ds" model="rsc.RSC200.rsc_five_class_code"/>
+            <a:dataSet id="rsc200_class_code_result_ds" autoCount="true" autoQuery="true" fetchAll="false" model="rsc.RSC200.rsc_five_class_code" pageSize="15" queryDataSet="rsc200_class_code_query_ds" queryUrl="${/request/@context_path}/autocrud/rsc.RSC200.rsc_five_class_code/query?five_class_plan=${/parameter/@plan_code}" selectable="true">
+                <a:fields>
+                    <a:field name="five_class_plan"/>
+                    <a:field name="five_class_code" required="true" validator="classCodeValidator"/>
+                    <a:field name="five_class_rule_id"/>
+                    <a:field name="description" required="true"/>
+                    <a:field name="priority" required="true"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="rsc200ClassCodeOnAdd"/>
+                    <!-- <a:event name="valid" handler="rsc200ClassCodeUpdate"/> -->
+                    <a:event name="submitsuccess" handler="submitsuccess"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="rsc200_five_class_rule_ds" bindName="result_ds" bindTarget="rsc200_class_code_result_ds" model="rsc.RSC200.rsc_five_class_rule">
+                <a:fields>
+                    <a:field name="usage_type"/>
+                    <a:field name="five_class_rule_id"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="rsc200_class_code_quit" text="HLS.EXIT"/>
+                <a:gridButton click="rsc200_class_code_query" text="HLS.QUERY"/>
+                <a:gridButton click="rsc200_class_code_grid_add" text="HLS.NEW"/>
+                <a:gridButton click="rsc200_class_code_grid_submit" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:grid id="rsc_class_code_grid" bindTarget="rsc200_class_code_result_ds" height="450" navBar="true" width="660">
+                <a:columns>
+                    <a:column name="five_class_plan" align="left" width="100"/>
+                    <a:column name="five_class_code" align="left" editorFunction="rsc200ClassCodeFunction" sortable="true" width="100"/>
+                    <a:column name="description" align="left" editor="rsc200_five_class_code_tf" prompt="RSC_FIVE_CLASS_CODES.FIVE_CLASS_NAME_DESC" width="200"/>
+                    <a:column name="priority" align="left" editor="rsc200_five_class_code_tf" width="90"/>
+                    <a:column name="rsc_200_class_detail_link" align="center" prompt="RSC_FIVE_CLASS_CODE.DETAIL" renderer="rsc200DetailPageRenderer" width="80"/>
+                    <a:column name="enabled_flag" align="center" editor="rsc200_five_class_code_cb" width="50"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="rsc200_five_class_code_tf"/>
+                    <a:checkBox id="rsc200_five_class_code_cb"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

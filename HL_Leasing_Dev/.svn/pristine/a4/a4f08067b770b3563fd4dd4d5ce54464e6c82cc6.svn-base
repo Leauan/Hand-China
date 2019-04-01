@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: jack  
+    $Date: 2014-10-11 下午5:29:57  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" needAccessControl="false" trace="true">
+    <bm:operations>
+        <bm:operation name="execute">
+            <bm:update-sql><![CDATA[
+                BEGIN
+                    bcml_prj_project_pkg.calculate_prj_score(p_project_id =>${@project_id},p_score_num => ${@score_num},p_recalc_flag => 'Y', p_user_id =>${/session/@user_id}) ;
+                END;
+            ]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+            	declare
+            	  v_evaluate_level varchar2(30);
+            	begin
+            		SELECT s.evaluate_level
+						INTO v_evaluate_level
+						FROM hls_fnd_evaluate_standard s,
+							 fnd_score_template        t,
+							 fnd_sc_score_result       r
+					 WHERE s.customer_type = t.score_template_code
+						 AND t.score_template_id = r.score_template_id
+						 AND r.result_id = ${@result_id}
+						 AND s.enabled_flag = 'Y'
+						 AND ${@score_result} >= s.score_from
+						 AND ${@score_result} < s.score_to;
+						 
+					 ${@evaluate_level} := v_evaluate_level;
+				 exception
+				 	when no_data_found then
+				 		null;
+            	end;
+            ]]></bm:update-sql>
+            <bm:parameters>
+                <bm:parameter name="evaluate_level" dataType="java.lang.String" input="false" output="true" outputPath="@evaluate_level"/>
+            </bm:parameters>
+        </bm:operation>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    fsc.sc_score_id,
+                    fscr.result_id,
+                    fscr.score_template_id,
+       				fscr.template_type
+                FROM
+                    fnd_sc_score fsc,
+                    fnd_sc_score_result fscr
+                WHERE
+                    fsc.sc_score_id = fscr.sc_score_id AND
+                    fsc.project_id  = ${@project_id} AND
+                    fsc.score_num   = ${@score_num}
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

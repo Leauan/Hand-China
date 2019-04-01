@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: LR  
+    $Date: 2013-8-14 上午10:31:59  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.document_category=&apos;CHANGE_REQUEST&apos; and t1.business_type in (&apos;RESCHEDULE&apos;)" fetchAll="true" model="basic.hls_document_type_for_lov" rootPath="con711_hls_document_type_path"/>
+        <a:model-query defaultWhereClause="t1.change_req_profile=&apos;RESCH_BAL&apos;" model="cont.CON711.con_change_req_profile" rootPath="con711_change_req_profile_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con712_contract_reschedule_update_link" url="${/request/@context_path}/modules/cont/CON712/con_contract_reschedule_update.screen"/>
+        <script><![CDATA[
+            function con711_con_contract_create_close() {
+                $('con711_contract_reschedule_create_window').close();
+            }
+            
+            function con711_con_contract_create_ds_load(ds) {
+                var records = ds.getAll();
+                for (var i = 0;i < records.length;i++) {
+                    var record = records[i];
+                    record.getField('contract_name').setPropertity('tooltip', record.get('project_name'));
+                }
+            }
+            
+            function con711_con_contract_create_confirm() {
+                var ds = $('con711_con_contract_create_ds');
+                ds.submit();
+            }
+            
+            function con711_con_contract_create_ds_submitsuccess(ds, res) {
+                Aurora.go($('con712_contract_reschedule_update_link').getUrl() + '?batch_id=' + res.result.batch_id + '&create_flag=true');
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="con711_hls_document_type_ds">
+                <a:datas dataSource="/model/con711_hls_document_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="con711_con_contract_create_ds" submitUrl="${/request/@context_path}/modules/cont/CON711/con_contract_reschedule_create.svc">
+                <a:fields>
+                    <a:field name="reschedule_start_times" autoComplete="true" autoCompleteSize="1" fuzzyFetch="false" lovGridHeight="315" lovHeight="450" lovService="cont.CON500.con_contract_cashflow_for_lov" lovWidth="300" required="true" title="HLS.PERIOD_NUMBER">
+                        <a:mapping>
+                            <a:map from="times" to="reschedule_start_times"/>
+                            <a:map from="due_date" to="reschedule_start_date"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="reschedule_new_date" required="true"/>
+                    <a:field name="reschedule_last_time" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="document_type_desc" displayField="description" options="con711_hls_document_type_ds" required="true">
+                        <a:mapping>
+                            <a:map from="document_type" to="document_type"/>
+                            <a:map from="description" to="document_type_desc"/>
+                            <a:map from="document_category" to="document_category"/>
+                            <a:map from="business_type" to="business_type"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="con711_con_contract_create_ds_load"/>
+                    <a:event name="submitsuccess" handler="con711_con_contract_create_ds_submitsuccess"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="con711_con_contract_create_close" text="HLS.CLOSE"/>
+                <!-- <a:gridButton bind="con711_con_contract_create_grid_ds" type="clear"/> -->
+                <a:gridButton click="con711_con_contract_create_confirm" text="HLS.CONFIRM"/>
+            </a:screenTopToolbar>
+            <a:grid id="con711_con_contract_create_grid_ds" bindTarget="con711_con_contract_create_ds" marginHeight="100" marginWidth="50" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" lock="true" prompt="HLS.CONTRACT_NUMBER" width="120"/>
+                    <a:column name="contract_name" prompt="HLS.CONTRACT_NAME" width="250"/>
+                    <a:column name="lease_start_date" prompt="HLS.LEASE_START_DATE" renderer="Aurora.formatDate" width="100"/>
+                    <a:column name="document_type_desc" editor="con711_con_contract_create_grid_cb" prompt="CON711.DOCUMENT_TYPE_DESC" width="150"/>
+                    <a:column name="reschedule_start_times" editor="con711_con_contract_create_grid_lov" prompt="CON711.RESCHEDULE_START_TIMES" width="100"/>
+                    <a:column name="reschedule_start_date" prompt="CON711.RESCHEDULE_START_DATE" width="100"/>
+                    <a:column name="reschedule_new_date" editor="con711_con_contract_create_grid_dp" prompt="CON711.RESCHEDULE_NEW_DATE" renderer="Aurora.formatDate" width="140"/>
+                    <a:column name="reschedule_last_time" editor="con711_con_contract_create_grid_ck" prompt="CON711.RESCHEDULE_LAST_TIME" width="90"/>
+                </a:columns>
+                <a:editors>
+                    <a:lov id="con711_con_contract_create_grid_lov"/>
+                    <a:datePicker id="con711_con_contract_create_grid_dp"/>
+                    <a:checkBox id="con711_con_contract_create_grid_ck"/>
+                    <a:comboBox id="con711_con_contract_create_grid_cb"/>
+                </a:editors>
+            </a:grid>
+            <script><![CDATA[
+                Aurora.onReady(function() {
+                    var records = $('con711contract_result_ds').getSelected();
+                    for (var i = 0;i < records.length;i++) {
+                        var record = new Aurora.Record({
+                            contract_id: records[i].get('contract_id'),
+                            contract_number: records[i].get('contract_number'),
+                            calculate_rate: records[i].get('int_rate_display'),
+                            contract_name: records[i].get('contract_name'),
+                            lease_start_date: records[i].get('lease_start_date'),
+                            project_name: records[i].get('project_name'),
+                            calculate_object: '${/model/con711_change_req_profile_path/record/@calculate_object}',
+                            change_req_profile: '${/model/con711_change_req_profile_path/record/@change_req_profile}',
+                            req_status: 'NEW'
+                        });
+                        // $('con711_con_contract_create_ds').create(Ext.apply({},records[i].data));
+                        currencyRecord = $('con711_con_contract_create_ds').create(record.data);
+                        currencyRecord.getField('reschedule_start_times').setLovPara('contract_id', record.get('contract_id'));
+                    }
+                });
+            ]]></script>
+        </a:screenBody>
+    </a:view>
+</a:screen>

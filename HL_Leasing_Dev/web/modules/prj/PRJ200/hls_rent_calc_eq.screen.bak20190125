@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: xuls  
+    $Date: 2017-2-20 下午4:26:13  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true">
+    <a:init-procedure/>
+    <a:view>
+        <script src="${/request/@context_path}/javascripts/lightbox.js"/>
+        <script src="${/request/@context_path}/modules/prj/PRJ500N/javascripts/input_validator.js"/>
+        <script><![CDATA[
+	 window['${/parameter/@layout_code}_on_layout_dynamic_submitsuccess'] = function(ds, record, res) {
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_calc_estimate');
+                    if (ds_id) {
+                        record = $(ds_id).getAt(0);
+                        //var ln_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_fin_calculator_ln');
+                        var quotation_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_fin_calculator_hd');
+                        $(quotation_ds_id).setQueryParameter('calc_session_id', $(ds_id).getAt(0).get('calc_session_id'));
+                        //$(ln_ds_id).query();
+                        $(quotation_ds_id).query();
+                    }
+                    window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+            };
+    window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+        var hls_estimate_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_calc_estimate');
+        if (hls_estimate_ds_id == ds.id) {
+            if (name == 'product_plan_id') {
+                record.set('down_payment','');
+		        record.set('invoice_price','');
+            }
+			if (name == 'deposit_ratio') {
+                        if(value!=0){
+                            record.getField('deposit_deduction_n').setReadOnly(false);
+                            record.set('deposit_deduction_n','最后几期租金');
+		                    record.set('deposit_deduction','K');
+                        }else{
+                            record.getField('deposit_deduction_n').setReadOnly(true);
+                            record.set('deposit_deduction_n','');
+		                    record.set('deposit_deduction','');
+                        }
+						var finance_amount = record.get('finance_amount') || 0;
+						var deposit_ratio = record.get('deposit_ratio') || 0;
+		                var deposit = parseFloat(finance_amount) * parseFloat(deposit_ratio);
+		                record.set('deposit', deposit);
+            }
+            if(name=='down_payment'){
+		                var invoice_price = record.get('invoice_price') || 0;
+		                var down_payment = record.get('down_payment') || 0;
+		                var down_payment_ratio = parseFloat(down_payment) / parseFloat(invoice_price);
+		                var finance_amount = parseFloat(invoice_price) - parseFloat(down_payment);
+		                record.set('finance_amount', finance_amount);
+		                record.set('down_payment_ratio', down_payment_ratio);
+            }
+                    if(name == 'invoice_price'){
+                        var down_payment = record.get('down_payment')||0;
+		                var purchase_tax = record.get('purchase_tax') || 0;
+		                var plate_price = record.get('plate_price') || 0;
+		                var balloon_ratio = record.get('balloon_ratio')||0;
+		                var invoice_price = record.get('invoice_price')||0;
+		                var balloon = parseFloat(balloon_ratio) * parseFloat(invoice_price);
+                        record.set('balloon', balloon);
+                        record.set('balloon_ratio', balloon_ratio);
+		                if (down_payment) {
+		                    var finance_amount = parseFloat(invoice_price) - parseFloat(down_payment);
+		                    record.set('finance_amount', finance_amount);
+		                    var down_payment_ratio = parseFloat(down_payment) / parseFloat(invoice_price);
+		                    record.set('down_payment_ratio', down_payment_ratio);
+		                }
+                    }
+                    if(name == 'finance_amount'){
+                        var deposit_ratio = record.get('deposit_ratio') || 0;
+                        var finance_amount = record.get('finance_amount')||0;
+		                var deposit = parseFloat(deposit_ratio) * parseFloat(finance_amount);
+		                var lease_charge_ratio = record.get('lease_charge_ratio') || 0;
+		                var lease_charge = parseFloat(lease_charge_ratio) * parseFloat(finance_amount);
+		                record.set('deposit', deposit);
+		                record.set('lease_charge', lease_charge);
+                    }
+                    if(name == 'balloon_ratio'){
+                        var invoice_price = record.get('invoice_price') || 0;
+		                var purchase_tax = record.get('purchase_tax') || 0;
+		                var plate_price = record.get('plate_price') || 0;
+		                var balloon_ratio = record.get('balloon_ratio')||0;
+                        var balloon = parseFloat(balloon_ratio) * parseFloat(invoice_price);
+                        record.set('balloon', balloon);
+                    }
+                    if(name=='lease_charge_ratio'){
+                        var finance_amount = record.get('finance_amount')||0;
+                        var lease_charge_ratio = record.get('lease_charge_ratio')||0;
+                        var lease_charge = parseFloat(lease_charge_ratio) * parseFloat(finance_amount) 
+                        record.set('lease_charge', lease_charge);
+                    }
+        }
+    
+    };
+]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

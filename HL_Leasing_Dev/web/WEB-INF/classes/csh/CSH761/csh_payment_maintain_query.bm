@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Yenick  
+    $Date: 2019-01-02
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:s="aurora.plugin.script" xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    t1.*,
+                    (SELECT
+                        ba.bank_account_name
+                    FROM
+                        CSH_PAYMENT_REQ_LN t,
+                        hls_bp_master_bank_account ba
+                    WHERE
+                        t.bp_bank_account_id = ba.bank_account_id AND
+                        rownum               =1 AND
+                        t.payment_req_id     = t1.payment_req_id
+                    ) bank_account_name,
+                    /* (SELECT hbm.bp_code FROM hls_bp_master hbm WHERE t1.ln_bp_id = hbm.bp_id
+                    ) ln_bp_code,
+                    (SELECT hbm.bp_name FROM hls_bp_master hbm WHERE t1.ln_bp_id = hbm.bp_id
+                    ) ln_bp_name,
+                    (SELECT
+                        hbm.bp_category_name
+                    FROM
+                        hls_bp_master_v hbm
+                    WHERE
+                        t1.ln_bp_id = hbm.bp_id
+                    ) ln_bp_category_name, */
+                    ln_bp_code,
+                    (SELECT hbm.bp_name FROM hls_bp_master hbm WHERE t1.ln_bp_code = hbm.bp_code
+                    ) ln_bp_name,
+                    (SELECT
+                        hbm.bp_category_name
+                    FROM
+                        hls_bp_master_v hbm
+                    WHERE
+                        t1.ln_bp_code = hbm.bp_code
+                    ) ln_bp_category_name,
+                    ln_cf_item
+                FROM
+                    (SELECT
+                        h.payment_req_number,
+                        h.document_type,
+                        (SELECT
+                            d.document_type_desc
+                        FROM
+                            hls_document_type_v d
+                        WHERE
+                            d.document_type = h.document_type
+                        ) document_type_dis,
+                        TO_CHAR(h.req_date, 'yyyy-mm-dd') req_date,
+                        h.bp_id,
+                        b.bp_code,
+                        b.bp_name,
+                        h.bp_category,
+                        (SELECT
+                            b.description
+                        FROM
+                            hls_bp_category b
+                        WHERE
+                            b.bp_category = h.bp_category
+                        ) bp_category_dis,
+                        h.amount apply_amount,
+                        h.currency_code,
+                        (SELECT
+                            t.currency_name
+                        FROM
+                            gld_currency_vl t
+                        WHERE
+                            h.currency_code =t.currency_code
+                        ) currency_name,
+                        h.created_by,
+                        h.submitted_flag,
+                        h.approval_status,
+                        TO_CHAR(h.approval_date, 'yyyy-mm-dd') approval_date,
+                        h.approval_note,
+                        h.payment_req_id,
+                        h.business_type,
+                        h.document_category,
+                        h.closed_flag,
+                        h.description payment_description,
+                        h.apply_pay_date,
+                        /* (SELECT
+                            prl.bp_id
+                        FROM
+                            csh_payment_req_ln prl
+                        WHERE
+                            prl.payment_req_id = h.payment_req_id AND
+                            rownum             =1
+                        ) ln_bp_id, */
+                        (SELECT
+                            ccc.cf_item
+                        FROM
+                            csh_payment_req_ln prl,con_contract_cashflow ccc
+                        WHERE
+                            prl.payment_req_id = h.payment_req_id AND
+                            ccc.cashflow_id = prl.ref_doc_line_id AND 
+                            rownum             =1
+                        ) ln_cf_item,
+                        (SELECT hbm.bp_code FROM hls_bp_master hbm,csh_payment_req_ln prl WHERE prl.bp_id = hbm.bp_id AND
+                        prl.payment_req_id = h.payment_req_id AND
+                            rownum             =1
+                		) ln_bp_code,
+                		(select cc.cf_item from con_contract_cashflow cc where cc.cashflow_id=(select t.ref_doc_line_id from csh_payment_req_ln t where t.payment_req_id=h.payment_req_id and rownum=1)) cf_item,
+                		(select v.code_value_name
+                		 from sys_code_values_v v
+                		 where v.code = 'CON556_WFL_STATUS'
+               	      	   AND v.code_value = nvl(h.approval_status,'NEW'))approval_status_desc
+                    FROM
+                        csh_payment_req_hd h,
+                        hls_bp_master b
+                    WHERE
+                        h.bp_id          = b.bp_id(+) AND
+                        h.submitted_flag = 'N'
+                      and not exists (select 1 from con_contract cc where cc.contract_id in (select cl.ref_doc_id from csh_payment_req_ln cl where cl.payment_req_id=h.payment_req_id) and cc.lease_channel='00')
+                       and (h.created_by =${/session/@user_id})
+                    ) t1 #WHERE_CLAUSE#
+                ORDER BY
+                    req_date DESC,
+                    payment_req_number DESC
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:features>
+        <s:bm-script><![CDATA[
+            var cx = Packages.aurora.javascript.Context.getCurrentContext();
+            Packages.aurora.plugin.script.engine.ScriptImportor.defineExternScript(cx, this, $ctx.getData(), "aut_authority_bm_validate.js");
+        ]]></s:bm-script>
+    </bm:features>
+    <bm:query-fields>
+        <bm:query-field name="payment_req_number_from" datatype="java.lang.String" queryExpression="t1.payment_req_number&gt;=${@payment_req_number_from}"/>
+        <bm:query-field name="payment_req_number_to" datatype="java.lang.String" queryExpression="t1.payment_req_number&lt;=${@payment_req_number_to}"/>
+        <bm:query-field name="req_date_from" datatype="java.lang.String" queryexpression="t1.req_date &gt;= ${@req_date_from}"/>
+        <bm:query-field name="req_date_to" datatype="java.lang.String" queryexpression="t1.req_date &lt;= ${@req_date_to}"/>
+        <bm:query-field name="amount_from" datatype="java.lang.String" queryExpression="t1.apply_amount&gt;=${@amount_from}"/>
+        <bm:query-field name="amount_to" datatype="java.lang.String" queryExpression="t1.apply_amount&lt;=${@amount_to}"/>
+        <bm:query-field name="approval_status" datatype="java.lang.String" queryOperator="="/>
+        <bm:query-field name="submitted_flag" datatype="java.lang.String" queryExpression="t1.submitted_flag=${@submitted_flag}"/>
+        <bm:query-field name="currency_code" datatype="java.lang.String" queryExpression="t1.currency_code=${@currency_code}"/>
+        <bm:query-field name="bp_code_from" datatype="java.lang.String" queryExpression="t1.ln_bp_code&gt;=${@bp_code_from}"/>
+        <bm:query-field name="bp_code_to" datatype="java.lang.String" queryExpression="t1.ln_bp_code&lt;=${@bp_code_to}"/>
+    </bm:query-fields>
+</bm:model>

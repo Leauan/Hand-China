@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author 吴桐
+    $Date: 2012年2月7日 15:02:06
+    $Revision: 1.1 $
+    $Purpose: 员工类型-批量分配公司
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query autoCount="false" defaultWhereClause=" company_id =${/session/@company_id}" fetchAll="true" model="fnd.fnd_companies" rootPath="set_of_books_init"/>
+        <a:model-query autoCount="false" defaultWhereClause=" enabled_flag=&apos;Y&apos;" fetchAll="true" model="gld.gld_set_of_books_vl" rootPath="set_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="exp_sob_employee_batch_assign_com_link" url="${/request/@context_path}/modules/exp/EXP1210/exp_sob_employee_batch_assign_com.svc"/>
+        <script><![CDATA[
+        
+        	function queryFunction(){
+        		$('batch_assign_result_ds').query();
+        	}
+        
+        	function resetFunction(){
+        		$('batch_assign_query_ds').reset();
+        	}
+        	
+        	function headUpdateFunction(dataSet,record,name,value,oldValue){
+        		if(name == 'set_of_books_id'){
+        			$('batch_assign_query_ds').getAt(0).getMeta().getField('company_code_from_display').setLovPara('set_of_books_id',value);
+        			$('batch_assign_query_ds').getAt(0).getMeta().getField('company_code_to_display').setLovPara('set_of_books_id',value);
+        		}
+        	}
+        	
+        	function assignFunction(){
+    			var headDs = $('batch_assign_query_ds');
+    			var companyDs = $('batch_assign_result_ds');
+    			var headReocrdData = headDs.getAt(0).data;
+    			var companyRecordsData = companyDs.getJsonData(true);
+    			if(companyRecordsData.length == 0){
+					Aurora.showInfoMessage('${l:PROMPT}','${l:PROMPT.PLEASE_SELECT}',null,250,100);    			
+					return ;
+    			}
+    			var param = headReocrdData;
+    			param['details'] = companyRecordsData;
+    			Aurora.request({
+    				url:/*pur_sys_vender_batch_assign_com.svc*/$('exp_sob_employee_batch_assign_com_link').getUrl(),
+    				para:param,
+					success:function(){
+						Aurora.showInfoMessage('${l:PROMPT}','${l:FND_CODING_RULE_DET.OPER_SUC}',null,250,100);
+						$('EXP1210_exp_sob_employees_company_assigned_batch_screen').close(); 
+					},
+    				scope:this
+    			});
+        	}
+        
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="set_list_ds2">
+                <a:datas dataSource="/model/set_list"/>
+            </a:dataSet>
+            <a:dataSet id="batch_assign_query_ds">
+                <a:fields>
+                    <a:field name="set_of_books_id_display" displayField="set_of_books_combox_display" options="set_list_ds2" prompt="FND_SYSTEM_VENDERS.SET_OF_BOOKS_ID" returnField="set_of_books_id" valueField="set_of_books_id"/>
+                    <a:field name="set_of_books_id"/>
+                    <a:field name="company_code_from_display" lovGridHeight="300" lovHeight="450" lovService="fnd.fnd_dimension_value_assign_batch_lov" lovWidth="500" prompt="FND_COMPANIES.COMPANY_FROM" title="FND_COMPANIES.COMPANY_FROM">
+                        <a:mapping>
+                            <a:map from="company_short_name" to="company_code_from_display"/>
+                            <a:map from="company_code" to="company_code_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="company_code_from"/>
+                    <a:field name="company_code_to_display" lovGridHeight="300" lovHeight="450" lovService="fnd.fnd_dimension_value_assign_batch_lov" lovWidth="500" prompt="FND_COMPANIES.COMPANY_TO" title="FND_COMPANIES.COMPANY_TO">
+                        <a:mapping>
+                            <a:map from="company_short_name" to="company_code_to_display"/>
+                            <a:map from="company_code" to="company_code_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="company_code_to"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="headUpdateFunction"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="batch_assign_result_ds" model="fnd.fnd_dimension_value_company_batch_query" pageSize="10" queryDataSet="batch_assign_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="company_code" prompt="FND_COMPANIES.COMPANY_CODE"/>
+                    <a:field name="company_short_name" prompt="FND_COMPANIES_VL.COMPANY_SHORT_NAME"/>
+                    <a:field name="set_of_books_code" prompt="FND_SYSTEM_VENDERS.SET_OF_BOOKS_ID"/>
+                    <a:field name="set_of_books_id"/>
+                    <a:field name="company_id"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar height="29">
+                <a:button click="sys_8040_grid_submit" height="20" icon="${/request/@context_path}/images/save.png" iconAlign="left" text="保存" width="50"/>
+                <a:separator style="margin-left:3px;"/>
+                <a:button click="queryFunction" height="20" icon="${/request/@context_path}/images/search.png" iconAlign="left" text="HAP_QUERY" width="50"/>
+                <a:separator style="margin-left:3px;"/>
+                <a:button click="assignFunction" height="20" icon="${/request/@context_path}/images/search.png" iconAlign="left" text="HEC_ASSIGN" width="50"/>
+                <a:separator style="margin-left:3px;"/>
+            </a:screenTopToolbar>
+            <a:form column="3" title="FND_SYS_VENDERS.BATCH_DISP_COMPANY">
+                <a:comboBox name="set_of_books_id_display" bindTarget="batch_assign_query_ds"/>
+                <a:lov name="company_code_from_display" bindTarget="batch_assign_query_ds"/>
+                <a:lov name="company_code_to_display" bindTarget="batch_assign_query_ds"/>
+            </a:form>
+            <a:grid bindTarget="batch_assign_result_ds" height="400" navBar="true" width="750">
+                <a:columns>
+                    <a:column name="set_of_books_code" width="220"/>
+                    <a:column name="company_code" width="230"/>
+                    <a:column name="company_short_name" width="224"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

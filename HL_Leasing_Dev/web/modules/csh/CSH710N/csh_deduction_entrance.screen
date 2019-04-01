@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="csh710n_deduction_detail_link" url="${/request/@context_path}/modules/csh/CSH710N/csh_deduction_detail_n.screen"/>
+        <a:link id="csh_payment_req_cashflow_id_link" url="${/request/@context_path}/modules/csh/CSH501/csh_payment_req_cashflow_id.svc"/>
+        <a:link id="csh_payment_req_check_link" model="csh.CSH501.del_csh_pay_cashflow_id_temp" modelaction="execute"/>
+        <a:link id="csh501_csh_payment_req_link_id" url="${/request/@context_path}/modules/csh/CSH501/csh_payment_req_bond.screen"/>
+        <a:link id="csh501_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <script><![CDATA[
+            function open_dection_by_bp(ds_id, record_id) {
+                var record = $(ds_id).findById(record_id);
+                var param = record.data;
+                var bp_id = record.get('bp_id_tenant');
+                var contract_number = record.get('contract_number');
+                var cashflow_id = record.get('cashflow_id');
+                var write_off_flag = record.get('write_off_flag');
+                if (write_off_flag == 'FULL') {
+                    Aurora.showMessage('${l:PROMPT}', '该合同客户保证金完全核销，不能继续抵扣或支付！');
+                    return;
+                }
+            
+            
+                Aurora.request({
+                    url: $('csh_payment_req_check_link').getUrl(),
+                    para: param,
+                    success: function() {
+                        var win = new Aurora.Window({
+                            id: 'csh710n_deducate_detail_link',
+                            params: {
+                                bp_id: bp_id,
+                                contract_number: contract_number,
+                                cashflow_id: cashflow_id,
+                                winid: 'csh710n_deducate_detail_link'
+                            },
+                            url: $('csh710n_deduction_detail_link').getUrl(),
+                            title: '${l:CSH710.PAYMENT_DECUCATE}',
+                            fullScreen: true
+                        });
+                        win.on('close', function() {
+                            $(ds_id).query();
+                        });
+                    },
+                    failure: function() {
+                        return;
+                    },
+                    error: function() {
+                        return;
+                    },
+                    scope: this
+                });
+            }
+            
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_cashflow');
+                var ca_ds = $(ds_id);
+                var a = ca_ds.getSelected();
+                var record = a[0];
+                var cashflow_id_list = [];
+                var param = {};
+                var write_off_flag = record.get('write_off_flag');
+                if (write_off_flag == 'FULL') {
+                    Aurora.showMessage('${l:PROMPT}', '该合同客户保证金完全核销，不能继续抵扣或支付！');
+                    return;
+                }
+                if (a.length < 1) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                } else {
+                    for (i = 0;i < a.length;i++) {
+                        cashflow_id = a[i].get('cashflow_id');
+                        var arr = {};
+                        arr['_status'] = 'insert';
+                        arr['cashflow_id'] = cashflow_id;
+                        arr['contract_id'] = a[i].get('contract_id');
+                        arr['session_id'] = ${/session/@session_id};
+                        cashflow_id_list.push(arr);
+                    }
+                    param['details'] = cashflow_id_list;
+                    Aurora.Masker.mask(Ext.getBody(), '${l:HLS.SAVING}');
+                    Aurora.request({
+                        url: $('csh_payment_req_cashflow_id_link').getUrl(),
+                        para: param,
+                        success: function() {
+            
+                            if (cashflow_id != '') {
+                                Aurora.Masker.unmask(Ext.getBody());
+                                var param = {};
+                                param['function_code'] = 'CSH501N';
+                                param['function_usage'] = 'CREATE';
+                                param['document_category'] = 'PAYMENT_REQ';
+                                param['business_type'] = 'PAYMENT';
+                                param['business_type_n'] = '预付款申请';
+            
+                                param['winid'] = 'csh501_csh_payment_req_link_winid';
+                                param['url_title'] = '付款申请';
+                                hls_doc_get_layout_code('csh501_get_layout_code_link_id', param, 'csh501_csh_payment_req_link_id', ds_id);
+                            }
+                        },
+                        failure: function() {
+                            Aurora.showWarningMessage('', '${l:PRJ509.DATA_NOT_BACK}', null, 200, 100);
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+            
+            
+                }
+            };
+            
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                if (name == 'contract_number' && value) {
+                    return '<a href="javascript:open_dection_by_bp(\'' + record.ds.id + '\',\'' + record.id + '\')">' + value + '</a>';
+                }
+                return value;
+            };
+            
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                $('CSH_DEDUCTION_ENTRANCE_CA_RESULT_con_contract_cashflow_layout_grid_id')._export('xls', '客户保证金明细表');
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

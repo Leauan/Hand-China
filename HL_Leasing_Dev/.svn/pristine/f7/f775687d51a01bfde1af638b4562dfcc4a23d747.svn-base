@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-7-30 下午03:15:16  
+    $Revision: 1.0  
+    $Purpose: 商机维护入口界面
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:view>
+        <a:link id="prj_chance_modify_link" url="${/request/@context_path}/modules/prj/PRJ401N/prj_chance_modify.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="prj_chance_close_link" model="prj.PRJ401.prj_chance_close" modelaction="update"/>
+        <a:link id="prj_chance_create_project_link" url="${/request/@context_path}/modules/prj/PRJ401N/prj_chance_create_project.screen"/>
+        <script><![CDATA[
+            function open_chance_win(ds_id, record_id, name) {
+                var ds = $(ds_id);
+                current_record = ds.findById(record_id);
+                var maintain_type;
+                if (status == 'CLOSED' || status == 'CREATED') {
+                    maintain_type = 'READONLY';
+                } else {
+                    maintain_type = 'UPDATE';
+                }
+            
+                var param = current_record.data;
+                param['function_code'] = 'PRJ401D';
+                param['document_category'] = 'CHANCE';
+            
+                param['function_usage'] = 'MODIFY';
+                param['maintain_type'] = maintain_type;
+                param['url_title'] = '${l:PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.BUSINESS_MAINTENANCE}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'prj_chance_modify_link', ds_id);
+            
+            }
+            
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                //商机编号超链接
+                if (name == 'chance_number' && value) {
+                    return '<a href="javascript:open_chance_win(\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\');">' + value + '</a>';
+                }
+                return '';
+            };
+            
+            //关闭商机按钮
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+            
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_chance');
+                var prj_chance_result_ds = $(ds_id);
+            
+                var records = prj_chance_result_ds.getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+                var record = records[0];
+                Aurora.showConfirm('${l:PROMPT}', '${l:HLS.IS_CLOSE_CONFIRM}', function() {
+                    Aurora.request({
+                        url: $('prj_chance_close_link').getUrl(),
+                        para: {
+                            chance_id: record.get('chance_id')
+                        },
+                        success: function(res) {
+                            prj_chance_result_ds.query();
+                        },
+                        error: function() {},
+                        failure: function() {},
+                        scope: this
+                    });
+                }, function() {}, null, null).on('close', function() {
+                    $('CHANCE_MODIFY_ENTRANCE_G_CHANCE_RESULT_con_layout_config_ds').query();
+                });
+            };
+            
+            //创建项目按钮
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                debugger;
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_chance');
+                var prj_chance_result_ds = $(ds_id);
+                var records = prj_chance_result_ds.getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+                var record = records[0];
+            
+                var chance_status = record.get('chance_status');
+                if (chance_status == 'CLOSED' || chance_status == 'PRJ_CREATED') {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.NOT_CREATE_PROJECT}');
+                } else {
+                    new Aurora.Window({
+                        url: $('prj_chance_create_project_link').getUrl(),
+                        id: 'prj_chance_create_project_window',
+                        params: {
+                            ref_document_type: record.get('document_type'),
+                            business_type:record.get('business_type'),
+                            ds_id: ds_id,
+                            winid: 'prj_chance_create_project_window'
+                        },
+                        title: '${l:PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.CREATE_PROJECT}',
+                        width: 450,
+                        height: 300
+                    });
+                }
+            };
+            
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

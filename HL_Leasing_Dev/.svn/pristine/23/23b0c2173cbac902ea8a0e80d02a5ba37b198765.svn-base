@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-11-13 下午2:18:51  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="SYS_SMS_LIST">
+    <bm:fields>
+        <bm:field name="sms_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="SMS_ID" prompt="SYS_SMS_LIST.SMS_ID"/>
+        <bm:field name="sms_date" databaseType="DATE" datatype="java.util.Date" physicalName="SMS_DATE" prompt="SYS_SMS_LIST.SMS_DATE"/>
+        <bm:field name="sms_date_str" forInsert="false" forUpdate="false"/>
+        <bm:field name="priority" databaseType="NUMBER" datatype="java.lang.Long" physicalName="PRIORITY" prompt="SYS_SMS_LIST.PRIORITY"/>
+        <bm:field name="priority_desc" forInsert="false" forUpdate="false"/>
+        <bm:field name="phone_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PHONE_NUMBER" prompt="SYS_SMS_LIST.PHONE_NUMBER"/>
+        <bm:field name="text" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="TEXT" prompt="SYS_SMS_LIST.TEXT"/>
+        <bm:field name="error_status" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="ERROR_STATUS" prompt="SYS_SMS_LIST.ERROR_STATUS"/>
+        <bm:field name="error_msg" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="ERROR_MSG" prompt="SYS_SMS_LIST.ERROR_MSG"/>
+        <bm:field name="status" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="STATUS" prompt="SYS_SMS_LIST.STATUS"/>
+        <bm:field name="status_desc" forInsert="false" forUpdate="false"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+    			select t1.sms_id,
+				       t1.sms_date,
+				       to_char(t1.sms_date,'yyyy-mm-dd hh24:mi:ss') as sms_date_str,
+				       t1.priority,
+				       (select v.code_value_name
+				          from sys_code_values_v v
+				         where v.code = 'SYS402_SMS_PRIORITY'
+				           and v.code_value = t1.priority) as priority_desc,
+				       t1.phone_number,
+				       t1.text,
+				       t1.error_status,
+				       t1.error_msg,
+				       t1.status,
+				       (select v.code_value_name
+				          from sys_code_values_v v
+				         where v.code = 'SYS402_SMS_STATUS'
+				           and v.code_value = t1.status) as status_desc
+				  from sys_sms_list t1
+				  --where t1.status in ('NEW','FAIL','SENDING')
+				  #WHERE_CLAUSE#
+				 order by t1.sms_id desc
+    		]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="insert">
+            <bm:update-sql><![CDATA[
+    			begin
+	    			null;
+    			end;
+    		]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+    			begin
+	    			  sys401_save_pkg.re_submit_sms(p_sms_id			  => ${@sms_id},
+	    											p_user_id			  => ${/session/@user_id});
+    			end;
+    		]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="delete">
+            <bm:update-sql><![CDATA[
+    			begin
+	    			delete from SYS_SMS_LIST t1 where t1.sms_id = ${@sms_id};
+    			end;
+    		]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="execute">
+            <bm:update-sql><![CDATA[
+    			begin
+	    			sys401_save_pkg.submit_sms(p_all_phone_number => ${@all_phone_number},
+						                       p_text             => ${@text},
+						                       p_priority         => 2,
+						                       p_user_id		  => ${/session/@user_id});
+    			end;
+    		]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:features>
+        <f:standard-who/>
+    </bm:features>
+	  <bm:query-fields>
+        <bm:query-field name="phone_number" queryExpression="t1.phone_number = ${@phone_number}"/>
+        <bm:query-field name="sms_date_f" queryexpression="to_date(to_char(t1.sms_date,'yyyy-mm-dd'),'yyyy-mm-dd') &gt;= to_date(${@sms_date_f},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="sms_date_t" queryexpression="to_date(to_char(t1.sms_date,'yyyy-mm-dd'),'yyyy-mm-dd') &lt;= to_date(${@sms_date_t},&apos;yyyy-mm-dd&apos;)"/>
+		
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter name="status" expression="t1.status      IN (&apos;NEW&apos;,&apos;FAIL&apos;,&apos;SENDING&apos;)"/>
+    </bm:data-filters>
+</bm:model>

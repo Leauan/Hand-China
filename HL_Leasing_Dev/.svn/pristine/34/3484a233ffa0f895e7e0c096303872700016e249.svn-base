@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    t1.*
+                FROM
+                    (SELECT
+                        t1.RECORD_ID,
+                        t1.COMPANY_ID,
+                        t1.CONTRACT_ID,
+                        t1.INTERNAL_PERIOD_NUM,
+                        t1.CF_ITEM,
+                        t1.UNEARNED_FINANCE_INCOME,
+                        t1.NET_UNEARNED_FINANCE_INCOME,
+                        t1.VAT_UNEARNED_FINANCE_INCOME,
+                        t1.FINANCE_INCOME_RECOGNIZED,
+                        t1.CASHFLOW_ID,
+                        t1.TIMES,
+                        t1.CF_TYPE,
+                        to_char(t1.CALC_START_DATE,'YYYY-MM-DD') CALC_START_DATE,
+                        to_char(t1.CALC_END_DATE,'YYYY-MM-DD')CALC_END_DATE,
+                        t1.BATCH_ID,
+                        t1.CREATE_JE_FLAG,
+                        t1.HD_USER_COL_N01,
+                        t1.HD_USER_COL_N02,
+                        t1.VERSION_FLAG,
+                        t.contract_number,
+                        t.contract_name,
+                        (SELECT DECODE(t1.finance_income_recognized, 'Y', '已确认', '未确认') FROM dual
+                        ) AS finance_income_recognized_desc,
+                        (SELECT bp_name FROM hls_bp_master WHERE bp_id = t.bp_id_tenant
+                        ) AS bp_name,
+                        (SELECT
+                            due_amount
+                        FROM
+                            con_contract_cashflow
+                        WHERE
+                            contract_id = t1.contract_id AND
+                            cf_item     = 302
+                        ) AS due_amount,
+                        t1.DAYS
+                    FROM
+                        DF_UNEARNED_FINANCE_INCOME t1,
+                        con_contract t
+                    WHERE
+                        t1.contract_id         =t.contract_id AND
+                        t.data_Class           = 'NORMAL' AND
+                        t1.internal_period_num = ${@internal_period_num} AND
+                        t1.cashflow_id        IN
+                        (SELECT
+                            cw.cashflow_id
+                        FROM
+                            con_contract_cashflow cw
+                        WHERE
+                            cw.cf_direction NOT IN ('NONCASH') AND
+                            cw.cf_status        !='BLOCK'
+                        )  and 
+                        t.bp_id_tenant not in (Select bp_id_tenant
+                  From con_contract cc1
+                 Where exists
+                       (select 1
+                          from df_unearned_finance_income di
+                         where to_char(di.calc_end_date, 'yyyy-mm') = ${@calc_end_date}
+                           and di.finance_income_recognized = 'N'
+                           and contract_id = cc1.contract_id)
+                   And cc1.contract_status not in
+                       ('INCEPT', 'REDEMPTED', 'NEW')
+                   And cc1.data_class = 'NORMAL') AND
+                        EXISTS
+                        (SELECT
+                            1
+                        FROM
+                            con_contract_cashflow c
+                        WHERE
+                            c.cashflow_id = t1.cashflow_id AND
+                            c.interest   IS NOT NULL
+                        ) AND
+                        TO_CHAR(t1.calc_end_date, 'yyyy-mm') = ${@calc_end_date}
+                    )t1 #WHERE_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="company_id" queryExpression="t1.company_id=${@company_id}"/>
+        <bm:query-field name="finance_income_recognized" queryExpression="t1.finance_income_recognized=${@finance_income_recognized}"/>
+        <bm:query-field name="bp_name" queryExpression="(select t.bp_name from hls_bp_master t where t.bp_id =(select t.bp_id_tenant from con_contract t where t.contract_id =t1.contract_id)) like ${@bp_name}"/>
+    </bm:query-fields>
+</bm:model>

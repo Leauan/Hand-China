@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-10-18 下午4:01:17  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:s="aurora.plugin.script" xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="TRE_FUNDS_RESERVATION">
+    <bm:fields>
+        <bm:field name="reservation_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="RESERVATION_ID"/>
+        <bm:field name="project_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="PROJECT_ID" prompt="TRE510.TRE_FUNDS_RESERVATION.PROJECT_ID"/>
+        <bm:field name="reserve_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="RESERVE_AMOUNT" prompt="TRE510.TRE_FUNDS_RESERVATION.RESERVE_AMOUNT"/>
+        <bm:field name="paid_date" databaseType="DATE" datatype="java.util.Date" physicalName="PAID_DATE" prompt="TRE510.TRE_FUNDS_RESERVATION.PAID_DATE"/>
+        <bm:field name="paid_probability" databaseType="NUMBER" datatype="java.lang.Double" physicalName="PAID_PROBABILITY" prompt="TRE510.TRE_FUNDS_RESERVATION.PAID_PROBABILITY"/>
+        <bm:field name="status" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="STATUS"/>
+        <bm:field name="status_desc" forInsert="false" forUpdate="false" prompt="TRE510.TRE_FUNDS_RESERVATION.STATUS_DESC"/>
+        <bm:field name="description" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DESCRIPTION" prompt="HLS.DESCRIPTION"/>
+        <bm:field name="paid_date_fin" databaseType="DATE" datatype="java.util.Date" physicalName="PAID_DATE_FIN" prompt="TRE510.TRE_FUNDS_RESERVATION.PAID_DATE_FIN"/>
+        <bm:field name="confirm_status" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONFIRM_STATUS"/>
+        <bm:field name="confirm_status_desc" forInsert="false" forUpdate="false" prompt="TRE510.TRE_FUNDS_RESERVATION.CONFIRM_STATUS_DESC"/>
+        <bm:field name="description_fin" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DESCRIPTION_FIN" prompt="TRE510.TRE_FUNDS_RESERVATION.DESCRIPTION_FIN"/>
+        <bm:field name="project_number" forInsert="false" forUpdate="false" prompt="HLS.PROJECT_NUMBER"/>
+        <bm:field name="project_name" forInsert="false" forUpdate="false" prompt="HLS.PROJECT_NAME"/>
+        <bm:field name="project_status_desc" forInsert="false" forUpdate="false" prompt="HLS.PROJECT_STATUS"/>
+        <bm:field name="bp_name" forInsert="false" forUpdate="false" prompt="HLS.TENANT_NAME"/>
+        <bm:field name="employee_name" forInsert="false" forUpdate="false" prompt="HLS.EMPLOYEE_NAME"/>
+        <bm:field name="apply_date" databaseType="VARCHAR2" datatype="java.lang.String" forInsert="false" forUpdate="false" prompt="HLS.REQ_DATE"/>
+        <bm:field name="rent_bank_account_code" forInsert="false" forUpdate="false" queryExpression="(select a.bank_account_num from csh_bank_account_v a where a.bank_account_id=t1.rent_bank_account)"/>
+        <bm:field name="deposit_bank_account_code" forInsert="false" forUpdate="false" queryExpression="(select a.bank_account_num from csh_bank_account_v a where a.bank_account_id=t1.deposit_bank_account)"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="insert">
+            <bm:update-sql><![CDATA[
+          begin
+            null;
+          end;
+        ]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+          begin
+            tre510_save_pkg.reserve(p_project_id       => ${@project_id},
+            						p_reservation_id   => ${@reservation_id},
+				                    p_reserve_amount   => ${@reserve_amount},
+				                    p_paid_date        => to_date(${@paid_date},'yyyy-mm-dd'),
+				                    p_paid_probability => ${@paid_probability},
+				                    p_description      => ${@description},
+				                    p_user_id          => ${/session/@user_id});
+          end;
+        ]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+          	select p.project_number,
+			       p.project_name,
+			       p.project_status_desc,
+			       p.bp_name,
+			       p.employee_name,
+			       p.project_id,
+			       t1.reservation_id,
+			       nvl(t1.reserve_amount,p.finance_amount) as reserve_amount,
+			       t1.paid_date,
+			       t1.paid_probability,
+			       nvl(t1.status,'NOT') as status,
+			       (select c1.code_value_name
+			          from sys_code_values_v c1
+			         where c1.code = 'RESERVE_STATUS'
+			           and c1.code_value = nvl(t1.status,'NOT')) as status_desc,
+			       t1.description,
+			       t1.paid_date_fin,
+			       t1.confirm_status,
+			       (select c2.code_value_name
+			          from sys_code_values_v c2
+			         where c2.code = 'RESERVATION_CONFIRM_STATUS'
+			           and c2.code_value = t1.confirm_status) as confirm_status_desc,
+			       t1.description_fin,
+			       t1.creation_date as apply_date,
+			       (select a.bank_account_num from csh_bank_account_v a where a.bank_account_id=t1.rent_bank_account) rent_bank_account_code,
+             (select a.bank_account_num from csh_bank_account_v a where a.bank_account_id=t1.deposit_bank_account) deposit_bank_account_code
+			  from prj_project_v p, tre_funds_reservation t1
+	          #WHERE_CLAUSE#
+	           order by t1.creation_date desc
+        ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:features>
+        <s:bm-script><![CDATA[
+            var cx = Packages.aurora.javascript.Context.getCurrentContext();
+            Packages.aurora.plugin.script.engine.ScriptImportor.defineExternScript(cx, this, $ctx.getData(), "aut_authority_bm_validate.js");
+        ]]></s:bm-script>
+    </bm:features>
+    <bm:query-fields>
+        <bm:query-field name="project_id"/>
+        <bm:query-field name="project_number" queryExpression="p.project_number like ${@project_number}"/>
+        <bm:query-field name="project_name" queryExpression="p.project_name like ${@project_name}"/>
+        <bm:query-field name="status" queryExpression="nvl(t1.status,&apos;NOT&apos;) = ${@status}"/>
+        <bm:query-field name="employee_id" queryExpression="p.employee_id = ${@employee_id}"/>
+        <bm:query-field name="lease_organization" queryExpression="p.lease_organization = ${@lease_organization}"/>
+        <bm:query-field name="lease_channel" queryExpression="p.lease_channel = ${@lease_channel}"/>
+        <bm:query-field name="bp_code" queryExpression="p.bp_code = ${@bp_code}"/>
+        <bm:query-field name="bp_name" queryExpression="p.bp_name like ${@bp_name}"/>
+        <bm:query-field name="division" queryExpression="p.division = ${@division}"/>
+        <bm:query-field name="employee_id_of_manager" queryExpression="p.employee_id_of_manager = ${@employee_id_of_manager}"/>
+        <bm:query-field name="project_status" queryExpression="p.project_status = ${@project_status}"/>
+        <bm:query-field name="confirm_status" queryExpression="t1.confirm_status = ${@confirm_status}"/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="p.project_status in (&apos;APPROVED&apos;,&apos;CONDITIONAL&apos;) and p.project_id = t1.project_id(+)"/>
+    </bm:data-filters>
+    <bm:primary-key>
+        <bm:pk-field name="reservation_id"/>
+    </bm:primary-key>
+</bm:model>

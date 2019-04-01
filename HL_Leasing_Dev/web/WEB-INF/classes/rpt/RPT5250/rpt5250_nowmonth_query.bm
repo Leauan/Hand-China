@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                 SELECT
+                   
+                    (select hrl.prime_rate
+                     from   hl_rate_linkage hrl
+                     where  hmb.bp_id = hrl.bp_id AND
+                        trunc(sysdate) BETWEEN trunc(hrl.the_limit_is_valid_from) AND trunc(hrl.the_limit_is_valid_to) )prime_rate,
+                        
+                    (select  hrl.residual_preferential_limit 
+                     from   hl_rate_linkage hrl
+                     where  hmb.bp_id = hrl.bp_id AND
+                        trunc(sysdate) BETWEEN trunc(hrl.the_limit_is_valid_from) AND trunc(hrl.the_limit_is_valid_to))residual_preferential_limit,
+                        
+                    (select  hrl.preferential_amount 
+                     from   hl_rate_linkage hrl
+                     where  hmb.bp_id = hrl.bp_id AND
+                         trunc(sysdate) BETWEEN trunc(hrl.the_limit_is_valid_from) AND trunc(hrl.the_limit_is_valid_to))preferential_amount,
+                    hmb.initial_rate initial_rate,
+                    (SELECT
+                        SUM(NVL(l.credit_total_amount, 0))
+                    FROM
+                        hls_bp_master_credit_ln l
+                    WHERE
+                        l.bp_id          = hmb.bp_id AND
+                        TRUNC(l.credit_date_from) <= TRUNC(SYSDATE) AND
+                        TRUNC(l.credit_date_to)   >= TRUNC(SYSDATE) AND
+                        l.enable_flag              = 'Y'
+                    ) credit_total_amount,
+                    (
+                    (SELECT
+                        SUM(NVL(l.credit_total_amount, 0))
+                    FROM
+                        hls_bp_master_credit_ln l
+                    WHERE
+                        l.bp_id          = hmb.bp_id AND
+                        TRUNC(l.credit_date_from) <= TRUNC(SYSDATE) AND
+                        TRUNC(l.credit_date_to)   >= TRUNC(SYSDATE) AND
+                        l.enable_flag              = 'Y'
+                    ) - (hls_bp_master_credit_pkg.calc_used_amount_bp(p_bp_id => hmb.bp_id, p_user_id => ${/session/@user_id}))) last_amount
+                FROM
+                    hls_bp_master hmb, 
+                    sys_user s
+                WHERE
+                    
+                    s.bp_id   = hmb.bp_id AND
+                    s.user_id = ${/session/@user_id}
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

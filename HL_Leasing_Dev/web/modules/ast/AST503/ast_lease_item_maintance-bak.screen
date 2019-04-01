@@ -1,0 +1,535 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qm  
+    $Date: 2014-4-18 下午1:49:31  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="lease_item_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="ast503_renewal_link" model="ast.AST503.ast_renewal_application" modelaction="execute"/>
+        <a:link id="ast503_pay_claim_expense" model="ast.AST503.ast_pay_claim_expense" modelaction="execute"/>
+        <a:link id="get_atm_id_exist" model="ast.AST503.fnd_atm_attachment_multi" modelaction="query"/>
+        <script><![CDATA[
+            var g_item_detail_id = -1;
+            
+            
+            function renewal_application() {
+                var record = $('ast_car_insurance_result_ds').getSelected()[0];
+                if (Aurora.isEmpty(record)) {
+                    Aurora.showMessage('${l:PROMPT}', '请选择一行数据');
+                    Aurora.Masker.unmask(Ext.getBody());
+                    return;
+                }
+            
+                if (record.isNew) {
+                    Aurora.showMessage('提示', '请先保存');
+                    return;
+                }
+                Aurora.showConfirm('确认', '您确定续保吗？', function() {
+                    Aurora.Masker.mask(Ext.getBody(), '正在提交......');
+                    var contract_id = $('con_item_info_ds').getSelected()[0].get('contract_id');
+                    var car_insurance_id = record.get('ast_car_insurance_id');
+                    var document_status = record.get('document_status');
+                    if (document_status != '10') {
+                        Aurora.showMessage('${l:PROMPT}', '单据状态必须为新建');
+                        Aurora.Masker.unmask(Ext.getBody());
+                        return;
+                    }
+                    var compulsory_insurance_amount = record.get('compulsory_insurance_amount');
+                    var damage_insurance_amount = record.get('damage_insurance_amount');
+                    var third_party_insurance_amount = record.get('third_party_insurance_amount');
+                    var basic_non_deductible_amount = record.get('basic_non_deductible_amount');
+                    var pilfer_insurance_amount = record.get('pilfer_insurance_amount');
+            
+                    var commercial_insurance_amount = record.get('commercial_insurance_amount');
+                    var glass_insurance_amount = record.get('glass_insurance_amount');
+                    var seat_insurance_amount = record.get('seat_insurance_amount');
+                    var combustion_insurance_amount = record.get('combustion_insurance_amount');
+            
+                    if (Aurora.isEmpty(compulsory_insurance_amount)) {
+                        compulsory_insurance_amount = 0;
+                    }
+                    if (Aurora.isEmpty(damage_insurance_amount)) {
+                        damage_insurance_amount = 0;
+                    }
+                    if (Aurora.isEmpty(third_party_insurance_amount)) {
+                        third_party_insurance_amount = 0;
+                    }
+                    if (Aurora.isEmpty(basic_non_deductible_amount)) {
+                        basic_non_deductible_amount = 0;
+                    }
+                    if (Aurora.isEmpty(pilfer_insurance_amount)) {
+                        pilfer_insurance_amount = 0;
+                    }
+            
+                    if (Aurora.isEmpty(commercial_insurance_amount)) {
+                        commercial_insurance_amount = 0;
+                    }
+                    if (Aurora.isEmpty(glass_insurance_amount)) {
+                        glass_insurance_amount = 0;
+                    }
+                    if (Aurora.isEmpty(seat_insurance_amount)) {
+                        seat_insurance_amount = 0;
+                    }
+                    if (Aurora.isEmpty(combustion_insurance_amount)) {
+                        combustion_insurance_amount = 0;
+                    }
+            
+                    var due_amount = compulsory_insurance_amount + damage_insurance_amount + third_party_insurance_amount + basic_non_deductible_amount + pilfer_insurance_amount + commercial_insurance_amount + glass_insurance_amount + seat_insurance_amount + combustion_insurance_amount;
+                    //必须上传保险附件
+                    Aurora.request({
+                        url: $('get_atm_id_exist').getUrl(),
+                        para: {
+                            table_name: 'AST_CAR_INSURANCE',
+                            table_pk_value: car_insurance_id
+            
+                        },
+                        success: function(res) {
+                            var count = res.result.record['atm_num'];
+                            if (count > 0) {
+                                Aurora.request({
+                                    url: $('ast503_renewal_link').getUrl(),
+                                    para: {
+                                        contract_id: contract_id,
+                                        due_amount: due_amount,
+                                        car_insurance_id: car_insurance_id
+                                    },
+                                    success: function(res) {
+                                        $('ast_car_insurance_result_ds').query();
+                                        Aurora.Masker.unmask(Ext.getBody());
+                                    },
+                                    failure: function() {
+                                        Aurora.Masker.unmask(Ext.getBody());
+                                    },
+                                    error: function() {
+                                        Aurora.Masker.unmask(Ext.getBody());
+                                    },
+                                    scope: this,
+                                    sync: true
+                                });
+                            } else {
+                                Aurora.Masker.unmask(Ext.getBody());
+                                Aurora.showMessage('提示', '请先上传保险相关附件');
+                            }
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        }
+                    });
+            
+            
+                });
+            
+            }
+            
+            function pay_claim_expense() {
+                Aurora.Masker.mask(Ext.getBody(), '正在提交');
+                var contract_id = $('con_item_info_ds').getSelected()[0].get('contract_id');
+                var records = $('ast_car_insurance_records_ds').getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '请选择一行数据');
+                    Aurora.Masker.unmask(Ext.getBody());
+                    return;
+                }
+                var document_status = records[0].get('document_status');
+                if (document_status != '10') {
+                    Aurora.showMessage('${l:PROMPT}', '单据状态必须为新建');
+                    Aurora.Masker.unmask(Ext.getBody());
+                    return;
+                }
+                var car_insurance_record_id = records[0].get('ast_car_insurance_records_id');
+                var due_amount = records[0].get('settle_claim_amount');
+                if (Aurora.isEmpty(car_insurance_record_id) || records[0].dirty == true) {
+                    Aurora.showMessage('${l:PROMPT}', '请先保存!');
+                    Aurora.Masker.unmask(Ext.getBody());
+                    return;
+                }
+                if (Aurora.isEmpty(due_amount)) {
+                    Aurora.showMessage('${l:PROMPT}', '请先维护出险金额!');
+                    Aurora.Masker.unmask(Ext.getBody());
+                    return;
+                }
+                Aurora.showConfirm('确认', '您确定支付理赔款？', function() {
+                    //必须上传保险附件
+                    Aurora.request({
+                        url: $('get_atm_id_exist').getUrl(),
+                        para: {
+                            table_name: 'AST_CAR_INSURANCE_RECORDS',
+                            table_pk_value: car_insurance_record_id
+            
+                        },
+                        success: function(res) {
+                            var count = res.result.record['atm_num'];
+                            if (count > 0) {
+                                Aurora.request({
+                                    url: $('ast503_pay_claim_expense').getUrl(),
+                                    para: {
+                                        contract_id: contract_id,
+                                        due_amount: due_amount,
+                                        car_insurance_record_id: car_insurance_record_id
+                                    },
+                                    success: function(res) {
+                                        $('ast_car_insurance_records_ds').query();
+                                        Aurora.Masker.unmask(Ext.getBody());
+                                    },
+                                    failure: function() {
+                                        Aurora.Masker.unmask(Ext.getBody());
+                                    },
+                                    error: function() {
+                                        Aurora.Masker.unmask(Ext.getBody());
+                                    },
+                                    scope: this,
+                                    sync: true
+                                });
+                            } else {
+                                Aurora.Masker.unmask(Ext.getBody());
+                                Aurora.showMessage('提示', '请先上传理赔相关附件');
+                            }
+                        }
+                    });
+            
+                });
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            
+            function reset() {
+                $('con_item_info_query_ds').reset();
+            }
+            
+            function query() {
+                $('con_item_info_ds').query();
+            }
+            
+            function save() {
+                /*if (g_item_detail_id == -1) {
+                 Aurora.showMessage('提示', '请先选择一个合同');
+                 return;
+                 }*/
+                // 维护发动机和车架号
+                //$('con_item_info_ds').submit();
+                Aurora.showConfirm('确认', '确定保存？', function() {
+                    $('ast_car_insurance_result_ds').setSubmitParameter('item_detail_id', $('con_item_info_ds').getSelected()[0].get('item_detail_id'));
+                    $('ast_car_insurance_result_ds').submit();
+                });
+            
+                //$('btn_ref_add').enable();
+                //$('btn_ref_del').enable();
+            
+                /*if ( !! $('ast_car_license_result_ds')) {
+                 $('ast_car_license_result_ds').setSubmitParameter('item_detail_id', g_item_detail_id);
+                 $('ast_car_license_result_ds').submit(); // 提交牌照信息
+                 }
+                 if ( !! $('ast_car_insurance_result_ds')) {
+                 // alert(1);
+                 // // 校验保险信息
+                 // var record = $('ast_car_insurance_result_ds').getCurrentRecord();
+                 // alert(record);
+                 // var in_val1 = record.get('compulsory_rebate_rate');
+                 // var in_val2 = record.get('combustion_rebate_rate');
+                 // if(in_val1<0||in_val>100){
+                 // record.set('compulsory_rebate','');
+                 // Aurora.showMessage('提示','返利率为百分制，只能输入0-100');
+                 // return ;
+                 // }else if(in_val2<0||in_val2>100){
+                 // record.set('combustion_rebate','');
+                 // Aurora.showMessage('提示','返利率为百分制，只能输入0-100');
+                 // return ;
+                 // }
+                 $('ast_car_insurance_result_ds').setSubmitParameter('item_detail_id', g_item_detail_id);
+                 $('ast_car_insurance_result_ds').submit(); // 提交保险信息
+                 }
+                 if ( !! $('ast_car_condition_result_ds')) {
+                 $('ast_car_condition_result_ds').setSubmitParameter('item_detail_id', g_item_detail_id);
+                 $('ast_car_condition_result_ds').submit(); // 提交保养信息
+                 }
+                 // GPS信息待定
+                 if ( !! $('ast_car_trailer_result_ds')) {
+                 $('ast_car_trailer_result_ds').setSubmitParameter('item_detail_id', g_item_detail_id);
+                 $('ast_car_trailer_result_ds').submit(); // 提交拖车信息
+                 }*/
+            }
+            
+            function attachment_upload() {
+                var header_id = g_item_detail_id;
+                var url = $('lease_item_uploadFile_id').getUrl() + '?table_name=CON_CONTRACT_ITEM_DETAIL&header_id=' + header_id;
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'item_detail_uploadFile_id',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {});
+            }
+            
+            function changeHandler(th, val, oldVal) {
+                if (th == $('brand_dis_id')) {
+                    $('con_item_info_query_ds').getCurrentRecord().set('series_dis', '');
+                    $('con_item_info_query_ds').getCurrentRecord().set('series_id', '');
+                    $('con_item_info_query_ds').getCurrentRecord().set('model_dis', '');
+                    $('con_item_info_query_ds').getCurrentRecord().set('model_id', '');
+                } else if (th == $('series_dis_id')) {
+                    $('con_item_info_query_ds').getCurrentRecord().set('model_dis', '');
+                    $('con_item_info_query_ds').getCurrentRecord().set('model_id', '');
+                }
+            }
+            
+            function updateHandler(ds, rec, name, val, oldVal) {
+                if (name == 'brand_id') {
+                    $('car_series_ds').setQueryParameter('brand_id', $('con_item_info_query_ds').getCurrentRecord().get('brand_id'));
+                    $('car_series_ds').query();
+                } else if (name == 'series_id') {
+                    $('car_model_ds').setQueryParameter('brand_id', $('con_item_info_query_ds').getCurrentRecord().get('brand_id'));
+                    $('car_model_ds').setQueryParameter('series_id', $('con_item_info_query_ds').getCurrentRecord().get('series_id'));
+                    $('car_model_ds').query();
+                }
+            }
+            
+            function enterdownHandler(felid, evt) {
+                $('con_item_info_ds').query();
+            }
+            
+            function indexChangeFunction(ds, record) {
+                $('ast_car_insurance_result_ds').setQueryParameter('item_detail_id', record.get('item_detail_id'));
+                $('ast_car_insurance_result_ds').query();
+            }
+            /*
+             function selectHandler(ds,rec){
+             if(rec != 'test'){
+             g_item_detail_id = rec.get('item_detail_id');// 保留全局
+             }
+             if(!!$('ast_car_license_result_ds')){
+             $('ast_car_license_result_ds').setQueryParameter('item_detail_id',g_item_detail_id);
+             $('ast_car_license_result_ds').query();
+             }
+             if(!!$('ast_car_insurance_result_ds')){
+             $('ast_car_insurance_result_ds').setQueryParameter('item_detail_id',g_item_detail_id);
+             $('ast_car_insurance_result_ds').query();
+             }
+             if(!!$('ast_car_condition_result_ds')){
+             $('ast_car_condition_result_ds').setQueryParameter('item_detail_id',g_item_detail_id);
+             $('ast_car_condition_result_ds').query();
+             }
+             //GPS待定
+             if(!!$('ast_car_trailer_result_ds')){
+             $('ast_car_trailer_result_ds').setQueryParameter('item_detail_id',g_item_detail_id);
+             $('ast_car_trailer_result_ds').query();
+             }
+             }
+             function tabSelectHandler(tabPabel,index,tab){
+             if(g_item_detail_id == -1){
+             return;
+             }
+             if(0 == index){// 车牌
+             //alert(g_item_detail_id);
+             $('ast_car_license_result_ds').setQueryParameter('item_detail_id',g_item_detail_id);
+             $('ast_car_license_result_ds').query();
+             }else if(1 == index){// 保险
+             $('ast_car_insurance_result_ds').setQueryParameter('item_detail_id',g_item_detail_id);
+             $('ast_car_insurance_result_ds').query();
+             }else if(2 == index){// 车况
+             $('ast_car_condition_result_ds').setQueryParameter('item_detail_id',g_item_detail_id);
+             $('ast_car_condition_result_ds').query();
+             }else if(3 == index){// gps
+             }else if(4 == index){// 拖车
+             $('ast_car_trailer_result_ds').setQueryParameter('item_detail_id',g_item_detail_id);
+             $('ast_car_trailer_result_ds').query();
+             }
+             }
+             function queryHandler(ds){
+             // 合同头信息查询为空时，置空全局
+             if(!!ds.getCurrentRecord()){
+             g_item_detail_id = -1;
+             selectHandler('','test');
+             }
+             }
+             */
+        ]]></script>
+        <a:dataSets>
+            <!-- <a:dataSet id="yes_no_ds" lookupCode="YES_NO"/> -->
+            <a:dataSet id="yes_no_ds" lookupCode="YES_NO"/>
+            <a:dataSet id="car_brands_ds" fetchAll="true" loadData="true" model="ast.AST501.hls_car_brands"/>
+            <a:dataSet id="car_series_ds" fetchAll="true" model="ast.AST501.hls_car_series"/>
+            <a:dataSet id="car_model_ds" fetchAll="true" model="ast.AST501.hls_car_model"/>
+            <a:dataSet id="con_item_info_query_ds">
+                <a:fields>
+                    <a:field name="project_number"/>
+                    <a:field name="license_number"/>
+                    <a:field name="gua_bp_name" autoComplete="true" lovGridHeight="350" lovHeight="500" lovLabelWidth="100" lovService="cont.CON555.hls_bp_master_all_v?bp_category=GUARANTOR" lovWidth="520" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_name" to="gua_bp_name"/>
+                            <a:map from="bp_id" to="bp_id_gua"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_id_gua"/>
+                    <a:field name="contract_number"/>
+                    <a:field name="item_frame_number"/>
+                    <a:field name="bp_name"/>
+                    <a:field name="brand_id"/>
+                    <a:field name="brand_dis" displayField="brand_dis" options="car_brands_ds" returnField="brand_id" valueField="brand_id"/>
+                    <a:field name="series_id"/>
+                    <a:field name="series_dis" displayField="series_dis" options="car_series_ds" returnField="series_id" valueField="series_id"/>
+                    <a:field name="model_id"/>
+                    <a:field name="model_dis" displayField="model_dis" options="car_model_ds" returnField="model_id" valueField="model_id"/>
+                    <a:field name="exist_flag"/>
+                    <a:field name="exist_flag_des" displayField="code_value_name" options="yes_no_ds" prompt="是否维护" returnField="exist_flag" valueField="code_value"/>
+                    <a:field name="company_authority" defaultValue="${/session/@company_id}"/>
+                    <a:field name="finish_flag"/>
+                    <a:field name="finish_flag_des" displayField="code_value_name" options="yes_no_ds" prompt="是否归档" returnField="finish_flag" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="updateHandler"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="con_item_info_ds" autoPageSize="true" autoQuery="true" model="ast.AST503.con_contract_item_v" queryDataSet="con_item_info_query_ds" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="contract_number"/>
+                    <a:field name="bp_name"/>
+                    <a:field name="brand_dis"/>
+                    <a:field name="series_dis"/>
+                    <a:field name="unit_id_n"/>
+                    <a:field name="model_dis"/>
+                    <a:field name="color_of_apprearance"/>
+                    <a:field name="color_of_decoration"/>
+                    <a:field name="item_frame_number"/>
+                    <a:field name="item_engine_number"/>
+                    <a:field name="license_number"/>
+                    <a:field name="accident_insurance_flag" checkedValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="damage_insurance_flag" checkedValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="damage_nopay_insurance_flag" checkedValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="rot_insurance_flag" checkedValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <!-- <a:field name="key_flag" checkedValue="Y" defaultValue="N" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="registration_flag" checkedValue="Y" defaultValue="N" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="purchase_flag" checkedValue="Y" defaultValue="N" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="insurance_flag" checkedValue="Y" defaultValue="N" readOnly="true" uncheckedValue="N"/> -->
+                    <!-- <a:field name="gps_install_flag"/>
+                    <a:field name="gps_install_flag_des" displayField="code_value_name" options="yes_no_ds" returnField="gps_install_flag" valueField="code_value"/> -->
+                </a:fields>
+                <a:events>
+                    <a:event name="indexchange" handler="indexChangeFunction"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form marginWidth="30">
+                <a:screenTopToolbar>
+                    <a:screenTitle/>
+                    <a:gridButton click="query" text="查询"/>
+                    <a:gridButton click="reset" text="重置"/>
+                    <a:gridButton click="save" text="保存"/>
+                    <a:gridButton click="renewal_application" text="续保申请"/>
+                    <a:gridButton click="pay_claim_expense" text="理赔款支付"/>
+                </a:screenTopToolbar>
+                <a:form column="4" marginWidth="30" title="HLS.QUERY_TITLE">
+                    <a:textField name="contract_number" bindTarget="con_item_info_query_ds" prompt="合同号">
+                        <a:events>
+                            <a:event name="enterdown" handler="enterdownHandler"/>
+                        </a:events>
+                    </a:textField>
+                    <!-- <a:textField name="license_number" bindTarget="con_item_info_query_ds" prompt="车牌号">
+                            <a:events>
+                                <a:event name="enterdown" handler="enterdownHandler"/>
+                            </a:events>
+                        </a:textField> -->
+                    <a:textField name="item_frame_number" bindTarget="con_item_info_query_ds" prompt="车架号">
+                        <a:events>
+                            <a:event name="enterdown" handler="enterdownHandler"/>
+                        </a:events>
+                    </a:textField>
+                    <a:textField name="bp_name" bindTarget="con_item_info_query_ds" prompt="承租人">
+                        <a:events>
+                            <a:event name="enterdown" handler="enterdownHandler"/>
+                        </a:events>
+                    </a:textField>
+                    <a:comboBox name="exist_flag_des" bindTarget="con_item_info_query_ds" prompt="是否已维护">
+                        <a:events>
+                            <a:event name="enterdown" handler="enterdownHandler"/>
+                        </a:events>
+                    </a:comboBox>
+                    <a:comboBox name="brand_dis" id="brand_dis_id" bindTarget="con_item_info_query_ds" prompt="品牌">
+                        <a:events>
+                            <a:event name="change" handler="changeHandler"/>
+                            <a:event name="enterdown" handler="enterdownHandler"/>
+                        </a:events>
+                    </a:comboBox>
+                    <a:comboBox name="series_dis" id="series_dis_id" bindTarget="con_item_info_query_ds" prompt="车系">
+                        <a:events>
+                            <a:event name="change" handler="changeHandler"/>
+                            <a:event name="enterdown" handler="enterdownHandler"/>
+                        </a:events>
+                    </a:comboBox>
+                    <a:comboBox name="model_dis" bindTarget="con_item_info_query_ds" prompt=" 车型">
+                        <a:events>
+                            <a:event name="enterdown" handler="enterdownHandler"/>
+                        </a:events>
+                    </a:comboBox>
+                    <a:lov name="gua_bp_name" bindTarget="con_item_info_query_ds" prompt="担保人">
+                        <a:events>
+                            <a:event name="enterdown" handler="enterdownHandler"/>
+                        </a:events>
+                    </a:lov>
+                    <a:textField name="license_number" bindTarget="con_item_info_query_ds" prompt="车牌号">
+                        <a:events>
+                            <a:event name="enterdown" handler="enterdownHandler"/>
+                        </a:events>
+                    </a:textField>
+                    <a:comboBox name="finish_flag_des" bindTarget="con_item_info_query_ds" prompt="是否归档">
+                        <a:events>
+                            <a:event name="enterdown" handler="enterdownHandler"/>
+                        </a:events>
+                    </a:comboBox>
+                </a:form>
+                <a:grid bindTarget="con_item_info_ds" height="125" marginWidth="30" navBar="true">
+                    <a:columns>
+                        <a:column name="contract_number" prompt="合同号" width="120"/>
+                        <a:column name="project_number" prompt="申请号" width="120"/>
+                        <a:column name="bp_name" prompt="承租人" width="120"/>
+                        <a:column name="unit_id_n" prompt="4S店" width="150"/>
+                        <a:column name="brand_dis" prompt="品牌" width="140"/>
+                        <a:column name="series_dis" prompt="车系" width="140"/>
+                        <a:column name="model_dis" prompt="车型" width="180"/>
+                        <a:column name="color_of_apprearance" prompt="外观颜色" width="60"/>
+                        <!-- <a:column name="color_of_decoration" prompt="内饰颜色" width="60"/> -->
+                        <!-- <a:column name="license_number" prompt="车牌号" width="80"/> -->
+                        <a:column name="item_frame_number" prompt="车架号" width="180"/>
+                        <a:column name="item_engine_number" prompt="发动机号" width="150"/>
+                        <a:column name="license_number" prompt="车牌号" width="120"/>
+                        <a:column name="third_party_insurance_desc" prompt="第三责任险"/>
+                        <a:column name="accident_insurance_flag" editor="item_info_cb" prompt="交强险"/>
+                        <a:column name="damage_insurance_flag" editor="item_info_cb" prompt="车损险"/>
+                        <a:column name="damage_nopay_insurance_flag" editor="item_info_cb" prompt="车损不计免赔险"/>
+                        <a:column name="rot_insurance_flag" editor="item_info_cb" prompt="盗抢险"/>
+                        <!-- <a:column name="gps_install_flag_des" align="center" editor="item_info_cob" prompt="是否安装GPS" width="120"/> -->
+                        <!-- <a:column name="key_flag" editor="item_info_cb" prompt="钥匙" width="55"/>
+                        <a:column name="registration_flag" editor="item_info_cb" prompt="登记证" width="55"/>
+                        <a:column name="purchase_flag" editor="item_info_cb" prompt="购置税证" width="55"/>
+                        <a:column name="insurance_flag" editor="item_info_cb" prompt="保单" width="55"/> -->
+                    </a:columns>
+                    <a:editors>
+                        <a:textField id="item_info_tf"/>
+                        <a:checkBox id="item_info_cb"/>
+                    </a:editors>
+                </a:grid>
+                <a:screen-include screen="modules/ast/AST503/ast_car_insurance.screen"/>
+                <!--<a:tabPanel height="450" width="1100">
+                    <a:tabs>
+                        <a:tab prompt="牌照信息" ref="${/request/@context_path}/modules/ast/AST501/ast_car_license.screen" width="100"/>
+                        <a:tab prompt="保险信息" ref="${/request/@context_path}/modules/ast/AST501/ast_car_insurance.screen" width="100"/>
+                        <a:tab prompt="车况信息" ref="${/request/@context_path}/modules/ast/AST501/ast_car_condition.screen" width="100"/>
+                        <a:tab prompt="GPS信息" width="100"/>
+                        <a:tab prompt="拖车记录" ref="${/request/@context_path}/modules/ast/AST501/ast_car_trailer.screen" width="100"/>
+                    </a:tabs>-->
+                <!--<a:events>
+                        <a:event name="select" handler="tabSelectHandler"/>
+                    </a:events>-->
+                <!--</a:tabPanel>-->
+            </a:form>
+        </a:screenBody>
+    </a:view>
+</a:screen>

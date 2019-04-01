@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:ns1="aurora.application.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <s:server-script import="app/app_login_check.js"><![CDATA[
+            importPackage(Packages.aurora.plugin.util);
+            importPackage(java.io);
+            
+            function fileToBase64(file_path) {
+                var base64Str;
+                try {
+                    var fis = new FileInputStream(file_path);
+                    var out = new ByteArrayOutputStream();
+                    var buffer = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                    var len = -1;
+                    while ((len = fis.read(buffer)) != -1) {
+                        out.write(buffer, 0, len);
+                    }
+                    var base64 = new Packages.aurora.plugin.util.Base64(0, null, true);
+                    base64Str = base64.encodeBase64String(out.toByteArray());
+                    fis.close();
+                    out.close();
+                    return base64Str;
+                } catch (e) {
+                    if (fis != null) {
+                        fis.close();
+                    }
+                    if (out != null) {
+                        out.close();
+                    }
+                    return "ERROR" + String(e);
+                }
+            }
+            
+            function lov_query() {
+                var lov_list_details;
+                try {
+                    var lov_list_bm = $bm('app.lov.app_prj_cdd_atm');
+                    var lov_list_map = lov_list_bm.queryAsMap({
+                        check_id: $ctx.parameter.check_id
+                    });
+                    lov_list_details = lov_list_map.getChildren();
+                    $ctx.parameter.return_status = 'S';
+                    $ctx.parameter.return_message = '执行成功';
+                } catch (e) {
+                    $ctx.parameter.return_status = 'E';
+                    $ctx.parameter.return_message = String(e);
+                }
+            
+                var result = {
+                    result: $ctx.parameter.return_status,
+                    message: $ctx.parameter.return_message,
+                    cdd_atm_list: []
+                };
+                var cdd_atm_list = result.cdd_atm_list;
+                if (lov_list_details) {
+                    for (var i = 0;i < lov_list_details.length;i++) {
+                        var lov_list_detail = lov_list_details[i];
+                        var dataBase64String = fileToBase64(lov_list_detail.file_path);
+                        if (dataBase64String.indexOf('ERROR') != -1) {
+                            cdd_atm_list = null;
+                            result.result = 'E';
+                            result.message = dataBase64String;
+                            break;
+                        }
+                        cdd_atm_list.push({
+                            "file_name": lov_list_detail.file_name,
+                            "file_size": lov_list_detail.file_size,
+                            "attachment_id": lov_list_detail.attachment_id,
+                            "dataBase64String": String(dataBase64String)
+                        });
+                    }
+                }
+            
+                $ctx.parameter.json = JSON.stringify(result);
+            }
+            
+            if ($ctx.parameter.return_status != 'E' && $ctx.parameter.return_status != 'TIMEOUT') {
+                lov_query();
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:service-output output="/parameter/@json"/>
+</a:service>

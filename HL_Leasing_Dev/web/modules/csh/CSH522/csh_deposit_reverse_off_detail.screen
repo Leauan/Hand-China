@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-6-3 上午10:39:00  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootPath="default_value"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="csh522_write_off_reverse_link_id" model="csh.CSH522.csh_deposit_write_off_reverse" modelaction="update"/>
+        <a:link id="get_period_name_link" model="csh.CSH511.csh_transaction_get_period_name" modelaction="query"/>
+        <script><![CDATA[
+            var body = $('${/parameter/@winId}').wrap;
+            
+            function csh522_write_off_reverse() {
+                Aurora.Masker.mask(body, '${l:HLS.REVERSE_ING}');
+                if ($('csh_depositt_write_off_reverse_detail_head_ds').validate()) {
+                    // var head_record = $('csh_transaction_receipt_write_off_reverse_detail_head_ds').getAt(0);
+                    // var records = $('csh_transaction_receipt_write_off_reverse_detail_result_ds').getSelected();
+                    // if (!records.length) {
+                        // Aurora.showMessage('${l:PROMPT}', '${l:CSH514.SELECT_REVERSE_RECORD}');
+                        // Aurora.Masker.unmask(body);
+                        // return;
+                    // }
+                    // var saveData = [];
+                    // for (var i = 0;i < records.length;i++) {
+                        // records[i].set('reversed_date', head_record.get('reversed_date'));
+                        // records[i].set('description', head_record.get('description'));
+                        // records[i].set('_status', 'update');
+                        // saveData.push(records[i].data);
+                    // }
+                    var transaction_id=${/parameter/@transaction_id};
+                    var contract_id = ${/parameter/@contract_id};
+                    var cashflow_id=${/parameter/@cashflow_id};
+                    var reversed_date = $('csh_depositt_write_off_reverse_detail_head_ds').getAt(0).get('reversed_date');
+                    var description = $('csh_depositt_write_off_reverse_detail_head_ds').getAt(0).get('description');
+                    Aurora.showConfirm('${l:PROMPT}', '${l:CSH514.REVERSE_SURE}', function() {
+                        Aurora.request({
+                            url: $('csh522_write_off_reverse_link_id').getUrl(),
+                            para: {
+                                'contract_id' : contract_id,
+                                'transaction_id' : transaction_id,
+                                'cashflow_id'    : cashflow_id,
+                                'reversed_date'  : reversed_date,
+                                'description'    : description
+                            },
+                            success: function() {
+                                Aurora.SideBar.show({
+                                    msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                    duration: 2000
+                                });
+                                Aurora.Masker.unmask(body);
+                                csh522_write_off_reverse_return();
+                            },
+                            failure: function() {
+                                Aurora.Masker.unmask(body);
+                            },
+                            error: function() {
+                                Aurora.Masker.unmask(body);
+                            },
+                            scope: this
+                        });
+                    }, function() {
+                        Aurora.Masker.unmask(body);
+                        return;
+                    }, null, null);
+                } else {
+                    Aurora.Masker.unmask(body);
+                }
+            }
+            
+            function csh522_write_off_reverse_return() {
+                $('${/parameter/@winId}').close();
+            }
+            
+            function on_write_off_reverse_detail_update(ds, record, name, value, oldvalue) {
+                if (name == 'reversed_date') {
+                    if (Ext.isEmpty(value)) {
+                        record.set('reversed_period_name', '');
+                    } else {
+                        showPeriod(record);
+                    }
+                }
+            }
+            
+            function showPeriod(record) {
+                var r_date = record.get('reversed_date');
+                r_date = Aurora.formatDate(r_date);
+                Aurora.request({
+                    url: $('get_period_name_link').getUrl(),
+                    para: {
+                        p_date: r_date
+                    },
+                    success: periodname,
+                    scope: this
+                });
+            }
+            
+            function periodname(res) {
+                if (res) {
+                    var period_name = res.result.record.period_name,
+                        head_record = $('csh_depositt_write_off_reverse_detail_head_ds').getAt(0);
+                    if (period_name) {
+                        head_record.set('reversed_period_name', period_name);
+                    } else {
+                        head_record.set('reversed_period_name', '');
+                        head_record.set('reversed_date', '');
+                        Aurora.showMessage('${l:PROMPT}', '${l:CSH510.REVERSE_PERIOD_NOT_OPEN}');
+                        return;
+                    }
+                }
+            }
+            
+            function on_write_off_reverse_detail_add(ds, record, index) {
+                if (Ext.isEmpty(record.get('reversed_period_name'))) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:CSH510.REVERSE_PERIOD_NOT_OPEN}');
+                    record.set('reversed_period_name', '');
+                    record.set('reversed_date', '');
+                    return;
+                }
+            }
+            
+            function csh522_formatDate(v) {
+                if (v) {
+                    return v.parseDate('yyyy-mm-dd hh24:mi:ss').format('yyyy-mm-dd');
+                } else {
+                    return '';
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="csh_depositt_write_off_reverse_detail_head_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="reversed_date" defaultValue="${/model/default_value/record/@now_time}" required="true"/>
+                    <a:field name="reversed_period_name" defaultValue="${/model/default_value/record/@now_period_name}" readOnly="true" required="true"/>
+                    <a:field name="description" defaultValue="${l:HLS.REVERSE}"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_write_off_reverse_detail_update"/>
+                    <a:event name="add" handler="on_write_off_reverse_detail_add"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="csh_transaction_receipt_write_off_reverse_detail_result_ds" autoCreate="true" autoQuery="true" model="csh.CSH522.csh_write_off" pageSize="15" queryUrl="${/request/@context_path}/autocrud/csh.CSH522.csh_write_off/query?csh_transaction_id=${/parameter/@transaction_id}">
+                <a:fields><![CDATA[
+   
+            	]]></a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="csh522_write_off_reverse_return" text="HLS.RETURN"/>
+                <a:gridButton click="csh522_write_off_reverse" text="HLS.REVERSE"/>
+            </a:screenTopToolbar>
+            <a:form column="3" title="CSH514.CSH_WRITE_OFF_DETAIL">
+                <a:datePicker name="reversed_date" bindTarget="csh_depositt_write_off_reverse_detail_head_ds" prompt="HLS.REVERSE_DATE"/>
+                <a:textField name="reversed_period_name" bindTarget="csh_depositt_write_off_reverse_detail_head_ds" prompt="HLS.REVERSE_PERIOD"/>
+                <a:textField name="description" bindTarget="csh_depositt_write_off_reverse_detail_head_ds" prompt="HLS.NOTE" width="300"/>
+            </a:form>
+            <a:grid id="csh_transaction_receipt_write_off_reverse_detail_grid_ds" bindTarget="csh_transaction_receipt_write_off_reverse_detail_result_ds" marginHeight="170" marginWidth="50" navBar="true">
+                <a:columns>
+                    <a:column name="times" align="center" prompt="期数" width="60"/>
+                    <a:column name="write_off_date" renderer="Aurora.formatDate"/>
+                    <a:column name="cf_type_name" align="center" prompt="CSH513.CF_TYPE"/>
+                    <a:column name="write_off_due_amount" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="write_off_principal" align="right" renderer="Aurora.formatMoney"/>
+                    <a:column name="write_off_interest" align="right" renderer="Aurora.formatMoney"/>
+                    <!-- <a:column name="write_off_penalty" prompt="CSH513.WRITE_OFF_PENALTY"  renderer="Aurora.formatMoney"/> -->
+                    <a:column name="due_date" prompt="CSH513.DUE_DATE" renderer="csh522_formatDate"/>
+                    <a:column name="contract_number" prompt="HLS.CONTRACT_NUMBER" width="120"/>
+                    <!--<a:column name="project_name" prompt="PRJ501.PRJ_PROJECT.PROJECT_NAME"/>-->
+                    <a:column name="bp_name" prompt="CSH513.BP_TENANT" width="150"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

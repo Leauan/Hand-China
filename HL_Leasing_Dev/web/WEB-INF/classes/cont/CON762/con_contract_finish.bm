@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: jack  
+    $Date: 2014-11-18 下午3:19:40  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+                DECLARE
+                    v_project_id NUMBER;
+                    v_credit_used number;
+                BEGIN
+                    SELECT
+                        t.project_id
+                    INTO
+                        v_project_id
+                    FROM
+                        con_contract t
+                    WHERE
+                        t.contract_id=${@contract_id};
+                    UPDATE
+                        con_contract a
+                    SET
+                        a.contract_status  = 'TERMINATE',
+                        a.last_update_date = SYSDATE,
+                        a.last_updated_by  = ${/session/@usr_id}
+                    WHERE
+                        a.contract_id = ${@contract_id};
+                    select t.hd_user_col_n03
+      into v_credit_used
+      from hls_fin_calculator_hd t, prj_quotation pq
+     where pq.calc_session_id = t.calc_session_id
+       and pq.document_id = v_project_id;
+                    FOR v_record     IN
+                    (SELECT
+                        t.*
+                    FROM
+                        prj_project_bp t
+                    WHERE
+                        t.project_id   = v_project_id AND
+                        t.bp_category IN ('TENANT', 'GUARANTOR')
+                    )
+                    LOOP
+                        hls_bp_credit_pkg.credit_release(p_bp_id => v_record.bp_id, p_credit_date =>sysdate, p_credit_amount =>v_credit_used , p_source_type =>'PROJECT_CLOSE', p_source_id => v_project_id, p_user_id => ${/session/@user_id});
+                    END LOOP;
+                END;
+            ]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-9-24 下午3:37:18  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[select rownum rnum ,tot.* from (select ${@fin_statement_templet_id} fin_statement_templet_id,${@bp_id} bp_id,t3.item_desc,t1.*, t2.first_year_forecast_amount,t2.second_year_forecast_amount,t2.third_year_forecast_amount,t3.is_input
+  from ( select  t3.fin_statement_item ,t1.first_year_amount ,t2.second_year_amount,t3.third_year_amount
+  from (select fin_statement_item, amount as first_year_amount
+          from rsc_fin_statement_prj_lns
+         where fin_statement_id = ${@first_fin_statement_id}
+           and fin_statement_type = 'CASHFLOW_FORECAST') t1,
+       (select fin_statement_item, amount as second_year_amount
+          from rsc_fin_statement_prj_lns
+         where fin_statement_id = ${@second_fin_statement_id}
+           and fin_statement_type = 'CASHFLOW_FORECAST') t2,
+       (select fin_statement_item, amount as third_year_amount
+          from rsc_fin_statement_prj_lns
+         where fin_statement_id = ${@third_fin_statement_id}
+           and fin_statement_type = 'CASHFLOW_FORECAST') t3
+ where t2.fin_statement_item (+) = t3.fin_statement_item
+   and t1.fin_statement_item(+) = t3.fin_statement_item) t1,
+       (select line_number,
+               fin_statement_item,
+               --fin_statement_type,
+               item_type,
+               max(decode(rvl, 1, amount)) as third_year_forecast_amount,
+               max(decode(rvl, 1, fin_statement_id)) third_fin_statement_id,
+               max(decode(rvl, 2, amount)) as second_year_forecast_amount,
+               max(decode(rvl, 2, fin_statement_id)) second_fin_statement_id,
+               max(decode(rvl, 3, amount)) as first_year_forecast_amount,
+               max(decode(rvl, 3, fin_statement_id)) first_fin_statement_id
+          from (select fin_statement_id,
+                       fin_statement_item,
+                       line_number,
+                       amount,
+                       proportion,
+                       fiscal_year,
+                       fiscal_month,
+                       fin_statement_type,
+                       item_type,
+                       rank() over(partition by fin_statement_item order by fiscal_year desc) as rvl
+                  from rsc_fin_statement_prj_lns_v
+                 where fin_statement_templet_id = ${@fin_statement_templet_id}
+                   and bp_id = ${@bp_id}
+                   and fiscal_month = 12
+                   and fin_statement_type = 'CASHFLOW_FORECAST'
+                   and forecast_flag = 'Y') v2
+         group by fin_statement_item, line_number, item_type) t2, rsc_fin_statement_tmplt_lns t3
+ where t1.fin_statement_item = t2.fin_statement_item(+)
+ and t1.fin_statement_item =t3.fin_statement_item
+ and t3.fin_statement_type = 'CASHFLOW_FORECAST' 
+ and t3.is_show= 'Y'
+ and t3.fin_statement_templet_id = ${@fin_statement_templet_id}
+  order by  t3.line_number) tot ]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+        		begin
+        		
+				  rsc_fin_statement_prj_pkg.upd_fin_statement_cashflow_fc( p_fin_statement_templet_id=>${@fin_statement_templet_id},
+              p_bp_id=>${@bp_id},
+              p_user_id=>${/session/@user_id},
+              p_company_id =>${/session/@company_id},
+              p_fin_statement_item=>${@fin_statement_item},
+              p_first_year_amount=>${@first_year_amount},
+              p_second_year_amount=>${@second_year_amount},
+              p_third_year_amount=>${@third_year_amount},
+              p_first_year_forecast_amount=>${@first_year_forecast_amount},
+              p_second_year_forecast_amount=>${@second_year_forecast_amount},
+              p_third_year_forecast_amount=>${@third_year_forecast_amount},
+              p_last_three_year_avg_amount=>${@last_three_year_avg_amount},
+              p_last_three_year_max_amount=>${@last_three_year_max_amount},
+              p_last_three_year_min_amount=>${@last_three_year_min_amount});
+
+				end;
+        	]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

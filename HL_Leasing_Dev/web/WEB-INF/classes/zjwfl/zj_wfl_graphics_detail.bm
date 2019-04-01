@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:o="aurora.database.local.oracle" xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" baseTable="ZJ_WFL_GRAPHICS_DETAIL">
+    <bm:fields>
+        <bm:field name="detail_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="graphic_id" databaseType="NUMBER" datatype="java.lang.Long" insertExpression="${../../@graphic_id}"/>
+        <bm:field name="config" databaseType="VARCHAR" datatype="java.lang.String"/>
+        <bm:field name="type" databaseType="VARCHAR" datatype="java.lang.String"/>
+        <bm:field name="table_name" databaseType="VARCHAR" datatype="java.lang.String"/>
+        <bm:field name="table_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="node_desc" forInsert="false" forUpdate="false"/>
+        <bm:field name="node_type" forInsert="false" forUpdate="false"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            SELECT t1.detail_id,
+			       t1.graphic_id,
+			       t1.config,
+			       t1.type,
+			       t1.table_name,
+			       (select n.node_desc
+			          from zj_wfl_workflow_node n
+               		 where n.node_id = t1.table_id) as node_desc,
+			       (select n.node_type
+			          from zj_wfl_workflow_node n
+               		 where n.node_id = t1.table_id) as node_type,
+			       t1.table_id
+			  FROM zj_wfl_graphics_detail t1
+			 where exists (select 1
+				            from zj_wfl_graphics g
+				           where g.workflow_id = ${@workflow_id}
+				             and g.graphic_id = t1.graphic_id)
+		   union all
+            SELECT NULL AS detail_id,
+			       NULL AS graphic_id,
+			       NULL AS config,
+			       decode(n.node_type,
+			              'SUB_PROCESS',
+			              'oval',
+			              'BRANCH_NODE',
+			              'diamond',
+			              'rect') as type,
+			       null as table_name,
+			       n.node_desc,
+			       n.node_type,
+			       n.node_id as table_id
+			  from zj_wfl_workflow_node n
+			 where n.workflow_id = ${@workflow_id}
+			   and not exists (select 1
+			          from zj_wfl_graphics_detail d, zj_wfl_graphics g
+			         where g.workflow_id = n.workflow_id
+			           and d.graphic_id = g.graphic_id
+			           and d.table_id = n.node_id)
+            ]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="insert">
+            <bm:parameters>
+                <bm:parameter name="detail_id" input="false" output="true" outputPath="@detail_id"/>
+                <bm:parameter name="graphic_id" input="false" output="true" outputPath="@graphic_id"/>
+            </bm:parameters>
+            <bm:update-sql><![CDATA[
+            begin
+               ${@graphic_id}:=${../../@graphic_id};
+			   zj_wfl_graphics_pkg.graphics_detail_update(p_detail_id  => ${@detail_id},
+											              p_graphic_id => ${../../@graphic_id},
+											              p_config     => ${@config},
+											              p_type       => ${@type},
+											              p_table_name => ${@table_name},
+											              p_table_id   => ${@table_id},
+											              p_user_id	   => ${/session/@user_id});
+
+        	end;
+        	]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+            begin
+			   zj_wfl_graphics_pkg.graphics_detail_update(p_detail_id  => ${@detail_id},
+											              p_graphic_id => ${../../@graphic_id},
+											              p_config     => ${@config},
+											              p_type       => ${@type},
+											              p_table_name => ${@table_name},
+											              p_table_id   => ${@table_id},
+											              p_user_id	   => ${/session/@user_id});
+
+        	end;
+        	]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="execute">
+            <bm:update-sql><![CDATA[
+            begin
+               zj_wfl_graphics_pkg.graphics_reset(p_workflow_id => ${/parameter/@workflow_id},
+               									  p_user_id	    => ${/session/@user_id});
+                
+        	end;
+        	]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:primary-key>
+        <bm:pk-field name="detail_id"/>
+    </bm:primary-key>
+    <bm:features>
+        <o:sequence-pk/>
+    </bm:features>
+</bm:model>

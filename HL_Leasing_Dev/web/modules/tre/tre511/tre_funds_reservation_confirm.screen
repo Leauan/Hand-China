@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	&author:DJ
+	$date:2013/05/08
+	$purpose:资金预约确认
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="v.code=&apos;RESERVATION_CONFIRM_STATUS&apos; and v.code_value=&apos;UNCONFIRMED&apos; " model="basic.sys_code_default_value" rootPath="default_reserve_confirm_status"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="prj_project_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="prj_project_update_link_id" url="${/request/@context_path}/modules/prj/PRJ500/prj_project_create_tree.screen"/>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <script><![CDATA[
+            function tre511_confirmDs_grid_query() {
+                $('tre511_confirmDs').query();
+            }
+            
+            function render_tre511_confirmDs_grid(value, record, name) {
+                if (name == 'paid_probability') {
+                    return mul(value, 100) + '%';
+                }
+            }
+            
+            function tre511_reserveDs_grid_save() {
+                var ds = $('tre511_confirmDs');
+                var records = ds.getSelected();
+            
+                if (records.length > 0) {
+                    ds.submitSelected();
+                } else {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请勾选需要确认的预约');
+                }
+            
+            }
+            
+            function onSubmitSuccess_tre511_confirmDs(ds, res) {
+                tre511_confirmDs_grid_query();
+            }
+            
+            function project_query_win(reocrd_id) {
+                var maintain_type = 'READONLY';
+                var record = $('tre511_confirmDs').findById(reocrd_id);
+                var param = record.data;
+                param['function_code'] = 'PRJ502';
+                param['document_id'] = record.get('project_id');
+                param['function_usage'] = 'QUERY';
+                param['maintain_type'] = maintain_type;
+                param['url_title'] = '${l:HLS.PROJECT_MAITAIN}';
+                hls_doc_get_layout_code('prj_project_get_layout_code_link_id', param, 'prj_project_update_link_id', '');
+            }
+            
+            function project_number_renderer(value, record, name) {
+                return '<a href="javascript:project_query_win(' + record.id + ');">' + value + '</a>';
+            }
+        ]]></script>
+        <a:screen-include screen="modules/prj/PRJ500/prj_project_get_layout_code.screen"/>
+        <a:dataSets>
+            <a:dataSet id="tre511_unitManagerDs" loadData="true" model="basic.exp_org_unit_manager_lov"/>
+            <a:dataSet id="tre511_projectStatusDs" lookupCode="PRJ501_PRJ_STATUS"/>
+            <a:dataSet id="tre511_orgDs" loadData="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="tre511_channelDs" loadData="true" model="basic.hls_lease_channel_for_lov"/>
+            <a:dataSet id="tre511_divisionDs" loadData="true" model="basic.hls_division_for_lov"/>
+            <a:dataSet id="tre511_reserveConfirmStatusDs" lookupCode="RESERVATION_CONFIRM_STATUS"/>
+            <a:dataSet id="tre511_para_confirmDs" autoCreate="true" model="tre.tre511.tre_funds_reservation_confirm">
+                <a:fields>
+                    <a:field name="bp_code" autoComplete="true" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov?bp_category=TENANT" lovWidth="500" prompt="HLS.TENANT_CODE" title="HLS.TENANT_CODE">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_id" to="bp_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="project_number"/>
+                    <a:field name="employee_id"/>
+                    <a:field name="employee_name" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="basic.hls_salesman_v_for_lov" lovWidth="500" prompt="HLS.SALES_EMPLOYEE" title="PRJ501.PRJ_PROJECT.EMPLOYEE_NAME">
+                        <a:mapping>
+                            <a:map from="employee_id" to="employee_id"/>
+                            <a:map from="name" to="employee_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="lease_organization_n" displayField="description" options="tre511_orgDs" prompt="HLS.LEASE_ORGANIZATION" returnField="lease_organization" valueField="lease_organization"/>
+                    <a:field name="lease_channel_n" displayField="description" options="tre511_channelDs" prompt="HLS.LEASE_CHANNEL_NAME" returnField="lease_channel" valueField="lease_channel"/>
+                    <a:field name="division_n" displayField="description" options="tre511_divisionDs" prompt="HLS.DIVISION_NAME" returnField="division" valueField="division"/>
+                    <a:field name="employee_id_of_manager_n" displayField="mgr_employee_name" options="tre511_unitManagerDs" prompt="HLS.EMPLOYEE_OF_MANAGER" returnField="employee_id_of_manager" valueField="mgr_employee_id"/>
+                    <a:field name="project_status"/>
+                    <a:field name="project_status_desc" displayField="code_value_name" options="tre511_projectStatusDs" returnField="project_status" valueField="code_value"/>
+                    <a:field name="confirm_status" defaultValue="${/model/default_reserve_confirm_status/record/@code_value}"/>
+                    <a:field name="confirm_status_desc" defaultValue="${/model/default_reserve_confirm_status/record/@code_value_name}" displayField="code_value_name" options="tre511_reserveConfirmStatusDs" returnField="confirm_status" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="tre511_confirmDs" autoQuery="true" model="tre.tre511.tre_funds_reservation_confirm" queryDataSet="tre511_para_confirmDs" selectable="true">
+                <a:fields>
+                    <a:field name="paid_date_fin" required="true"/>
+                    <a:field name="description_fin"/>
+                    <a:field name="rent_bank_account_code" lovGridHeight="350" lovHeight="510" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" required="true" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_id" to="rent_bank_account"/>
+                            <a:map from="bank_account_num" to="rent_bank_account_code"/>
+                            <a:map from="currency_code" to="currency"/>
+                            <a:map from="currency_name" to="currency_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="rent_bank_account"/>
+                    <a:field name="deposit_bank_account_code" lovGridHeight="350" lovHeight="510" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" required="true" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_id" to="deposit_bank_account"/>
+                            <a:map from="bank_account_num" to="deposit_bank_account_code"/>
+                            <a:map from="currency_code" to="currency"/>
+                            <a:map from="currency_name" to="currency_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="deposit_bank_account"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="onSubmitSuccess_tre511_confirmDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="tre511_confirmDs_grid_query" text="HLS.QUERY"/>
+                <a:gridButton click="tre511_reserveDs_grid_save" text="确认选中预约"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelSeparator=" " labelWidth="100" marginWidth="30" title="HLS.QUERY_TITLE">
+                <a:textField name="project_number" bindTarget="tre511_para_confirmDs"/>
+                <a:textField name="project_name" bindTarget="tre511_para_confirmDs"/>
+                <a:lov name="employee_name" bindTarget="tre511_para_confirmDs"/>
+                <a:comboBox name="employee_id_of_manager_n" bindTarget="tre511_para_confirmDs"/>
+                <a:lov name="bp_code" bindTarget="tre511_para_confirmDs"/>
+                <a:textField name="bp_name" bindTarget="tre511_para_confirmDs"/>
+                <a:comboBox name="lease_organization_n" bindTarget="tre511_para_confirmDs"/>
+                <a:comboBox name="division_n" bindTarget="tre511_para_confirmDs"/>
+                <a:comboBox name="project_status_desc" bindTarget="tre511_para_confirmDs"/>
+                <a:comboBox name="confirm_status_desc" bindTarget="tre511_para_confirmDs"/>
+                <a:comboBox name="lease_channel_n" bindTarget="tre511_para_confirmDs"/>
+            </a:form>
+            <a:grid id="tre511_confirmDs_grid" bindTarget="tre511_confirmDs" marginHeight="250" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="apply_date" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="project_number" renderer="project_number_renderer" width="120"/>
+                    <a:column name="project_name" showTitle="true" width="150"/>
+                    <a:column name="bp_name" showTitle="true" width="150"/>
+                    <a:column name="project_status_desc" width="100"/>
+                    <a:column name="reserve_amount" align="right" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="paid_date" renderer="Aurora.formatDate" width="80"/>
+                    <!-- <a:column name="paid_probability" align="right" renderer="render_tre511_confirmDs_grid" width="60"/> -->
+                    <a:column name="description" showTitle="true" width="150"/>
+                    <a:column name="paid_date_fin" editor="tre511_confirmDs_grid_dp" renderer="Aurora.formatDate"/>
+                    <a:column name="rent_bank_account_code" editor="tre511_confirmDs_grid_lov" prompt="租金收款账户" width="150"/>
+                    <a:column name="deposit_bank_account_code" editor="tre511_confirmDs_grid_lov" prompt="保证金收款账户" width="150"/>
+                    <a:column name="description_fin" editor="tre511_confirmDs_grid_tf" prompt="备注" width="150"/>
+                </a:columns>
+                <a:editors>
+                    <a:datePicker id="tre511_confirmDs_grid_dp"/>
+                    <a:textField id="tre511_confirmDs_grid_tf"/>
+                    <a:lov id="tre511_confirmDs_grid_lov"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

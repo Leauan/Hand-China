@@ -1,0 +1,407 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-7-23 下午04:30:35  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:view>
+        <a:link id="${/parameter/@layout_code}_${/parameter/@tab_code}_con_print_link_id" url="${/request/@context_path}/modules/cont/CON500/con_contract_update_print_word.screen"/>
+        <script><![CDATA[
+            var global_button_code = '';
+            var global_save_data_first = '';
+            var global_javascript = '';
+            var global_action_after_button = '';
+            var global_root_ds = '';
+            
+            function get_config_column_name(name) {
+                var query_name, length = name.length;
+                if (name.substring(length - 2, length) == '_n') {
+                    query_name = name.substring(0, length - 2);
+                } else {
+                    query_name = name;
+                }
+                return query_name;
+            }
+            window['${/parameter/@tab_code}_on_con_doc_update'] = function(ds, record, name, value, old_value) {
+                window['${/parameter/@tab_code}_on_con_update_clear_lovpara'](ds, record, name, value, old_value);
+                set_special_field_tooltip(record);
+            };
+            
+            function get_lov_cascade(value) {
+                if (Ext.isEmpty(value)) {
+                    return '';
+                } else {
+                    return value;
+                }
+            }
+            
+            function setObjectPara(object, ds, field, para, record) {
+                if (para) {
+                    if (object == 'LOV') {
+                        field.setLovPara(para, get_lov_cascade(record.get(para)));
+                    } else if (object == 'COMBOBOX') {
+                        ds.setQueryParameter(para, get_lov_cascade(record.get(para)));
+                    }
+                }
+            }
+            
+            function set_clear_lovpara_empty(name, lov_cascade_para, record, config_record) {
+                var validation_type = config_record.get('validation_type'),
+                    column_name = config_record.get('column_name');
+                if (name == lov_cascade_para) {
+                    record.set(column_name, '');
+                    if (validation_type == 'LOV' || validation_type == 'LOV_C' || validation_type == 'TREE' || validation_type == 'TREE_C' || validation_type == 'COMBOBOX' || validation_type == 'COMBOBOX_C') {
+                        record.set(column_name + '_n', '');
+                    }
+                }
+            }
+            
+            window['${/parameter/@tab_code}_on_con_update_clear_lovpara'] = function(ds, record, name, value, old_value) {
+                if (Ext.isEmpty(value)) {
+                    var query_name = get_config_column_name(name),
+                        field = record.getField(name),
+                        config_records = $('${/parameter/@bp_seq}${/parameter/@tab_code}_con_layout_config_ds').getAll();
+                    var current_field_value;
+                    for (var i = 0;i < config_records.length;i++) {
+                        var config_record = config_records[i];
+                        var lov_cascade_para1 = config_record.get('lov_cascade_para1'),
+                            lov_cascade_para2 = config_record.get('lov_cascade_para2'),
+                            lov_cascade_para3 = config_record.get('lov_cascade_para3');
+                        set_clear_lovpara_empty(query_name, lov_cascade_para1, record, config_record);
+                        set_clear_lovpara_empty(query_name, lov_cascade_para2, record, config_record);
+                        set_clear_lovpara_empty(query_name, lov_cascade_para3, record, config_record);
+                    }
+                    var current_field = record.getField(name),
+                        current_lovpara = current_field.get('lovpara'),
+                        validation_sql;
+                    if (current_lovpara) {
+                        validation_sql = current_lovpara['validation_sql'];
+                    }
+                    if (!value && validation_sql) {
+                        var current_loadpara_ds = $('${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_lov_getmapping_ds');
+            
+                        function on_lov_getmapping_load(load_ds) {
+                            var lov_records = load_ds.getAll();
+                            for (var j = 0;j < lov_records.length;j++) {
+                                var lov_record = lov_records[j],
+                                    mapping = current_field.get('mapping'),
+                                    exists_flag = false,
+                                    lov_name = lov_record.data['name'].toLowerCase();
+                                for (var i = 0,
+                                    mapping_length = mapping.length;i < mapping_length;i++) {
+                                    if ((exists_flag = (lov_name == mapping[i]['from']))) {
+                                        break;
+                                    }
+                                }
+                                if (!exists_flag) {
+                                    record.set(lov_name, '');
+                                }
+                                current_field.setMapping(mapping);
+                            }
+                            current_loadpara_ds.un('load', on_lov_getmapping_load);
+                            unlock_current_window();
+                        }
+                        for (var lov_para_name in current_lovpara) {
+                            current_loadpara_ds.setQueryParameter(lov_para_name, record.get(lov_para_name));
+                        }
+                        current_loadpara_ds.setQueryParameter('validation_sql', validation_sql);
+                        lock_current_window();
+                        current_loadpara_ds.query();
+                        current_loadpara_ds.on('load', on_lov_getmapping_load);
+                    }
+                }
+                for (var show_name in record.data) {
+                    var show_field = record.getField(show_name);
+                    var lovpara_field = show_field.get('lovpara');
+                    if (lovpara_field && lovpara_field[name]) {
+                        record.set(show_name, '');
+                        var save_name = get_config_column_name(show_name);
+                        if (save_name != show_name) {
+                            record.set(save_name, '');
+                        }
+                    }
+                }
+            };
+            
+            function escapeHtml(str) {
+                if (Ext.isEmpty(str) || !Ext.isString(str)) {
+                    return str;
+                }
+                return $A.escapeHtml(str).replace(/&lt;br\/&gt;/gm, '<br/>');
+            }
+            
+            function appendBr(s, max) {
+                if (s) {
+                    for (var i = max || 10;i < s.length;i += max + 5) {
+                        s = s.substr(0, i) + '<br/>' + s.substr(i);
+                    }
+                    return s;
+                } else {
+                    return '';
+                }
+            }
+            
+            function set_special_field_tooltip_value(field, value) {
+                if (!Ext.isEmpty(value)) {
+                    field.setPropertity('tooltip', escapeHtml(appendBr(value, 40)));
+                }
+            }
+            
+            function set_special_field_tooltip(record) {
+                var main_products = record.get('main_products'),
+                    primary_business = record.get('primary_business');
+                set_special_field_tooltip_value(record.getField('main_products'), main_products);
+                set_special_field_tooltip_value(record.getField('primary_business'), primary_business);
+            
+            }
+            
+            window['${/parameter/@tab_code}_on_con_update_dymanic'] = function(ds, record) {
+                set_special_field_tooltip(record);
+            };
+            
+            window['${/parameter/@tab_code}_on_con_result_grid_add_dynamic'] = function(ds, record) {};
+            
+            function prj_check_bp_id(record) {
+                var bp_id;
+                if (record) {
+                    bp_id = record.get('bp_id');
+                }
+                if (!bp_id) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.EXECUTE_AFTER_SAVE}');
+                    bp_id = '';
+                }
+                return bp_id;
+            }
+            
+            function lock_current_window() {
+                var detail_mask;
+                if ('${/parameter/@winid}') {
+                    if (parent.$A.CmpManager.get('${/parameter/@winid}')) {
+                        detail_mask = parent.$('${/parameter/@winid}').wrap;
+                        parent.Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                    } else {
+                        detail_mask = $('${/parameter/@winid}').wrap;
+                        Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                    }
+                } else {
+                    detail_mask = Ext.getBody();
+                    Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                }
+            }
+            
+            function unlock_current_window() {
+                var detail_mask;
+                if ('${/parameter/@winid}') {
+                    if (parent.$A.CmpManager.get('${/parameter/@winid}')) {
+                        detail_mask = parent.$('${/parameter/@winid}').wrap;
+                        parent.Aurora.Masker.unmask(detail_mask);
+                    } else {
+                        detail_mask = $('${/parameter/@winid}').wrap;
+                        Aurora.Masker.unmask(detail_mask);
+                    }
+                } else {
+                    detail_mask = Ext.getBody();
+                    Aurora.Masker.unmask(detail_mask);
+                }
+            }
+            
+            function hls213_bp_master_prj_import(root_ds) {
+                var record = root_ds.getAt(0),
+                    bp_id = prj_check_bp_id(record);
+                if (!bp_id) {
+                    return;
+                }
+                new Aurora.Window({
+                    id: 'rsc_fin_statement_prj_import_handle_winid',
+                    url: '${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_import_handle.screen',
+                    params: {
+                        bp_id: bp_id,
+                        winid: 'rsc_fin_statement_prj_import_handle_winid'
+                    },
+                    title: '${l:STATEMENTS_BUSINESS_DATA_IMPORT}',
+                    width: 950,
+                    height: 200
+                });
+            }
+            
+            function hls213_bp_master_prj_query(root_ds) {
+                var record = root_ds.getAt(0),
+                    bp_id = prj_check_bp_id(record);
+                if (!bp_id) {
+                    return;
+                }
+                new Aurora.Window({
+                    id: 'rsc_fin_statement_prj_all_query_winid',
+                    url: '${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_all_query.screen',
+                    params: {
+                        bp_id: bp_id,
+                        winid: 'rsc_fin_statement_prj_all_query_winid'
+                    },
+                    title: '${l:STATEMENTS_BUSINESS_DATA_IMPORT}',
+                    fullScreen: true,
+                    draggable: true
+                });
+            }
+            
+            function on_hls_save_dynamic(root_ds, root_record, nextStep, winid) {
+                root_ds_submitsuccess(root_ds, root_record, nextStep, winid);
+            }
+            
+            function root_ds_submitsuccess(ds, record, nextStep, winid) {
+                if ('${/parameter/@function_usage}' == 'CREATE') {
+                    if ('${/parameter/@master_type}' == 'BP_MASTER') {
+                        ds.setSubmitParameter('master_id', record.get('bp_id'));
+                    } else if ('${/parameter/@master_type}' == 'LEASE_ITEM') {
+                        ds.setSubmitParameter('master_id', record.get('lease_item_id'));
+                    } else if ('${/parameter/@master_type}' == 'MORTGAGE') {
+                        ds.setSubmitParameter('master_id', record.get('mortgage_id'));
+                    }
+                }
+                ds.submit();
+            
+                function on_hls_save_submitsuccess(ds, res) {
+                    Aurora.Masker.unmask($(winid).wrap);
+                    if (res.result.master_id) {
+                        for (var id in $A.CmpManager.cache) {
+                            if ($A.CmpManager.cache[id] instanceof $A.DataSet) {
+                                $(id).setSubmitParameter('master_id', res.result.master_id);
+                            }
+                        }
+                    }
+                    if (typeof(nextStep) == 'function') {
+                        nextStep(ds);
+                    }
+                    ds.un('submitsuccess', on_hls_save_submitsuccess);
+                }
+                ds.on('submitsuccess', on_hls_save_submitsuccess);
+            }
+            
+            
+            function hls213_user_define_execute(ds) {
+                var button_record = ds.find('button_code', global_button_code);
+                if (button_record) {
+                    global_save_data_first = button_record.get('save_data_first');
+                    global_javascript = button_record.get('javascript');
+                    if (Ext.isDefined(global_javascript)) {
+                        if (global_save_data_first == 'Y') {
+                            hls213_bp_master_save(hls213_define_button_js);
+                        } else {
+                            hls213_define_button_js();
+                        }
+                    } else {
+                        if (global_save_data_first == 'Y') {
+                            hls213_bp_master_save(hls213_define_button_execute);
+                        } else {
+                            hls213_define_button_execute();
+                        }
+                    }
+                }
+            }
+            
+            function hls213_define_button(btn, root_ds) {
+                lock_current_window();
+                global_button_code = btn.id;
+                global_root_ds = root_ds;
+                $('${/parameter/@layout_code}_${/parameter/@tab_code}_doc_btn_ds').setQueryParameter('button_code', global_button_code);
+                $('${/parameter/@layout_code}_${/parameter/@tab_code}_doc_btn_ds').query();
+                $('${/parameter/@layout_code}_${/parameter/@tab_code}_doc_btn_ds').on('load', hls213_user_define_execute);
+            }
+            
+            function hls213_action_after_button() {
+                if (global_action_after_button == 'EXIT') {
+                    hls213_bp_master_exit();
+                } else if (global_action_after_button == 'QUERY') {
+                    global_root_ds.query();
+                }
+            }
+            
+            function hls213_define_button_js() {
+                // if (window.execScript) {
+                // window.execScript(global_javascript);
+                // } else {
+                eval(global_javascript);
+                // }
+                $('${/parameter/@layout_code}_${/parameter/@tab_code}_doc_btn_ds').un('load', hls213_user_define_execute);
+                unlock_current_window();
+                hls213_action_after_button();
+            }
+            
+            function hls213_define_button_execute() {
+                var root_record = global_root_ds.getCurrentRecord(),
+                    master_type = '${/parameter/@master_type}',
+                    master_id;
+                if (master_type == 'BP_MASTER') {
+                    master_id = root_record.get('bp_id');
+                } else if (master_type == 'LEASE_ITEM') {
+                    master_id = root_record.get('lease_item_id');
+                } else if (master_type == 'MORTGAGE') {
+                    master_id = root_record.get('mortgage_id');
+                }
+                if (Ext.isEmpty(master_id)) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.EXECUTE_AFTER_SAVE}');
+                    return;
+                }
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/cont.CON500.con_doc_layout_user_define_btn/update',
+                    para: {
+                        button_code: global_button_code,
+                        master_id: master_id,
+                        master_type: master_type,
+                        function_code: '${/parameter/@function_code}'
+                    },
+                    success: function(res) {
+                        $('${/parameter/@layout_code}_${/parameter/@tab_code}_doc_btn_ds').un('load', hls213_user_define_execute);
+                        unlock_current_window();
+                        parent.Aurora.SideBar.show({
+                            html: '<div style="background-color:#ccfbd5;position:absolute;padding:3px;border:1px solid #009900">' + res.result.return_value + '</div>',
+                            duration: 5000
+                        });
+                        hls213_action_after_button();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            window['${/parameter/@tab_code}_contact_info_load'] = function(ds) {
+                var records = ds.getAll(),
+                    grid_ds = $('${/parameter/@tab_code}_${/parameter/@base_table}_ds');
+                if (records.length) {
+                    for (var i = 0;i < records.length;i++) {
+                        grid_ds.create(records[i].data);
+                    }
+                }
+            };
+            
+            (function() {
+                var hls_grid_render_record = {};
+                window['${/parameter/@tab_code}_renderer'] = function(value, record, name) {
+                    if (name == 'quote') {
+                        var config_record = $('${/parameter/@tab_code}_con_layout_config_ds').find('column_name', name);
+                        hls_grid_render_record[record.id + '---' + name] = record;
+                        if (config_record.get('validation_type') == 'BUTTON') {
+                            if (Ext.isIE || Ext.isIE9 || Ext.isIE10) {
+                                return '<button style="font-size:11px;height:22px;width:45px;text-align:center;padding:0 4px 4px 0" onclick="${/parameter/@tab_code}_open_grid_render_window(\'' + record.id + '\',\'' + name + '\');"><div style="height: 18px; line-height: 16px; text-decoration: none;">' + config_record.get('prompt') + '</div></button>';
+                            } else {
+                                return '<button style="font-size:11px;height:22px;width:45px;text-align:center;" onclick="${/parameter/@tab_code}_open_grid_render_window(\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</button>';
+                            }
+                        } else {
+                            return '<a href="javascript:${/parameter/@tab_code}_open_grid_render_window(\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+                        }
+                    }
+                };
+            })();
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="${/parameter/@layout_code}_${/parameter/@tab_code}_lov_getmapping_ds" fetchAll="true" queryUrl="${/request/@context_path}/modules/hls/HLS500/hls_parameters_load.svc"/>
+            <a:dataSet id="${/parameter/@layout_code}_${/parameter/@tab_code}_doc_btn_ds" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/cont.CON500.hls_doc_layout_button/query?function_code=${/parameter/@function_code}"/>
+        </a:dataSets>
+    </a:view>
+</a:screen>

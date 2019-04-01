@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: LR  
+    $Date: 2014-4-8 下午02:36:25  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query model="basic.sys_session_info" rootPath="rsc710_get_user_desc"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+            function rsc710_next() {
+                history.go(1);
+            }
+            
+            function rsc710_back() {
+                history.go(-1);
+            }
+            
+            function rsc_contract_collection_query() {
+                $('rsc_contract_collection_result_ds').query();
+            }
+            
+            function rsc_contract_collection_reset() {
+                $('rsc_contract_collection_query_ds').reset();
+            }
+            
+            function rsc_contract_collection_result_ds_onLoad(ds) {
+                if (ds.getAll().length > 0) {
+                    $('btn_ref_add').enable();
+                    $('btn_ref_cle').enable();
+                    $('btn_ref_save').enable();
+                    $('btn_ref_delete').enable();
+                } else {
+                    $('btn_ref_add').disable();
+                    $('btn_ref_cle').disable();
+                    $('btn_ref_save').disable();
+                    $('btn_ref_delete').disable();
+                }
+            }
+            
+            function rsc_contract_collection_ref_ds_onAdd(ds,record,index){
+                var head_ds = $('rsc_contract_collection_result_ds').getCurrentRecord();
+                record.set('bp_name',head_ds.get('bp_name'));
+                record.set('bp_id',head_ds.get('bp_id'));
+                record.set('contract_id',head_ds.get('contract_id'));
+                record.set('overdue_amount',head_ds.get('amt'));
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="rsc_contract_collection_query_ds"><![CDATA[
+            ]]></a:dataSet>
+            <a:dataSet id="rsc_collection_method_ds" lookupCode="RSC_COLLECTION_METHOD"/>
+            <a:dataSet id="rsc_contract_collection_result_ds" autoCount="true" autoPageSize="true" autoQuery="false" model="rsc.RSC710.rsc_contract_collection_query" queryDataSet="rsc_contract_collection_query_ds" selectable="true">
+                <a:events>
+                    <a:event name="load" handler="rsc_contract_collection_result_ds_onLoad"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="rsc_contract_collection_ref_ds" autoPageSize="true" bindName="result_ds" bindTarget="rsc_contract_collection_result_ds" model="rsc.RSC710.rsc_contract_collection" selectable="true">
+                <a:fields>
+                    <a:field name="collection_method_desc" displayField="code_value_name" options="rsc_collection_method_ds" required="true" returnField="collection_method" valueField="code_value"/>
+                    <a:field name="collector_user_name" defaultValue="${/model/rsc710_get_user_desc/record/@user_desc}" lovHeight="480" lovService="rsc.RSC710.sys_user_lov" lovWidth="500" required="true">
+                        <a:mapping>
+                            <a:map from="user_id" to="collector_user_id"/>
+                            <a:map from="description" to="collector_user_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="collector_user_id" defaultValue="${/session/@user_id}"/>
+                    <a:field name="collection_date" defaultValue="${/model/rsc710_get_user_desc/record/@today}" required="true"/>
+                    <a:field name="bp_id" required="true"/>
+                    <a:field name="org_unit_desc" lovHeight="480" lovService="hls.HLS101.exp_org_unit_for_lov?company_id=${/session/@company_id}&amp;ORDER_FIELD=unit_code" lovWidth="500" required="true">
+                        <a:mapping>
+                            <a:map from="unit_id" to="org_unit_id"/>
+                            <a:map from="unit_name" to="org_unit_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="collection_date" required="true"/>
+                    <a:field name="collection_result" required="true"/>
+                    <a:field name="follow_up" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="rsc_contract_collection_ref_ds_onAdd"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="rsc710_back" text="HLS.BACK"/>
+                <a:gridButton click="rsc710_next" text="HLS.FORWARD"/>
+                <a:gridButton click="rsc_contract_collection_query" text="HLS.QUERY"/>
+                <a:gridButton click="rsc_contract_collection_reset" text="HLS.RESET"/>
+            </a:screenTopToolbar>
+            <a:form column="3" labelWidth="80" title="HAP_QUERY_TITLE">
+                <a:textField name="bp_name" bindTarget="rsc_contract_collection_query_ds" prompt="逾期客户" width="200">
+                    <a:events>
+                        <a:event name="enterdown" handler="rsc_contract_collection_query"/>
+                    </a:events>
+                </a:textField>
+            </a:form>
+            <a:grid autoFocus="false" bindTarget="rsc_contract_collection_result_ds" height="250" marginWidth="50" navBar="true">
+                <a:columns>
+                    <a:column name="bp_name" prompt="逾期客户" width="220"/>
+                    <a:column name="amt" align="right" prompt="逾期总金额(元)" width="150"/>
+                    <a:column name="contract_number" prompt="合同号" width="200"/>
+                </a:columns>
+            </a:grid>
+            <a:grid autoFocus="false" bindTarget="rsc_contract_collection_ref_ds" height="320" marginWidth="50" navBar="true">
+                <a:toolBar>
+                    <a:button id="btn_ref_add" type="add"/>
+                    <a:button id="btn_ref_cle" type="clear"/>
+                    <a:button id="btn_ref_delete" type="delete"/>
+                    <a:button id="btn_ref_save" type="save"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="bp_name" prompt="逾期客户" width="220"/>
+                    <a:column name="overdue_amount" align="right" prompt="逾期金额" width="150"/>
+                    <a:column name="collector_user_name" editor="rsc_contract_collection_lov" prompt="催收人"/>
+                    <a:column name="org_unit_desc" editor="rsc_contract_collection_lov" prompt="催收部门"/>
+                    <a:column name="collection_date" editor="rsc_contract_collection_dp" prompt="时间" renderer="Aurora.formatDate"/>
+                    <a:column name="collection_method_desc" editor="rsc_contract_collection_cm" prompt="形式"/>
+                    <a:column name="collection_result" editor="rsc_contract_collection_ta" prompt="沟通结果" width="250"/>
+                    <a:column name="follow_up" editor="rsc_contract_collection_ta" prompt="后续措施" width="250"/>
+                </a:columns>
+                <a:editors>
+                    <a:lov id="rsc_contract_collection_lov"/>
+                    <a:datePicker id="rsc_contract_collection_dp"/>
+                    <a:comboBox id="rsc_contract_collection_cm"/>
+                    <a:textArea id="rsc_contract_collection_ta"/>
+                </a:editors>
+            </a:grid>
+            <script><![CDATA[
+                Aurora.onReady(function() {
+                    $('btn_ref_add').disable();
+                    $('btn_ref_cle').disable();
+                    $('btn_ref_save').disable();
+                    $('btn_ref_delete').disable();
+                });
+            ]]></script>
+        </a:screenBody>
+    </a:view>
+</a:screen>

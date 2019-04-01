@@ -1,0 +1,1118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:c="aurora.application.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.node_id=${/parameter/@node_id}" model="zjwfl.zj_wfl_workflow_node" rootPath="node_record"/>
+        <a:model-query defaultWhereClause="v.code=&apos;ZJ_WFL_NODE_DISPLAY_TYPE&apos;" model="zjwfl.sys_code_default_value" rootPath="node_display_type_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="svcLink_remove_node_action" url="${/request/@context_path}/modules/zjwfl/zj_wfl_workflow_node_action.svc"/>
+        <a:link id="svcLink_remove_node_proc" url="${/request/@context_path}/modules/zjwfl/zj_wfl_workflow_node_proc.svc"/>
+        <script><![CDATA[
+            function editNodePage_close() {
+                $('zj_wfl_workflow_node_edit_window').close();
+            }
+            
+            function editNodeDs_save() {
+                var ds = $('editNodeDs');
+                var record = ds.getAt(0);
+                //希望每次都提交保存
+                if (record.get('change_flag') != 'Y') {
+                    record.set('change_flag', 'Y');
+                } else {
+                    record.set('change_flag', 'N');
+                }
+                ds.submit();
+            }
+            
+            function mask_editNodePage() {
+                Aurora.Masker.mask($('zj_wfl_workflow_node_edit_window').wrap, '正在提交');
+            }
+            
+            function unmask_editNodePage() {
+                Aurora.Masker.unmask($('zj_wfl_workflow_node_edit_window').wrap);
+            }
+            
+            function winOpen_branchNodePage() {
+                var record = $('editNodeDs').getAt(0);
+                var branch_method = record.get('branch_method');
+                var show_para = 'Y';
+                if (branch_method == 'BUSINESS_RULE') {
+                    show_para = 'N';
+                }
+            
+                new Aurora.Window({
+                    id: 'zj_wfl_workflow_branch_node_window',
+                    url: 'zj_wfl_workflow_branch_node.screen',
+                    params: {
+                        node_id: '${/parameter/@node_id}',
+                        workflow_id: '${/model/node_record/record/@workflow_id}',
+                        show_para: show_para
+                    },
+                    title: '分支定义',
+                    fullScreen: true
+                });
+            }
+            
+            function winOpen_action_para(id, pid) {
+                new Aurora.Window({
+                    id: 'zj_wfl_workflow_node_act_para_window',
+                    url: 'zj_wfl_workflow_node_act_para.screen',
+                    params: {
+                        node_action_id: id,
+                        node_id: '${/parameter/@node_id}',
+                        procedure_id: pid,
+                        workflow_id: '${/model/node_record/record/@workflow_id}'
+                    },
+                    title: '节点动作参数',
+                    height: 500,
+                    width: 1000
+                });
+            }
+            
+            function winOpen_action_para_service(id, sid) {
+                new Aurora.Window({
+                    id: 'zj_wfl_workflow_node_act_para_service_window',
+                    url: 'zj_wfl_workflow_node_act_para_service.screen',
+                    params: {
+                        node_action_id: id,
+                        node_id: '${/parameter/@node_id}',
+                        service_id: sid,
+                        workflow_id: '${/model/node_record/record/@workflow_id}'
+                    },
+                    title: '节点动作参数',
+                    height: 500,
+                    width: 1000
+                });
+            }
+            
+            function render_nodeActionDs_grid(value, record, name) {
+                if (name == 'node_action_para') {
+                    if (!record.isNew) {
+                        var node_action_id = record.get('node_action_id');
+                        var action_type = record.get('action_type');
+                        if (action_type == '1' || action_type == '2' || action_type == '3' || action_type == '4') {
+                            var procedure_id = record.get('procedure_id');
+                            if (!Ext.isEmpty(procedure_id)) {
+                                //如果定义了过程，则显示过程参数链接
+                                return '<a href="javascript:winOpen_action_para(' + node_action_id + ',' + procedure_id + ')">动作参数</a>';
+                            }else if(action_type == '3'){
+                                return '<a href="javascript:winOpen_action_para_service(' + node_action_id + ',' + record.get('service_id') + ')">动作参数</a>';
+                            }
+                            return '';
+                        } else if (action_type == '5') {
+                            return '<a href="javascript:winOpen_action_para_service(' + node_action_id + ',' + record.get('service_id') + ')">动作参数</a>';
+                        }
+                        return '';
+                    }
+                }
+            
+                return '';
+            }
+            
+            function winOpen_node_service_para(service_id, source_type) {
+                new Aurora.Window({
+                    id: 'zj_wfl_workflow_node_service_para_window',
+                    url: 'zj_wfl_workflow_node_service_para.screen',
+                    params: {
+                        service_id: service_id,
+                        source_type: source_type,
+                        node_id: '${/parameter/@node_id}',
+                        workflow_id: '${/model/node_record/record/@workflow_id}'
+                    },
+                    title: '节点页面参数定义',
+                    height: 450,
+                    width: 1000
+                });
+            }
+            
+            function define_node_service_para(source_type) {
+                var record = $('editNodeDs').getAt(0);
+                debugger;
+            
+                if ((source_type == 'DISPLAY' && record.get('node_display_type') == 'NORMAL') || (source_type == 'DISPLAY_MY_APPROVED' && record.get('node_display_my_app_type') == 'NORMAL') || (source_type == 'NOTICE' && record.get('notice_display_type') == 'NORMAL')) {
+                    Aurora.showMessage('提示信息', '非自定义无需定义参数');
+                    return;
+                }
+            
+                if (source_type == 'DISPLAY') {
+                    if (record.get('node_display_change') == 'Y') {
+                        Aurora.showMessage('提示信息', '审批人处理中页面已经更改，保存后继续');
+                        return;
+                    }
+                    var service_id = record.get('node_display_service_id');
+            
+                } else if (source_type == 'DISPLAY_MY_APPROVED') {
+                    if (record.get('node_svc_my_app_change') == 'Y') {
+                        Aurora.showMessage('提示信息', '审批人已处理页面已经更改，保存后继续');
+                        return;
+                    }
+                    var service_id = record.get('node_display_my_app_svc_id');
+                } else if (source_type == 'NOTICE') {
+                    if (record.get('node_svc_notice_change') == 'Y') {
+                        Aurora.showMessage('提示信息', '通知人页面已经更改，保存后继续');
+                        return;
+                    }
+                    var service_id = record.get('notice_display_service_id');
+                } else {
+                    Aurora.showMessage('提示信息', '来源类型不匹配');
+                    return;
+                }
+                winOpen_node_service_para(service_id, source_type);
+            }
+            
+            
+            function winOpen_proc_para(node_procedure_id, procedure_id) {
+                new Aurora.Window({
+                    id: 'zj_wfl_workflow_node_proc_para_window',
+                    url: 'zj_wfl_workflow_node_proc_para.screen',
+                    params: {
+                        node_procedure_id: node_procedure_id,
+                        node_id: '${/parameter/@node_id}',
+                        procedure_id: procedure_id,
+                        workflow_id: '${/model/node_record/record/@workflow_id}'
+                    },
+                    title: '过程参数定义',
+                    height: 450,
+                    width: 1000
+                });
+            }
+            
+            function render_nodeProcDs_grid(value, record, name) {
+                if (!record.isNew) {
+                    if (name == 'proc_para') {
+                        return '<a href="javascript:winOpen_proc_para(' + record.get('node_procedure_id') + ',' + record.get('procedure_id') + ')">过程参数定义</a>';
+                    }
+                    return '';
+                }
+                return '';
+            }
+            
+            function editorFun_nodeActionDs_grid(record, name) {
+                var field = record.getField(name);
+                var action_type = record.get('action_type');
+                if (name == 'service_name') {
+                    if (action_type == '5' || action_type == '3') {
+                        if(action_type == '3'){
+                            field.setRequired(false);
+                        }else if(action_type == '5'){
+                             field.setRequired(true);
+                        }
+                       
+                        return 'nodeActionDs_grid_lov';
+                    }
+                    field.setRequired(false);
+                    return '';
+                } else if (name == 'jump_node_desc') {
+                    if (action_type == '3' || action_type == '5') {
+                        if (action_type == '3') {
+                            field.setRequired(true);
+                        } else if (action_type == '5') {
+                            field.setRequired(false);
+                        }
+                        return 'nodeActionDs_grid_lov';
+                    }
+                    field.setRequired(false);
+                    return '';
+                } else if (name == 'action_type_desc') {
+                    if (record.isNew) {
+                        return 'nodeActionDs_grid_comb';
+                    }
+                    return '';
+                } else if (name == 'procedure_code') {
+                    if (action_type == '1' || action_type == '2' || action_type == '3' || action_type == '4') {
+                        if (action_type == '4') {
+                            field.setRequired(true);
+                        } else {
+                            field.setRequired(false);
+                        }
+                        return 'nodeActionDs_grid_lov';
+                    }
+                    field.setRequired(false);
+                    return '';
+                }
+            
+                return '';
+            }
+            
+            function onUpdate_nodeActionDs(ds, record, name, value, oldvalue) {
+                //如果"动作类型"的值发生改变，则将"过程选择","页面名称","跳转节点"的值清空
+                if (name == "action_type_desc") {
+                    record.set('procedure_id', null);
+                    record.set('procedure_code', null);
+                    record.set('procedure_desc', null);
+                    record.set('service_id', null);
+                    record.set('service_name', null);
+                    record.set('service_desc', null);
+                    record.set('jump_node_id', null);
+                    record.set('jump_sequence_num', null);
+                    record.set('jump_node_desc', null);
+                }
+            }
+            
+            function handle_field(record, name, type) {
+                var field = record.getField(name);
+                if (type == 'READ') {
+                    field.setRequired(false);
+                    field.setReadOnly(true);
+                } else if (type == 'REQUIRED') {
+                    field.setReadOnly(false);
+                    field.setRequired(true);
+                }
+            }
+            
+            function control_node_display(record) {
+            
+                if ('${/model/node_record/record/@node_type}' == 'BRANCH_NODE') {
+                    var branch_method = record.get('branch_method');
+            
+                    handle_field(record, 'branch_method_desc', 'REQUIRED');
+                    if (branch_method == 'FUNCTION') {
+                        handle_field(record, 'branch_procedure_desc', 'REQUIRED');
+                        handle_field(record, 'branch_business_rule_desc', 'READ');
+                    } else if (branch_method == 'BUSINESS_RULE') {
+                        handle_field(record, 'branch_procedure_desc', 'READ');
+                        handle_field(record, 'branch_business_rule_desc', 'REQUIRED');
+                    }
+            
+                }
+            
+            
+                var approval_type = record.get('approval_type');
+                if (approval_type == 'FEW_PERSON' || approval_type == 'PROPORTION_PERSON' || approval_type == 'COUNTERSIGN') {
+                    handle_field(record, 'approval_type_factor', 'REQUIRED');
+                } else {
+                    handle_field(record, 'approval_type_factor', 'READ');
+                }
+                var mail_flag = record.get('mail_flag');
+                if (mail_flag == 'Y') {
+                    handle_field(record, 'notify_template_code', 'REQUIRED');
+                } else {
+                    handle_field(record, 'notify_template_code', 'READ');
+                }
+                var sms_flag = record.get('sms_flag');
+                if (sms_flag == 'Y') {
+                    handle_field(record, 'sms_template_code', 'REQUIRED');
+                } else {
+                    handle_field(record, 'sms_template_code', 'READ');
+                }
+                var node_display_type = record.get('node_display_type');
+                if (node_display_type == 'NORMAL') {
+                    handle_field(record, 'node_display_service_desc', 'READ');
+                } else {
+                    handle_field(record, 'node_display_service_desc', 'REQUIRED');
+                }
+            
+            
+                var node_display_my_app_type = record.get('node_display_my_app_type');
+                if (node_display_my_app_type == 'NORMAL') {
+                    handle_field(record, 'node_display_my_app_svc_desc', 'READ');
+                } else {
+                    handle_field(record, 'node_display_my_app_svc_desc', 'REQUIRED');
+                }
+            
+                var notice_display_type = record.get('notice_display_type');
+                if (notice_display_type == 'NORMAL') {
+                    handle_field(record, 'notice_display_service_desc', 'READ');
+                } else {
+                    handle_field(record, 'notice_display_service_desc', 'REQUIRED');
+                }
+                var approver_mail_flag = record.get('approver_mail_flag');
+                if (approver_mail_flag == 'Y') {
+                    handle_field(record, 'approver_mail_template_desc', 'REQUIRED');
+                } else {
+                    handle_field(record, 'approver_mail_template_desc', 'READ');
+                }
+                var approver_sms_flag = record.get('approver_sms_flag');
+                if (approver_sms_flag == 'Y') {
+                    handle_field(record, 'approver_sms_template_desc', 'REQUIRED');
+                } else {
+                    handle_field(record, 'approver_sms_template_desc', 'READ');
+                }
+                var notice_mail_flag = record.get('notice_mail_flag');
+                if (notice_mail_flag == 'Y') {
+                    handle_field(record, 'notice_mail_template_desc', 'REQUIRED');
+                } else {
+                    handle_field(record, 'notice_mail_template_desc', 'READ');
+                }
+                var notice_sms_flag = record.get('notice_sms_flag');
+                if (notice_sms_flag == 'Y') {
+                    handle_field(record, 'notice_sms_template_desc', 'REQUIRED');
+                } else {
+                    handle_field(record, 'notice_sms_template_desc', 'READ');
+                }
+            
+            }
+            
+            function editNodePage_set_complateRate(record) {
+                var info = nodePage_get_completeRate_info(record.get('info_complete_rate'));
+            
+                var obj = Ext.get('color_complate_rate');
+                obj.update(info['score'] + '%');
+                obj.setStyle(info['style']);
+            
+                var msg = record.get('info_complete_note');
+            
+                function showToolTip(e, t) {
+                    $A.ToolTip.show(t, msg);
+                }
+            
+                var div = Ext.get('div_info_complete');
+                if (Ext.isEmpty(msg)) {
+                    div.un('mouseover', showToolTip);
+                } else {
+                    div.on('mouseover', showToolTip);
+                }
+            
+            }
+            
+            function onUpdate_editNodeDs(ds, record, name, value, oldValue) {
+                if (name == 'approval_type' || name == 'mail_flag' || name == 'sms_flag' || name == 'node_display_type' || name == 'node_display_my_app_type' || name == 'node_display_my_sub_type' || name == 'branch_method' || name == 'approver_mail_flag' || name == 'approver_sms_flag' || name == 'notice_mail_flag' || name == 'notice_sms_flag' || name == 'notice_display_type') {
+                    control_node_display(record);
+                }
+                if (name == 'node_display_service_id') {
+                    record.set('node_display_change', 'Y');
+                }
+                if (name == 'node_display_my_app_svc_id') {
+                    record.set('node_svc_my_app_change', 'Y');
+                }
+                if (name == 'notice_display_service_id') {
+                    record.set('node_svc_notice_change', 'Y');
+                }
+                if (name == 'info_complete_rate' || name == 'info_complete_note') {
+                    editNodePage_set_complateRate(record);
+                }
+                if (name == 'show_all_approve_ht_flag') {
+                    if (value == 'Y' && record.get('show_approve_history_flag') != 'Y') {
+                        record.set('show_approve_history_flag', 'Y');
+                    }
+                }
+                if (name == 'show_approve_history_flag') {
+                    if (value == 'N' && record.get('show_all_approve_ht_flag') != 'N') {
+                        record.set('show_all_approve_ht_flag', 'N');
+                    }
+                }
+            }
+            
+            function onStripMouseOver(tab, e) {
+                var el = Ext.fly(e.target),
+                    strip = el.parent('.strip');
+                if (strip && (strip = tab.getTab(strip))) {
+                    switch (strip.index) {
+                    case 0:
+                        $A.ToolTip.show(strip.strip, '维护本工作流节点出现的待办事项页面中，能使用的按钮');
+                        break;
+                    case 1:
+                        $A.ToolTip.show(strip.strip, '维护本工作流节点到达时，需要后台执行的程序');
+                        break;
+                    }
+                }
+            }
+            
+            function onSubmitSuccess_editNodeDs(ds) {
+                ds.getAt(0).set('node_display_change', 'N');
+                ds.getAt(0).set('node_svc_my_app_change', 'N');
+                ds.getAt(0).set('node_svc_notice_change', 'N');
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="approval_type_ds" lookupCode="ZJ_WFL_APPROVAL_TYPE"/>
+            <a:dataSet id="nodeDisplayTypeDs" lookupCode="ZJ_WFL_NODE_DISPLAY_TYPE"/>
+            <a:dataSet id="action_type_ds" lookupCode="ZJ_WFL_ACTION_TYPE"/>
+            <a:dataSet id="branchMethodDs" lookupCode="ZJ_WFL_WORKFLOW_BRANCH_METHOD"/>
+            <a:dataSet id="editNodeDs" model="zjwfl.zj_wfl_workflow_node" submitUrl="zj_wfl_workflow_node_edit.svc">
+                <a:datas dataSource="/model/node_record"/>
+                <a:fields>
+                    <a:field name="branch_method_desc" displayField="code_value_name" options="branchMethodDs" returnField="branch_method" valueField="code_value"/>
+                    <a:field name="branch_business_rule_desc" lovGridHeight="280" lovHeight="450" lovLabelWidth="90" lovService="zjwfl.WFL2030.zj_wfl_business_rules_lov?workflow_id=${/parameter/@workflow_id}" lovWidth="570" title="业务规则">
+                        <a:mapping>
+                            <a:map from="business_rule_id" to="branch_business_rule"/>
+                            <a:map from="description" to="branch_business_rule_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="node_display_type" checkedValue="CUSTOM" uncheckedValue="NORMAL"/>
+                    <a:field name="node_display_service_name" readOnly="true"/>
+                    <a:field name="node_display_service_desc" lovGridHeight="300" lovHeight="450" lovService="zjwfl.zj_wfl_workflow_service_lov" lovWidth="500" title="待办事项">
+                        <a:mapping>
+                            <a:map from="service_id" to="node_display_service_id"/>
+                            <a:map from="service_desc" to="node_display_service_desc"/>
+                            <a:map from="service_name" to="node_display_service_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="node_display_my_app_type" checkedValue="CUSTOM" uncheckedValue="NORMAL"/>
+                    <a:field name="node_display_my_app_svc_name" readOnly="true"/>
+                    <a:field name="node_display_my_app_svc_desc" lovGridHeight="300" lovHeight="450" lovService="zjwfl.zj_wfl_workflow_service_lov" lovWidth="500" title="我参与的">
+                        <a:mapping>
+                            <a:map from="service_id" to="node_display_my_app_svc_id"/>
+                            <a:map from="service_desc" to="node_display_my_app_svc_desc"/>
+                            <a:map from="service_name" to="node_display_my_app_svc_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="show_approve_history_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="show_all_approve_ht_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="can_no_approver_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="mail_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="can_auto_pass_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="is_self_re_commit_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="system_maintain_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="can_transfer_approver_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="hide_approve_record_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="can_add_approver_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="info_complete_rate"/>
+                    <a:field name="approval_type_desc" displayField="code_value_name" options="approval_type_ds" required="true" returnField="approval_type" valueField="code_value"/>
+                    <a:field name="approval_type_factor"/>
+                    <a:field name="link_workflow_code" lovGridHeight="300" lovHeight="450" lovService="zjwfl.zj_wfl_workflow_lov" lovWidth="500" title="链接流程选择">
+                        <a:mapping>
+                            <a:map from="workflow_id" to="link_workflow_id"/>
+                            <a:map from="workflow_code" to="link_workflow_code"/>
+                            <a:map from="workflow_desc" to="link_workflow_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="branch_procedure_desc" lovGridHeight="300" lovHeight="450" lovService="zjwfl.zj_wfl_workflow_procedure_lov?procedure_type_code=FUNCTION" lovWidth="800" title="过程选择">
+                        <a:mapping>
+                            <a:map from="procedure_id" to="branch_procedure"/>
+                            <a:map from="procedure_code" to="branch_procedure_code"/>
+                            <a:map from="exec_procedure" to="branch_exec_procedure"/>
+                            <a:map from="procedure_desc" to="branch_procedure_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="notify_template_desc" readOnly="true"/>
+                    <a:field name="notify_template_code" lovGridHeight="300" lovHeight="450" lovService="zjwfl.ZJWFL1090.zj_sys_notify_template_lov?workflow_id=${/parameter/@workflow_id}&amp;notify_type=MAIL" lovWidth="500" title="邮件模板">
+                        <a:mapping>
+                            <a:map from="notify_template_id" to="notify_template_id"/>
+                            <a:map from="notify_template_code" to="notify_template_code"/>
+                            <a:map from="notify_template_desc" to="notify_template_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="sms_template_desc" readOnly="true"/>
+                    <a:field name="sms_template_code" lovGridHeight="300" lovHeight="450" lovService="zjwfl.ZJWFL1090.zj_sys_notify_template_lov?workflow_id=${/parameter/@workflow_id}&amp;notify_type=SMS" lovWidth="500" title="短信模板">
+                        <a:mapping>
+                            <a:map from="notify_template_id" to="sms_template_id"/>
+                            <a:map from="notify_template_code" to="sms_template_code"/>
+                            <a:map from="notify_template_desc" to="sms_template_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <!-- <a:field name="approver_template_desc" readOnly="true" /> -->
+                    <a:field name="approver_template_desc" lovGridHeight="300" lovHeight="450" lovService="zjwfl.ZJWFL1090.zj_sys_notify_template_lov?workflow_id=${/parameter/@workflow_id}&amp;notify_type=NOTICE" lovWidth="500" title="通知模板">
+                        <a:mapping>
+                            <a:map from="notify_template_id" to="approver_template_id"/>
+                            <a:map from="notify_template_desc" to="approver_template_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="approver_mail_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="approver_mail_template_desc" lovGridHeight="300" lovHeight="450" lovService="zjwfl.ZJWFL1090.zj_sys_notify_template_lov?workflow_id=${/parameter/@workflow_id}&amp;notify_type=MAIL" lovWidth="500" title="邮件模板">
+                        <a:mapping>
+                            <a:map from="notify_template_id" to="approver_mail_template_id"/>
+                            <a:map from="notify_template_desc" to="approver_mail_template_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="approver_sms_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="approver_sms_template_desc" lovGridHeight="300" lovHeight="450" lovService="zjwfl.ZJWFL1090.zj_sys_notify_template_lov?workflow_id=${/parameter/@workflow_id}&amp;notify_type=SMS" lovWidth="500" title="短信模板">
+                        <a:mapping>
+                            <a:map from="notify_template_id" to="approver_sms_template_id"/>
+                            <a:map from="notify_template_desc" to="approver_sms_template_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="notice_template_desc" lovGridHeight="300" lovHeight="450" lovService="zjwfl.ZJWFL1090.zj_sys_notify_template_lov?workflow_id=${/parameter/@workflow_id}&amp;notify_type=NOTICE" lovWidth="500" title="通知模板">
+                        <a:mapping>
+                            <a:map from="notify_template_id" to="notice_template_id"/>
+                            <a:map from="notify_template_desc" to="notice_template_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="notice_mail_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="notice_mail_template_desc" lovGridHeight="300" lovHeight="450" lovService="zjwfl.ZJWFL1090.zj_sys_notify_template_lov?workflow_id=${/parameter/@workflow_id}&amp;notify_type=MAIL" lovWidth="500" title="邮件模板">
+                        <a:mapping>
+                            <a:map from="notify_template_id" to="notice_mail_template_id"/>
+                            <a:map from="notify_template_desc" to="notice_mail_template_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="notice_sms_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="notice_sms_template_desc" lovGridHeight="300" lovHeight="450" lovService="zjwfl.ZJWFL1090.zj_sys_notify_template_lov?workflow_id=${/parameter/@workflow_id}&amp;notify_type=SMS" lovWidth="500" title="短信模板">
+                        <a:mapping>
+                            <a:map from="notify_template_id" to="notice_sms_template_id"/>
+                            <a:map from="notify_template_desc" to="notice_sms_template_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="notice_display_type" checkedValue="CUSTOM" uncheckedValue="NORMAL"/>
+                    <a:field name="notice_display_service_name" readOnly="true"/>
+                    <a:field name="notice_display_service_desc" lovGridHeight="300" lovHeight="450" lovService="zjwfl.zj_wfl_workflow_service_lov" lovWidth="500" title="我参与的">
+                        <a:mapping>
+                            <a:map from="service_id" to="notice_display_service_id"/>
+                            <a:map from="service_desc" to="notice_display_service_desc"/>
+                            <a:map from="service_name" to="notice_display_service_name"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_editNodeDs"/>
+                    <a:event name="submitsuccess" handler="onSubmitSuccess_editNodeDs"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="nodeActionDs" autoQuery="true" bindName="node_action_info" bindTarget="editNodeDs" fetchAll="true" model="zjwfl.zj_wfl_workflow_node_action" queryUrl="${/request/@context_path}/autocrud/zjwfl.zj_wfl_workflow_node_action/query?node_id=${/parameter/@node_id}" selectable="true">
+                <a:fields>
+                    <a:field name="node_id" defaultValue="${/parameter/@node_id}"/>
+                    <a:field name="default_action_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="action_type_desc" displayField="code_value_name" options="action_type_ds" required="true" returnField="action_type" valueField="code_value"/>
+                    <a:field name="sequence_num" required="true"/>
+                    <a:field name="procedure_code" lovGridHeight="300" lovHeight="450" lovService="zjwfl.zj_wfl_workflow_procedure_lov?procedure_type_code=PROCEDURE" lovWidth="800" title="过程选择">
+                        <a:mapping>
+                            <a:map from="procedure_id" to="procedure_id"/>
+                            <a:map from="exec_procedure" to="exec_procedure"/>
+                            <a:map from="procedure_code" to="procedure_code"/>
+                            <a:map from="procedure_desc" to="procedure_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="service_name" lovGridHeight="300" lovHeight="450" lovService="zjwfl.zj_wfl_workflow_service_lov" lovWidth="500" title="页面选择">
+                        <a:mapping>
+                            <a:map from="service_id" to="service_id"/>
+                            <a:map from="service_name" to="service_name"/>
+                            <a:map from="service_desc" to="service_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="jump_node_desc" lovGridHeight="320" lovHeight="440" lovService="zjwfl.zj_wfl_workflow_node_lov?sequence_num=${/model/node_record/record/@sequence_num}&amp;workflow_id=${/model/node_record/record/@workflow_id}" lovWidth="480" title="节点选择">
+                        <a:mapping>
+                            <a:map from="node_id" to="jump_node_id"/>
+                            <a:map from="sequence_num" to="jump_sequence_num"/>
+                            <a:map from="node_desc" to="jump_node_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="node_action_desc" maxLength="50" required="true"/>
+                    <a:field name="node_action_prompt" maxLength="100"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_nodeActionDs"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="nodeProcDs" autoQuery="true" bindName="node_procedure_info" bindTarget="editNodeDs" fetchAll="true" model="zjwfl.zj_wfl_workflow_node_procedure" queryUrl="${/request/@context_path}/autocrud/zjwfl.zj_wfl_workflow_node_procedure/query?node_id=${/parameter/@node_id}" selectable="true">
+                <a:fields>
+                    <a:field name="node_id" defaultValue="${/parameter/@node_id}"/>
+                    <a:field name="sequence_num" required="true"/>
+                    <a:field name="procedure_code" lovGridHeight="300" lovHeight="450" lovService="zjwfl.zj_wfl_workflow_procedure_lov?procedure_type_code=PROCEDURE" lovWidth="800" required="true" title="过程选择">
+                        <a:mapping>
+                            <a:map from="procedure_id" to="procedure_id"/>
+                            <a:map from="exec_procedure" to="exec_procedure"/>
+                            <a:map from="procedure_code" to="procedure_code"/>
+                            <a:map from="procedure_desc" to="procedure_desc"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="endProcDs" autoQuery="true" bindName="end_proc_info" bindTarget="editNodeDs" fetchAll="true" model="zjwfl.WFL2012.zj_wfl_workflow_end_procedure" queryUrl="${/request/@context_path}/autocrud/zjwfl.WFL2012.zj_wfl_workflow_end_procedure/query?workflow_id=${/parameter/@workflow_id}" selectable="true">
+                <a:fields>
+                    <a:field name="workflow_id" defaultValue="${/parameter/@workflow_id}"/>
+                    <a:field name="sequence_num" required="true"/>
+                    <a:field name="workflow_status_desc" displayField="code_value_name" options="endProcPage_workflowStatusDs" required="true" returnField="workflow_status" valueField="code_value"/>
+                    <a:field name="procedure_code" lovGridHeight="310" lovHeight="455" lovService="zjwfl.zj_wfl_workflow_procedure_lov?procedure_type_code=PROCEDURE" lovWidth="490" required="true" title="过程选择">
+                        <a:mapping>
+                            <a:map from="procedure_id" to="procedure_id"/>
+                            <a:map from="procedure_code" to="procedure_code"/>
+                            <a:map from="procedure_desc" to="procedure_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="procedure_desc"/>
+                    <a:field name="procedure_id"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <script><![CDATA[
+            	(
+            	function ()
+            	{
+            	    var record = $('editNodeDs').getAt(0);
+            	    control_node_display(record);
+            	    record.set('node_display_change','N',true);
+            	    record.set('node_svc_my_app_change','N',true);
+            	    record.set('node_svc_notice_change','N');
+            	    
+            	})();
+            	
+            ]]></script>
+        <a:screenBody>
+            <a:form column="5" labelWidth="100" marginWidth="30" title="工作流节点信息">
+                <a:textField name="sequence_num" bindTarget="editNodeDs" prompt="节点序号" readOnly="true"/>
+                <a:textField name="node_desc" bindTarget="editNodeDs" prompt="节点描述" readOnly="true"/>
+                <a:textField name="node_type_desc" bindTarget="editNodeDs" prompt="节点类型" readOnly="true"/>
+                <div id="div_info_complete">
+                    <span><![CDATA[数据完整度: ]]></span>
+                    <span id="color_complate_rate"/>
+                    <script><![CDATA[
+		            	(
+		            	function ()
+		            	{
+		            	    var record = $('editNodeDs').getAt(0);
+		            	    editNodePage_set_complateRate(record);
+		            	    
+		            	})();
+		            ]]></script>
+                </div>
+            </a:form>
+            <a:hBox>
+                <a:button click="editNodePage_close" text="返回"/>
+                <a:button click="editNodeDs_save" text="保存"/>
+            </a:hBox>
+            <a:tabPanel id="approve_detail_tabs" height="180" marginWidth="30">
+                <a:tabs>
+                    <a:tab id="approve_rule_tab" prompt="审批规则" width="100">
+                        <a:screenBody>
+                            <a:fieldSet padding="0" title="审批规则">
+                                <table style="margin-left:17px;">
+                                    <tr>
+                                        <td style="text-align:right;" width="100px"><![CDATA[审批规则]]></td>
+                                        <td width="160px">
+                                            <a:comboBox name="approval_type_desc" bindTarget="editNodeDs" prompt="审批规则"/>
+                                        </td>
+                                        <td style="text-align:right;" width="100px"><![CDATA[允许无审批人]]></td>
+                                        <td>
+                                            <a:checkBox name="can_no_approver_flag" bindTarget="editNodeDs" prompt="允许无审批人" width="50"/>
+                                        </td>
+                                        <td style="text-align:right;" width="100px"><![CDATA[允许转交]]></td>
+                                        <td>
+                                            <a:checkBox name="can_transfer_approver_flag" bindTarget="editNodeDs" prompt="允许转交" width="50"/>
+                                        </td>
+                                        <td style="text-align:right;" width="100px"><![CDATA[允许添加审批人]]></td>
+                                        <td>
+                                            <a:checkBox name="can_add_approver_flag" bindTarget="editNodeDs" prompt="允许添加审批人" width="50"/>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <table style="margin-left:17px;">
+                                    <tr>
+                                        <td style="text-align:right;" width="100px"><![CDATA[参数]]></td>
+                                        <td width="160px">
+                                            <a:numberField name="approval_type_factor" allowDecimals="false" allowNegative="false" bindTarget="editNodeDs" prompt="参数"/>
+                                        </td>
+                                        <td style="text-align:right;" width="100px"><![CDATA[无需重复审批]]></td>
+                                        <td>
+                                            <a:checkBox name="can_auto_pass_flag" bindTarget="editNodeDs" prompt="无需重复审批" width="50"/>
+                                        </td>
+                                        <td style="text-align:right;" width="100px"><![CDATA[提交人无需审批]]></td>
+                                        <td>
+                                            <a:checkBox name="is_self_re_commit_flag" bindTarget="editNodeDs" prompt="提交人无需审批" width="50"/>
+                                        </td>
+                                        <td style="text-align:right;" width="100px"><![CDATA[催办时限（天）]]></td>
+                                        <td>
+                                            <a:numberField name="to_do_limit" allowDecimals="true" bindTarget="editNodeDs" decimalPrecision="-1" prompt="催办时限（天）" width="40"/>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </a:fieldSet>
+                            <a:fieldSet padding="0" title="审批历史">
+                                <table style="margin-left:17px;">
+                                    <tr>
+                                        <td style="text-align:right;" width="100px"><![CDATA[隐藏节点审批记录]]></td>
+                                        <td width="160px">
+                                            <a:checkBox name="hide_approve_record_flag" bindTarget="editNodeDs" prompt="隐藏节点审批记录"/>
+                                        </td>
+                                        <td style="text-align:right;" width="100px"><![CDATA[显示审批历史]]></td>
+                                        <td>
+                                            <a:checkBox name="show_approve_history_flag" bindTarget="editNodeDs" prompt="显示审批历史" width="50"/>
+                                        </td>
+                                        <td style="text-align:right;" width="100px"><![CDATA[显示所有审批历史]]></td>
+                                        <td>
+                                            <a:checkBox name="show_all_approve_ht_flag" bindTarget="editNodeDs" prompt="显示所有审批历史" width="50"/>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </a:fieldSet>
+                        </a:screenBody>
+                    </a:tab>
+                    <a:tab prompt="页面显示" width="100">
+                        <a:screenBody>
+                            <a:fieldSet id="approver_screen_tab" padding="0" title="审批人">
+                                <table>
+                                    <tr>
+                                        <td style="text-align:right;" width="80px"><![CDATA[处理中页面]]></td>
+                                        <td>
+                                            <table border="0" cellpadding="0" cellspacing="0">
+                                                <tr>
+                                                    <td width="15">
+                                                        <a:checkBox name="node_display_type" bindTarget="editNodeDs" prompt="自定义"/>
+                                                    </td>
+                                                    <td>
+                                                        <a href="javascript:define_node_service_para(&apos;DISPLAY&apos;);" style="margin-left:20px;"><![CDATA[参数定义]]></a>
+                                                    </td>
+                                                    <td style="text-align:right;" width="80px"><![CDATA[显示页面]]></td>
+                                                    <td width="200px">
+                                                        <a:lov name="node_display_service_desc" bindTarget="editNodeDs" prompt="显示页面" width="300"/>
+                                                    </td>
+                                                    <td style="text-align:right;" width="80px"><![CDATA[页面名称]]></td>
+                                                    <td width="200px">
+                                                        <a:textField name="node_display_service_name" bindTarget="editNodeDs" prompt="页面名称" width="300"/>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="text-align:right;" width="80px"><![CDATA[已处理页面]]></td>
+                                        <td>
+                                            <table border="0" cellpadding="0" cellspacing="0">
+                                                <tr>
+                                                    <td width="15">
+                                                        <a:checkBox name="node_display_my_app_type" bindTarget="editNodeDs" prompt="自定义"/>
+                                                    </td>
+                                                    <td>
+                                                        <a href="javascript:define_node_service_para(&apos;DISPLAY_MY_APPROVED&apos;);" style="margin-left:20px;"><![CDATA[参数定义]]></a>
+                                                    </td>
+                                                    <td style="text-align:right;" width="80px"><![CDATA[显示页面]]></td>
+                                                    <td width="200px">
+                                                        <a:lov name="node_display_my_app_svc_desc" bindTarget="editNodeDs" prompt="显示页面" width="300"/>
+                                                    </td>
+                                                    <td style="text-align:right;" width="80px"><![CDATA[页面名称]]></td>
+                                                    <td width="200px">
+                                                        <a:textField name="node_display_my_app_svc_name" bindTarget="editNodeDs" prompt="页面名称" width="300"/>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </a:fieldSet>
+                            <a:fieldSet padding="0" title="通知人">
+                                <table>
+                                    <tr>
+                                        <td style="text-align:right;" width="80px"><![CDATA[通知页面]]></td>
+                                        <td>
+                                            <table border="0" cellpadding="0" cellspacing="0">
+                                                <tr>
+                                                    <td width="15">
+                                                        <a:checkBox name="notice_display_type" bindTarget="editNodeDs" prompt="自定义"/>
+                                                    </td>
+                                                    <td>
+                                                        <a href="javascript:define_node_service_para(&apos;NOTICE&apos;);" style="margin-left:20px;"><![CDATA[参数定义]]></a>
+                                                    </td>
+                                                    <td style="text-align:right;" width="80px"><![CDATA[显示页面]]></td>
+                                                    <td width="200px">
+                                                        <a:lov name="notice_display_service_desc" bindTarget="editNodeDs" prompt="显示页面" width="300"/>
+                                                    </td>
+                                                    <td style="text-align:right;" width="80px"><![CDATA[页面名称]]></td>
+                                                    <td width="200px">
+                                                        <a:textField name="notice_display_service_name" bindTarget="editNodeDs" prompt="页面名称" width="300"/>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </a:fieldSet>
+                        </a:screenBody>
+                    </a:tab>
+                    <a:tab prompt="消息通知" width="100">
+                        <a:screenBody>
+                            <a:fieldSet id="approver_msg_tab" title="审批人">
+                                <table style="margin-left:17px;">
+                                    <tr>
+                                        <td style="text-align:right;" width="50px"><![CDATA[通知模板]]></td>
+                                        <td width="200px">
+                                            <a:lov name="approver_template_desc" bindTarget="editNodeDs" prompt="通知模板" readOnly="false"/>
+                                        </td>
+                                        <td style="text-align:right;" width="50px"><![CDATA[发送邮件]]></td>
+                                        <td width="50px">
+                                            <a:checkBox name="approver_mail_flag" bindTarget="editNodeDs" prompt="发送邮件"/>
+                                        </td>
+                                        <td style="text-align:right;" width="50px"><![CDATA[邮件模板]]></td>
+                                        <td width="200px">
+                                            <a:lov name="approver_mail_template_desc" bindTarget="editNodeDs" prompt="邮件模板"/>
+                                        </td>
+                                        <td style="text-align:right;" width="50px"><![CDATA[发送短信]]></td>
+                                        <td width="50px">
+                                            <a:checkBox name="approver_sms_flag" bindTarget="editNodeDs" prompt="发送短信"/>
+                                        </td>
+                                        <td style="text-align:right;" width="50px"><![CDATA[短信模板]]></td>
+                                        <td width="200px">
+                                            <a:lov name="approver_sms_template_desc" bindTarget="editNodeDs" prompt="短信模板"/>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </a:fieldSet>
+                            <a:fieldSet title="通知人">
+                                <table style="margin-left:17px;">
+                                    <tr>
+                                        <td style="text-align:right;" width="50px"><![CDATA[通知模板]]></td>
+                                        <td width="200px">
+                                            <a:lov name="notice_template_desc" bindTarget="editNodeDs" prompt="通知模板" readOnly="false"/>
+                                        </td>
+                                        <td style="text-align:right;" width="50px"><![CDATA[发送邮件]]></td>
+                                        <td width="50px">
+                                            <a:checkBox name="notice_mail_flag" bindTarget="editNodeDs" prompt="发送邮件"/>
+                                        </td>
+                                        <td style="text-align:right;" width="50px"><![CDATA[邮件模板]]></td>
+                                        <td width="200px">
+                                            <a:lov name="notice_mail_template_desc" bindTarget="editNodeDs" prompt="邮件模板"/>
+                                        </td>
+                                        <td style="text-align:right;" width="50px"><![CDATA[发送短信]]></td>
+                                        <td width="50px">
+                                            <a:checkBox name="notice_sms_flag" bindTarget="editNodeDs" prompt="发送短信"/>
+                                        </td>
+                                        <td style="text-align:right;" width="50px"><![CDATA[短信模板]]></td>
+                                        <td width="200px">
+                                            <a:lov name="notice_sms_template_desc" bindTarget="editNodeDs" prompt="短信模板"/>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </a:fieldSet>
+                        </a:screenBody>
+                    </a:tab>
+                    <a:placeHolder id="branch_node_define"/>
+                </a:tabs>
+            </a:tabPanel>
+            <a:tabPanel id="tab_node_action_pro" marginHeight="370" marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="节点动作" width="100">
+                        <script><![CDATA[
+                        	function remove_nodeAction()
+			            	{
+			            	    Aurora.showConfirm('${l:HLS.PROMPT}', '是否确认删除', function (){
+			            	        
+			            	        mask_editNodePage();
+                				    var ds = $('nodeActionDs');
+				            	    var records=ds.getSelected();
+				            	    if(records.length==0)
+				            	    {
+				            	        unmask_editNodePage();
+				            	        return ;
+				            	    }
+				            	    
+				            	    var array=[];
+				            	    for (var i=0,j=records.length;i<j;i++)
+				            	    {
+				            	        var obj=records[i].getObject();
+				            	        array[i]=obj;
+				            	    }
+				            	    
+				            	    var data={};
+				            	    data['node_action_info']=array;
+				            	    data['node_id']='${/parameter/@node_id}';
+				            	    Aurora.request({
+					                    url: $('svcLink_remove_node_action').getUrl(),
+					                    para: data,
+					                    success: function(res) {
+					                        //解锁
+					                        unmask_editNodePage();
+				                            Aurora.SideBar.show({
+					                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+					                            duration: 2000
+					                        });
+					                        var result=res.result;
+					                        var nodeRecord = $('editNodeDs').getAt(0);
+					                        nodeRecord.set('info_complete_rate',result['info_complete_rate'],true);
+					                        nodeRecord.set('info_complete_note',result['info_complete_note'],true);
+					                        
+					                        for (var i=records.length-1;i>=0;i--)
+						            	    {
+						            	        ds.removeLocal(records[i]);
+						            	    }
+					                    },
+					                    failure: function() {
+					                        unmask_editNodePage();
+					                    },
+					                    error: function() {
+					                        unmask_editNodePage();
+					                    },
+					                    scope: this
+					                });
+                				});
+			            	}
+			            ]]></script>
+                        <a:grid id="nodeActionDs_grid" bindTarget="nodeActionDs" marginHeight="400" marginWidth="60">
+                            <a:toolBar>
+                                <a:button type="add"/>
+                                <a:button click="remove_nodeAction" icon="${/request/@context_path}/images/remove.png" text="HAP_DELETE"/>
+                            </a:toolBar>
+                            <a:columns>
+                                <a:column name="sequence_num" align="right" editor="nodeActionDs_grid_nf_integer" prompt="顺序" width="50"/>
+                                <a:column name="action_type_desc" editorFunction="editorFun_nodeActionDs_grid" prompt="动作类型" width="80"/>
+                                <a:column name="node_action_desc" editor="nodeActionDs_grid_tf" prompt="节点动作描述" width="80"/>
+                                <a:column name="node_action_prompt" autoAdjust="false" editor="nodeActionDs_grid_tf" prompt="节点动作提示" showTitle="true" width="100"/>
+                                <a:column name="jump_node_desc" editorFunction="editorFun_nodeActionDs_grid" prompt="跳转节点" width="100"/>
+                                <a:column name="procedure_code" autoAdjust="false" editorFunction="editorFun_nodeActionDs_grid" prompt="过程代码" showTitle="true" width="150"/>
+                                <a:column name="procedure_desc" autoAdjust="false" prompt="过程描述" showTitle="true" width="100"/>
+                                <a:column name="exec_procedure" autoAdjust="false" prompt="执行过程" showTitle="true" width="100"/>
+                                <a:column name="service_name" autoAdjust="false" editorFunction="editorFun_nodeActionDs_grid" prompt="页面名称" showTitle="true" width="150"/>
+                                <a:column name="service_desc" autoAdjust="false" prompt="页面描述" showTitle="true" width="100"/>
+                                <a:column name="node_action_para" align="center" prompt="动作参数" renderer="render_nodeActionDs_grid" width="60"/>
+                                <a:column name="default_action_flag" editor="nodeActionDs_grid_check" prompt="默认动作" width="50"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:numberField id="nodeActionDs_grid_nf_integer" allowDecimals="false" allowNegative="false"/>
+                                <a:comboBox id="nodeActionDs_grid_comb"/>
+                                <a:lov id="nodeActionDs_grid_lov"/>
+                                <a:textField id="nodeActionDs_grid_tf"/>
+                                <a:checkBox id="nodeActionDs_grid_check"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab prompt="节点过程" width="100">
+                        <script><![CDATA[
+                        	function remove_nodeProc()
+			            	{
+			            	    Aurora.showConfirm('${l:HLS.PROMPT}', '是否确认删除', function (){
+			            	    	mask_editNodePage();
+			            	    	
+				            	    var ds = $('nodeProcDs');
+				            	    var records=ds.getSelected();
+				            	    if(records.length==0)
+				            	    {
+				            	        unmask_editNodePage();
+				            	        return ;
+				            	    }
+				            	    
+				            	    var array=[];
+				            	    for (var i=0,j=records.length;i<j;i++)
+				            	    {
+				            	        var obj=records[i].getObject();
+				            	        array[i]=obj;
+				            	    }
+				            	    
+				            	    var data={};
+				            	    data['node_proc_info']=array;
+				            	    data['node_id']='${/parameter/@node_id}';
+				            	    Aurora.request({
+					                    url: $('svcLink_remove_node_proc').getUrl(),
+					                    para: data,
+					                    success: function(res) {
+					                        //解锁
+					                        unmask_editNodePage();
+				                            Aurora.SideBar.show({
+					                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+					                            duration: 2000
+					                        });
+					                        var result=res.result;
+					                        var nodeRecord = $('editNodeDs').getAt(0);
+					                        nodeRecord.set('info_complete_rate',result['info_complete_rate'],true);
+					                        nodeRecord.set('info_complete_note',result['info_complete_note'],true);
+					                        
+					                        for (var i=records.length-1;i>=0;i--)
+						            	    {
+						            	        ds.removeLocal(records[i]);
+						            	    }
+					                    },
+					                    failure: function() {
+					                        unmask_editNodePage();
+					                    },
+					                    error: function() {
+					                        unmask_editNodePage();
+					                    },
+					                    scope: this
+					                });
+			            	    });
+			            	}
+			            ]]></script>
+                        <a:grid id="nodeProcDs_grid" bindTarget="nodeProcDs" marginHeight="400" marginWidth="60">
+                            <a:toolBar>
+                                <a:button type="add"/>
+                                <a:button click="remove_nodeProc" icon="${/request/@context_path}/images/remove.png" text="HAP_DELETE"/>
+                            </a:toolBar>
+                            <a:columns>
+                                <a:column name="sequence_num" align="right" editor="nodeProcDs_grid_nf_integer" prompt="顺序" width="80"/>
+                                <a:column name="procedure_code" editor="nodeProcDs_grid_lov" prompt="过程代码" width="250"/>
+                                <a:column name="procedure_desc" prompt="过程描述" width="250"/>
+                                <a:column name="exec_procedure" prompt="执行过程" width="250"/>
+                                <a:column name="proc_para" align="center" prompt="过程参数定义" renderer="render_nodeProcDs_grid" width="100"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:numberField id="nodeProcDs_grid_nf_integer" allowDecimals="false" allowNegative="false"/>
+                                <a:lov id="nodeProcDs_grid_lov"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+                <a:events>
+                    <a:event name="mouseover" handler="onStripMouseOver"/>
+                </a:events>
+            </a:tabPanel>
+            <a:tabPanel id="end_proc_id" marginHeight="370" marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="结束过程" width="100">
+                        <a:grid id="endProcDs_grid" bindTarget="endProcDs" height="150" marginWidth="50">
+                            <a:toolBar>
+                                <a:button type="add"/>
+                                <a:button type="clear"/>
+                                <a:button type="delete"/>
+                            </a:toolBar>
+                            <a:columns>
+                                <a:column name="sequence_num" align="right" editor="endProcDs_grid_nf_integer" prompt="过程执行顺序" width="100"/>
+                                <a:column name="workflow_status_desc" editor="endProcDs_grid_comb" prompt="结束状态" width="150"/>
+                                <a:column name="procedure_code" editor="endProcDs_grid_lov" prompt="过程代码" width="250"/>
+                                <a:column name="procedure_desc" prompt="过程描述" width="250"/>
+                                <a:column name="proc_para" align="center" prompt="结束过程参数定义" renderer="render_endProcDs_grid" width="120"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:checkBox id="endProcDs_grid_check"/>
+                                <a:numberField id="endProcDs_grid_nf_integer" allowDecimals="false" allowNegative="false"/>
+                                <a:lov id="endProcDs_grid_lov"/>
+                                <a:comboBox id="endProcDs_grid_comb"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+            </a:tabPanel>
+            <script><![CDATA[
+              function init(){
+                  var node_type = '${/parameter/@node_type}';
+                  if (node_type =='START_NODE' || node_type=='END_NODE'){
+                      Ext.get("tab_node_action_pro").setStyle({display: "none"});
+                      Ext.get("approve_rule_tab").setStyle({display: "none"});
+                      Ext.get("approver_msg_tab").setStyle({display: "none"});
+                      Ext.get("approver_screen_tab").setStyle({display: "none"});
+                      
+                      $('approve_detail_tabs').selectTab(1);
+                      var record = $('editNodeDs').getAt(0);
+                      $('editNodeDs').getAt(0).getField('approval_type_desc').setRequired(false);
+                      handle_field(record,'node_display_service_desc','READ');
+					  handle_field(record,'node_display_my_app_svc_desc','READ');
+					  handle_field(record,'notice_display_service_desc','READ');
+                  }
+                  
+                  if (node_type!='END_NODE'){
+                  	Ext.get("end_proc_id").setStyle({display: "none"});
+                  }
+              }
+              init();
+            ]]></script>
+        </a:screenBody>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="branch_node_define">
+            <p:switch test="/model/node_record/record/@node_type">
+                <p:case value="BRANCH_NODE">
+                    <c:process-config>
+                        <a:tab prompt="分支定义" width="100">
+                            <a:screenBody>
+                                <a:fieldSet>
+                                    <table style="margin-left:17px;">
+                                        <tr>
+                                            <td style="text-align:right;" width="100px"><![CDATA[判断方式]]></td>
+                                            <td width="200px">
+                                                <a:comboBox name="branch_method_desc" bindTarget="editNodeDs" prompt="审批规则"/>
+                                            </td>
+                                            <td style="text-align:right;" width="100px"><![CDATA[判断函数]]></td>
+                                            <td width="250px">
+                                                <a:lov name="branch_procedure_desc" bindTarget="editNodeDs" prompt="判断函数" width="200"/>
+                                            </td>
+                                            <td width="100px">
+                                                <a href="javascript:winOpen_branchNodePage();"><![CDATA[返回值]]></a>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    <table style="margin-left:17px;">
+                                        <tr>
+                                            <td width="100px"/>
+                                            <td width="200px"/>
+                                            <td style="text-align:right;" width="100px"><![CDATA[业务规则]]></td>
+                                            <td width="250px">
+                                                <a:lov name="branch_business_rule_desc" bindTarget="editNodeDs" prompt="业务规则" width="200"/>
+                                            </td>
+                                            <td width="100px">
+                                                <a href="javascript:winOpen_branchNodePage();"><![CDATA[返回值]]></a>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </a:fieldSet>
+                            </a:screenBody>
+                        </a:tab>
+                    </c:process-config>
+                </p:case>
+            </p:switch>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

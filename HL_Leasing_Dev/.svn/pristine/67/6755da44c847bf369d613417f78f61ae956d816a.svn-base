@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei  
+    $Date: 2015-2-11 上午11:22:38  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            SELECT rownum,t1.*
+  FROM (SELECT t.contract_number,
+               (SELECT b.bp_name FROM hls_bp_master b WHERE b.bp_id = t.bp_id_tenant) bp_tenant_name,
+                 (SELECT b.bp_class
+                  FROM hls_bp_master b
+                 WHERE b.bp_id = t.bp_id_tenant) bp_class,
+               (SELECT decode(b.bp_class,
+                              'NP',
+                              '个人',
+                              'ORG',
+                              '企业')
+                  FROM hls_bp_master b
+                 WHERE b.bp_id = t.bp_id_tenant) bp_class_des,
+               (SELECT b.id_card_no
+                  FROM hls_bp_master b
+                 WHERE b.bp_id = t.bp_id_tenant
+                       AND b.bp_class = 'NP') id_card_no,
+               (SELECT b.corporate_code
+                  FROM hls_bp_master b
+                 WHERE b.bp_id = t.bp_id_tenant
+                       AND b.bp_class = 'ORG') corporate_code,
+               (SELECT b.organization_code
+                  FROM hls_bp_master b
+                 WHERE b.bp_id = t.bp_id_tenant
+                       AND b.bp_class = 'ORG') organization_code,
+               t.total_rental,
+               '人民币' cny,
+               (SELECT a.description FROM hls_business_type a WHERE a.business_type = t.business_type) business_type_des,
+               t.lease_term,
+               cc.brand_id_des || ' ' || cc.series_id_des || ' ' || cc.model_id_des lease_item_name,
+               nvl((SELECT cl.license_number
+                     FROM con_contract_lease_item  li,
+                          con_contract_item_detail det,
+                          ast_car_license          cl
+                    WHERE li.contract_id = t.contract_id
+                          AND li.contract_lease_item_id = det.contract_lease_item_id
+                          AND det.item_detail_id = cl.item_detail_id
+                          AND cl.enabled_flag = 'Y'),
+                   '-') || '/' || nvl((SELECT ide.item_frame_number
+                                        FROM con_contract_lease_item  li,
+                                             con_contract_item_detail ide
+                                       WHERE li.contract_id = t.contract_id
+                                             AND ide.contract_lease_item_id = li.contract_lease_item_id),
+                                      '-') || '/' ||
+               nvl((SELECT ide.item_engine_number
+                     FROM con_contract_lease_item  li,
+                          con_contract_item_detail ide
+                    WHERE li.contract_id = t.contract_id
+                          AND ide.contract_lease_item_id = li.contract_lease_item_id),
+                   '-') lease_item_identy
+          FROM con_contract       t,
+               con_contract_all_v cc
+         WHERE cc.contract_id = t.contract_id
+               AND t.data_class = 'NORMAL'
+               AND t.contract_status = 'INCEPT'
+               AND t.created_by != -1) t1  #WHERE_CLAUSE#
+               order by t1.contract_number desc
+            
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="contract_number" queryExpression="t1.contract_number like ${@contract_number}"/>
+        <bm:query-field name="bp_tenant_name" queryExpression="t1.bp_tenant_name like ${@bp_tenant_name}"/>
+        <bm:query-field name="bp_class" queryExpression="t1.bp_class= ${@bp_class}"/>
+    </bm:query-fields>
+</bm:model>

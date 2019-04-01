@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: jack  
+    $Date: 2014-12-3 下午1:29:08  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+             SELECT *
+  FROM (SELECT to_char(a.lease_start_date,
+                       'yyyy-mm-dd') lease_start_date,
+               a.contract_number,
+               a.lease_times,
+               a.contract_id,
+               (select v.bank_account_num from fnd_companies fc ,csh_bank_account_v v where fc.company_id=a.company_id and fc.bank_account_id=v.bank_account_id) bank_account_num,               
+               (select v.bank_account_name from fnd_companies fc ,csh_bank_account_v v where fc.company_id=a.company_id and fc.bank_account_id=v.bank_account_id) bank_account_name,               
+               (select v.bank_branch_name from fnd_companies fc ,csh_bank_account_v v where fc.company_id=a.company_id and fc.bank_account_id=v.bank_account_id) bank_branch_name,               
+               to_char(SYSDATE,
+                       'yyyy')||'年'||to_char(SYSDATE,
+                       'mm')||'月'||to_char(SYSDATE,
+                       'dd')||'日' sysdates,
+               (SELECT to_char(MAX(b.last_received_date),
+                               'yyyy-mm-dd')
+                  FROM con_contract_cashflow b
+                 WHERE a.contract_id = b.contract_id
+                       AND b.times = 0
+                 GROUP BY b.contract_id) first_pay_date,
+               (SELECT b.due_amount * (a.annual_pay_times / 12)
+                  FROM con_contract_cashflow b
+                 WHERE b.cf_item = 1
+                       AND b.times = 1
+                       AND a.contract_id = b.contract_id) mouth_rentail,
+               (SELECT c.unit_name
+                  FROM prj_project    b,
+                       exp_org_unit_v c
+                 WHERE a.project_id = b.project_id
+                       AND b.unit_id = c.unit_id) unit_name,
+               (select c.bp_name from con_contract_bp b, hls_bp_master c where b.bp_id=c.bp_id and c.bp_category='AGENT' AND A.CONTRACT_id=b.contract_id) agent_name,
+               (SELECT d.item_frame_number
+                  FROM con_contract_lease_item  c,
+                       con_contract_item_detail d
+                 WHERE d.contract_lease_item_id = c.contract_lease_item_id
+                       AND c.contract_id = a.contract_id) item_frame_number,
+               (SELECT d.item_engine_number
+                  FROM con_contract_lease_item  c,
+                       con_contract_item_detail d
+                 WHERE d.contract_lease_item_id = c.contract_lease_item_id
+                       AND c.contract_id = a.contract_id) item_engine_number,
+               (SELECT bp.bp_name FROM hls_bp_master bp WHERE bp.bp_id = a.bp_id_tenant) tenant_name,
+               (SELECT c.description||'-'||d.description||'-'||e.description
+                  FROM hls_car_brands_vl       c,
+                       hls_car_series_vl       d,
+                       hls_car_model_vl        e,
+                       con_contract_lease_item f
+                 WHERE f.contract_id = a.contract_id
+                       AND f.brand_id = c.brand_id
+                       and f.series_id=d.series_id
+                       and f.model_id=e.model_id) car_info
+          FROM con_contract a
+  )
+ t1 #WHERE_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

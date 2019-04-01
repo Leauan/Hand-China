@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-6-24 下午03:23:39  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" cacheEnabled="true" cacheKey="${/parameter/@layout_code}_screen" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <!-- <s:server-script import="aut_authority_validate.js"/> -->
+        <a:model-query fetchAll="true" model="hls.HLS030.hls_doc_layout_main" rootPath="layout_main_path"/>
+        <a:model-query fetchAll="true" model="cont.CON500.hls_doc_layout_button" rootPath="layout_main_button_path"/>
+        <a:model-query defaultWhereClause="t1.parent_table is null and t1.tab_type!=&apos;TAB&apos; and t1.enabled_flag=&apos;Y&apos; and rownum=1" fetchAll="true" model="cont.CON500.con_hls_doc_layout_tab_query" rootPath="base_table_path"/>
+        <!-- <s:server-script><![CDATA[
+        	var m=$ctx.get('/model/layout_main_button_path');
+        	println(m.toXML());
+        	println('**************');
+        ]]></s:server-script> -->
+    </a:init-procedure>
+    <a:view>
+        <!--  <a:link id="con_contract_modify_link" url="${/request/@context_path}/modules/cont/CON505/con_contract_modify.screen"/>
+        <a:link id="acr512_invoice_ln_update_1_link" model="acr.ACR512.acr_invoice_update_query" modelaction="update"/> -->
+        <script><![CDATA[
+            var dynamic_document_id = '$c{/parameter/@document_id}';
+            if ('$c{/parameter/@document_id}') {
+                var detail_mask;
+                if ('${/parameter/@winid}') {
+                    if (parent.$A.CmpManager.get('${/parameter/@winid}')) {
+                        detail_mask = parent.$('${/parameter/@winid}').wrap;
+                        parent.Aurora.Masker.mask(detail_mask, '${l:HLS.LOADING}');
+                    } else {
+                        detail_mask = $('${/parameter/@winid}').wrap;
+                        Aurora.Masker.mask(detail_mask, '${l:HLS.LOADING}');
+                    }
+                } else {
+                    detail_mask = Ext.getBody();
+                    Aurora.Masker.mask(detail_mask, '${l:HLS.LOADING}');
+                }
+            }
+            
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record, bp_seq) {
+                var link_function = '';
+                window['${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                if (name == 'bp_link' && record.get('bp_id') && record.get('record_id')) {
+                    link_function = '${/parameter/@layout_code}_open_bp_detail_window';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+                } else if (name == 'car_detail' && record.get('contract_lease_item_id')) {
+                    link_function = '${/parameter/@layout_code}_open_lease_item_detail_window';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+                }else if (name == 'contract_number' && record.get('contract_id')) {
+                    link_function = '${/parameter/@layout_code}_open_contract_detail_window';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+                }
+            };
+            
+            window['${/parameter/@layout_code}_open_lease_item_detail_window'] = function(id, name) {
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][id + '---' + name];
+                var param = record.data;
+                var contract_lease_item_id = record.get('contract_lease_item_id');
+                new Aurora.Window({
+                    id: 'contract_lease_item_maintain_window',
+                    url: $('contract_lease_item_maintain_link').getUrl(),
+                    params: {
+                        contract_lease_item_id: contract_lease_item_id,
+                        winid: 'contract_lease_item_maintain_window'
+                    },
+                    draggable: true,
+                    fullScreen: true
+                });
+            };
+            
+            window['${/parameter/@layout_code}_open_contract_detail_window'] = function(id, name) {
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][id + '---' + name];
+              
+                var param = record.data;
+                param['function_code'] = 'ACR_CON301';
+                /* param['function_usage'] = 'QUERY'; */
+                param['maintain_type'] = 'QUERY';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_modify_link', null);
+            };
+            
+              window['${/parameter/@layout_code}_open_bp_detail_window'] = function(id, name) {
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][id + '---' + name];
+                var param = record.data;
+                param['function_code'] = 'CON501H';
+                param['function_usage'] = 'MODIFY';
+                param['url_title'] = '${l:HLS212.BP_MASTER_MAINTAIN}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con713_hls_bp_master_modify_link', record.ds.id, '${/parameter/@layout_code}');
+            };
+            
+            
+            
+            function con500_contract_save(nextStep) {
+                var root_ds = $('${/model/base_table_path/record/@tab_code}_${/model/base_table_path/record/@base_table}_ds');
+                if (root_ds.validate()) {
+                    var winid = '${/parameter/@winid}';
+                    if (winid) {
+                        Aurora.Masker.mask($(winid).wrap, '${l:HLS.EXECUTING}');
+                    } else {
+                        Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+                    }
+                    lock_current_window();
+                    var root_record = root_ds.getAt(0);
+                    root_ds.setSubmitParameter('layout_code', '${/parameter/@layout_code}');
+                    on_con_save_dynamic(root_ds, root_record, nextStep, winid);
+                }
+              //  con500_contract_merge();
+            }
+            
+            function con500_contract_submit() {
+                debugger;
+                Aurora.SideBar.enable = false;
+                con500_contract_save(con500_contract_submit_final);
+            }
+            
+            function con500_contract_exit() {
+                if ('${/parameter/@winid}') {
+                    $('${/parameter/@winid}').close();
+                } else {
+                    window.location.go(-1);
+                }
+            }
+            
+            function con500_contract_save_exit() {
+                con500_contract_save(con500_contract_exit);
+            }
+            
+            function con500_contract_quote() {
+                var root_ds = $('${/model/base_table_path/record/@tab_code}_${/model/base_table_path/record/@base_table}_ds');
+                con500_contract_quote_execute(root_ds);
+            }
+            
+            function con500_contract_upload() {
+                if (!dynamic_document_id) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:HLS.EXECUTE_AFTER_SAVE}');
+                    return;
+                } else {
+                    var dynamic_base_table = '${/model/base_table_path/record/@base_table}'.toUpperCase();
+                    var url = '${/request/@context_path}/uploadFile.screen?table_name=' + dynamic_base_table + '&header_id=' + dynamic_document_id;
+                    new Aurora.Window({
+                        url: url,
+                        title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                        id: '${/parameter/@attach_tab_code}_con500_cdd_uploadFile_screen_id',
+                        width: 850,
+                        height: 400
+                    });
+                }
+            }
+            
+            // function con500_contract_merge(){
+               // var root_ds = $('${/model/base_table_path/record/@tab_code}_${/model/base_table_path/record/@base_table}_ds');
+                 // var invoice_hd_id =root_ds.getCurrentRecord().get('invoice_hd_id');
+              // var message='';
+                 // if(root_ds.getCurrentRecord().get('merge_flag')=='Y'){
+                    // message='您确认行合并吗';
+                 // }else{
+                      // message='您确认行不合并吗';
+                 // }
+              
+                  // Aurora.showConfirm('提示', message, function() {
+                    // Aurora.request({
+                        // url: $('acr512_invoice_ln_update_1_link').getUrl(),
+                        // para: {
+                            // invoice_hd_id: invoice_hd_id
+                        // },
+                        // success: function() {
+                             // Aurora.SideBar.show({
+                               // msg: '操作成功',
+                                 // duration: 2000
+                           // });
+                             // $('${/parameter/@winid}').close();
+                      // /*       new Aurora.Window({
+                    // id: 'contract_invoice_merge_window',
+                    // url: $('contract_invoice_merge_link').getUrl(),
+                    // params: {
+                        // invoice_hd_id: invoice_hd_id,
+                        // winid: 'contract_invoice_merge_window'
+                    // },
+                   // // draggable: true,
+                    // fullScreen: true
+                // }); */
+                        // },
+                        // scope: this
+                    // });
+            
+                // });
+            // }
+        ]]></script>
+        <a:freeMarker><![CDATA[
+	        	<#if model.getObject("/model/layout_main_button_path").getChilds()??>
+	        		<#if model.getObject("/parameter/@tab_tab_code")??>
+		        	<#else>
+		        		<a:screenTopToolbar>
+			        		<#list model.getObject('/model/layout_main_button_path').getChilds() as item>
+				        			<#if item.getString('button_code') =='SAVE'>
+				        				<a:gridButton click="con500_contract_save" text="${item.getString('prompt')!""}"/>
+				        			<#elseif item.getString('button_code') =='EXIT'>
+				        				<a:gridButton click="con500_contract_exit" text="${item.getString('prompt')!""}"/>
+				        			<#elseif item.getString('button_code') =='SAVE_EXIT'>
+				        				<a:gridButton click="con500_contract_save_exit" text="${item.getString('prompt')!""}"/>
+				        			<#elseif item.getString('button_code') =='QUOTE'>
+				        				<a:gridButton click="con500_contract_quote" text="${item.getString('prompt')!""}"/>
+				        			<#elseif item.getString('button_code') =='SUBMIT_APPROVAL'>
+				        				<a:gridButton click="con500_contract_submit" text="${item.getString('prompt')!""}"/>
+				        			<#elseif item.getString('button_code') =='PRINT'>
+				        				<a:gridButton click="function(){con500_contract_print&amp;&amp;con500_contract_print()}" text="${item.getString('prompt')!""}"/>
+				        			<#elseif item.getString('button_code') =='UPLOAD'>
+				        				<a:gridButton click="con500_contract_upload" text="${item.getString('prompt')!""}"/>
+				        			<#else>
+				        				<a:gridButton id="${item.getString('button_code')!""}" click="function(btn){con500_define_button&amp;&amp;con500_define_button(btn,$('${model.getObject("/model/base_table_path/record/@tab_code")!""}_${model.getObject("/model/base_table_path/record/@base_table")}_ds'))}" text="${item.getString('prompt')!""}"/>
+				        			</#if>
+			        		</#list>
+		        		</a:screenTopToolbar>
+		        	</#if>
+	        	</#if>
+	        ]]></a:freeMarker>
+        <a:screenBody padding="5" style="width:98%">
+            <a:placeHolder id="dynamicMain_id"/>
+        </a:screenBody>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="dynamicMain_id">
+            <p:loop source="/model/layout_main_path">
+                <p:switch test="@tab_type">
+                    <p:case value="FORM">
+                        <c:process-config>
+                            <a:screen-include screen="modules/cont/CON500/con_contract_update_form.screen?form_tab_code=${@tab_code}&amp;layout_code=${/parameter/@layout_code}&amp;document_id=$c{/parameter/@document_id}&amp;document_category=${/parameter/@document_category}&amp;document_type=$c{/parameter/@document_type}&amp;winid=${/parameter/@winid}&amp;function_code=${/parameter/@function_code}&amp;function_usage=$c{/parameter/@function_usage}&amp;maintain_type=${/parameter/@maintain_type}&amp;calc_type=$c{/parameter/@calc_type}&amp;default_value_dsid=$c{/parameter/@default_value_dsid}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="GRID">
+                        <c:process-config>
+                            <a:screen-include screen="modules/cont/CON500/con_contract_update_grid.screen?grid_tab_code=${@tab_code}&amp;layout_code=${/parameter/@layout_code}&amp;document_id=$c{/parameter/@document_id}&amp;document_category=${/parameter/@document_category}&amp;document_type=$c{/parameter/@document_type}&amp;winid=${/parameter/@winid}&amp;function_code=${/parameter/@function_code}&amp;function_usage=$c{/parameter/@function_usage}&amp;maintain_type=${/parameter/@maintain_type}&amp;calc_type=$c{/parameter/@calc_type}&amp;default_value_dsid=$c{/parameter/@default_value_dsid}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TEXTAREA">
+                        <c:process-config>
+                            <a:screen-include screen="modules/cont/CON500/con_contract_update_textarea.screen?textarea_tab_code=${@tab_code}&amp;layout_code=${/parameter/@layout_code}&amp;document_id=$c{/parameter/@document_id}&amp;document_category=${/parameter/@document_category}&amp;document_type=$c{/parameter/@document_type}&amp;winid=${/parameter/@winid}&amp;function_code=${/parameter/@function_code}&amp;function_usage=$c{/parameter/@function_usage}&amp;maintain_type=${/parameter/@maintain_type}&amp;calc_type=$c{/parameter/@calc_type}&amp;default_value_dsid=$c{/parameter/@default_value_dsid}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="ATTACH">
+                        <c:process-config>
+                            <a:screen-include screen="modules/cont/CON500/con_contract_update_attach.screen?attach_tab_code=${@tab_code}&amp;layout_code=${/parameter/@layout_code}&amp;document_id=$c{/parameter/@document_id}&amp;document_category=${/parameter/@document_category}&amp;document_type=$c{/parameter/@document_type}&amp;winid=${/parameter/@winid}&amp;function_code=${/parameter/@function_code}&amp;function_usage=$c{/parameter/@function_usage}&amp;maintain_type=${/parameter/@maintain_type}&amp;calc_type=$c{/parameter/@calc_type}&amp;cdd_list_id=$c{/parameter/@cdd_list_id}&amp;default_value_dsid=$c{/parameter/@default_value_dsid}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TAB">
+                        <c:process-config>
+                            <a:screen-include screen="modules/cont/CON500/con_contract_update_tabpanel.screen?tab_group=${@tab_group}&amp;parent_tab_code=${/parameter/@tab_tab_code}&amp;layout_code=${/parameter/@layout_code}&amp;document_id=$c{/parameter/@document_id}&amp;document_category=${/parameter/@document_category}&amp;document_type=$c{/parameter/@document_type}&amp;winid=${/parameter/@winid}&amp;function_code=${/parameter/@function_code}&amp;function_usage=$c{/parameter/@function_usage}&amp;maintain_type=${/parameter/@maintain_type}&amp;calc_type=$c{/parameter/@calc_type}&amp;cdd_list_id=$c{/parameter/@cdd_list_id}&amp;default_value_dsid=$c{/parameter/@default_value_dsid}"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

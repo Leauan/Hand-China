@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-2-26 下午2:37:49  
+    $Revision: 1.0  
+    $Purpose: cashflowItemScreen
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="v.code=&apos;HLS005_CF_STATUS&apos; and v.code_value=&apos;RELEASE&apos;" model="basic.sys_code_default_value" rootPath="cf_status_default_record"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="pageLink_cashflowItemScreen_welcome" url="${/request/@context_path}/welcome.screen"/>
+        <script><![CDATA[
+        
+	        function cashflowItemScreen_forward() {
+	            history.go(1);
+	        }
+	        
+	        function cashflowItemScreen_back() {
+	            history.go(-1);
+	        }
+	        
+	        function cashflowItemScreen_add() {
+	            $('cashflowItemDs_grid').showEditorByRecord($('cashflowItemDs').create());
+	        }
+	        
+	        function cashflowItemScreen_clear(){
+	            $('cashflowItemDs_grid').clear();
+	        }
+	        
+	        function cashflowItemScreen_query() {
+	            $('cashflowItemDs').query();
+	        }
+	        
+	        function cashflowItemScreen_save() {
+	            var ds = $('cashflowItemDs');
+	            if (ds.validate()) {
+	                ds.submit();
+	            }
+	        }
+	        
+	        function cashflowItemScreen_quit() {
+	            location.href = $('pageLink_cashflowItemScreen_welcome').getUrl();
+	            parent.shMenu('show');
+	        }
+	        
+	        function editorFunction_cashflowItemDs_grid(record,name){
+			    if(record.isNew){
+			        if(name=='cf_item')
+			        {
+			            return 'cashflowItemDs_grid_nf_integer';
+			        }
+			        if(name=='cf_type')
+			        {
+			            return 'cashflowItemDs_grid_lov';
+			        }
+			        if(name=='cf_direction_desc')
+			        {
+			            if(record.get('temp_cf_direction')=='MIXED')
+			            {
+			                return 'cashflowItemDs_grid_cb';
+			            }
+			            else
+			            {
+			                return '';
+			            }
+	                	
+			        }
+	                
+	            }
+	            else
+	            {
+	                return '';
+	            }
+			}
+			
+			function validate_cashflowItemDs(record,name,value){
+			    if(record.isNew && name=='cf_item')
+			    {
+			        if(value<=-100 ||value>=100){
+			        	return '${l:HLS005.VALIDATOR.CF_ITEM}';
+			    	}
+			    }
+			    return true;
+			}
+		  
+			function onUpdate_cashflowItemDs(dataSet, record, name, value, oldValue)
+			{
+			    if(name=='cf_type')
+			    {
+			        if(record.get('temp_cf_direction')=='MIXED')
+			        {
+			            record.set('cf_direction_desc','');
+		            	record.set('cf_direction','');
+			        }
+			        else
+			        {
+			            record.set('cf_direction_desc',record.get('temp_cf_direction_desc'));
+		            	record.set('cf_direction',record.get('temp_cf_direction'));
+			        }
+		            
+			    }
+			}
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="nc_cf_item_ds" lookupCode="NC_CF_ITEM"/>
+            <a:dataSet id="cf_direction_ds" loadData="true" model="hls.HLS005.hls_cashflow_item_cf_direction"/>
+            <a:dataSet id="cashflowItemDs" autoQuery="true" model="hls.HLS005.hls_cashflow_item" pageSize="20" selectable="true">
+                <a:fields>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="calc_penalty" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="temp_cf_direction_desc"/>
+                    <a:field name="temp_cf_direction"/>
+                    <a:field name="cf_type" lovGridHeight="340" lovHeight="500" lovService="hls.HLS005.hls_cashflow_type_v_lov" lovWidth="500" required="true" title="AUT_AUTHORITY_GROUP.AUTHORITY_GROUP">
+                        <a:mapping>
+                            <a:map from="description" to="cf_type_desc"/>
+                            <a:map from="cf_direction_desc" to="temp_cf_direction_desc"/>
+                            <a:map from="cf_direction" to="temp_cf_direction"/>
+                            <a:map from="cf_type" to="cf_type"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="cf_direction_desc" displayField="code_value_name" options="cf_direction_ds" required="true" returnField="cf_direction" valueField="code_value"/>
+                    <a:field name="description" required="true"/>
+                    <a:field name="cf_item" required="true"/>
+                    <a:field name="ref_v01_n" displayField="code_value_name" options="nc_cf_item_ds" returnField="ref_v01" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_cashflowItemDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="cashflowItemScreen_back" text="HLS.BACK"/>
+                <a:gridButton click="cashflowItemScreen_forward" text="HLS.FORWARD"/>
+                <a:gridButton click="cashflowItemScreen_quit" text="HLS.EXIT"/>
+                <a:gridButton click="cashflowItemScreen_add" text="HLS.NEW"/>
+                <a:gridButton click="cashflowItemScreen_save" text="HLS.SAVE"/>
+                <a:gridButton click="cashflowItemScreen_clear" text="HLS.CLEAR"/>
+                <a:gridButton click="cashflowItemScreen_query" text="HLS.QUERY"/>
+            </a:screenTopToolbar>
+            <a:grid id="cashflowItemDs_grid" autoFocus="true" bindTarget="cashflowItemDs" marginHeight="110" marginWidth="30" navBar="true" style="border:none">
+                <a:columns>
+                    <a:column name="cf_item" align="right" editor="cashflowItemDs_grid_nf_integer" editorFunction="editorFunction_cashflowItemDs_grid" width="80"/>
+                    <a:column name="description" editor="cashflowItemDs_grid_tf" width="150"/>
+                    <a:column name="cf_type" align="right" editor="cashflowItemDs_grid_lov" editorFunction="editorFunction_cashflowItemDs_grid" width="80"/>
+                    <a:column name="cf_type_desc" width="150"/>
+                    <a:column name="cf_direction_desc" editor="cashflowItemDs_grid_cb" editorFunction="editorFunction_cashflowItemDs_grid" width="100"/>
+                    <a:column name="write_off_order" align="right" editor="cashflowItemDs_grid_nf_integer"/>
+                    <a:column name="calc_penalty" editor="cashflowItemDs_grid_check"/>
+                    <a:column name="billing_desc" editor="cashflowItemDs_grid_tf" width="150"/>
+                    <a:column name="enabled_flag" editor="cashflowItemDs_grid_check" width="80"/>
+                    <a:column name="ref_v01_n" editor="nc_cf_item_com" prompt="NC现金流量项目" width="200"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="cashflowItemDs_grid_tf"/>
+                    <a:lov id="cashflowItemDs_grid_lov"/>
+                    <a:checkBox id="cashflowItemDs_grid_check"/>
+                    <a:numberField id="cashflowItemDs_grid_nf_integer" allowDecimals="false"/>
+                    <a:comboBox id="cashflowItemDs_grid_cb"/>
+                    <a:comboBox id="nc_cf_item_com"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

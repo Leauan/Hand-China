@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-7-15 下午05:16:39  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" customizationEnabled="true" trace="true">
+    <a:view>
+        <a:link id="prj_project_create_screen_link_id" url="${/request/@context_path}/modules/prj/PRJ500/prj_project_create_screen.screen"/>
+        <a:link id="prj_project_create_tree_detail_link_id" url="${/request/@context_path}/modules/prj/PRJ500/prj_project_create_tree_detail.screen"/>
+        <style><![CDATA[
+        	.destroy_button{
+        	    background-image: url(${/request/@context_path}/resource/aurora.ui.std/default/window/win_close.gif);
+				WIDTH: 45px; 
+				CURSOR: pointer; 
+				BACKGROUND-REPEAT: no-repeat; 
+				HEIGHT: 17px; 
+				BACKGROUND-COLOR: transparent;
+				position:fixed;
+				right:0;
+				border:0;
+				z-index:10;
+        	}
+        	.destroy_button_over {
+			    background-position:0px -17px;
+			}
+			.destroy_button_down{
+			    background-position:0px -34px;
+			}
+        ]]></style>
+        <script><![CDATA[
+            var page = {},
+                currentPage, currentChildPage;
+            
+            function lock_iframe_window() {
+                $A.Masker.mask(Ext.get(document.documentElement), '${l:HLS.LOADING}');
+            }
+            
+            function set_first_loading_flag() {
+                parent.first_loading_flag = false;
+            }
+            
+            function set_tree_loading_flag() {
+                parent.tree_loading_flag = false;
+            }
+            
+            function destroy_button_mouseover(e) {
+                Ext.fly(e.target).addClass('destroy_button_over');
+            }
+            
+            function destroy_button_mouseout(e) {
+                Ext.fly(e.target).removeClass('destroy_button_over');
+            }
+            
+            function destroy_button_mousedown(e) {
+                Ext.fly(e.target).addClass('destroy_button_down');
+                Ext.fly(document).on('mouseup', destroy_button_mouseup);
+            }
+            
+            function destroy_button_mouseup(e) {
+                Ext.fly(e.target).removeClass('destroy_button_down');
+                Ext.fly(document).un('mouseup', destroy_button_mouseup);
+            }
+            
+            function requestPage(url, tree_code, successFunction, failFunction) {
+                parent.$A.Masker.unmask(parent.Ext.get('mainFrame2_id'));
+                lock_iframe_window();
+                Ext.Ajax.request({
+                    url: url,
+                    params: {
+                        _request_data: Ext.util.JSON.encode({
+                            parameter: {
+                                tree_code: tree_code,
+                                layout_code: '${/parameter/@layout_code}',
+                                document_category: '${/parameter/@document_category}',
+                                document_type: '${/parameter/@document_type}',
+                                document_id: '${/parameter/@document_id}',
+                                winid: '${/parameter/@winid}',
+                                calc_type: '${/parameter/@calc_type}',
+                                number_of_tenant: '${/parameter/@number_of_tenant}',
+                                number_of_guarantor: '${/parameter/@number_of_guarantor}',
+                                number_of_actual_controller: '${/parameter/@number_of_actual_controller}',
+                                function_usage: '${/parameter/@function_usage}',
+                                function_code: '${/parameter/@function_code}',
+                                cdd_list_id: '${/parameter/@cdd_list_id}',
+                                maintain_type: '${/parameter/@maintain_type}',
+                                declare_flag: '${/parameter/@declare_flag}',
+                                default_value_dsid: '${/parameter/@default_value_dsid}',
+                                _vh: '${/parameter/@_vh}',
+                                _vw: '${/parameter/@_vw}'
+                            }
+                        })
+                    },
+                    failure: function() {
+                        failFunction();
+                    },
+                    success: function(res) {
+                        successFunction(res);
+                    }
+                });
+            }
+            
+            function close_tree_code(tree_code, __page) {
+                if (!__page) {
+                    var acc = parent.$('tree_accordion_id'),
+                        accordion = acc.selectedItems[0];
+                    acc.selectAccordionIndex(acc.accordions.elements.indexOf(accordion.dom));
+                }
+                __page = __page || page[tree_code];
+                if (!__page) {
+                    return;
+                }
+                if (cmps = __page.cmps) {
+                    for (var key in cmps) {
+                        var cmp = cmps[key];
+                        if (cmp && cmp.destroy) {
+                            try {
+                                cmp.destroy();
+                            } catch (e) {
+                                alert('ERROR:' + e)
+                            }
+                        }
+                    }
+                }
+                var childPageArray = __page.childPage;
+                if (childPageArray) {
+                    for (var i = 0,
+                        length = childPageArray.length;i < length;i++) {
+                        close_tree_code(childPageArray[i], Ext.get(childPageArray[i] + '_node_id'));
+                    }
+                }
+                __page.update('');
+                __page.isLoaded = false;
+                delete page[tree_code];
+            }
+            
+            function open_tree_code(tree_code, acc, index) {
+                if (!page[tree_code]) {
+                    if (currentPage) {
+                        currentPage.setStyle({
+                            display: 'none'
+                        });
+                    }
+                    currentPage = page[tree_code] = new Ext.Template('<div style="position:absolute;left:0;top:0;display:{display}"></div>').append(document.body, {}, true);
+                    requestPage($('prj_project_create_screen_link_id').getUrl(), tree_code, function(res) {
+                        page[tree_code].isLoaded = true;
+                        parent.isLoaded = true;
+                        page[tree_code].cmps = {};
+                        page[tree_code].update(res.responseText, true, function() {
+                            set_first_loading_flag();
+                            set_tree_loading_flag();
+                            if (page[tree_code].childPage) {
+                                open_tree_code_child(page[tree_code].childPage[0], tree_code);
+                            }
+                            // $A.Masker.unmask(Ext.get(document.documentElement));
+                            if (acc) {
+                                acc.selectAccordionIndex(index);
+                            }
+                            var button_template = new Ext.Template('<button class="destroy_button"></button>').insertFirst(page[tree_code], {}, true);
+                            button_template.on('click', function(cmps) {
+                                Aurora.showConfirm('${HLS.PROMPT}', '是否关闭当前窗口？', function() {
+                                    close_tree_code(tree_code);
+                                }, function() {
+            
+                                   });
+                            });
+                            button_template.on('mouseover', function(e) {
+                                destroy_button_mouseover(e);
+                            });
+                            button_template.on('mouseout', function(e) {
+                                destroy_button_mouseout(e);
+                            });
+                            button_template.on('mousedown', function(e) {
+                                destroy_button_mousedown(e);
+                            });
+                        }, page[tree_code]);
+                    }, function() {
+                        page[tree_code].update('${l:HLS.LOAD_FAILURE}');
+                    });
+                } else {
+                    if (currentPage) {
+                        currentPage.setStyle({
+                            display: 'none'
+                        });
+                    }(currentPage = page[tree_code]).setStyle({
+                        display: ''
+                    });
+                    open_tree_code_child(null, tree_code);
+                }
+            }
+            
+            function open_tree_code_child(id, parentId) {
+                var p;
+                if (page && !Ext.isEmpty(parentId)) {
+                    p = page[parentId];
+                }
+                if (!id && p) {
+                    id = (p.currentChildPage && p.currentChildPage.tree_code) || (p.childPage && p.childPage[0]);
+                }
+                if (!id) {
+                    return;
+                }
+                if (currentChildPage) {
+                    currentChildPage.setStyle({
+                        display: 'none'
+                    });
+                }
+                var child = Ext.get(id + '_node_id');
+                if (child) {
+                    if (!child.isLoaded) {
+                        requestPage($('prj_project_create_tree_detail_link_id').getUrl(), id, function(res) {
+                            child.isLoaded = true;
+                            child.cmps = {};
+                            child.update(res.responseText, true, function() {
+                                set_first_loading_flag();
+                                set_tree_loading_flag();
+                                // $A.Masker.unmask(Ext.get(document.documentElement));
+                                var child_button_template = new Ext.Template('<button class="destroy_button"></button>').insertFirst(child, {}, true);
+                                child_button_template.on('click', function(cmps) {
+                                    Aurora.showConfirm('${HLS.PROMPT}', '是否关闭当前窗口？', function() {
+                                        close_tree_code(id, child);
+                                    }, function() {
+            
+                                       });
+                                });
+                                child_button_template.on('mouseover', function(e) {
+                                    destroy_button_mouseover(e);
+                                });
+                                child_button_template.on('mouseout', function(e) {
+                                    destroy_button_mouseout(e);
+                                });
+                                child_button_template.on('mousedown', function(e) {
+                                    destroy_button_mousedown(e);
+                                });
+                            }, child);
+                            if (!parentId && currentChildPage && (parentId = currentChildPage.root)) {
+                                p = page[parentId];
+                            }
+                            currentChildPage = child;
+                            child.tree_code = id;
+                            if (parentId) {
+                                child.root = parentId;
+                            }
+                            if (p) {
+                                p.currentChildPage = child;
+                            }
+                        }, function() {
+                            child.update('${l:HLS.LOAD_FAILURE}');
+                        });
+                    } else {
+                        set_tree_loading_flag();
+                        child.setStyle({
+                            display: ''
+                        });
+                        if (!parentId && currentChildPage && (parentId = currentChildPage.root)) {
+                            p = page[parentId];
+                        }
+                        currentChildPage = child;
+                        child.tree_code = id;
+                        if (parentId) {
+                            child.root = parentId;
+                        }
+                        if (p) {
+                            p.currentChildPage = child;
+                        }
+                    }
+                } else {
+                    set_tree_loading_flag();
+                }
+            }
+        ]]></script>
+    </a:view>
+</a:screen>

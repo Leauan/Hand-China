@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei  
+    $Date: 2015-1-15 上午11:12:03  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:view>
+        <a:link id="get_special_fields_link_id" model="cont.CON500.con_contract_get_special_fields" modelaction="update"/>
+        <script><![CDATA[
+            Aurora.onReady(function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master_role');
+                if (ds_id && '${/parameter/@default_value_dsid}') {
+                    var head_record = $('${/parameter/@default_value_dsid}').getCurrentRecord();
+                    var bp_master_role_ds = $(ds_id);
+                    var record = new Aurora.Record({
+                        'primary_flag': 'Y',
+                        'bp_category': head_record.get('bp_category'),
+                        'bp_category_n': head_record.get('bp_category_n'),
+                        'bp_type': head_record.get('bp_type'),
+                        'bp_type_n': head_record.get('bp_type_n'),
+                        'bp_class': head_record.get('bp_class'),
+                        'bp_class_n': head_record.get('bp_class_n'),
+                        'enabled_flag': 'Y'
+                    });
+                    bp_master_role_ds.add(record);
+                    var current_record = bp_master_role_ds.getAt(0);
+                    current_record.getField('bp_type_n').setReadOnly(true);
+                    current_record.getField('enabled_flag').setReadOnly(true);
+                }
+            });
+            
+             //保存前调用，生成商机编号
+            window['${/parameter/@layout_code}_on_layout_dynamic_before_submit'] = function(ds, record) {
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var check_flag = false;
+                if (record.get('bp_code')) {
+                    return true;
+                }
+                Aurora.request({
+                    url: $('get_special_fields_link_id').getUrl(),
+                    para: {
+                        document_category:'BUSINESS_PARTNR',
+                        document_type: record.get('bp_type'),
+                        bp_class : record.get('bp_class'),
+                        id_type  : record.get('id_type'),
+                        id_card_no : record.get('id_card_no'),
+                        organization_code : record.get('organization_code'),
+                        function_code: '${/parameter/@function_code}',
+                        function_usage: '${/parameter/@function_usage}'
+                    },
+                    success: function(res) {
+                        var document_number = res.result.document_number;
+                        record.set('bp_code', document_number);
+                        record.set('company_id', '${/session/@company_id}');
+                        check_flag = true;
+                    },
+                    error: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    failure: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    sync: true,
+                    scope: this
+                });
+                return check_flag;
+            };
+        ]]></script>
+    </a:view>
+</a:screen>

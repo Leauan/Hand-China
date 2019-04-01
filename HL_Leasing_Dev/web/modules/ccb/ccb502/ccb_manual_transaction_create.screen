@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wdd  
+    $Date: 2018-05-10 下午2:49:46  
+    $Revision: 1.0  
+    $Purpose: 发送银联代扣
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="ccb501_reverse_link" model="ccb.ccb502.reverse_manual_ccb_doc" modelaction="batch_update"/>
+        <a:link id="ccb501_create_transaction_link" url="${/request/@context_path}/modules/ccb/ccb502/ccb_manual_transaction_create.svc"/>
+        <script><![CDATA[
+             //判断同一批次是否是同一个银联扣款渠道
+           function cup_channel(records) {
+                for (i = 0;i < records.length;i++) {
+                    var re1 = records[i].get('cup_channel');
+                    for(j=0;j<records.length;j++){
+                        var re2 = records[j].get('cup_channel');
+                        if(i!=j && re1!=re2){
+                            Aurora.showMessage('${l:PROMPT}', '同一批次扣款单必须关联同一个银联渠道');
+                            return;
+                            
+                        }
+                    }
+                }
+            
+            }
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                var param = {};
+                var saveData = [];
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_ebank_ccb_document');
+                var document_ds = $(ds_id);
+                var records = document_ds.getSelected();
+                if (records.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '请选择要发送银行交易的代扣单');
+                    return;
+                }
+                if (records.length) {
+                    for (var i = 0;i < records.length;i++) {
+                        var record = records[i];
+                        var status = record.get('status');
+                        var document_number = record.get('document_number');
+                        if (status != 'NEW') {
+                            Aurora.showMessage('${l:PROMPT}', '代扣单号"' + document_number + '"状态不为新建，不允许发送，请核实！');
+                            return;
+                        }
+                    }
+                }
+                //判断发送同一批次的银联渠道必须相同
+                cup_channel(records);
+                Aurora.showConfirm('${l:PROMPT}', '是否确定发送银行交易？', function() {
+                    var detail_mask = Ext.getBody();
+                    Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                    for (var i = 0;i < records.length;i++) {
+                        var record = records[i];
+                        saveData.push({
+                            'manual_rec_amount': record.get('receivable_amount'),
+                            'document_id': record.get('document_id'),
+							'cup_channel':record.get('cup_channel'),
+                            '_status': 'insert'
+                        });
+                    }
+                    param['details'] = saveData;
+                    Aurora.request({
+                        url: $('ccb501_create_transaction_link').getUrl(),
+                        para: param,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                duration: 2000
+                            });
+                            document_ds.query(document_ds.currentPage);
+                            Aurora.Masker.unmask(detail_mask);
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(detail_mask);
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(detail_mask);
+                        },
+                        scope: this
+                    });
+                });
+            
+            };
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                var saveData = [];
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_ebank_ccb_document');
+                var document_ds = $(ds_id);
+                var records = document_ds.getSelected();
+                if (records.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '请选择要移回的代扣单');
+                    return;
+                }
+                Aurora.showConfirm('${l:PROMPT}', '是否确认要移回选中代扣单？', function() {
+                    var detail_mask = Ext.getBody();
+                    Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                    for (var i = 0;i < records.length;i++) {
+                        var record = records[i];
+                        saveData.push({
+                            'document_id': record.get('document_id'),
+                            '_status': 'update'
+                        });
+                    }
+                    Aurora.request({
+                        url: $('ccb501_reverse_link').getUrl(),
+                        para: saveData,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                duration: 2000
+                            });
+                            document_ds.query(document_ds.currentPage);
+                            Aurora.Masker.unmask(detail_mask);
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(detail_mask);
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(detail_mask);
+                        },
+                        scope: this
+                    });
+                });
+            
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

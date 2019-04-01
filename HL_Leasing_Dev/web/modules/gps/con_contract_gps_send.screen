@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2016-5-10 上午10:24:11  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:view>
+        <a:link id="con_contract_gps_send_address_link" url="${/request/@context_path}/modules/gps/con_contract_gps_send.svc"/>
+        <a:link id="con_contract_ln_gps_send_address_link" url="${/request/@context_path}/modules/gps/con_contract_ln_gps_send.svc"/>
+        <a:link id="con_contract_zr_gps_send_address_link" url="${/request/@context_path}/modules/gps/con_contract_zr_gps_send.svc"/>
+        <script><![CDATA[
+            var gps_provider = '${/parameter/@gps_provider}';
+            
+            function on_gps_send_screen_close() {
+                $('${/parameter/@winid}').close();
+            }
+            
+            function lock_address_current_win() {
+                Aurora.Masker.mask($('${/parameter/@winid}').wrap, '正在执行...');
+            }
+            
+            function unlock_address_current_win() {
+                Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+            }
+            
+            function con_contract_gps_send_address_ds_query() {
+                $('con_contract_gps_send_address_ds').query();
+            }
+            
+            function on_gps_send_screen_find_gps() {
+                var record = $('con_contract_gps_send_address_header_ds').getCurrentRecord();
+                Aurora.showConfirm('提示', '是否确认发送GPS定位？', function() {
+                    lock_address_current_win();
+                    var gps_type, url;
+                    if (gps_provider == 'LN') {
+                        url = $('con_contract_ln_gps_send_address_link').getUrl();
+                        gps_type = 'LN_FIND_GPS';
+                    } else if (gps_provider == 'MSD') {
+                        url = $('con_contract_gps_send_address_link').getUrl();
+                        gps_type = 'FIND_GPS';
+                    } else if (gps_provider == 'ZR') {
+                        url = $('con_contract_zr_gps_send_address_link').getUrl();
+                        gps_type = 'ZR_FIND_GPS';
+                    } else {
+                        Aurora.showMessage('${l:PROMPT}', '没有对应的GPS厂商接口！');
+                        unlock_address_current_win();
+                        return;
+                    }
+                    Aurora.request({
+                        url: url,
+                        para: {
+                            contract_id: '${/parameter/@contract_id}',
+                            zr_appcode:record.get('zr_appcode'),
+                            gps_type: gps_type
+                        },
+                        success: function(res) {
+                            Aurora.SideBar.show({
+                                msg: '发送成功！',
+                                duration: 2000
+                            });
+                            con_contract_gps_send_address_ds_query();
+                            unlock_address_current_win();
+                        },
+                        failure: function(res) {
+                            unlock_address_current_win();
+                        },
+                        error: function() {
+                            unlock_address_current_win();
+                        },
+                        scope: this
+                    });
+            
+                });
+            }
+            
+            function on_gps_send_screen_new_axb_gps() {
+                var record = $('con_contract_gps_send_address_header_ds').getCurrentRecord();
+                var axb_url = record.get('axb_url');
+                Aurora.showConfirm('提示', '是否确认发送新增安心保工单请求？', function() {
+                    lock_address_current_win();
+                    var gps_type, url;
+                    if (gps_provider == 'LN') {
+                        url = $('con_contract_ln_gps_send_address_link').getUrl();
+                        gps_type = 'LN_DOWNLOAD_GPS';
+                    } else if (gps_provider == 'MSD') {
+                        url = $('con_contract_gps_send_address_link').getUrl();
+                        gps_type = 'AXB_GPS';
+                    } else if (gps_provider == 'ZR') {
+                         Aurora.showMessage('${l:PROMPT}', '中瑞GPS暂未提供接口！');
+                         return;
+                        // url = $('con_contract_zr_gps_send_address_link').getUrl();
+                        // gps_type = 'ZR_DOWNLOAD_GPS';
+                    }else {
+                        Aurora.showMessage('${l:PROMPT}', '没有对应的GPS厂商接口！');
+                        unlock_address_current_win();
+                        return;
+                    }
+                    Aurora.request({
+                        url: url,
+                        para: {
+                            contract_id: '${/parameter/@contract_id}',
+                            zr_appcode:record.get('zr_appcode'),
+                            gps_type: gps_type
+                        },
+                        success: function(res) {
+                            if (res.result.axb_url) {
+                                record.set('axb_url', res.result.axb_url);
+                            }
+                            if (res.result.ln_url) {
+                                record.set('ln_url', res.result.ln_url);
+                            }
+                            if (res.result.zr_url) {
+                                record.set('zr_url', res.result.zr_url);
+                            }
+                            con_contract_gps_send_address_ds_query();
+                            Aurora.SideBar.show({
+                                msg: '发送成功！',
+                                duration: 2000
+                            });
+                            unlock_address_current_win();
+                        },
+                        failure: function(res) {
+                            unlock_address_current_win();
+                        },
+                        error: function() {
+                            unlock_address_current_win();
+                        },
+                        scope: this
+                    });
+            
+                });
+            }
+            
+            function on_gps_send_screen_download_axb_gps() {
+                var record = $('con_contract_gps_send_address_header_ds').getCurrentRecord();
+                var finnal_url;
+                if (gps_provider == 'LN') {
+                    finnal_url = record.get('ln_url');
+                } else if (gps_provider == 'MSD') {
+                    finnal_url = record.get('axb_url');
+                } else if (gps_provider == 'ZR') {
+                    Aurora.showMessage('${l:PROMPT}', '中瑞GPS暂未提供接口！');
+                    return;
+                    //finnal_url = record.get('zr_url');
+                } else {
+                    Aurora.showMessage('${l:PROMPT}', '没有对应的GPS厂商接口！');
+                    return;
+                }
+                if (finnal_url) {
+                    window.open(finnal_url + location.search);
+                } else {
+                    Aurora.showMessage('${l:PROMPT}', '还未生成安心保合同');
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="con_contract_gps_send_address_header_ds" loadData="true" model="gps.con_contract_find_gps_info"/>
+            <a:dataSet id="con_contract_gps_send_address_ds" autoPageSize="true" autoQuery="true" model="gps.ast_car_gps_address" queryUrl="${/request/@context_path}/autocrud/gps.ast_car_gps_address/query?contract_id=${/parameter/@contract_id}"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="on_gps_send_screen_close" text="返回"/>
+                <a:gridButton click="on_gps_send_screen_find_gps" text="实时定位"/>
+                <a:gridButton click="on_gps_send_screen_new_axb_gps" text="新增安心保工单"/>
+                <a:gridButton click="on_gps_send_screen_download_axb_gps" text="查看安心保工单"/>
+            </a:screenTopToolbar>
+            <a:form column="2" width="550">
+                <a:textField name="name" bindTarget="con_contract_gps_send_address_header_ds" prompt="承租人" readOnly="true"/>
+                <a:textField name="standno" bindTarget="con_contract_gps_send_address_header_ds" prompt="支架号" readOnly="true"/>
+            </a:form>
+            <a:grid id="con_contract_gps_send_grid_id" bindTarget="con_contract_gps_send_address_ds" height="280" navBar="true" width="550">
+                <a:columns>
+                    <a:column name="creation_date_dis" prompt="时间" width="150"/>
+                    <a:column name="address" prompt="地点" width="200"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

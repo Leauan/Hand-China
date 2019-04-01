@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Harry  
+    $Date: 2017-2-17 下午2:20:39  
+    $Revision: 1.0  
+    $Purpose: 资产处置只读页面
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <s:server-script import="con_print_path.js"><![CDATA[
+            set_parameter_file_path();
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:view package="aurora.ui.std" template="default">
+        <a:link id="et_attachment_downloadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <script><![CDATA[
+            var file_path = '${/parameter/@file_path}';
+            
+            function lock_current_window() {
+                Aurora.Masker.mask(Ext.getBody(), '提交中......');
+            }
+            
+            function unlock_current_window() {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            
+            function detail_attachment() {
+                var val = $('early_terminationDs').getAt(0).get('et_agreement_id');
+                var url = $('et_attachment_downloadFile_id').getUrl() + '?table_name=CON_CONTRACT_ET_HD&header_id=' + val;
+            
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'et_uploadFile_id',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {});
+            }
+            
+            function SumDs_onLoad(ds) {
+            
+                var er_record = $('early_terminationDs').getCurrentRecord();
+                var su_record = $('unreceivedAmountSumDs').getCurrentRecord();
+            
+                var sum_principal = su_record.get('sum_principal') || 0;
+                var ref_n03 = er_record.get('ref_n03') || 0;
+                var recovered_amount = er_record.get('recovered_amount') || 0;
+                var dealers_amount = er_record.get('dealers_amount') || 0;
+                var risk_amount = er_record.get('risk_amount') || 0;
+                var loss_assets_amount = sum_principal - ref_n03 - recovered_amount - dealers_amount - risk_amount;
+                er_record.set('loss_assets_amount', loss_assets_amount);
+            
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="et_pay_method_ds" lookupCode="ET_PAY_METHOD"/>
+            <a:dataSet id="early_terminationDs" autoQuery="true" model="cont.CON701.con_contract_et_hd" queryUrl="${/request/@context_path}/autocrud/cont.CON701.con_contract_et_hd/query?et_agreement_id=${/parameter/@et_agreement_id}">
+                <a:fields>
+                    <a:field name="others_fee" required="true"/>
+                    <a:field name="pay_method"/>
+                    <a:field name="defaults_fee"/>
+                    <a:field name="pay_method_desc" displayField="code_value_name" options="et_pay_method_ds" returnField="pay_method" valueField="code_value"/>
+                    <a:field name="recovered_amount" required="true"/>
+                    <a:field name="dealers_amount" required="true"/>
+                    <a:field name="risk_amount"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="receivedAmountDs" autoQuery="true" fetchAll="true" model="cont.CON701.con_contract_received_amount"/>
+            <a:dataSet id="unreceivedAmountDs" autoQuery="true" fetchAll="true" model="cont.CON701.con_contract_unreceived_amount"/>
+            <a:dataSet id="unreceivedAmountSumDs" loadData="true" model="cont.CON610.con_contract_unreceived_amount_sum">
+                <a:events>
+                    <a:event name="load" handler="SumDs_onLoad"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="contract_et_Screen_mainDs" autoQuery="true" model="cont.CON611.con_contract_et_hd_maintain_query"><![CDATA[
+                
+            ]]></a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="detail_attachment" text="上传报告单"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="110" marginWidth="30" title="基础信息">
+                <a:textField name="contract_number" bindTarget="contract_et_Screen_mainDs" prompt="合同编码" readOnly="true"/>
+                <a:textField name="contract_name" bindTarget="contract_et_Screen_mainDs" prompt="合同名称" readOnly="true"/>
+                <a:textField name="document_type_desc" bindTarget="contract_et_Screen_mainDs" prompt="合同类型" readOnly="true"/>
+                <!-- <a:textField name="document_category_desc" bindTarget="contract_et_Screen_mainDs" prompt="合同类别" readOnly="true"/> -->
+                <a:textField name="bp_name" bindTarget="contract_et_Screen_mainDs" prompt="承租人名称" readOnly="true"/>
+                <a:textField name="received_times" bindTarget="contract_et_Screen_mainDs" prompt="已还款期数" readOnly="true"/>
+                <a:textField name="contract_status_desc" bindTarget="contract_et_Screen_mainDs" prompt="合同状态" readOnly="true"/>
+                <a:datePicker name="inception_of_lease" bindTarget="contract_et_Screen_mainDs" prompt="起租日期" readOnly="true"/>
+                <a:datePicker name="start_due_date" bindTarget="contract_et_Screen_mainDs" prompt="支付开始日" readOnly="true"/>
+                <a:textField name="overdue_status" bindTarget="contract_et_Screen_mainDs" prompt="是否逾期" readOnly="true"/>
+                <a:datePicker name="termination_date" bindTarget="contract_et_Screen_mainDs" prompt="资产处置日" readOnly="true" renderer="Aurora.formatDate"/>
+                <a:lov name="bp_agent" bindTarget="contract_et_Screen_mainDs" prompt="经销商" readOnly="true"/>
+                <!-- <a:textField name="car_description" bindTarget="contract_et_Screen_mainDs" prompt="车辆描述" readOnly="true"/> -->
+                <a:lov name="item_frame_number" bindTarget="contract_et_Screen_mainDs" prompt="车架号" readOnly="true"/>
+                <a:textField name="division_n" bindTarget="contract_et_Screen_mainDs" prompt="产品线" readOnly="true"/>
+                <a:lov name="bp_name_1" bindTarget="contract_et_Screen_mainDs" prompt="供应商" readOnly="true"/>
+                <a:lov name="product_name_write" bindTarget="contract_et_Screen_mainDs" prompt="融资租赁产品" readOnly="true"/>
+                <a:textField name="lease_times" bindTarget="contract_et_Screen_mainDs" prompt="租赁期数" readOnly="true"/>
+                <a:textField name="int_rate_display" bindTarget="contract_et_Screen_mainDs" prompt="租赁年利率" readOnly="true"/>
+                <a:numberField name="invoice_price" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="购置价" readOnly="true"/>
+                <a:numberField name="finance_amount" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="融资额" readOnly="true"/>
+                <a:numberField name="down_payment" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="首付金额" readOnly="true"/>
+                <a:textField name="down_payment_ratio" bindTarget="contract_et_Screen_mainDs" prompt="首付比例" readOnly="true"/>
+                <a:textField name="deposit_ratio" bindTarget="contract_et_Screen_mainDs" prompt="保证金比例" readOnly="true"/>
+                <a:numberField name="deposit" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="保证金" readOnly="true"/>
+                <a:textField name="lease_charge_ratio" bindTarget="contract_et_Screen_mainDs" prompt="手续费比例" readOnly="true"/>
+                <a:numberField name="lease_charge" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="手续费" readOnly="true"/>
+                <a:textField name="license_fee_flag_n" bindTarget="contract_et_Screen_mainDs" prompt="是否包牌" readOnly="true"/>
+                <a:numberField name="plate_price" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="上牌费" readOnly="true"/>
+                <a:textField name="insurance_flag_n" bindTarget="contract_et_Screen_mainDs" prompt="是否融保险" readOnly="true"/>
+                <a:numberField name="insurance_amount" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="保险费" readOnly="true"/>
+                <a:textField name="purchase_tax_flag_n" bindTarget="contract_et_Screen_mainDs" prompt="是否融购置税" readOnly="true"/>
+                <a:numberField name="purchase_tax" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="购置税" readOnly="true"/>
+            </a:form>
+            <div id="detail_flag_id">
+                <a:form title="资产处置信息">
+                    <a:form column="4" labelWidth="110" marginWidth="30">
+                        <a:numberField name="sum_due_amount" allowDecimals="true" allowFormat="true" bindTarget="unreceivedAmountSumDs" decimalPrecision="2" prompt="未收租金" readOnly="true"/>
+                        <a:numberField name="sum_principal" allowDecimals="true" allowFormat="true" bindTarget="unreceivedAmountSumDs" decimalPrecision="2" prompt="未收本金" readOnly="true"/>
+                        <a:numberField name="sum_interest" allowDecimals="true" allowFormat="true" bindTarget="unreceivedAmountSumDs" decimalPrecision="2" prompt="未收利息" readOnly="true"/>
+                        <a:numberField name="sum_interest" allowDecimals="true" allowFormat="true" bindTarget="unreceivedAmountSumDs" decimalPrecision="2" prompt="未收利息减免" readOnly="true"/>
+                        <a:numberField name="residual_value" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="留购金" readOnly="true"/>
+                        <a:numberField name="residual_value" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="留购金减免" readOnly="true"/>
+                        <a:numberField name="ref_n08" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="未收贴息-承租人" readOnly="true"/>
+                        <a:numberField name="ref_n08" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="未收贴息-承租人减免" readOnly="true"/>
+                        <a:numberField name="penalty" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="罚息" readOnly="true"/>
+                        <a:numberField name="penalty" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="罚息减免" readOnly="true"/>
+                        <a:numberField name="et_fee" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="违约金" readOnly="true"/>
+                        <a:numberField name="et_fee" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="违约金减免" readOnly="true"/>
+                        <a:numberField name="ref_n01" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="应收经销商保证金" readOnly="true"/>
+                        <a:numberField name="ref_n01" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="应收经销商保证金减免" readOnly="true"/>
+                        <a:numberField name="ref_n02" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="应收风险金" readOnly="true"/>
+                        <a:numberField name="ref_n02" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="风险金减免" readOnly="true"/>
+                        <a:numberField name="recovered_amount" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="可回收金额" readOnly="true"/>
+                        <a:numberField name="ref_n03" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="客户保证金" readOnly="true"/>
+                        <a:numberField name="balance_amount" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="经销商保证金余额" readOnly="true"/>
+                        <a:numberField name="dealers_amount" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="经销商承担金额" readOnly="true"/>
+                        <a:numberField name="risk_amount" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="风险金" readOnly="true"/>
+                        <a:numberField name="loss_assets_amount" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="资产处置损失" readOnly="true"/>
+                    </a:form>
+                    <a:form column="4" labelWidth="110" marginWidth="30">
+                        <a:textArea name="write_off_desc_loss" bindTarget="early_terminationDs" height="50" prompt="核销详述" readOnly="true" width="820"/>
+                    </a:form>
+                    <a:tabPanel marginHeight="400" marginWidth="30">
+                        <a:tabs>
+                            <a:tab prompt="未收金额" width="110">
+                                <a:grid bindTarget="unreceivedAmountDs" marginHeight="430" marginWidth="100" navBar="true">
+                                    <a:columns>
+                                        <a:column name="times" prompt="期数"/>
+                                        <a:column name="cf_item_dis" prompt="类型"/>
+                                        <a:column name="due_amount" prompt="应付金额" renderer="Aurora.formatMoney"/>
+                                        <a:column name="received_amount" prompt="已收金额" renderer="Aurora.formatMoney"/>
+                                        <a:column name="due_date" prompt="预定支付日期"/>
+                                        <a:column name="principal" prompt="本金" renderer="Aurora.formatMoney"/>
+                                        <a:column name="interest" prompt="利息" renderer="Aurora.formatMoney"/>
+                                        <a:column name="cf_status_dis" prompt="现金流状态"/>
+                                    </a:columns>
+                                </a:grid>
+                            </a:tab>
+                            <a:tab prompt="已收金额" width="110">
+                                <a:grid bindTarget="receivedAmountDs" marginHeight="430" marginWidth="100" navBar="true">
+                                    <a:columns>
+                                        <a:column name="times" prompt="期数"/>
+                                        <a:column name="cf_item_dis" prompt="类型"/>
+                                        <a:column name="due_amount" prompt="应付金额" renderer="Aurora.formatMoney"/>
+                                        <a:column name="received_amount" prompt="未付金额" renderer="Aurora.formatMoney"/>
+                                        <a:column name="due_date" prompt="预定支付日期"/>
+                                        <a:column name="received_principal" prompt="已收本金" renderer="Aurora.formatMoney"/>
+                                        <a:column name="received_interest" prompt="已收利息" renderer="Aurora.formatMoney"/>
+                                        <a:column name="cf_status_dis" prompt="现金流状态"/>
+                                    </a:columns>
+                                </a:grid>
+                            </a:tab>
+                        </a:tabs>
+                    </a:tabPanel>
+                </a:form>
+            </div>
+        </a:screenBody>
+        <script><![CDATA[
+            Aurora.onReady(init);
+            
+            function init() {
+                $('unreceivedAmountSumDs').setQueryParameter('contract_id', '${/parameter/@contract_id}');
+                $('unreceivedAmountSumDs').setQueryParameter('et_agreement_id', '${/parameter/@et_agreement_id}');
+                $('unreceivedAmountSumDs').query();
+            
+                $('contract_et_Screen_mainDs').setQueryParameter('et_agreement_id', '${/parameter/@et_agreement_id}');
+                $('contract_et_Screen_mainDs').query();
+            
+                $('unreceivedAmountDs').setQueryParameter('contract_id', '${/parameter/@contract_id}');
+                $('unreceivedAmountDs').setQueryParameter('et_agreement_id', '${/parameter/@et_agreement_id}');
+                $('unreceivedAmountDs').query();
+            
+                $('receivedAmountDs').setQueryParameter('contract_id', '${/parameter/@contract_id}');
+                $('receivedAmountDs').query();
+            
+            }
+        ]]></script>
+    </a:view>
+</a:screen>

@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: xuls  
+    $Date: 2014-12-8 上午10:24:11  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query model="wfl_screen.PRJ_PROJECT.get_all_project_info" rootPath="prj_wfl_path"/>
+        <s:server-script><![CDATA[
+            var prj_date = $ctx.get('/model/prj_wfl_path').getChildren();
+            var param = prj_date[0];
+            param.function_code = $ctx.parameter.function_code;
+        	$bm('cont.CON500.con_contract_get_layout_code').update(param);
+        ]]></s:server-script>
+        <s:server-script import="con_print_path.js"><![CDATA[
+            set_parameter_file_path();
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="wfl_prj_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="wfl_prj_project_detail" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain_wfl.screen"/>
+        <script><![CDATA[
+            //征信授权书
+            var credit_flag = 'N';
+            zjwfl5110_ApproveChecker_add('zjwfl5110_submit', function(type) {
+                var root_ds = $('${/parameter/@layout_code}_virtual_ds');
+                if (type == 'view_page') {
+                    if (root_ds.validate()) {
+                        //提交先保存
+                        root_ds.submit();
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+                
+                //add by wdd 20180418 for 驳回意见
+                if (type == 'jump') {
+                    var hl_prj_overrule_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hl_prj_overrule');
+                    var hl_prj_overrule_record = $(hl_prj_overrule_id).getAll();
+                    var length = hl_prj_overrule_record.length;
+            
+                    if (length) {
+                        for (var i = 0;i < length;i++) {
+                            var line_record = hl_prj_overrule_record[i];
+                            if (line_record.isNew) {
+                                Aurora.showMessage('提示', '存在新增驳回意见，请保存！');
+                                return false;
+                            }
+                        }
+                    }
+                }
+                return true;
+            });
+            
+            //征信授权书
+            window['${/parameter/@layout_code}_credit_layout_dynamic_click'] = function() {
+			   var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+               var record = $(ds_id).getCurrentRecord();
+                window['${/parameter/@layout_code}_not_ignore_required_flag'] = true;
+                Aurora.showConfirm('${l:HLS.PROMPT}', '确认打印征信授权书吗？', function() {
+                    Aurora.request({
+                        url: $('prj_cdd_link').getUrl(),
+                        para: {
+                            project_id: record.get('project_id')
+                        },
+                        success: function(res) {
+                            //window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                            window['${/parameter/@layout_code}_not_ignore_required_flag'] = true;
+                            var root_ds_1 = $('${/parameter/@layout_code}_virtual_ds');
+                            if (root_ds_1.validate()) {
+                                credit_flag = 'Y';
+                                //提交先保存
+                                window['${/parameter/@layout_code}_SAVE_LAYOUT_DYNAMIC_CLICK']();
+                            }
+                        },
+                        failure: function(res) {
+                            //window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        error: function() {
+                            //window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        scope: this
+                    });
+                });
+            };
+            
+            //保存submitsuccess调用
+            window['${/parameter/@layout_code}_on_layout_dynamic_submitsuccess'] = function(ds, record, res) {
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                if(credit_flag == 'Y'){
+                	var credit_print_flag = '';
+                    credit_flag = 'N';
+                	project_id = $(ds_id).getAt(0).get('project_id');
+                    //匹配文档
+                    Aurora.request({
+                        url: '${/request/@context_path}/autocrud/prj.PRJ501.prj_credit_doc_create/update',
+                        para: {
+                            project_id: project_id
+                        },
+                        success: function() {
+                            //生成文本和pdf文件
+                            Aurora.request({
+		                        url: $('credit_copy_from_template_link_id').getUrl(),
+		                        para: {
+		                            project_id: $(ds_id).getAt(0).get('project_id'),
+		                            file_path: '${/parameter/@file_path}'
+		                        },
+		                        success: function() {
+		                            //下载pdf
+		                           Aurora.request({
+				                        url: '${/request/@context_path}/autocrud/prj.PRJ501.get_prj_content_id/query',
+				                        para: {
+				                            project_id: project_id
+				                        },
+				                        success: function(data) {
+				                            debugger;
+				                            var content_id = data.result.record.content_id;
+				                			var url_l = $('prj_atm_batch_download_pdf_link_id').getUrl() + '?content_id=' + content_id + '&type=SIN';
+				            
+							                window.open(href = url_l, target = "_self");
+							                window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+							                Aurora.Masker.unmask(Ext.getBody());
+				                        },
+				                        failure: function() {
+				                            credit_flag = 'N';
+				                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+							                Aurora.Masker.unmask(Ext.getBody());
+				                        },
+				                        error: function() {
+				                            credit_flag = 'N';
+				                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+							                Aurora.Masker.unmask(Ext.getBody());
+				                        },
+				                        scope: this
+				                    }); 
+		                        },
+		                        failure: function() {
+		                            credit_flag = 'N';
+		                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+							        Aurora.Masker.unmask(Ext.getBody());
+		                        },
+		                        error: function() {
+		                            credit_flag = 'N';
+		                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+							        Aurora.Masker.unmask(Ext.getBody());
+		                        },
+		                        scope: this
+		                    });
+                        },
+                        failure: function() {
+                            credit_flag = 'N';
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+							Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            credit_flag = 'N';
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+							Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                }
+            };     
+        ]]></script>
+        <a:switch test="/parameter/@modify_flag">
+            <a:case value="Y">
+                <a:screen-include screen="modules/prj/PRJ501N/prj_project_maintain.screen?project_id=${/parameter/@project_id}&amp;function_usage=${/parameter/@function_usage}&amp;function_code=${/parameter/@function_code}&amp;layout_code=${/parameter/@layout_code}&amp;winid=zj_wfl_approve_win"/>
+            </a:case>
+            <a:case value="*">
+                <a:screen-include screen="modules/prj/PRJ501N/prj_project_maintain_wfl.screen?project_id=${/parameter/@project_id}&amp;function_usage=${/parameter/@function_usage}&amp;function_code=${/parameter/@function_code}&amp;layout_code=${/parameter/@layout_code}&amp;winid=zj_wfl_approve_win&amp;instance_id=${/parameter/@instance_id}"/>
+            </a:case>
+        </a:switch>
+    </a:view>
+</a:screen>

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author:  
+    $Date: 2015-1-13 下午02:36:37  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:view>
+        <a:link id="ebank_csh337_rd_ebank_spd_trans_txds73_link_id" url="${/request/@context_path}/modules/ebank/EBANK_CSH332/rd_ebank_spd_trans_txds73.screen"/>
+        <script><![CDATA[
+            //锁表
+            function lock_current_window() {
+                Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+            }
+            
+            //解锁
+            function unlock_current_window() {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            
+            //查询
+            function ebank_csh337_ds_query() {
+                $('ebank_csh337_confirm_doc_result_ds').query();
+            }
+            
+            //重置
+            function ebank_csh337_ds_reset() {
+                $('ebank_csh337_confirm_doc_query_ds').reset();
+            }
+            
+            //确认并生成凭证
+            function confirm_je(){
+                var records = $('ebank_csh332_withholding_doc_result_ds').getSelected();
+                if (records.length < 1) {
+                    Aurora.showMessage('${l:PROMPT}', '请选择数据！');
+                    return;
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="doc_status_ds" lookupCode="RD_EBANK_SPD_TRANSACTION_STATUS"/>
+            <a:dataSet id="doc_send_status_ds" lookupCode="RD_EBANK_SPD_TRANSACTION_SEND_STATUS"/>
+            <a:dataSet id="doc_confirm_flag_ds" lookupCode="YES_NO"/>
+            <a:dataSet id="doc_cf_item_ds" loadData="true" model="ebank.EBANK_CSH337.hls_cashflow_item_ebank_query"/>
+            <a:dataSet id="trans_type_ds">
+                <a:datas>
+                    <a:record name="代收业务" code="1"/>
+                    <a:record name="代付业务" code="2"/>
+                    <a:record name="全部" code="ALL"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="ebank_csh337_confirm_doc_query_ds">
+                <a:fields>
+                    <a:field name="transaction_number_from"/>
+                    <a:field name="transaction_number_to"/>
+                    <a:field name="due_date_from"/>
+                    <a:field name="due_date_to"/>
+                    <a:field name="status_desc" defaultValue="成功" displayField="code_value_name" options="doc_send_status_ds" returnField="status" valueField="code_value"/>
+                    <a:field name="status" defaultValue="SUCCESS"/>
+                    <a:field name="confirm_flag_name" defaultValue="否" displayField="code_value_name" options="doc_confirm_flag_ds" returnField="confirm_flag" valueField="code_value"/>
+                    <a:field name="confirm_flag" defaultValue="N"/>
+                    <a:field name="source_type_desc" displayField="description" options="doc_cf_item_ds" returnField="source_type" valueField="cf_item"/>
+                    <a:field name="source_type"/>
+                    <!-- <a:field name="dealstatus_n" displayField="code_value_name" options="doc_status_ds" returnField="dealstatus" valueField="code_value"/>
+                    <a:field name="dealstatus"/>
+                    <a:field name="transtype"/>
+                    <a:field name="transtype_n" displayField="name" options="trans_type_ds" returnField="transtype" valueField="code"/> -->
+                    <!-- <a:field name="status_date_from"/>
+                    <a:field name="status_date_to"/> -->
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="ebank_csh337_confirm_doc_result_ds" autoQuery="true" model="ebank.EBANK_CSH337.rd_confirm_csh_doc_write_off" queryDataSet="ebank_csh337_confirm_doc_query_ds" selectable="true" selectionModel="single"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="ebank_csh337_ds_query" text="HLS.QUERY"/>
+                <a:gridButton click="ebank_csh337_ds_reset" text="HLS.RESET"/>
+                <a:gridButton click="" text="对账单匹配"/>
+                <a:gridButton click="confirm_je" text="确认并生成凭证"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="110" marginWidth="30" title="财务确认">
+                <a:textField name="transaction_number_from" bindTarget="ebank_csh337_confirm_doc_query_ds" prompt="批次编号从"/>
+                <a:textField name="transaction_number_to" bindTarget="ebank_csh337_confirm_doc_query_ds" prompt="批次编号到"/>
+                <a:datePicker name="due_date_from" bindTarget="ebank_csh337_confirm_doc_query_ds" prompt="计划付款日从"/>
+                <a:datePicker name="due_date_to" bindTarget="ebank_csh337_confirm_doc_query_ds" prompt="计划付款日到"/>
+                <a:comboBox name="status_desc" bindTarget="ebank_csh337_confirm_doc_query_ds" prompt="扣款状态" readOnly="true"/>
+                <a:comboBox name="confirm_flag_name" bindTarget="ebank_csh337_confirm_doc_query_ds" prompt="财务确认" readOnly="true"/>
+                <a:comboBox name="source_type_desc" bindTarget="ebank_csh337_confirm_doc_query_ds" prompt="现金流类型"/>
+                <!-- <a:dateTimePicker name="status_date_from" bindTarget="ebank_csh337_confirm_doc_query_ds" prompt="最后处理时间从"/>
+                <a:dateTimePicker name="status_date_to" bindTarget="ebank_csh337_confirm_doc_query_ds" prompt="最后处理时间到"/> -->
+            </a:form>
+            <a:grid id="ebank_csh337_confirm_doc_result_grid_id" bindTarget="ebank_csh337_confirm_doc_result_ds" marginHeight="200" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="transaction_number" align="center" lock="true" prompt="批次编号" width="120"/>
+                    <a:column name="contract_number" align="center" prompt="合同编号" width="120"/>
+                    <a:column name="times" align="center" prompt="期次" width="50"/>
+                    <a:column name="source_type_desc" align="center" prompt="现金流类型" width="100"/>
+                    <a:column name="receivable_amount" align="center" prompt="金额" width="100"/>
+                    <a:column name="status_desc" align="center" editor="" prompt="扣款状态" width="100"/>
+                    <a:column name="customer_name" align="center" prompt="承租人" width="100"/>
+                    <a:column name="inception_of_lease" align="center" prompt="起租日" renderer="Aurora.formatDate" width="100"/>
+                    <a:column name="due_date" align="center" prompt="计划扣款日" renderer="Aurora.formatDate" width="100"/>
+                    <a:column name="cus_bank_acc_name" align="center" prompt="扣款对象" width="100"/>
+                    <a:column name="cus_bank_id_n" align="center" prompt="扣款银行" width="200"/>
+                    <a:column name="cus_bank_account" align="center" prompt="扣款账号" width="100"/>
+                    <a:column name="cus_bank_acc_name" align="center" prompt="扣款账户名" width="200"/>
+                    <a:column name="final_date" prompt="最后处理时间" renderer="Aurora.formatDate" width="130"/>
+                    <a:column name="confirm_flag_name" prompt="财务确认" width="100"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

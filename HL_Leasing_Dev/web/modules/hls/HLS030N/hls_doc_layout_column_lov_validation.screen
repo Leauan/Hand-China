@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: jack  
+    $Date: 2014-7-22 下午1:23:55  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            var para = $ctx.current_parameter || $ctx.parameter;
+            var validation_sql;
+            var query_validation_sql_bm = $bm('layout.server_doc_layout_config_field');
+            var config_map = query_validation_sql_bm.queryAsMap(para);
+            var config_map_detail = config_map.getChildren();
+            if (config_map_detail.length != 0) {
+                validation_sql = config_map_detail[0].validation_sql;
+                para.validation_sql = validation_sql;
+            }
+            validation_sql = validation_sql.replace(/\$\{@([^\}]*)\}/g, function(a, b) {
+                return "'" + (para[b] || '') + "'";
+            });
+            validation_sql = validation_sql.replace(/\$\{\/session\/@([^\}]*)\}/g, function(a, b) {
+                return "'" + $ctx.session[b] + "'";
+            })
+            var dsf = $instance('aurora.database.service.IDatabaseServiceFactory');
+            var conn = dsf.getDataSource().getConnection();
+            var stmt = conn.createStatement();
+            var rs = stmt.executeQuery(validation_sql);
+            var rsmd = rs.getMetaData();
+            var count = rsmd.getColumnCount();
+            var temp_num = 0;
+            var lov_insert_config_bm = $bm('hls.HLS030N.init_hls_doc_layout_config_lov_validation');
+            for (var i = 1;i <= count;i++) {
+                var fname = rsmd.getColumnName(i);
+                var dbtype = rsmd.getColumnTypeName(i);
+                if (fname) {
+                    lov_insert_config_bm.update({
+                        config_id: para.config_id,
+                        lov_col_name: fname,
+                        lov_col_for_query: 'Y',
+                        lov_col_for_display: 'Y',
+                        lov_data_type: dbtype,
+                        lov_col_display_width: 120,
+                        lov_col_prompt: fname,
+                        lov_col_sequence: i
+                    });
+                }
+            }
+            
+            stmt.close();
+            // ps.close();
+            conn.close();
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="update_user_id_link" model="hls.HLS030N.init_hls_doc_layout_config_lov_validation" modelaction="update"/>
+        <a:link id="this_link" url="${/request/@context_path}/modules/hls/HLS030N/hls_doc_layout_column_lov_validation.screen"/>
+        <script><![CDATA[
+            function tabColumnAdd() {
+                var ds = $('hls_doc_layout_lov_validation_ds');
+                var record = ds.create(ds.currentIndex);
+                $('grid_one').showEditorByRecord(record);
+            }
+            
+            function tabColumnSave() {
+                var ds = $('hls_doc_layout_lov_validation_ds');
+                if (ds.validate()) {
+                    ds.submit();
+                }
+            }
+            
+            function hls_doc_layout_lov_validation_ds_add(ds, record, index) {
+                record.set('config_id', '${/parameter/@config_id}');
+            }
+            
+            function tabColumnRemove() {
+                var ds = $('hls_doc_layout_lov_validation_ds');
+                ds.selectAll();
+                var records = ds.getSelected();
+                if (records.length != 0) {
+                    ds.remove(records);
+                    var layout_code = '${/parameter/@layout_code}';
+                    var tab_code = '${/parameter/@tab_code}';
+                    var config_id = '${/parameter/@config_id}';
+                    var column_name = '${/parameter/@column_name}';
+                    var prompt = '${/parameter/@prompt}';
+                    var para = {
+                        'layout_code': layout_code,
+                        'tab_code': tab_code,
+                        'config_id': config_id,
+                        'column_name': column_name,
+                        'prompt': prompt
+                    };
+            
+                    $('hls_doc_layout_tab_column_lov_validation').load($('this_link').getUrl(), para);
+                }
+            }
+            
+            function tabColumnDelete() {
+                var ds = $('hls_doc_layout_lov_validation_ds');
+                var records = ds.getSelected();
+                if (records.length != 0) {
+                    Aurora.showConfirm('${l:HLS.PROMPT}', '${l:HLS030.CONFIRM_DELETE}', function() {
+                        ds.remove(records);
+                    });
+                }
+            }
+            
+            function tabColumnClose() {
+                $('hls_doc_layout_tab_column_lov_validation').close();
+            }
+            
+            function init() {
+                Aurora.request({
+                    url: $('update_user_id_link').getUrl(),
+                    para: {
+                        config_id: '${/parameter/@config_id}'
+                    },
+                    success: function(res) {},
+                    failure: function() {},
+                    error: function() {},
+                    scope: this
+                });
+            
+            }
+            
+            
+            
+            init();
+        ]]></script>
+        <a:dataSets>
+            <!--  -->
+            <a:dataSet id="data_type_code_ds" lookupCode="HLS030N_DATA_TYPE"/>
+            <a:dataSet id="hls_doc_layout_lov_validation_ds" autoQuery="true" fetchAll="true" model="hls.HLS030N.hls_doc_layout_config_lov_validation" queryUrl="${/request/@context_path}/autocrud/hls.HLS030N.hls_doc_layout_config_lov_validation/query?config_id=${/parameter/@config_id}" selectable="true">
+                <a:fields>
+                    <a:field name="lov_config_id"/>
+                    <a:field name="config_id"/>
+                    <a:field name="lov_col_for_query" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="lov_col_for_display" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="lov_col_display_width"/>
+                    <a:field name="lov_col_prompt"/>
+                    <a:field name="lov_data_type_d" displayField="code_value_name" options="data_type_code_ds" returnField="lov_data_type" valueField="code_value"/>
+                    <a:field name="lov_data_type"/>
+                    <a:field name="lov_col_sequence"/>
+                    <a:field name="lov_col_name"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="hls_doc_layout_lov_validation_ds_add"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <!--  <a:gridButton click="tabColumnAdd" text="HLS.NEW"/>-->
+                <a:gridButton click="tabColumnClose" text="HLS.CLOSE"/>
+                <a:gridButton click="tabColumnSave" text="HLS.SAVE"/>
+                <a:gridButton click="tabColumnDelete" text="删除"/>
+                <a:gridButton click="tabColumnRemove" text="重新加载"/>
+            </a:screenTopToolbar>
+            <a:form width="660">
+                <a:hBox>
+                    <a:textField id="col_name_id" prompt="字段名" readOnly="true"/>
+                    <a:textField id="col_name_display_id" prompt="显示为" readOnly="true"/>
+                </a:hBox>
+            </a:form>
+            <a:grid id="grid_one" bindTarget="hls_doc_layout_lov_validation_ds" height="300" width="660">
+                <a:columns>
+                    <a:column name="lov_col_name" prompt="字段名" width="120"/>
+                    <a:column name="lov_col_prompt" editor="text_editor" prompt="描述" width="120"/>
+                    <a:column name="lov_col_for_query" editor="checkBox_editor" prompt="用于查询" width="60"/>
+                    <a:column name="lov_col_for_display" editor="checkBox_editor" prompt="用于显示" width="60"/>
+                    <a:column name="lov_col_display_width" editor="number_editor" prompt="显示宽度" width="80"/>
+                    <a:column name="lov_data_type_d" editor="comboBox_editor" prompt="类型" width="120"/>
+                    <a:column name="lov_col_sequence" editor="number_editor" prompt="排序" width="50"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="number_editor" allowDecimals="false"/>
+                    <a:comboBox id="comboBox_editor"/>
+                    <a:textField id="text_editor"/>
+                    <a:lov id="lov_editor"/>
+                    <a:checkBox id="checkBox_editor"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+        <script><![CDATA[
+            Aurora.onReady(function() {
+                 var column_name = '${/parameter/@column_name}';
+                    var prompt='${/parameter/@prompt}';
+                $('col_name_id').setValue(column_name);
+                $('col_name_display_id').setValue(prompt);
+            });
+        ]]></script>
+    </a:view>
+</a:screen>

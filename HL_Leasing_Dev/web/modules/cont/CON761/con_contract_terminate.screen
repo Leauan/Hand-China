@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei5743  
+    $Date: 2014-11-13 下午03:53:15  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" dynamiccreateenabled="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.document_category=&apos;CONTRACT&apos;" fetchAll="true" model="basic.hls_document_type_for_lov" rootPath="con761_document_type_path"/>
+        <a:model-query fetchAll="true" model="cont.CON301.con_contract_business_type_list" rootPath="con761_business_type_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="update_terminate_status_link" model="cont.CON761.update_terminate_status" modelaction="update"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="con_contract_modify_link" url="${/request/@context_path}/modules/cont/CON505/con_contract_modify.screen"/>
+        <a:link id="${/parameter/@layout_code}_contract_normal_confirm_link_id" url="${/request/@context_path}/modules/cont/CON761/con_contract_normal_confirm.screen"/>
+        <a:link id="hls_doc_file_batch_create_link_id" url="${/request/@context_path}/modules/hls/HLS811/hls_doc_file_print_con_confirm.screen"/>
+        <a:link id="con_contract_teminate_detail_link" url="${/request/@context_path}/modules/cont/CON761/con_contract_teminate_detail.screen"/>
+        <a:link id="con_contract_update_print_detail_link_id" url="${/request/@context_path}/modules/cont/CON500/con_contract_update_print_detail.screen"/>
+        <!--未签章screen-->
+        <a:link id="con_contract_no_sign_print_link_id" url="${/request/@context_path}/modules/cont/CON761/con_contract_teminate_print.screen"/>
+        <!---签章screen-->
+        <a:link id="con_contract_signed_print_link_id" url="${/request/@context_path}/modules/csh/CSH506/csh_payment_print_word.svc"/>
+        <a:link id="con_contract_dowload_uploadfile" url="${/request/@context_path}/modules/cont/CON580/con_other_content_print.svc"/>
+        <!--  获取合同打印路径的js -->
+        <script src="${/request/@context_path}/modules/cont/CON504/javascripts/contract_print_path.js"/>
+        <script><![CDATA[
+            function con761_query() {
+                $('con_contract_teminate_result_ds').query();
+            }
+            
+            function con761_calc() {
+                if ($('con_contract_teminate_result_ds').getAll().length < 1) {
+                    Aurora.showMessage('提示', '请选择行');
+                    return;
+                } else {
+                    var contract_id = $('con_contract_teminate_result_ds').getCurrentRecord().get('contract_id');
+                    var url = $('con_contract_teminate_detail_link').getUrl();
+                    var win = new Aurora.Window({
+                        id: 'con_contract_content_window',
+                        url: url,
+                        params: {
+                            contract_id: contract_id,
+                            winId: 'con_contract_content_window'
+                        },
+                        fullScreen: true
+                    });
+                    win.on('close', function() {
+                        con761_query();
+                    });
+                }
+            }
+            
+            function con761_print_finish(){
+                con761_print('FINISH','结清表单','CONTRACT_TERMINATE_FINISH',1344);
+            }
+            
+            function con761_print_transfer(){
+                con761_print('FINISH','交接单','CONTRACT_TERMINATE_TRANSFER',1345);
+            }
+            
+             function con761_print_stop(){
+                con761_print('FINISH','合同终止协议','CONTRACT_TERMINATE_STOP',1323);
+            }
+            
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                debugger;
+            	var result_ds = $('CON_TERMINATE_RESULT_con_contract_ds');
+                var record = result_ds.getCurrentRecord();
+                var contract_id = record.get('contract_id');
+                Aurora.showConfirm('提示', '确认合同已经<font color="RED">正常结清</font>?', function() {
+                var detail_mask;
+                detail_mask = Ext.getBody();
+                Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+				Aurora.request({
+                    url: $('update_terminate_status_link').getUrl(),
+                    para: {
+                        contract_id:contract_id
+                    },
+                    success: function() {
+                        $('CON_TERMINATE_RESULT_con_contract_ds').query();
+                        Aurora.Masker.unmask(detail_mask);
+                        Aurora.SideBar.show({
+                            msg: '操作成功',
+                            duration: 2000
+                        });
+                    },
+                    failure: function() {
+            			Aurora.Masker.unmask(detail_mask);
+                       },
+                    error: function() {
+            			Aurora.Masker.unmask(detail_mask);
+                       },
+                    scope: this
+                });
+                });
+            };
+            
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                //var url_l = $('hls_doc_file_batch_create_link_id').getUrl() + '?document_id=' + document_id + '&document_table=AST_CAR_INSURANCE_RECORDS&file_path=${/parameter/@file_path}&batch_flag=Y&source_type=COMMON';
+
+            	var result_ds = $('CON_TERMINATE_RESULT_con_contract_ds');
+                var record = result_ds.getCurrentRecord();
+                var document_id = record.get('contract_id');
+                var contract_number = record.get('contract_number');
+                var contract_name = record.get('contract_name');
+                var win = new Aurora.Window({
+	                        id: 'con_contract_terminate_win_id',
+	                        params: {
+	                            contract_id: record.get('contract_id'),
+	                            winid: 'con_contract_terminate_win_id',
+	                            contract_number: contract_number,
+	                            contract_name:contract_name
+	                        },
+	                        url: $('${/parameter/@layout_code}_contract_normal_confirm_link_id').getUrl(),
+	                        title: '打印结清表单',
+	                        width: 1300,
+	                        height: 550
+	                    });
+	                    //在关闭页面之后,刷新一下ds
+	                    win.on('close', function() {
+	
+	                    });
+            };
+            
+            function download_contract_terminate() {
+                debugger;
+                var result_ds = $('con_contract_teminate_result_ds');
+                var record = result_ds.getCurrentRecord();
+                var document_id = record.get('contract_id');
+                var win = new Aurora.Window({
+	                        id: 'con_contract_terminate_win_id',
+	                        params: {
+	                            contract_id: record.get('contract_id')
+	                        },
+	                        url: $('${/parameter/@layout_code}_contract_normal_confirm_link_id').getUrl(),
+	                        title: '打印结清表单',
+	                        width: 1300,
+	                        height: 550
+	                    });
+	                    //在关闭页面之后,刷新一下ds
+	                    win.on('close', function() {
+	
+	                    });
+            }
+            
+            
+            
+            //模板，名称，基表名(虚拟节点)，模板id
+            function con761_print(p_clause_usage,p_content_number,p_table_name,p_templet_id) {
+                var ds = $('con_contract_teminate_result_ds');
+                records = ds.getSelected();
+            
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                } else {
+                    var record = records[0];
+                    Aurora.showConfirm('提示', '确定打印选中项？', function() {
+                        Aurora.Masker.mask(Ext.getBody(), '正在生成');
+                        var contract_id = record.get('contract_id');
+                        var clause_usage = p_clause_usage;
+                        var templt_name = 'yonda_other_contract.xml';
+                        var content_number = p_content_number;
+                        var templet_id=p_templet_id;
+                        var pdf_key_path = get_pdf_key_path();
+                        var spv_company_code = record.get('spv_company_code');
+                        var doc_name = get_doc_path()+'OTHER_CONTRACT_CONTENT/';
+                        var company_id = record.get('company_id');
+                        //不用于合同文本打印功能的文本，虚拟的表名
+                        var other_contract_content_flag = 'Y';
+                        var table_name = p_table_name;
+                        var table_pk_id = record.get('contract_id');
+                        //不用于合同文本打印功能的文本
+                        if (record.get('contract_terminate_status') != 'APPROVED') {
+                            //未审批通过的打印出来未盖章合同
+                            var link = $('con_contract_no_sign_print_link_id').getUrl();
+                            var url = link + '?templt_name=' + templt_name + '&content_number=' + content_number + '&contract_id=' + contract_id + '&clause_usage=' + clause_usage + '&templet_id='+templet_id + '&company_id=' + company_id + '&pdf_key_path=' + pdf_key_path + '&spv_company_code=' + spv_company_code + '&doc_name=' + doc_name + '&other_contract_content_flag=' + other_contract_content_flag + '&table_name=' + table_name + '&table_pk_id=' + table_pk_id;
+                            var form = document.createElement("form");
+                            form.target = "word_export_window";
+                            form.method = "post";
+                            form.action = url;
+                            var iframe = Ext.get('word_export_window') || new Ext.Template('<iframe id ="word_export_window" name="word_export_window" style="position:absolute;left:-10000px;top:-10000px;width:1px;height:1px;display:none"></iframe>').insertFirst(document.body, {}, true);
+                            document.body.appendChild(form);
+                            form.submit();
+                            Ext.fly(form).remove();
+                            setTimeout(function() {
+                                Aurora.Masker.unmask(Ext.getBody());
+                            }, 1500);
+                        } else {
+                            //审批通过打印出盖章的合同
+                            link = $('con_contract_signed_print_link_id').getUrl();
+                            url = link + '?templt_name=' + templt_name + '&content_number=' + content_number + '&contract_id=' + contract_id + '&clause_usage=' + clause_usage + '&templet_id='+ templet_id+ '&company_id=' + company_id + '&pdf_key_path=' + pdf_key_path + '&spv_company_code=' + spv_company_code + '&doc_name=' + doc_name + '&other_contract_content_flag=' + other_contract_content_flag + '&table_name=' + table_name + '&table_pk_id=' + table_pk_id;
+                            Aurora.request({
+                                url: url,
+                                para: null,
+                                success: function(obj) {
+                                    var status = obj.result.sign_status;
+                                    Aurora.request({
+                                        url: url,
+                                        para: null,
+                                        success: function(obj) {
+                                            var status = obj.result.sign_status;
+                                            if (status == true) {
+                                                var doc_code = '合同文本附件';
+                                                var url_l = $('con_contract_dowload_uploadfile').getUrl() + '?table_name=' + table_name + '&table_pk_value=' + contract_id + '&doc_code=' + encodeURI(doc_code) + '&type=SIN';
+                                                window.open(href = url_l, target = "_self");
+                                                  Aurora.Masker.unmask(Ext.getBody());
+                                                // 修改合同打印字段信息
+                                            } else {
+                                                Aurora.showMessage('${l:PROMPT}', content_number + '合同打印失败，请重新打印！');
+                                                  Aurora.Masker.unmask(Ext.getBody());
+                                            }
+                                          
+            
+                                        },
+                                        failure: function() {
+                                            Aurora.Masker.unmask(Ext.getBody());
+                                            Aurora.showMessage('${l:PROMPT}', content_number + '合同打印失败，请重新打印！');
+                                        },
+                                        error: function() {
+            
+                                            Aurora.Masker.unmask(Ext.getBody());
+                                            Aurora.showMessage('${l:PROMPT}', content_number + '合同打印失败，请重新打印！');
+                                        },
+                                        scope: this
+                                    });
+                                    Aurora.Masker.unmask(Ext.getBody());
+            
+                                },
+                                failure: function() {
+                                    Aurora.Masker.unmask(Ext.getBody());
+                                    Aurora.showMessage('${l:PROMPT}', content_number + '合同打印失败，请重新打印！');
+                                },
+                                error: function() {
+            
+                                    Aurora.Masker.unmask(Ext.getBody());
+                                    Aurora.showMessage('${l:PROMPT}', content_number + '合同打印失败，请重新打印！');
+                                },
+                                scope: this
+                            });
+                        }
+                    });
+                }
+            
+            }
+            
+            
+            function winOpen_con_query(record_id,name) {
+                var record = $('CON_TERMINATE_RESULT_con_contract_ds').findById(record_id);
+                var param = record.data;
+                param['function_code'] = 'CON301';
+                param['function_usage'] = 'QUERY';
+                param['maintain_type'] = 'UPDATE';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_modify_link', 'CON542_contract_result_ds');
+            }
+           
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                var link_function = '';
+                window['${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                if (name == 'contract_number') {
+                    link_function = 'winOpen_con_query';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + value + '</a>';
+                } 
+            };
+            
+           
+          
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

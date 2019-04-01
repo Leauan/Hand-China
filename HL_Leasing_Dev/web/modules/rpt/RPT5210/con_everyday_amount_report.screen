@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Hand.wts
+    $Date: 2019-1-30 15:07:02  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="rpt.RPT5210.balance_sheet_columns" rootPath="/model/balance_sheet_columns"/>
+        <a:model-query model="rpt.RPT5210.rpt_select_flag" rootPath="rpt_select_flag"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+            function close() {
+                $('con_everyday_amount_report_window').close();
+            }
+            
+            function query() {
+                $('rpt5210_con_every_amount_ds').query();
+            }
+            
+            function reset() {
+                $('rpt5210_con_every_amount_ds').reset();
+            }
+            
+            function on_rate_renderer(value, record, name) {
+                if (name == 'year_rate' && value) {
+                    return parseFloat(mul(value, 100)).toFixed(2) + '%';
+                }
+            }
+            
+            function amtSumInfo(data, name) {
+                if (name == 'contract_number') {
+                    return '<font color=red>' + '合计:' + '</font>';
+                } else {
+                    return colum_caculateTotal(data, name);
+                }
+            }
+            
+            function colum_caculateTotal(data, name) {
+                var total = 0;
+                var length = data.length;
+                var value = 0;
+                for (var i = 0;i < length;i++) {
+            
+                    if (Ext.isEmpty(data[i].get(name))) {
+                        value = 0;
+                    } else {
+                        //去掉小计
+                        if (data[i].get('contract_id') == -1) {
+                            value = 0;
+                        } else {
+                            value = data[i].get(name);
+                        }
+                    }
+                    total = plus(total, value);
+                }
+                return '<font color=red>' + Aurora.formatMoney(total) + '</font>';
+            
+            }
+            
+            function count_backgroundcolor(value, record, name) {
+                var flag = record.get('contract_id');
+                //小计颜色背景色改变
+                if (flag == -1) {
+                    if (value) {
+                        if (name == 'year_rate' && value) {
+                            return '<div style="background-color:#fff2cc">' + parseFloat(mul(value, 100)).toFixed(2) + '%' + '</div>';
+            
+                        } else if (name == 'bp_code' || name == 'bp_name' || name == 'contract_number' || name == 'year_rate'|| name =='days') {
+                            //文本格式
+                            return '<div style="background-color:#fff2cc">' + value + '</div>';
+                        } else {
+                            return '<div style="background-color:#fff2cc">' + Aurora.formatMoney(value) + '</div>';
+                        }
+                    } else if (value == 0) {
+                        return '<div style="background-color:#fff2cc">' + Aurora.formatMoney(value) + '</div>';
+                    } else {
+                        return '<div style="background-color:#fff2cc">' + '&nbsp' + '</div>';
+                    }
+                } else {
+            
+                    if (name == 'year_rate' && value) {
+                        return parseFloat(mul(value, 100)).toFixed(2) + '%';
+                    } else if (name == 'bp_code' || name == 'bp_name' || name == 'contract_number' || name == 'year_rate'|| name =='days') {
+                        //文本格式
+                        return value;
+                    } else {
+                        return Aurora.formatMoney(value);
+                    }
+            
+                }
+            }
+            function select_flag_change(ds, record, name, value, oldVlaue){
+                if(name=='select_flag'){
+                    query();
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <!--  <a:dataSet id="month_ds" lookupCode="MONTH"/> -->
+            <a:dataSet id="cash_received_record_ds">
+                <a:fields>
+                    <a:field name="bp_id"/>
+                    <a:field name="bp_name" lovGridHeight="330" lovHeight="470" lovLabelWidth="120" lovService="cont.CON341.hls_bp_master_v_all_lov?bp_category=AGENT" lovWidth="700" title="承租人">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="select_flag" defaultValue="ALL"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="select_flag_change"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="rpt5210_con_every_amount_ds" autoPageSize="true" autoQuery="true" model="rpt.RPT5210.contract_cashflow_everyday" queryDataSet="cash_received_record_ds" queryUrl="${/request/@context_path}/autocrud/rpt.RPT5210.contract_cashflow_everyday/query?"><![CDATA[
+                
+            ]]></a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="close" text="退出"/>
+                <a:gridButton click="query" text="查询"/>
+                <a:gridButton click="reset" text="重置"/>
+                <a:gridButton bind="rpt5210_con_every_amount_grid" type="excel"/>
+                <div style="margin-left:30px;margin-top:13px"><![CDATA[注：导出速度与数据量相关，请耐心等待。]]></div>
+            </a:screenTopToolbar>
+            <a:form column="4" marginWidth="80" title="查询条件">
+                <a:lov name="bp_name" bindTarget="cash_received_record_ds" prompt="经销商"/>
+                <a:radio name="select_flag" bindTarget="cash_received_record_ds" labelField="code_value_name" options="/model/rpt_select_flag" prompt="" radioSeparator="" valueField="code_value" width="600"/>
+            </a:form>
+            <a:grid id="rpt5210_con_every_amount_grid" bindTarget="rpt5210_con_every_amount_ds" marginHeight="260" marginWidth="80" navBar="true">
+                <a:columns>
+                    <a:column name="bp_code" lock="true" prompt="经销商编号" renderer="count_backgroundcolor" width="100"/>
+                    <a:column name="bp_name" lock="true" prompt="经销商名称" renderer="count_backgroundcolor" width="200"/>
+                    <a:column name="contract_number" footerRenderer="amtSumInfo" lock="true" prompt="合同编号" renderer="count_backgroundcolor" width="120"/>
+                    <a:placeHolder id="balance_sheet_id"/>
+                    <a:column name="days" prompt="当月天数" renderer="count_backgroundcolor" width="70"/>
+                    <a:column name="month_avg_amount" align="right" footerRenderer="amtSumInfo" prompt="月平均资产额" renderer="count_backgroundcolor" width="120"/>
+                    <a:column name="month_cf301" align="right" footerRenderer="amtSumInfo" prompt="月管理费收入" renderer="count_backgroundcolor" width="120"/>
+                    <a:column name="year_rate" align="right" prompt="年化收益率" renderer="count_backgroundcolor" width="80"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="balance_sheet_id">
+            <p:loop source="/model/balance_sheet_columns">
+                <c:process-config>
+                    <a:column prompt="${@field}">
+                        <a:column name="attribute_${@no}" align="right" footerRenderer="amtSumInfo" prompt="余额" renderer="count_backgroundcolor"/>
+                    </a:column>
+                </c:process-config>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

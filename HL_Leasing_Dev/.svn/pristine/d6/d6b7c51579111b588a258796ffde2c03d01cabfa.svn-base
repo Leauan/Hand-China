@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: yuanyang  
+    $Date: 2018-03-22
+    $Revision: 1.0  
+    $Purpose:测试解析xml文件
+-->
+<a:service xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+           importPackage(java.io);
+            importPackage(Packages.cn.emay);
+            //直接调用
+            //获取密码
+            var pwd_bm = $bm('sys.SYS1000.get_sms_pwd');
+            var pwd_result = pwd_bm.queryAsMap().getChildren();你
+            var pwd = pwd_result[0].pwd_new;
+            //起租的合同
+          var contract_incept = $bm('sys.SYS1000.sys_collection_t10_sms_list');
+            var contract_result = contract_incept.queryAsMap();
+            var contract_list = contract_result.getChildren();
+            //1.合同起租后，短信发送给客户
+            for (var i = 0;i < contract_list.length;i++) {
+                //插入短信发送表(sys_sms_list)
+                contract_incept.update({
+                    contract_id: contract_list[i].contract_id
+                });
+                var sms_list_bm = $bm('sys.SYS1000.sys_immediate_sms_list');
+                var sms_result = sms_list_bm.queryAsMap({
+                    sms_id: $ctx.parameter.sms_id
+                });
+                var sms_list = sms_result.getChildren();
+                phone = sms_list[0].phone_number;
+                var content = sms_list[0].text;
+           
+                try {
+                    var result=new Example.setSingleSms(pwd, content, phone);
+                    
+                    //println("result"+JSON.stringify(result));
+                } catch (e) {
+                    println("错误信息" + e);
+                }
+                //短信发送后 插入短信历史表，并修改原短信状态
+                sms_list_bm.update({
+                sms_id: $ctx.parameter.sms_id,
+                sendResult:result
+                });
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

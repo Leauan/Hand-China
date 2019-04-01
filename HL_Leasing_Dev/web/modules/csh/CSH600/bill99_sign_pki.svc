@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <!-- <a:screen xmlns:c="aurora.application.action" xmlns:s="aurora.plugin.script" xmlns:w="aurora.plugin.export.word" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" customizationEnabled="true" trace="true"> -->
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            importPackage(Packages.com.test); //相当于java中的import com.esa2000.*;
+            importPackage(Packages.org.springframework.context);
+            importPackage(Packages.org.springframework.context.support);
+            importPackage(java.io);
+            
+            
+            function getdate() {
+                var now = new Date()
+                y = now.getFullYear()
+                m = now.getMonth() + 1
+                d = now.getDate()
+                h = now.getHours()
+                mi = now.getMinutes()
+                ss = now.getSeconds()
+                m = m < 10 ? "0" + m : m
+                d = d < 10 ? "0" + d : d
+                h = h < 10 ? "0" + h : h
+                mi = mi < 10 ? "0" + mi : mi
+                ss = ss < 10 ? "0" + ss : ss
+                return y + "" + m + "" + d +""+ h +"" + mi +"" + ss 
+            }
+            
+            var locations = ["classpath:client.xml", "classpath:context/client-demo-servlet.xml"];
+            var ctx = new FileSystemXmlApplicationContext(locations);
+            var testRealTime = ctx.getBean("testRealTime");
+            var bm = $bm('cont.CON591.con_contract');
+            var protocol_number="";
+            var seqid = "";
+            var records = bm.queryAsMap({
+                status: '3,4',
+                contract_id: $ctx.parameter.contract_id
+            }).getChildren();
+            
+            for (var i = 0;i < records.length;i++) {
+
+                    /*   var result = testRealTime.testSignPKI(String InputCharset,
+			String OperateType,
+			String MemberCode,
+			String ContractId,
+			String SeqId,
+			String MerchantContractNo, 
+			String BankCode,
+			String AccType,//类型公私
+			String AcctCode,//付款方账号
+			String AcctName,
+			String IdType, 
+			String IdCode,
+			String Mobile,
+			String SingleLimit,
+			String DailyLimit)*/
+			if(records[i].ebank_id_c != null &&records[i].ebank_type != null&&records[i].ebank_account_num != null&&records[i].id_card_no != null&&records[i].cell_phone != null){
+			if(records[i].protocol_number == null){
+			    $bm('csh.CSH600.hls_protocol_ebank_data').insert({
+                        contract_id: records[i].contract_id
+                    });
+                    protocol_number =$ctx.parameter.protocol_number;
+                    
+			}else{
+			    protocol_number =records[i].protocol_number;
+			}
+			seqid = getdate() + "" + records[i].contract_id;
+			 //正式环境 10023576511    K14-2000-3113 
+			 //测试：10011639243      steven04
+                    var result = testRealTime.testSignPKI("1", "1", 
+                    "10011639243",
+                     "steven04",
+                    seqid,//records[i].contract_id, //
+                    protocol_number,
+                    records[i].ebank_id_c,
+                    records[i].ebank_type,//公私
+                     records[i].ebank_account_num,//
+                     records[i].ebank_account_name,
+                     "101",
+                      records[i].id_card_no, 
+                      records[i].cell_phone,
+                      "100000", 
+                      "500000");
+                    //解析接口数据
+                    $bm('csh.CSH600.hls_protocol_ebank_data').update({
+                        response_xml: result,
+                        function_name: 'NC_EMBK_SIGN_PROTOCOL_PARSE',
+                        request_id: '111',
+                        contract_id: records[i].contract_id,
+                        protocol_number: records[i].protocol_number
+                    });
+                
+             }
+            }
+
+        ]]></s:server-script>
+    </a:init-procedure>
+    <!--     <a:service-output output="/parameter"/> -->
+</a:service>

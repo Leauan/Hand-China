@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:o="aurora.database.local.oracle" xmlns:e="aurora.service.exception" xmlns:s="aurora.plugin.script" xmlns:f="aurora.database.features" xmlns:bm="http://www.aurora-framework.org/schema/bm" alias="t1">
+    <bm:fields/>
+    <bm:primary-key/>
+    <bm:features>
+        <o:sequence-pk/>
+        <f:standard-who/>
+        <!-- make sure bm-script must be the LAST feature -->
+        <s:bm-script><![CDATA[
+            function new_bm_map(name) {
+                return new CompositeMap("bm", 'http://www.aurora-framework.org/schema/bm', name);
+            }
+            
+            function create_query_field(query_field, queryoperator) {
+                if (query_field) {
+                    var qf = new_bm_map('query-field');
+                    qf.field = query_field;
+                    qf.queryoperator = queryoperator; //attribute name must in lowercase
+                    $this.addQueryField(qf.getData()); //get it's java type...
+                }
+            }
+            
+            function create_order_by_fields() {
+                var robf = $ctx.model.getChild('rootpath_order_by_fields');
+                var order_by_fields_path = ( !! robf) ? robf.getChildren() : [];
+                var order_by_fields = '';
+                if (order_by_fields_path.length) {
+                    for (var i = 0;i < order_by_fields_path.length;i++) {
+                        var order_by_field_result = order_by_fields_path[i];
+                        var order_type = '';
+                        if (order_by_field_result.grid_order_type == 'DESCENDING') {
+                            order_type = 'desc';
+                        } else {
+                            order_type = 'asc';
+                        }
+                        var temp_field_name = '';
+                        if (order_by_field_result.data_type == 'NUMBER') {
+                            temp_field_name = 'to_number(' + order_by_field_result.column_name + ')';
+                        } else {
+                            temp_field_name = order_by_field_result.column_name;
+                        }
+                        if (order_by_fields) {
+                            order_by_fields = order_by_fields + ',' + temp_field_name + ' ' + order_type;
+                        } else {
+                            order_by_fields = temp_field_name + ' ' + order_type;
+                        }
+                    }
+                    $this.setDefaultOrderby(order_by_fields);
+                }
+            }
+            
+            function override() {
+                var qf_root = $this.getObjectContext().getChild("query-fields");
+                for (var i = 0;i < override_queryfields.length;i++) {
+                    var override_queryfield = override_queryfields[i];
+                    importClass(Packages.uncertain.composite.CompositeUtil);
+                    var field_name = '';
+                    var query_handle = '';
+                    if (override_queryfield['name']) {
+                        field_name = 'name';
+                        query_handle = 'queryexpression';
+                    } else if (override_queryfield['field']) {
+                        field_name = 'field';
+                        query_handle = 'queryoperator';
+                    }
+                    var query_field = CompositeUtil.findChild(qf_root, "query-field", "field", override_queryfield[field_name]);
+                    if (query_field) {
+                        query_field.remove('field');
+                        query_field.remove('queryoperator');
+                        query_field.put(field_name, override_queryfield[field_name]);
+                        query_field.put(query_handle, override_queryfield[query_handle]);
+                    } else {
+                        var qf = new_bm_map('query-field');
+                        qf[field_name] = override_queryfield[field_name];
+                        qf[query_handle] = override_queryfield[query_handle];
+                        $this.addQueryField(qf.getData());
+                    }
+                }
+            }
+            
+            function add_datafilter() {
+                if (add_datafilters.length) {
+                    var model = new CompositeMap($this.getObjectContext());
+                    var datafilters = model.getChild('data-filters');
+                    if (!datafilters) {
+                        datafilters = model.createChildNS('data-filters');
+                    }
+                    for (var i = 0;i < add_datafilters.length;i++) {
+                        var add_datafilter = add_datafilters[i];
+                        var dataf = datafilters.createChildNS('data-filter');
+                        dataf.name = add_datafilter.name;
+                        dataf.enforceoperations = 'query';
+                        dataf.expression = add_datafilter.expression;
+                    }
+                }
+            }
+            
+            function remove_datafilter(name) {
+                var datafilters = $this.getObjectContext().getChild("data-filters");
+                importClass(Packages.uncertain.composite.CompositeUtil);
+                if (datafilters) {
+                    var dataf = CompositeUtil.findChild(datafilters, "data-filter", "name", name);
+                    if (dataf) {
+                        datafilters.removeChild(dataf);
+                    }
+                    var dataf1 = CompositeUtil.findChild(datafilters, "data-filter");
+                    if (!dataf1) {
+                        $this.getObjectContext().removeChild(datafilters);
+                    }
+                }
+            }
+            
+            function import_server_bm_tplt() {
+                var cx = Packages.aurora.javascript.Context.getCurrentContext();
+                try {
+                    if ($ctx.tab_code) {
+                        Packages.aurora.plugin.script.engine.ScriptImportor.defineExternScript(cx, this, $ctx.getData(), 'layoutconfig/' + $ctx.parameter.layout_code.toLowerCase() + '_' + $ctx.tab_code.toLowerCase() + '_queryfields.js');
+                    }
+                    if ($ctx.parameter.authority_flag == 'Y' && $ctx.query_tab_code) {
+                        Packages.aurora.plugin.script.engine.ScriptImportor.defineExternScript(cx, this, $ctx.getData(), "aut_authority_bm_validate.js");
+                    }
+                } catch (e) {
+            
+                    var je = e.javaException;
+                    while (je && je.getCause())
+                    je = je.getCause();
+                    if (je && je.getClass() == java.io.FileNotFoundException) {
+                        if ($ctx.parameter.authority_flag == 'Y' && $ctx.query_tab_code) {
+                            Packages.aurora.plugin.script.engine.ScriptImportor.defineExternScript(cx, this, $ctx.getData(), "aut_authority_bm_validate.js");
+                        }
+                    } else {
+                        throw e;
+                    }
+            
+                }
+            }
+            
+            var table_name = $ctx.dynamic_base_table;
+            // println("table_name:"+table_name);
+            if (!table_name) raise_app_error("table name not found");
+            $this.setBaseTable(table_name); //get base table from somewhere...
+            var dsf = $instance('aurora.database.service.DatabaseServiceFactory');
+            var it = new Packages.aurora.plugin.entity.OracleTableFields();
+            var tableName = $this.getBaseTable();
+            var fMap = new CompositeMap(it.getTableFields(dsf, tableName));
+            // println(fMap.toXML());
+            if (fMap.msg) raise_app_error('error while get table fields:' + fMap.msg + " :" + table_name);
+            var flds = fMap.getChildren();
+            var bp_seq_flag = 'N',
+                bp_category = 'N';
+            for (var i = 0;i < flds.length;i++) {
+                var r = flds[i];
+                if (r.name == 'BP_SEQ') {
+                    bp_seq_flag = 'Y';
+                } else if (r.name == 'BP_CATEGORY') {
+                    bp_category = 'Y';
+                }
+                var f = Packages.aurora.bm.Field().createField(r.name.toLowerCase());
+                f.setPhysicalName(r.name);
+                if (r.dbtype == 'NUMBER') {
+                    f.setDataType('java.lang.Double');
+                } else if (r.dbtype == 'CLOB') {
+                    f.setDataType('java.sql.Clob');
+                } else {
+                    if (!r.javatype) {
+                        f.setDataType('java.lang.String');
+                    } else {
+                        f.setDataType(r.javatype);
+                    }
+                }
+                f.setDatabaseType(r.dbtype);
+                f.setPrompt(r.prompt);
+                $this.addField(f);
+                if (r.ispk) {
+                    //dynamic primary-key
+                    if (!$ctx.pkmap) $ctx.pkmap = {};
+                    $ctx.pkmap[table_name] = r.name.toLowerCase();
+                    var pk = new_bm_map('pk-field');
+                    // println("pk:" + r.toXML());
+                    //f.setInsertExpression(table_name+'_s.nextval');
+                    pk.name = r.name.toLowerCase();
+                    if ($ctx.excelSaveFlag == 'Y') {
+                        var model = new CompositeMap($this.getObjectContext());
+                        var datafilters = model.getChild('data-filters');
+                        if (!datafilters) {
+                            datafilters = model.createChildNS('data-filters');
+                        }
+                        dataf = datafilters.createChildNS('data-filter');
+                        dataf.name = pk.name;
+                        dataf.enforceoperations = 'query';
+                        dataf.expression = pk.name.toLowerCase() + '=${@' + pk.name.toLowerCase() + '}';
+                    }
+                    $this.getObjectContext().getChild('primary-key').addChild(pk.getData()); //get it's java type...
+                }
+                if ($ctx.query_tab_code) {
+                    if (r.dbtype != 'DATE' && r.name.toLowerCase() != 'bp_seq' && r.name.toLowerCase() != 'bp_category') {
+                        create_query_field(r.name.toLowerCase(), 'like');
+                    }
+                }
+            }
+            if (!$ctx.query_tab_code) {
+                var qf_root = $ctx.model.getChild('rootpath_query_field');
+                // println("pk:" + qf_root.toXML());
+                var qfs = ( !! qf_root) ? qf_root.getChildren() : [];
+                var model = new CompositeMap($this.getObjectContext());
+                var datafilters = model.getChild('data-filters');
+                if (!datafilters) {
+                    datafilters = model.createChildNS('data-filters');
+                }
+                // if (bp_seq_flag == 'Y' && $ctx.dynamic_parent_table == 'prj_project') {
+                // qfs.push({
+                // query_field1: '',
+                // query_field2: 'BP_SEQ'
+                // });
+                // }
+                if (bp_category == 'Y' && $ctx.dynamic_parent_table == 'prj_project') {
+                    qfs.push({
+                        query_field1: '',
+                        query_field2: 'BP_CATEGORY'
+                    });
+                }
+                for (var i = 0;i < qfs.length;i++) {
+                    //dynamic query field
+                    var temp_qf = qfs[i];
+                    create_query_field(temp_qf.query_field1, '=');
+                    create_query_field(temp_qf.query_field2, '=');
+                    if (temp_qf.query_field2) {
+                        var query_field2 = temp_qf.query_field2;
+                        if (($ctx.parameter.tree_code || $ctx.dynamic_tab_type == 'GRIDBOX') && query_field2.toLowerCase() == 'bp_seq') {
+                            continue;
+                        }
+                        var dataf = datafilters.createChildNS('data-filter');
+                        dataf.name = query_field2.toLowerCase();
+                        dataf.enforceoperations = 'query';
+                        if ($ctx.query_bp_category) {
+                            if (temp_qf.query_field2 == 'BP_CATEGORY') {
+                                if ($ctx.parameter.bp_category == 'TENANT') {
+                                    dataf.expression = query_field2.toLowerCase() + ' in (' + "'" + "TENANT" + "'," + "'" + "TENANT_SEC" + "'" + ')';
+                                } else {
+                                    dataf.expression = query_field2.toLowerCase() + '=${@' + query_field2.toLowerCase() + '}';
+                                }
+                            } else {
+                                dataf.expression = query_field2.toLowerCase() + '=${@' + query_field2.toLowerCase() + '}';
+                            }
+                        } else if (!$ctx.query_bp_category && (temp_qf.query_field2 == 'BP_CATEGORY' || temp_qf.query_field2 == 'BP_SEQ')) {
+                            dataf.expression = '1=1';
+                        } else {
+                            dataf.expression = query_field2.toLowerCase() + '=${@' + query_field2.toLowerCase() + '}';
+                        }
+                    }
+                }
+            }
+            import_server_bm_tplt();
+            create_order_by_fields();
+            /*   println('===============================');
+             println($ctx.parameter.authority_flag);
+             println('===============================');
+             println($this.getObjectContext().toXML()); */
+        ]]></s:bm-script>
+    </bm:features>
+    <bm:relations/>
+    <bm:query-fields/>
+</bm:model>

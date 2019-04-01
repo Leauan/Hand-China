@@ -1,0 +1,337 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-11-26 下午03:19:53  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.cf_item in(3,4)" fetchAll="true" model="hls.HLS005.hls_cashflow_item_v_lov" rootPath="cashflow_item_path"/>
+        <a:model-query defaultWhereClause="t1.currency_code=&apos;CNY&apos;" fetchAll="true" model="gld.gld_currency_vl" rootPath="default_currency"/>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="currency"/>
+        <a:model-query fetchAll="true" model="gld.gld_exchangerate_type_lov" rootPath="exchangerate_type_path"/>
+        <a:model-query fetchAll="true" model="csh.CSH511.csh_transaction_default_exchange_rate_type" rootPath="default_exchange_rate_type_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="get_exchange_rate_link_id" model="csh.CSH511.csh_transaction_get_exchange_rate" modelaction="query"/>
+        <a:link id="get_period_name_id" model="csh.CSH511.csh_transaction_get_period_name" modelaction="query"/>
+        <script><![CDATA[
+            function con901_con_finance_income_return() {
+                if ('${/parameter/@winId}') {
+                    $('${/parameter/@winId}').close();
+                } else {
+                    history.go(-1);
+                }
+            
+            }
+            
+            function con901_con_finance_income_query() {
+                $('con_finance_income_cashflow_ds').query();
+            }
+            
+            function lock_current_window() {
+                Aurora.Masker.mask(document.documentElement, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_current_window() {
+                Aurora.Masker.unmask(document.documentElement, '${l:HLS.EXECUTING}');
+            }
+            
+            function con901_con_finance_income_sure() {
+                lock_current_window();
+                var finance_income_ds = $('con_finance_income_cashflow_ds');
+                var records = finance_income_ds.getSelected();
+                if (!records.length) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    unlock_current_window();
+                    return;
+                } else {
+                    if (finance_income_ds.validate(true) && $('con_finance_accounting_date_ds').validate()) {
+                        var accounting_date_record = $('con_finance_accounting_date_ds').getCurrentRecord();
+                        var con_finance_income_record = $('con_finance_income_ds').getCurrentRecord();
+                        var contract_list = [];
+                        for (var i = 0;i < records.length;i++) {
+                            var record = records[i];
+                            contract_list.add(record.get('contract_id'));
+                            for (var name in accounting_date_record.data) {
+                                record.set(name, accounting_date_record.get(name));
+                            }
+                        }
+                        contract_list = contract_list.join(',');
+                        for (var submit_name in accounting_date_record.data) {
+                            finance_income_ds.setSubmitParameter(submit_name, accounting_date_record.get(submit_name));
+                        }
+                        finance_income_ds.setSubmitParameter('contract_list', contract_list);
+                        finance_income_ds.setSubmitParameter('company_id', con_finance_income_record.get('company_id'));
+                        finance_income_ds.setSubmitParameter('currency_code', con_finance_income_record.get('currency_code'));
+                        finance_income_ds.setSubmitParameter('je_company_id', con_finance_income_record.get('je_company_id'));
+                        finance_income_ds.submitSelected();
+                    } else {
+                        unlock_current_window();
+                    }
+                }
+            }
+            
+            function on_finance_income_cashflow_submitsuccess(ds, res) {
+                ds.query(ds.currentPage);
+                unlock_current_window();
+            }
+            
+            function on_finance_income_cashflow_submitfailed(ds, res) {
+                unlock_current_window();
+            }
+            
+            function on_finance_income_cashflow_renderer(value, record, name) {
+                if (name == 'already_finance_income_percent' || name == 'current_finance_income_percent') {
+                    return parseFloat(mul(value, 100)).toFixed(2) + '%';
+                }
+            }
+            
+            function on_finance_income_cashflow_update(ds, record, name, value, old_value) {
+                if (name == 'current_finance_income_percent' || name == 'current_finance_income') {
+                    var current_finance_income_percent = record.get('current_finance_income_percent'),
+                        net_due_amount = record.get('net_due_amount'),
+                        current_finance_income = record.get('current_finance_income');
+                    if (name == 'current_finance_income_percent') {
+                        record.set('current_finance_income', parseFloat(mul(current_finance_income_percent, net_due_amount).toFixed(2)));
+                    } else if (name == 'current_finance_income') {
+                        record.set('current_finance_income_percent', parseFloat(div(current_finance_income, net_due_amount).toFixed(2)));
+                    }
+                }
+            }
+            
+            function on_con_finance_income_update(ds, record, name, value, old_value) {
+                var accounting_date_record = $('con_finance_accounting_date_ds').getCurrentRecord();
+                if (name == 'currency_code') {
+                    accounting_date_record.set('exchange_rate', '');
+                    accounting_date_record.set('exchange_rate_type', '');
+                    accounting_date_record.set('rate_method_code', '');
+                    accounting_date_record.set('exchange_rate_type_display', '');
+                    accounting_date_record.set('exchange_rate_quotation', '');
+                    if (value == record.get('functional_currency_code')) {
+                        accounting_date_record.getField('exchange_rate_type_display').setRequired(false);
+                        accounting_date_record.getField('exchange_rate_type_display').setReadOnly(true);
+                        accounting_date_record.getField('exchange_rate').setReadOnly(true);
+                        accounting_date_record.set('exchange_rate', 1);
+                        accounting_date_record.set('exchange_rate_type', '${/model/default_exchange_rate_type_path/record/@default_exchange_rate_type}');
+                        accounting_date_record.set('rate_method_code', '${/model/default_exchange_rate_type_path/record/@default_rate_method_code}');
+                        accounting_date_record.set('exchange_rate_type_display', '${/model/default_exchange_rate_type_path/record/@default_exch_rate_type_desc}');
+                        accounting_date_record.set('exchange_rate', 1);
+                    } else {
+                        accounting_date_record.getField('exchange_rate_type_display').setRequired(true);
+                        accounting_date_record.getField('exchange_rate_type_display').setReadOnly(false);
+                    }
+                } else if (name == 'company_id') {
+                    showPeriod(accounting_date_record);
+                }
+            }
+            
+            function on_con_finance_accounting_date_update(ds, record, name, value, old_value) {
+                var con_finance_income_record = $('con_finance_income_ds').getCurrentRecord();
+                if (name == 'rate_method_code' || name == 'period_name') {
+                    if (con_finance_income_record.get('currency_code') != con_finance_income_record.get('functional_currency_code')) {
+                        var rate_method_code = record.get('rate_method_code');
+                        record.set('exchange_rate_quotation', '');
+                        record.set('exchange_rate', '');
+                        if (rate_method_code == 'PERIOD' || rate_method_code == 'DAILY' || rate_method_code == 'FIXED') {
+                            record.getField('exchange_rate').setReadOnly(true);
+                            getExchangeRate({
+                                fromCur: con_finance_income_record.get('functional_currency_code'),
+                                toCur: con_finance_income_record.get('currency_code'),
+                                exchangeRateType: record.get('exchange_rate_type'),
+                                exchangeDate: record.get('accounting_date'),
+                                periodName: record.get('period_name')
+                            });
+                        } else {
+                            record.set('exchange_rate_quotation', 'DIRECT QUOTATION');
+                            record.getField('exchange_rate').setReadOnly(false);
+                        }
+                    }
+                } else if (name == 'accounting_date') {
+                    showPeriod(record);
+                }
+            }
+            
+            function showPeriod(record) {
+                var con_finance_income_record = $('con_finance_income_ds').getCurrentRecord();
+                var r_date = record.get('accounting_date');
+                r_date = Aurora.formatDate(r_date);
+                Aurora.request({
+                    url: $('get_period_name_id').getUrl(),
+                    para: {
+                        p_date: r_date,
+                        company_id: con_finance_income_record.get('company_id')
+                    },
+                    success: periodname,
+                    scope: this
+                });
+            }
+            
+            function periodname(res) {
+                var accounting_date_record = $('con_finance_accounting_date_ds').getCurrentRecord();
+                if (res) {
+                    var period_name = res.result.record.period_name,
+                        internal_period_num = res.result.record.internal_period_num;
+                    if (period_name && Ext.isDefined(period_name)) {
+                        accounting_date_record.set('period_name', period_name);
+                        accounting_date_record.set('internal_period_num', internal_period_num);
+                    } else {
+                        accounting_date_record.set('period_name', '');
+                        accounting_date_record.set('internal_period_num', '');
+                        if (accounting_date_record.get('accounting_date')) {
+                            accounting_date_record.set('accounting_date', '');
+                            Aurora.showMessage('${l:PROMPT}', '${l:CON901.PERIOD_ERROR}');
+                        }
+                    }
+                }
+            }
+            
+            function getExchangeRate(param) {
+                Aurora.request({
+                    url: $('get_exchange_rate_link_id').getUrl(),
+                    para: {
+                        from_currency: param.fromCur,
+                        to_currency: param.toCur,
+                        exchange_date: param.exchangeDate,
+                        exchange_period_name: param.periodName,
+                        exchange_rate_type: param.exchangeRateType
+                    },
+                    success: setRateAndQuotation,
+                    scope: this
+                });
+            }
+            
+            function setRateAndQuotation(res) {
+                var record = $('con_finance_accounting_date_ds').getCurrentRecord();
+                if (Ext.isDefined(res.result.record.exchange_rate_quotation)) {
+                    record.set('exchange_rate_quotation', res.result.record.exchange_rate_quotation);
+                } else {
+                    record.set('exchange_rate_quotation', 'DIRECT QUOTATION');
+                }
+                if (Ext.isDefined(res.result.record.exchange_rate)) {
+                    record.set('exchange_rate', res.result.record.exchange_rate);
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="con_cashflow_item_ds">
+                <a:datas dataSource="/model/cashflow_item_path"/>
+            </a:dataSet>
+            <a:dataSet id="currency_ds">
+                <a:datas dataSource="/model/currency"/>
+            </a:dataSet>
+            <a:dataSet id="exchangerate_type_ds">
+                <a:datas dataSource="/model/exchangerate_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="con_finance_accounting_date_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="accounting_date" required="true"/>
+                    <a:field name="exchange_rate_type_display" defaultValue="${/model/default_exchange_rate_type_path/record/@default_exch_rate_type_desc}" displayField="type_name" options="exchangerate_type_ds" readOnly="true" returnField="exchange_rate_type" valueField="type_code">
+                        <a:mapping>
+                            <a:map from="type_code" to="exchange_rate_type"/>
+                            <a:map from="rate_method_code" to="rate_method_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="exchange_rate_type" defaultValue="${/model/default_exchange_rate_type_path/record/@default_exchange_rate_type}"/>
+                    <a:field name="exchange_rate" defaultValue="1" readOnly="true" required="true"/>
+                    <a:field name="rate_method_code" defaultValue="${/model/default_exchange_rate_type_path/record/@default_rate_method_code}"/>
+                    <a:field name="period_name" required="true"/>
+                    <a:field name="internal_period_num" required="true"/>
+                    <a:field name="exchange_rate_quotation" defaultValue="DIRECT QUOTATION" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_con_finance_accounting_date_update"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="con_finance_income_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="contract_number" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="cont.CON500.con_contract_number_lov" lovWidth="500" title="HLS.CONTRACT_NUMBER">
+                        <a:mapping>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="contract_number" to="contract_number"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="currency_name" defaultValue="${/model/default_exchange_rate_type_path/record/@functional_currency_name}" displayField="currency_name" options="currency_ds" required="true" returnField="currency_code" valueField="currency_code"/>
+                    <a:field name="currency_code" defaultValue="${/model/default_exchange_rate_type_path/record/@functional_currency_code}"/>
+                    <a:field name="functional_currency_code" defaultValue="${/model/default_exchange_rate_type_path/record/@functional_currency_code}"/>
+                    <a:field name="bp_name" autoComplete="true" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov?bp_category=TENANT" lovWidth="500" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="bp_id" to="bp_id_tenant"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_id_tenant"/>
+                    <a:field name="cf_item_name" displayField="cf_item_desc" options="con_cashflow_item_ds" returnField="cf_item" valueField="cf_item"/>
+                    <a:field name="cf_item"/>
+                    <a:field name="due_date"/>
+                    <a:field name="ignore_income_sure_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="company_full_name" lovGridHeight="350" lovHeight="500" lovService="fnd.fnd_companies_lov" lovWidth="500" required="true" title="HLS.COMPANY">
+                        <a:mapping>
+                            <a:map from="company_id" to="je_company_id"/>
+                            <a:map from="parent_biz_company_id" to="company_id"/>
+                            <a:map from="company_full_name" to="company_full_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="je_company_id"/>
+                    <a:field name="company_id"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_con_finance_income_update"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="con_finance_income_cashflow_ds" autoPageSize="true" model="cont.CON901.con_finance_income_cashflow_v" queryDataSet="con_finance_income_ds" selectable="true" submitUrl="${/request/@context_path}/modules/cont/CON901/con_finance_income.svc">
+                <a:fields>
+                    <a:field name="current_finance_income_percent" required="true"/>
+                    <a:field name="current_finance_income" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_finance_income_cashflow_update"/>
+                    <a:event name="submitsuccess" handler="on_finance_income_cashflow_submitsuccess"/>
+                    <a:event name="submitfailed" handler="on_finance_income_cashflow_submitfailed"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="con901_con_finance_income_return" text="HLS.RETURN"/>
+                <a:gridButton click="con901_con_finance_income_query" text="HLS.QUERY"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="125" marginWidth="100" title="CON901.CON_FINANCE_INCOME_CONFIRM">
+                <a:lov name="company_full_name" bindTarget="con_finance_income_ds" prompt="HLS.COMPANY"/>
+                <a:comboBox name="currency_name" bindTarget="con_finance_income_ds" prompt="HLS.CURRENCY"/>
+                <a:lov name="contract_number" bindTarget="con_finance_income_ds" prompt="HLS.CONTRACT_NUMBER"/>
+                <a:lov name="bp_name" bindTarget="con_finance_income_ds" prompt="HLS.BP_NAME"/>
+                <a:comboBox name="cf_item_name" bindTarget="con_finance_income_ds" prompt="HLS.CF_ITEM_DESC"/>
+                <a:datePicker name="due_date" bindTarget="con_finance_income_ds" prompt="CON901.DUE_DATE"/>
+                <a:checkBox name="ignore_income_sure_flag" bindTarget="con_finance_income_ds" prompt="CON901.HIDE_ALL_CONFIRM_PROJECT"/>
+            </a:form>
+            <a:grid id="con_finance_income_cashflow_grid_id" bindTarget="con_finance_income_cashflow_ds" marginHeight="300" marginWidth="100" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" prompt="HLS.CONTRACT_NUMBER"/>
+                    <a:column name="prj_short_name" prompt="HLS.PROJECT_SHORT_NAME"/>
+                    <a:column name="bp_name" prompt="HLS.BP_NAME"/>
+                    <a:column name="cf_item_name" prompt="HLS.CF_ITEM_DESC"/>
+                    <a:column name="due_date" prompt="CON901.DUE_DATE" renderer="Aurora.formatDate"/>
+                    <a:column name="max_accounting_date" prompt="CON901.DATE_OF_LATEST_REVENUE_RECOGNITION" renderer="Aurora.formatDate"/>
+                    <a:column name="net_due_amount" align="right" prompt="CON901.REVENUE_SHOULD_BE_RECOGNIZED" renderer="Aurora.formatMoney"/>
+                    <a:column name="already_finance_income" align="right" prompt="CON901.REVENUE_IS_RECOGNIZED" renderer="Aurora.formatMoney"/>
+                    <a:column name="already_finance_income_percent" align="right" prompt="CON901.PERCENTAGE_OF_REVENUE_IS_RECOGNIZED" renderer="on_finance_income_cashflow_renderer"/>
+                    <a:column name="un_finance_income" align="right" prompt="CON901.NOT_RECOGNIZED_AS_REVENUE" renderer="Aurora.formatMoney"/>
+                    <a:column name="current_finance_income_percent" align="right" editor="finance_income_cashflow_percentField_id" prompt="CON901.THIS_RATIO_CONFIRMED" renderer="on_finance_income_cashflow_renderer"/>
+                    <a:column name="current_finance_income" align="right" editor="finance_income_cashflow_numberfield_id" prompt="CON901.THIS_RECOGNITION_OF_INCOME" renderer="Aurora.formatMoney"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="finance_income_cashflow_numberfield_id" allowNegative="false" decimalPrecision="2"/>
+                    <a:percentField id="finance_income_cashflow_percentField_id" allowNegative="false" decimalPrecision="2"/>
+                </a:editors>
+            </a:grid>
+            <a:hBox>
+                <a:gridButton click="con901_con_finance_income_sure" text="CON901.RECOGNIZED_AS_REVENUE"/>
+                <a:datePicker name="accounting_date" bindTarget="con_finance_accounting_date_ds" prompt="HLS.ACCOUNT_DATE"/>
+                <a:comboBox name="exchange_rate_type_display" bindTarget="con_finance_accounting_date_ds" prompt="HLS.EXCHANGE_RATE_TYPE_DESC"/>
+                <a:numberField name="exchange_rate" allowNegative="false" bindTarget="con_finance_accounting_date_ds" decimalPrecision="-1" prompt="HLS.EXCHANGE_RATE"/>
+            </a:hBox>
+        </a:screenBody>
+    </a:view>
+</a:screen>

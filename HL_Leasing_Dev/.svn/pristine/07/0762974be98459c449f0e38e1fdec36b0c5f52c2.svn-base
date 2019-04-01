@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-8-29 下午6:56:07  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    l.bp_bank_account_id,
+                    l.bp_bank_account_num,
+                    (select ba.bank_account_name from HLS_BP_MASTER_BANK_ACCOUNT_V ba where ba.bank_account_id = l.bp_bank_account_id and ba.bp_id=l.bp_id) bp_bank_account_name,
+                    (select ba.bank_account_code from HLS_BP_MASTER_BANK_ACCOUNT_V ba where ba.bank_account_id = l.bp_bank_account_id and ba.bp_id=l.bp_id) bp_bank_account_code,
+                    l.prepayment_trx_id,
+                    (select ct.transaction_num from csh_transaction ct where ct.transaction_id = l.prepayment_trx_id) prepayment_trx,
+                    f.contract_id,
+                    f.cashflow_id,
+                    f.contract_number,
+                    f.contract_name,
+                    f.project_name,
+                    f.bp_id_tenant tenant_bp_id,
+                    b.bp_name bp_tenant_name,
+                    f.cf_item_name cf_description,
+                    f.due_amount,
+                    nvl(f.currency,'CNY') currency_code,
+                    f.due_date,
+                    NVL(l.amount, 0) - NVL(l.amount_paid, 0) - nvl((select sum(amount) from CSH_PAYMENT_REQ_LN_DDCT ld where ld.payment_req_ln_id = l.payment_req_ln_id and ld.deduction_flag='N'),0)  residual_amount,
+                    l.bp_id,
+                    (SELECT m.bp_code FROM hls_bp_master m WHERE m.bp_id = l.bp_id
+                    ) bp_code,
+                    (SELECT
+                        m.bp_name
+                    FROM
+                        hls_bp_master m
+                    WHERE
+                        m.bp_id = l.bp_id
+                    ) bp_name,
+                    l.amount,
+                    l.apply_pay_date,
+                    l.payment_req_id,
+                    l.payment_req_ln_id,
+                    NVL(
+                    (SELECT
+                        'N'
+                    FROM
+                        dual
+                    WHERE
+                        EXISTS
+                        (SELECT
+                            1
+                        FROM
+                            prj_cdd_item_doc_ref pcf,
+                            prj_cdd_item_check pck,
+                            con_contract_payment_terms t,
+                            con_contract_payment_t_check c
+                        WHERE
+                            pcf.document_table                = 'CON_CONTRACT' AND
+                            pcf.document_id                   = f.contract_id AND
+                            pck.check_id                      = pcf.check_id AND
+                            NVL(pck.attachment_required,'N') <> 'Y' AND
+                            pck.cdd_item_id                   = t.cdd_item_id AND
+                            t.cashflow_id                     = f.cashflow_id AND
+                            t.cdd_item_id                     =c.cdd_item_id(+) AND
+                            NVL(c.confirm_flag,'N')           ='N'
+                        )
+                    ), 'Y') payment_terms_flag,
+                    (SELECT
+                        DECODE(cf.write_off_flag,'FULL','Y','N')
+                    FROM
+                        con_contract_cashflow cf
+                    WHERE
+                        cf.cf_item     =51 AND
+                        cf.times       =0 AND
+                        cf.contract_id =f.contract_id
+                    ) AS cf_item_5_flag,
+                    (SELECT
+                        DECODE(COUNT(*),0,'N','Y')
+                    FROM
+                        con_contract_cashflow cf
+                    WHERE
+                        cf.write_off_flag ='FULL' AND
+                        cf.cf_item       IN (3,4) AND
+                        cf.times          =0 AND
+                        cf.contract_id    =f.contract_id
+                    ) AS cf_item_3_4_flag,
+                    (select sum(amount) from CSH_PAYMENT_REQ_LN_DDCT ld where ld.payment_req_ln_id = l.payment_req_ln_id) sum_ddct_amount
+                FROM
+                    con_contract_cashflow_v f,
+                    hls_bp_master b,
+                    csh_payment_req_ln l
+                WHERE
+                    f.bp_id_tenant    = b.bp_id(+) AND
+                    l.ref_doc_line_id = f.cashflow_id(+) AND
+                    l.payment_req_id  =${@payment_req_id}
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="contract_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CONTRACT_ID"/>
+        <bm:field name="cashflow_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CASHFLOW_ID"/>
+        <bm:field name="contract_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONTRACT_NUMBER"/>
+        <bm:field name="contract_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONTRACT_NAME"/>
+        <bm:field name="project_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PROJECT_NAME"/>
+        <bm:field name="tenant_bp_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="TENANT_BP_ID"/>
+        <bm:field name="bp_tenant_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="BP_TENANT_NAME"/>
+        <bm:field name="cf_description" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CF_DESCRIPTION"/>
+        <bm:field name="due_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="DUE_AMOUNT"/>
+        <bm:field name="currency_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CURRENCY_CODE"/>
+        <bm:field name="due_date" databaseType="DATE" datatype="java.util.Date" physicalName="DUE_DATE"/>
+        <bm:field name="residual_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="RESIDUAL_AMOUNT"/>
+        <bm:field name="bp_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="BP_ID"/>
+        <bm:field name="bp_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="BP_CODE"/>
+        <bm:field name="bp_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="BP_NAME"/>
+        <bm:field name="amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AMOUNT"/>
+        <bm:field name="apply_pay_date" databaseType="DATE" datatype="java.util.Date" physicalName="APPLY_PAY_DATE"/>
+        <bm:field name="payment_req_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="PAYMENT_REQ_ID"/>
+        <bm:field name="payment_req_ln_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="PAYMENT_REQ_LN_ID"/>
+        <bm:field name="payment_terms_flag" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="cf_item_5_flag" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="cf_item_3_4_flag" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="sum_ddct_amount"/>
+        <bm:field name="prepayment_trx_id"/>
+        <bm:field name="prepayment_trx"/>
+        <bm:field name="bp_bank_account_id"/>
+        <bm:field name="bp_bank_account_num"/>
+        <bm:field name="bp_bank_account_code"/>
+        <bm:field name="bp_bank_account_name"/>
+    </bm:fields>
+</bm:model>

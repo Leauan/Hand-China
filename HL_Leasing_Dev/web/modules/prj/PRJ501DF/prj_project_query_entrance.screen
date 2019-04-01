@@ -1,0 +1,453 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: lara  
+    $Date: 2018-12-25 下午04:16:45  
+    $Revision: 1.0  
+    $Purpose: 保理申请查询入口界面
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure>
+        <s:server-script import="con_print_path.js"><![CDATA[
+            set_parameter_file_path();
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="prj_project_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="prj_project_query_link" url="${/request/@context_path}/modules/prj/PRJ501DF/prj_project_maintain.screen"/>
+        <a:link id="prj_project_bp_parameter_link" url="${/request/@context_path}/modules/prj/PRJ501/prj_project_bp_parameter.screen"/>
+        <a:link id="prj_project_import_upload_link" url="${/request/@context_path}/modules/prj/PRJ501DF/prj_car_import_upload.screen"/>
+        <a:link id="his_data_import_upload_link" url="${/request/@context_path}/modules/prj/PRJ501DF/his_data_import_upload.screen"/>
+        <a:link id="prj_ins_content_link" model="prj.PRJ501DF.insert_rental_notice_content" modelaction="batch_update"/>
+        <a:link id="prj_batch_doc_create_link" url="${/request/@context_path}/modules/prj/PRJ501DF/rent_notice_batch_create.svc"/>
+        <a:link id="prj_notice_batch_down_link" url="${/request/@context_path}/modules/prj/PRJ501DF/prj_doc_atm_batch_dl.svc"/>
+        <a:link id="prj_notice_batch_down_zip_link" url="${/request/@context_path}/modules/prj/PRJ501DF/prj_doc_atm_batch_dl_zip.svc"/>
+        <a:link id="prj_content_batch_down_tmp_link" url="${/request/@context_path}/modules/prj/PRJ501DF/content_batch_down_tmp_off.svc"/>
+        <a:link id="prj_content_batch_create_tmp_link" url="${/request/@context_path}/modules/prj/PRJ501DF/content_batch_create_tmp_off.svc"/>
+        <script><![CDATA[
+            function open_project_query_win(record_id, ds_id) {
+                var record = $(ds_id).findById(record_id);
+                //项目类layout_code
+                if (record.get('document_type') == 'CARLS') {
+                    var param;
+                    if (record.get('bp_class') == 'ORG' && record.get('lease_channel') == '01') {
+                        record.set('winid', 'prj_porject_query_win_id');
+                        param = record.data;
+                        param['function_code'] = 'PRJ501D_DDF';
+                        param['function_usage'] = 'QUERY';
+                        param['maintain_type'] = 'QUERY';
+                        param['url_title'] = '${l:HLS.PROJECT_MAITAIN_DF}';
+                        hls_doc_get_layout_code('prj_project_get_layout_code_link_id', param, 'prj_project_query_link', ds_id);
+                    } else {
+                        maintain_type = 'QUERY';
+                        param = record.data;
+                        param['document_id'] = record.get('project_id');
+                        param['function_code'] = 'PRJ501D';
+                        param['function_usage'] = 'QUERY';
+                        param['maintain_type'] = maintain_type;
+                        param['url_title'] = '${l:HLS.PROJECT_MAITAIN_DF}';
+                        hls_doc_get_layout_code('prj_project_get_layout_code_link_id', param, 'prj_project_query_link', ds_id);
+                    }
+                }
+            }
+            
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                if (name == 'project_number' && value) {
+                    return '<a href="javascript:open_project_query_win(\'' + record.id + '\',\'' + record.ds.id + '\')">' + value + '</a>';
+                }
+                return value;
+            };
+            
+            //导入
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                var win = new Aurora.Window({
+                    id: 'prj_car_info_import_upload_winid',
+                    url: $('prj_project_import_upload_link').getUrl(),
+                    title: '保理申请导入',
+                    width: 420,
+                    height: 275
+                });
+            };
+            
+            //导出
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                var grid_id = ds_id.replace('ds', 'layout_grid_id');
+                $(grid_id)._export();
+            };
+            //下载
+            
+            
+            function down_file(content_id, doc_code) {
+                var url_l = $('prj_notice_batch_down_link').getUrl() + '?content_id=' + content_id + '&doc_code=' + encodeURI(doc_code) + '&type=SIN&fnd_atm_flag=Y&document_table=PRJ_PROJECT';
+                window.open(url_l, '_self');
+            
+            }
+            
+            //批量打印保理申请书
+            window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function() {
+            
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                var records = $(ds_id).getSelected();
+                if (records.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+                var templet_code;
+                var doc_code = '保理申请书';
+                templet_code = 'CON_FACTORING_APPLICATION';
+                var content_id;
+                var detail_mask = Ext.getBody();
+                var num = 0;
+                var saveData = [];
+                var param = {};
+                var saveData2 = [];
+                var param2 = {};
+                var param3 = {};
+                var j = 0;
+                Aurora.showConfirm('提示', '是否确定生成' + doc_code + '？', function() {
+                    var detail_mask = Ext.getBody();
+                    Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                    for (var i = 0;i < records.length;i++) {
+            
+                        var record = records[i];
+                        var file_exists_flag = record.get('file_exists_flag_app');
+                        if (file_exists_flag != 'Y') { //未生成需要生成
+                            saveData.push({
+                                document_table: 'PRJ_PROJECT',
+                                document_id: record.get('project_id'),
+                                templet_code: templet_code,
+                                file_name: doc_code,
+                                '_status': 'update'
+                            });
+                            j = j + 1;
+                        }
+                    }
+                    Aurora.request({
+                        url: $('prj_ins_content_link').getUrl(),
+                        para: saveData,
+                        success: function(res) {
+            
+                            for (var i = 0;i < j;i++) {
+                                debugger;
+                                if (j == 1) {
+                                    content_id = res.result.record.content_id;
+                                } else {
+                                    content_id = res.result.record[i].content_id;
+                                }
+                                saveData2.push({
+                                    content_id: content_id,
+                                    '_status': 'insert'
+            
+                                });
+                            }
+            
+                            param2['details'] = saveData2;
+                            Aurora.request({
+                                url: $('prj_content_batch_create_tmp_link').getUrl(),
+                                para: param2,
+                                success: function(res) {
+            
+                                    Aurora.request({
+                                        url: $('prj_batch_doc_create_link').getUrl(),
+                                        para: {
+                                            document_table: 'PRJ_PROJECT',
+                                            file_path: '${/parameter/@file_path}',
+                                            templet_code: templet_code
+                                        },
+                                        success: function(res) {
+            
+                                            for (var i = 0;i < records.length;i++) {
+                                                var record = records[i];
+                                                var file_exists_flag = record.get('file_exists_flag_app');
+                                                if (record.get('content_id_app') && file_exists_flag == 'Y') {
+                                                    saveData2.push({
+                                                        content_id: record.get('content_id_app'),
+                                                        '_status': 'insert'
+            
+                                                    });
+                                                }
+                                            }
+                                            var url_l;
+                                            param3['details'] = saveData2;
+                                            num = records.length;
+                                            if (num > 0) {
+                                                Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                                                Aurora.request({
+                                                    url: $('prj_content_batch_down_tmp_link').getUrl(),
+                                                    para: param3,
+                                                    success: function() {
+                                                        Aurora.SideBar.show({
+                                                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                                            duration: 2000
+                                                        });
+                                                        Aurora.Masker.unmask(detail_mask);
+                                                        if (num == 1) { //=1 单个下载 SIN
+                                                            url_l = $('prj_notice_batch_down_zip_link').getUrl() + '?type=SIN&doc_code=' + encodeURI(doc_code);
+                                                        } else if (num > 1) { //>1 批量打包下载 ZIP
+                                                            url_l = $('prj_notice_batch_down_zip_link').getUrl() + '?type=ZIP&doc_code=' + encodeURI(doc_code);
+                                                        }
+                                                        window.open(href = url_l, target = "_self");
+                                                    },
+                                                    failure: function() {
+                                                        Aurora.Masker.unmask(detail_mask);
+                                                    },
+                                                    error: function() {
+                                                        Aurora.Masker.unmask(detail_mask);
+                                                    },
+                                                    scope: this
+                                                });
+                                            }
+                                            Aurora.Masker.unmask(detail_mask);
+            
+            
+                                        },
+                                        error: function() {
+                                            Aurora.Masker.unmask(detail_mask);
+                                        },
+                                        failure: function() {
+                                            Aurora.Masker.unmask(detail_mask);
+                                        },
+                                        scope: this
+                                    });
+                                },
+                                error: function() {
+                                    Aurora.Masker.unmask(detail_mask);
+                                },
+                                failure: function() {
+                                    Aurora.Masker.unmask(detail_mask);
+                                },
+                                scope: this
+                            });
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(detail_mask);
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(detail_mask);
+                        },
+                        scope: this
+                    });
+            
+            
+                });
+            };
+            
+            //批量打印保理确认书
+            window['${/parameter/@layout_code}_user_button4_layout_dynamic_click'] = function() {
+            
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                var records = $(ds_id).getSelected();
+                if (records.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+                var templet_code;
+                var doc_code = '保理确认书';
+                templet_code = 'CON_FACTORING_CONFIRM';
+                var content_id;
+                var detail_mask = Ext.getBody();
+                var num = 0;
+                var saveData = [];
+                var param = {};
+                var saveData2 = [];
+                var param2 = {};
+                var param3 = {};
+                var j = 0;
+                var status_flag = false;
+                for (var i = 0;i < records.length;i++) {
+            
+                    var record = records[i];
+                    var file_exists_flag = record.get('file_exists_flag_cof');
+                    var status = record.get('project_status');
+                    if (file_exists_flag != 'Y') { //未生成需要生成
+                        saveData.push({
+                            document_table: 'PRJ_PROJECT',
+                            document_id: record.get('project_id'),
+                            templet_code: templet_code,
+                            file_name: doc_code,
+                            '_status': 'update'
+                        });
+                        j = j + 1;
+                    }
+                    if (status != 'APPROVED' && status != 'SETTLED') {
+                        var status_flag = true;
+                    }
+                }
+                if (status_flag) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '只能打印审批通过或已结清的');
+                    return false;
+                }
+                Aurora.showConfirm('提示', '是否确定生成' + doc_code + '？', function() {
+                    var detail_mask = Ext.getBody();
+                    Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                    Aurora.request({
+                        url: $('prj_ins_content_link').getUrl(),
+                        para: saveData,
+                        success: function(res) {
+                            for (var i = 0;i < j;i++) {
+                                if (j == 1) {
+                                    content_id = res.result.record.content_id;
+                                } else {
+                                    content_id = res.result.record[i].content_id;
+                                }
+                                saveData2.push({
+                                    content_id: content_id,
+                                    '_status': 'insert'
+            
+                                });
+                            }
+            
+                            param2['details'] = saveData2;
+                            Aurora.request({
+                                url: $('prj_content_batch_create_tmp_link').getUrl(),
+                                para: param2,
+                                success: function(res) {
+            
+                                    Aurora.request({
+                                        url: $('prj_batch_doc_create_link').getUrl(),
+                                        para: {
+                                            document_table: 'PRJ_PROJECT',
+                                            file_path: '${/parameter/@file_path}',
+                                            templet_code: templet_code
+                                        },
+                                        success: function(res) {
+            
+                                            for (var i = 0;i < records.length;i++) {
+                                                var record = records[i];
+                                                var file_exists_flag = record.get('file_exists_flag_cof');
+                                                if (record.get('content_id_cof') && file_exists_flag == 'Y') {
+                                                    saveData2.push({
+                                                        content_id: record.get('content_id_cof'),
+                                                        '_status': 'insert'
+            
+                                                    });
+                                                }
+                                            }
+                                            var url_l;
+                                            param3['details'] = saveData2;
+                                            num = records.length;
+                                            if (num > 0) {
+                                                Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                                                Aurora.request({
+                                                    url: $('prj_content_batch_down_tmp_link').getUrl(),
+                                                    para: param3,
+                                                    success: function() {
+                                                        Aurora.SideBar.show({
+                                                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                                            duration: 2000
+                                                        });
+                                                        Aurora.Masker.unmask(detail_mask);
+                                                        if (num == 1) { //=1 单个下载 SIN
+                                                            url_l = $('prj_notice_batch_down_zip_link').getUrl() + '?type=SIN&doc_code=' + encodeURI(doc_code);
+                                                        } else if (num > 1) { //>1 批量打包下载 ZIP
+                                                            url_l = $('prj_notice_batch_down_zip_link').getUrl() + '?type=ZIP&doc_code=' + encodeURI(doc_code);
+                                                        }
+                                                        window.open(href = url_l, target = "_self");
+                                                    },
+                                                    failure: function() {
+                                                        Aurora.Masker.unmask(detail_mask);
+                                                    },
+                                                    error: function() {
+                                                        Aurora.Masker.unmask(detail_mask);
+                                                    },
+                                                    scope: this
+                                                });
+                                            }
+                                            Aurora.Masker.unmask(detail_mask);
+            
+            
+                                        },
+                                        error: function() {
+                                            Aurora.Masker.unmask(detail_mask);
+                                        },
+                                        failure: function() {
+                                            Aurora.Masker.unmask(detail_mask);
+                                        },
+                                        scope: this
+                                    });
+                                },
+                                error: function() {
+                                    Aurora.Masker.unmask(detail_mask);
+                                },
+                                failure: function() {
+                                    Aurora.Masker.unmask(detail_mask);
+                                },
+                                scope: this
+                            });
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(detail_mask);
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(detail_mask);
+                        },
+                        scope: this
+                    });
+            
+            
+                });
+            };
+            
+            
+            window['${/parameter/@layout_code}_on_layout_dynamic_grid_query'] = function(ds, qpara, bp_seq) {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+            
+                if (ds == $(ds_id)) {
+                    aut_authority_list_validate_query(ds, qpara);
+            
+                }
+            
+            };
+            //选择事件(grid,attach,gridbox,table)
+            // window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_select'] = function(ds, record, bp_seq) {
+            // var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+            // if (ds_id == ds.id && ds_id) {
+            // var status = record.get('project_status');
+            // if (status != 'APPROVED' && status != 'SETTLED') {
+            // //实际为不选中
+            // Aurora.showMessage('${l:HLS.PROMPT}', '只能打印审批通过或已结清的');
+            // ds.unSelect(record);
+            // ds.Select(record);
+            // }
+            // }
+            // };
+            
+            //更新时调用
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+            	
+            	if (name == 'submit_date_from') {
+                    if (record.get('submit_date_to') == 'undefined' || record.get('submit_date_to') == null || record.get('submit_date_to') == '') {
+                        record.set('submit_date_to', value);
+                    }
+                } else if (name == 'submit_date_to') {
+                    if (record.get('submit_date_from') == 'undefined' || record.get('submit_date_from') == null || record.get('submit_date_from') == '') {
+                        record.set('submit_date_from', value);
+                    }
+                }
+               };
+            //历史数据导入
+            window['${/parameter/@layout_code}_user_button5_layout_dynamic_click'] = function() {
+                var url = $('his_data_import_upload_link').getUrl();
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'his_data_uploadFile_id',
+                    title: '历史数据导入',
+                    width: 420,
+                    height: 275
+                });
+                win.on('close', function() {});
+            };
+            
+            Aurora.onReady(function() {
+                if ('${/session/@role_id}' == 1) {
+                    $('${/parameter/@layout_code}_user_button5').show();
+                } else {
+                    $('${/parameter/@layout_code}_user_button5').hide();
+                }
+            });
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=PROJECT&amp;function_code=PRJ501DF"/>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

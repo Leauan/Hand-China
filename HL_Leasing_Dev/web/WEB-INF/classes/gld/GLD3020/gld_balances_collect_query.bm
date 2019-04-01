@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hyb  
+    $Date: 2012-10-11 下午4:21:04  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:fields>
+        <bm:field name="company_id"/>
+        <bm:field name="account_id"/>
+        <bm:field name="account_code"/>
+        <bm:field name="account_desc"/>
+        <bm:field name="account_level"/>
+        <bm:field name="entered_period_beginning"/>
+        <bm:field name="entered_period_dr_sum"/>
+        <bm:field name="entered_period_cr_sum"/>
+        <bm:field name="entered_period_balance"/>
+        <bm:field name="functional_period_beginning"/>
+        <bm:field name="functional_period_dr"/>
+        <bm:field name="functional_period_cr"/>
+        <bm:field name="functional_period_balance"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            select company_id,
+			       account_id,
+			       account_code,
+			       account_desc,
+			       account_level,
+			       entered_period_beginning,
+			       entered_period_dr_sum,
+			       entered_period_cr_sum,
+			       entered_period_balance,
+			       functional_period_beginning,
+			       functional_period_dr,
+			       functional_period_cr,
+			       functional_period_balance
+			  from (select gb.company_id,
+			               gb.account_id,
+			               (select ga.account_code
+			                  from gld_accounts ga
+			                 where ga.company_id = gb.company_id
+			                   and ga.account_id = gb.account_id) account_code,
+			               (select ga.account_description
+			                  from gld_accounts ga
+			                 where ga.company_id = gb.company_id
+			                   and ga.account_id = gb.account_id) account_desc,
+			               (select ga.account_level
+			                  from gld_accounts ga
+			                 where ga.company_id = gb.company_id
+			                   and ga.account_id = gb.account_id) account_level,
+			               nvl((select sum(g.entered_period_beginning)
+			                     from gld_period_balances g
+			                    where g.company_id = gb.company_id
+			                      and g.period_name = ${@period_name_from}
+			                      and g.account_id = gb.account_id),
+			                   0) entered_period_beginning,
+			               sum(gb.entered_period_dr) entered_period_dr_sum,
+			               sum(gb.entered_period_cr) entered_period_cr_sum,
+			               nvl((select sum(g.entered_period_balance)
+			                     from gld_period_balances g
+			                    where g.company_id = gb.company_id
+			                      and g.period_name = ${@period_name_to}
+			                      and g.account_id = gb.account_id),
+			                   0) entered_period_balance,
+			               nvl((select sum(g.functional_period_beginning)
+			                     from gld_period_balances g
+			                    where g.company_id = gb.company_id
+			                      and g.period_name = ${@period_name_from}
+			                      and g.account_id = gb.account_id),
+			                   0) functional_period_beginning,
+			               sum(gb.functional_period_dr) functional_period_dr,
+			               sum(gb.functional_period_cr) functional_period_cr,
+			               nvl((select sum(g.functional_period_balance)
+			                     from gld_period_balances g
+			                    where g.company_id = gb.company_id
+			                      and g.period_name = ${@period_name_to}
+			                      and g.account_id = gb.account_id),
+			                   0) functional_period_balance
+			          from gld_balances gb
+			         where gb.company_id = ${/session/@company_id}
+			           and gb.period_name between ${@period_name_from} and ${@period_name_to}
+			         group by gb.company_id, gb.account_id) v
+		         #WHERE_CLAUSE#
+		         order by v.account_code
+         ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="account_code_from" queryExpression="(account_code &gt;=${@account_code_from})"/>
+        <bm:query-field name="account_code_to" queryExpression="(account_code &lt;=${@account_code_to})"/>
+        <bm:query-field name="account_level_from" queryExpression="(account_level &gt;=${@account_level_from})"/>
+        <bm:query-field name="account_level_to" queryExpression="(account_level &lt;=${@account_level_to})"/>
+    </bm:query-fields>
+</bm:model>

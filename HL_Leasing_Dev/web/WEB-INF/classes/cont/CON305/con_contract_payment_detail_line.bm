@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-9-9 下午03:33:56  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+	     select 
+          t1.contract_id,
+          t1.contract_number,
+          t1.bp_name,
+          t1.times,
+       t1.cf_item_desc,
+       t1.due_date,
+       t1.acc_due_amount, 
+       t1.rec_due_amount_rental,
+       t1.acc_due_amount-nvl(t1.rec_due_amount_rental,0)+nvl(t1.write_off_due_amount,0)acc_due_amount_rental,
+       t1.write_off_due_amount,
+       
+       t1.acc_principal,
+       t1.rec_due_amount_principal,
+       t1.acc_principal-nvl(t1.rec_due_amount_principal,0)+nvl(t1.write_off_principal,0)acc_due_amount_principal,
+       t1.write_off_principal,
+       
+       t1.acc_interest,
+       t1.rec_due_amount_interest,
+       t1.acc_interest-nvl(t1.rec_due_amount_interest,0)+nvl(t1.write_off_interest,0)acc_due_amount_interest,
+       t1.write_off_date,
+       t1.write_off_interest,
+       t1.tran_bp_name,
+       t1.transaction_date,
+       t1.csh_transaction_id,
+       t1.transaction_type
+  from (select (select bp.bp_name
+                  from hls_bp_master bp
+                 where bp.bp_id = con.bp_id_tenant) bp_name,
+                 
+               nvl(cf.due_amount,0) acc_due_amount,
+               
+               nvl(cf.principal,0) acc_principal,
+               
+               nvl(cf.interest,0) acc_interest,
+               
+               sum(nvl(wo.write_off_due_amount, 0)) over (partition by cf.cf_item,cf.times order by wo.write_off_date,wo.write_off_id) rec_due_amount_rental,
+               sum(nvl(wo.write_off_principal, 0)) over (partition by cf.cf_item,cf.times order by wo.write_off_date,wo.write_off_id) rec_due_amount_principal,
+               sum(nvl(wo.write_off_interest, 0)) over (partition by cf.cf_item,cf.times order by wo.write_off_date,wo.write_off_id) rec_due_amount_interest,
+               con.contract_id,
+               con.contract_number,
+               wo.times,
+               wo.write_off_id,
+               wo.write_off_date,
+               wo.csh_transaction_id,
+               nvl(wo.write_off_due_amount, 0) write_off_due_amount,
+               nvl(wo.write_off_principal, 0) write_off_principal,
+               nvl(wo.write_off_interest, 0) write_off_interest,
+               cf.due_date,
+               cf.cf_item,
+               (select i.description　from hls_cashflow_item i
+                 where i.cf_item = cf.cf_item) cf_item_desc,
+               (select m.bp_name from hls_bp_master m where m.bp_id=t.bp_id)tran_bp_name,
+               t.transaction_date,
+               t.transaction_type
+          from csh_write_off         wo,
+               con_contract_cashflow cf,
+               con_contract_v        con,
+               csh_transaction t
+         where cf.cashflow_id = wo.cashflow_id
+           and con.contract_id = cf.contract_id
+           and wo.csh_transaction_id=t.transaction_id(+)
+           and wo.cf_item in 
+           (select c.cf_item from hls_cashflow_item_company c where c.ref_v01='Y'
+            union select 1 from dual)
+           and cf.cf_status in ('BLOCK', 'RELEASE')
+           and cf.cf_direction !='NONCASH'
+           and con.contract_id = ${@contract_id}
+       
+           and wo.reversed_flag = 'N' order by wo.times,cf.cf_item,wo.write_off_date,wo.write_off_id) t1
+			
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="bp_name"/>
+        <bm:field name="contract_id"/>
+        <bm:field name="contract_number"/>
+        <bm:field name="times"/>
+        <bm:field name="due_date" databaseType="Date" datatype="java.util.Date"/>
+        <bm:field name="write_off_date" databaseType="Date" datatype="java.util.Date"/>
+        <bm:field name="cf_item_desc"/>
+        <bm:field name="acc_due_amount_rental" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="acc_due_amount_principal" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="acc_due_amount_interest" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="rec_due_amount_rental" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="rec_due_amount_principal" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="rec_due_amount_interest" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="write_off_due_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="write_off_principal" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="write_off_interest" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="tran_bp_name"/>
+        <bm:field name="transaction_date" databaseType="Date" datatype="java.util.Date"/>
+        <bm:field name="csh_transaction_id"/>
+        <bm:field name="transaction_type"/>
+    </bm:fields>
+</bm:model>

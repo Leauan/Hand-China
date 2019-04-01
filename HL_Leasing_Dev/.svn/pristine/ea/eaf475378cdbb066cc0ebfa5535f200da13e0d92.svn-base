@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    (SELECT project_number FROM prj_project WHERE project_id = cc.project_id
+                    ) project_number,
+                    li.item_frame_number,
+                    li.son_code,
+                    li.model_code,
+                    (SELECT
+                        hb.description
+                        || hs.description
+                        || hm.description
+                    FROM
+                        hls_car_brands_vl hb,
+                        hls_car_model_vl hm,
+                        hls_car_series_vl hs,
+                        hls_car_type_vl ht
+                    WHERE
+                        hm.brand_id     = hb.brand_id AND
+                        hm.series_id    = hs.series_id AND
+                        hm.model_id     = ht.model_id AND
+                        hb.enabled_flag = 'Y' AND
+                        hm.enabled_flag = 'Y' AND
+                        hs.enabled_flag = 'Y' AND
+                        ht.enabled_flag = 'Y' AND
+                        ht.type_code    = li.model_code AND
+                        rownum          = 1
+                    ) AS model_code_name,
+                    li.car_status,
+                    (SELECT
+                        code_value_name
+                    FROM
+                        sys_code_values_v s
+                    WHERE
+                        s.code       = 'KR_CAR_STATUS' AND
+                        s.code_value = li.car_status
+                    ) car_status_n,
+                    li.agent_inventory_id,
+                    (SELECT
+                        inventory_name
+                    FROM
+                        inventory_info
+                    WHERE
+                        inventory_id = li.agent_inventory_id
+                    ) agent_inventory_id_n,
+                    li.finance_amount,
+                    to_char(cc.lease_start_date,'YYYY-MM-DD') lease_start_date,
+                    to_char(cc.lease_end_date,'YYYY-MM-DD') lease_end_date,
+                    SUM(cf.due_amount) due_amount,
+                    SUM(cf.received_amount) received_amount,
+                    (select sum(due_amount)
+                    from con_contract_cashflow
+                    where cf_item =302
+                     and cf_status ='RELEASE'
+                     and contract_id =cc.contract_id) sz_amount
+                FROM
+                    con_contract_df_car_info li,
+                    con_contract cc,
+                    con_contract_cashflow cf #WHERE_CLAUSE#
+                GROUP BY
+                    cc.project_Id,
+                    li.item_frame_number,
+                    li.son_code,
+                    li.model_code,
+                    li.car_status,
+                    li.agent_inventory_id,
+                    li.finance_amount,
+                    cc.lease_start_date,
+                    cc.lease_end_date,
+                    cc.contract_id
+                ORDER BY
+                    cc.project_Id DESC,
+                    cc.lease_start_date
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="month" queryExpression="to_char(cf.due_date,&apos;YYYYMM&apos;)=${@month}"/>
+        <bm:query-field name="car_status_desc" queryExpression="li.car_status=${@car_status}"/>
+        <bm:query-field name="contract_status_flag" queryExpression="decode(cc.contract_status,&apos;REDEMPTED&apos;,&apos;Y&apos;,&apos;N&apos;)=${@contract_status_flag}"/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter expression="li.contract_id = cc.contract_id    and cf.contract_id = cc.contract_id    and cf.cf_status = &apos;RELEASE&apos;    and cf.cf_item = 301    and cc.data_class = &apos;NORMAL&apos;    and cc.lease_channel = &apos;01&apos; and cc.bp_id_tenant =(select bp_id from sys_user where user_id=${/session/@user_id})"/>
+    </bm:data-filters>
+</bm:model>

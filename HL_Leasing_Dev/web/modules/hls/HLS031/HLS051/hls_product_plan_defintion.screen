@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: liukang 
+    $Date: 2016-04-05 上午9:53:03  
+    $Revision: 1.0  
+    $Purpose: 产品方案定义
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure><![CDATA[
+		
+	]]></a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="hls_plan_to_grant_link" url="${/request/@context_path}/modules/hls/HLS051/hls_plan_to_grant.screen"/>
+        <a:link id="hls_car_and_dis_link" url="${/request/@context_path}/modules/hls/HLS051/hls_product_car_dis.screen"/>
+        <a:link id="hls_plan_no_gps_link" url="${/request/@context_path}/modules/hls/HLS051/hls_product_no_gps_condition.screen"/>
+        <a:link id="get_special_fields_link_id" model="cont.CON500.con_contract_get_special_fields" modelaction="update"/>
+        <script><![CDATA[
+        
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record, bp_seq) {
+                var link_function = '';
+                var product_plan_id = record.get('product_plan_id');
+                window['${/parameter/@bp_seq}${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                if (name == 'to_grant') {
+                    return '<a href="javascript:grant_window_open(\'' + product_plan_id + '\',\'' + record.id + '\',\'' + record.ds.id + '\');">' + config_record.get('prompt') + '</a>';
+                }
+                else if(name == 'no_gps'){
+                	return '<a href="javascript:gps_window_open(\'' + record.id + '\',\'' + record.ds.id + '\');">' + config_record.get('prompt') + '</a>';
+                }
+                else if(name == 'car_type_and_discount'){
+                    return '<a href="javascript:car_discount_open(\'' + product_plan_id + '\',\'' + record.id + '\',\'' + record.ds.id + '\');">'+ '贴息上限定义' +'</a>';
+                }
+            };
+            
+            function grant_window_open(id, record_id, ds_id) {
+            
+                // var ds = $('hls051_product_plan_definition_ds');
+                // var record = ds.getCurrentRecord();
+                // var product_plan_id = record.get('product_plan_id');
+                if (Ext.isEmpty(id) || id == 'undefined') {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先点击保存!');
+                } else {
+                    var record=$(ds_id).findById(record_id);
+	    	    	var param = record.data;
+	                param['function_code'] = 'HLS051D';
+	                param['url_title'] = 'TO_GRANT';
+	            	hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'hls_plan_to_grant_link',ds_id);
+                }
+            }
+            
+            function car_discount_open(id, record_id, ds_id) {
+                if (Ext.isEmpty(id) || id == 'undefined') {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先点击保存!');
+                } else {
+                    var record=$(ds_id).findById(record_id);
+	    	    	var param = record.data;
+	                param['function_code'] = 'HLS051G';
+	                param['url_title'] = 'TO_GRANT';
+	            	hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'hls_car_and_dis_link',ds_id);
+                }
+            }
+            
+           
+            function gps_window_open(record_id,ds_id){
+    	    	var record=$(ds_id).findById(record_id);
+	    	    var param = record.data;
+	                param['function_code'] = 'HLS051C';
+	                param['url_title'] = 'NO_GPS_CONDITION';
+	            	hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'hls_plan_no_gps_link',ds_id);
+
+    	}
+            
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+            	var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_product_plan_definition');
+            	if (ds_id == ds.id){
+            	    if(name=='btb_int_rate_implicit'||name=='discount_rate'){
+            	        debugger;
+            	        var btb_int_rate_implicit = record.get('btb_int_rate_implicit')||0;
+            			var discount_rate = record.get('discount_rate')||0;
+            			record.set('int_rate_display',(btb_int_rate_implicit-discount_rate));
+            	    }
+            	    if(name=='discount_method_n'){
+            	    	var discount_method = record.get('discount_method');
+            	    	if(discount_method=='DISCOUNT'){
+            	    		record.set('discount_rate',0);
+            				record.getField('discount_rate').setReadOnly(true);
+               			}
+               			if(discount_method=='NO_DISCOUNT'){
+               			    record.getField('discount_rate').setReadOnly(false);
+               			}
+            		}
+            	}
+               };
+               
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_load'] = function(ds, record, config_records, bp_seq) {
+            	var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_product_plan_definition');
+            	if (ds_id == ds.id){
+            	    var dataset=ds.getAll();
+            	    for(var i=0;i<dataset.length;i++){
+            	        var btb_int_rate_implicit = dataset[i].get('btb_int_rate_implicit')||0;
+            			var discount_rate = dataset[i].get('discount_rate')||0;
+            			dataset[i].set('int_rate_display',(btb_int_rate_implicit-discount_rate));
+            	    	var discount_method = dataset[i].get('discount_method');
+            	    	if(discount_method=='NO_DISCOUNT'){
+            	    		dataset[i].set('discount_rate',0);
+            				dataset[i].getField('discount_rate').setReadOnly(true);
+               			}
+               			if(discount_method=='DISCOUNT'){
+               			   	dataset[i].getField('discount_rate').setReadOnly(false);
+               			}
+            		}
+            	}
+         	};
+         	
+         	window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_add'] = function(ds, record, config_records, bp_seq) {
+            	        var btb_int_rate_implicit = record.get('btb_int_rate_implicit')||0;
+            			var discount_rate = record.get('discount_rate')||0;
+            			record.set('int_rate_display',(btb_int_rate_implicit-discount_rate));
+            	    	var discount_method = record.get('discount_method');
+            	    	if(discount_method=='NO_DISCOUNT'||Ext.isEmpty(discount_method)){
+            	    	    record.set('discount_method','NO_DISCOUNT');
+            	    		record.set('discount_rate',0);
+            				record.getField('discount_rate').setReadOnly(true);
+               			}
+               			if(discount_method=='DISCOUNT'){
+               			   	record.getField('discount_rate').setReadOnly(false);
+               			}
+               };
+        
+        	window['${/parameter/@layout_code}_on_layout_dynamic_before_submit'] = function(ds, record) {
+                Aurora.request({
+                    url: $('get_special_fields_link_id').getUrl(),
+                    para: {
+                        document_category: 'PRODUCT',
+                    },
+                    success: function(res) {
+                        debugger;
+                        var document_number = res.result.document_number;
+                        record.set('product_number', document_number);
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    error: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    failure: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    sync: true,
+                    scope: this
+                });
+            };
+            
+            window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function(ds, record) {
+                debugger;
+                var result_ds = $('PRODUCT_DEFINITION_F_PRODUCT_QUERY_hls_product_plan_definition_ds');
+                var records = result_ds.getSelected();
+                if (records.length == 0) {
+                    Aurora.showMessage("提示", "请至少选择一条数据");
+                    return;
+                } else if (records.length > 1) {
+                    Aurora.showMessage("提示", "请选择单条数据进行复制");
+                    return;
+                } else {
+                    $('PRODUCT_DEFINITION_F_PRODUCT_QUERY_hls_product_plan_definition_layout_grid_id').showEditorByRecord($('PRODUCT_DEFINITION_F_PRODUCT_QUERY_hls_product_plan_definition_ds').create());
+                }
+                    var select_record = ds.getSelected()[0];
+                    for (var name in select_record.data) {
+                        record.set(name, select_record.get(name));
+                        record.set('product_plan_id', null);
+               		}
+            }
+
+        ]]></script>
+        <!--         <a:dataSets>
+            <a:dataSet id="enable_flag_ds" lookupCode="ENABLED_STATUS"/>
+            <a:dataSet id="product_category_ds" lookupCode="PRODUCT_CATEGORY"/>
+            <a:dataSet id="pay_method_ds" lookupCode="PAY_METHOD"/>
+            <a:dataSet id="gps_install_flag_ds" lookupCode="GPS_INSTALL"/>
+            <a:dataSet id="discount_method_ds" lookupCode="DISCOUNT_TYPE"/>
+            <a:dataSet id="hls051_product_plan_definition_query_ds">
+                <a:fields>
+                    <a:field name="product_type"/>
+                    <a:field name="product_type_desc" displayField="code_value_name" options="product_category_ds" returnField="product_type" valueField="code_value"/>
+                    <a:field name="pay_type"/>
+                    <a:field name="pay_type_desc" displayField="code_value_name" options="pay_method_ds" returnField="pay_type" valueField="code_value"/>
+                    <a:field name="enable_flag" defaultValue="Y"/>
+                    <a:field name="enable_flag_des" defaultValue="启用" displayField="code_value_name" options="enable_flag_ds" returnField="enable_flag" valueField="code_value"/>
+                    <a:field name="product_code"/>
+                    <a:field name="product_name_write"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="hls051_product_plan_definition_ds" autoPageSize="true" autoQuery="true" model="hls.HLS051.hls051_product_plan_definition" queryDataSet="hls051_product_plan_definition_query_ds" selectable="true" submitUrl="${/request/@context_path}/modules/hls/HLS051/hls_product_plan.svc">
+                <a:fields>
+                    <a:field name="product_type_desc" displayField="code_value_name" options="product_category_ds" required="true" returnField="product_type" valueField="code_value"/>
+                    <a:field name="gps_install_flag_desc" displayField="code_value_name" options="gps_install_flag_ds" required="true" returnField="gps_install_flag" valueField="code_value"/>
+                    <a:field name="discount_method_desc" displayField="code_value_name" options="discount_method_ds" required="true" returnField="discount_method" valueField="code_value"/>
+                    <a:field name="to_grant" defaultValue="授权"/>
+                    <a:field name="enable_flag" checkedValue="Y" defaultValue="N" required="true" uncheckedValue="N"/>
+                    <a:field name="product_number" required="true"/>
+                    <a:field name="product_plan_id"/>
+                    <a:field name="down_payment_ratio_from"/>
+                    <a:field name="down_payment_ratio_to"/>
+                    <a:field name="deposit_ratio_from"/>
+                    <a:field name="deposit_ratio_to"/>
+                    <a:field name="special_note" required="true"/>
+                    <a:field name="product_code" required="true"/>
+                    <a:field name="product_name_write" required="true"/>
+                    <a:field name="times" defaultValue="0"/>
+                    <a:field name="finance_amount_from"/>
+                    <a:field name="finance_amount_to"/>
+                    <a:field name="btb_int_rate_implicit"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="document_node_addHandler"/>
+                    <a:event name="update" handler="times_update"/>
+                    <a:event name="submitfailed" handler="on_ds_submitfailed"/>
+                    <a:event name="submitsuccess" handler="on_ds_submitsuccess"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="hls051_query" text="HLS.QUERY"/>
+                <a:gridButton click="hls051_reset" text="HLS.RESET"/>
+                <a:gridButton click="hls051_copy" text="复制产品"/>
+                <a:gridButton click="hls051_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:form Width="1270" column="5" title="查询条件">
+                <a:comboBox name="product_type_desc" bindTarget="hls051_product_plan_definition_query_ds" prompt="产品类型"/>
+                <a:numberField name="times_from" allowDecimals="flase" allowNegative="false" bindTarget="hls051_product_plan_definition_query_ds" prompt="期数从"/>
+                <a:numberField name="times_to" allowDecimals="flase" allowNegative="false" bindTarget="hls051_product_plan_definition_query_ds" prompt="期数到"/>
+                <a:percentField name="down_payment_ratio_from" allowNegative="false" bindTarget="hls051_product_plan_definition_query_ds" decimalPrecision="4" prompt="首付比例从"/>
+                <a:percentField name="down_payment_ratio_to" allowNegative="false" bindTarget="hls051_product_plan_definition_query_ds" decimalPrecision="4" prompt="首付比例到"/>
+                <a:percentField name="deposit_ratio_from" allowNegative="false" bindTarget="hls051_product_plan_definition_query_ds" decimalPrecision="4" prompt="保证金比例从"/>
+                <a:percentField name="deposit_ratio_to" allowNegative="false" bindTarget="hls051_product_plan_definition_query_ds" decimalPrecision="4" prompt="保证金比例到"/>
+                <a:comboBox name="enable_flag_des" bindTarget="hls051_product_plan_definition_query_ds" prompt="启用"/>
+                <a:textField name="product_code" bindTarget="hls051_product_plan_definition_query_ds" prompt="产品编码"/>
+                <a:textField name="product_name_write" bindTarget="hls051_product_plan_definition_query_ds" prompt="产品名称"/>
+            </a:form>
+            <a:grid id="hls051_product_plan_definition_grid" bindTarget="hls051_product_plan_definition_ds" marginHeight="180" marginWidth="60" navBar="true">
+                <a:toolBar>
+                    <a:button type="add"/>
+                    <a:button type="save"/>
+                    update by 9188 2016/09/02
+                    <a:button type="delete"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="product_type_desc" align="center" editorFunction="hls051_cb_editorFunction" prompt="产品类型" width="100"/>
+                    <a:column name="product_code" align="center" editorFunction="hls051_tf_editorFunction" prompt="产品编号" width="100"/>
+                    <a:column name="product_name_write" align="center" editorFunction="hls051_tf_editorFunction" prompt="产品名称" width="170"/>
+                    <a:column name="gps_install_flag_desc" align="center" editorFunction="hls051_cb_editorFunction" prompt="GPS是否安装" width="100"/>
+                    <a:column name="discount_method_desc" align="center" editorFunction="hls051_cb_editorFunction" prompt="贴息方式" width="100"/>
+                    <a:column name="finance_amount_from" align="center" editorFunction="hls051_nf_editorFunction_y" prompt="融资金额从" width="80"/>
+                    <a:column name="finance_amount_to" align="center" editorFunction="hls051_nf_editorFunction_y" prompt="融资金额到" width="80"/>
+                    <a:column name="down_payment_ratio_from" align="center" editorFunction="hls051_nf_editorFunction_y" prompt="首付比例从%" width="80"/>
+                    <a:column name="down_payment_ratio_to" align="center" editorFunction="hls051_nf_editorFunction_y" prompt="首付比例到%" width="80"/>
+                    <a:column name="deposit_ratio_from" align="center" editorFunction="hls051_nf_editorFunction_y" prompt="保证金比例从%" width="100"/>
+                    <a:column name="deposit_ratio_to" align="center" editorFunction="hls051_nf_editorFunction_y" prompt="保证金比例到%" width="100"/>
+                    <a:column name="btb_int_rate_implicit" align="center" editorFunction="hls051_nf_editorFunction_y" prompt="执行利率%" width="100"/>
+                    <a:column name="special_note" align="left" editorFunction="hls051_tf_editorFunction" prompt="特别说明" width="400"/>
+                    <a:column name="to_grant" align="center" prompt="授权" renderer="to_grant_renderer" width="80"/>
+                    <a:column name="enable_flag" align="center" editor="editor_check" prompt="启用" width="40"/>
+                    <a:column name="times" hidden="true"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="editor_nf_y" allowDecimals="true" allowNegative="false" decimalPrecision="2"/>
+                    <a:numberField id="editor_nf_n" allowDecimals="false" allowNegative="false"/>
+                    <a:textField id="editor_tf"/>
+                    <a:comboBox id="editor_comb"/>
+                    <a:checkBox id="editor_check"/>
+                    <a:lov id="editor_price_list_lov"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody> -->
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

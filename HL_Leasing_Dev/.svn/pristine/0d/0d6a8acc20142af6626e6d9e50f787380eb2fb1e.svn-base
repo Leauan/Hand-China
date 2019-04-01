@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-8-15 下午5:52:46  
+    $Revision: 1.0  
+    $Purpose:  资产处置维护入口页面
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:view>
+        <a:link id="con_contrac_et_update_link" url="${/request/@context_path}/modules/cont/CON611/con_contract_et_update.screen"/>
+        <a:link id="con_contract_et_cancel_link" model="cont.CON611.con_contract_rp_cancel" modelaction="execute"/>
+        <!--未签章screen-->
+        <a:link id="con_contract_no_sign_print_link_id" url="${/request/@context_path}/modules/cont/CON761/con_contract_teminate_print.screen"/>
+        <!---签章screen-->
+        <a:link id="con_contract_signed_print_link_id" url="${/request/@context_path}/modules/csh/CSH506/csh_payment_print_word.svc"/>
+        <a:link id="con_contract_dowload_uploadfile" url="${/request/@context_path}/modules/cont/CON580/con_other_content_print.svc"/>
+        <script><![CDATA[
+            function contractQueryScreen_query() {
+                $('contract_et_Screen_mainDs').query();
+            }
+            
+            function contractQueryScreen_refresh() {
+                var ds = $('contract_et_Screen_mainDs');
+                ds.query(ds.currentPage);
+            }
+            
+            function contractQueryScreen_add() {
+                var a = $('contract_et_Screen_mainDs').getSelected();
+                var record = a[0],
+                    contract_id = record.get('contract_id');
+                record.getMeta().getField('document_type_desc').setLovPara('contract_id', contract_id);
+            
+                new Aurora.Window({
+                    id: 'con_contract_adv_settle_create_window',
+                    url: $('con_contract_adv_settle_create_link').getUrl(),
+                    params: {
+                        winId: 'con_contract_adv_settle_create_window'
+                    },
+                    title: '资产处置创建',
+                    fullScreen: true
+                });
+            }
+            
+            function onUpdate_early_termination(dataSet, record, name, value) {
+                if (name == 'termination_date') {
+                    var termination_date = Aurora.formatDate(value);
+                    Aurora.request({
+                        url: $('con_contract_termination_date_check_link').getUrl(),
+                        para: {
+                            termination_date: termination_date
+                        },
+                        success: function(args) { //
+                            var check_flag = args.result.check_flag;
+                            if (check_flag == 'N') {
+                                Aurora.showMessage('提示', '资产处置日不在预定规则内');
+                            }
+                        },
+                        scope: this
+                    });
+                }
+            }
+            
+            function contractQueryScreen_submit() {
+            
+               }
+            
+            function render_et_agreement_number(value, record, name) {
+                if (!record.isNew) {
+                    return '<a href="javascript:winOpen_update(' + record.get('et_agreement_id') + ',' + record.get('contract_id') + ',\'' + record.get('et_agreement_status') + '\')">' + value + '</a>';
+                }
+            
+            }
+            
+            function winOpen_update(et_agreement_id, contract_id, et_agreement_status) {
+                var function_usage, utl_title;
+            
+                if (et_agreement_status == 'NEW' || et_agreement_status == 'REJECT') {
+                    utl_title = '资产处置维护';
+                    function_usage = 'UPDATE';
+                } else {
+                    function_usage = 'QUERY';
+                    utl_title = '资产处置查询';
+                }
+            
+                var win = new Aurora.Window({
+                    id: 'con_contrac_et_update_window',
+                    url: $('con_contrac_et_update_link').getUrl(),
+                    params: {
+                        et_agreement_id: et_agreement_id,
+                        contract_id: contract_id,
+                        winId: 'con_contrac_et_update_window',
+                        function_usage: function_usage
+                    },
+                    title: utl_title,
+                    fullScreen: true
+                });
+                win.on('close', function() {
+                    contractQueryScreen_query();
+                });
+            }
+            
+            function contractQueryScreen_maintance() {
+                var record = $('contract_et_Screen_mainDs').getCurrentRecord();
+                winOpen_update(record.get('et_agreement_id'), record.get('contract_id'), record.get('et_agreement_status'));
+            }
+            
+            function contractQueryScreen_reset() {
+                $('contract_et_Screen_paraDs').reset();
+            }
+            
+            function cancel() {
+                var record = $('contract_et_Screen_mainDs').getCurrentRecord();
+                var et_agreement_id = record.get('et_agreement_id');
+                if (record.get('et_agreement_status') != 'NEW' && record.get('et_agreement_status') != 'REJECT') {
+                    Aurora.showMessage('${l:PROMPT}', '只有新建和拒绝状态的资产处置才允许取消！');
+                    return;
+                }
+            
+                Aurora.showConfirm('${l:HLS.PROMPT}', '确定要取消？', function() {
+                    Aurora.request({
+                        url: $('con_contract_et_cancel_link').getUrl(),
+                        para: {
+                            et_agreement_id: et_agreement_id
+                        },
+                        success: function(args) {
+                            Aurora.SideBar.show({
+                                msg: '取消成功',
+                                duration: 2000
+                            });
+                            $('contract_et_Screen_mainDs').query();
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=ET&amp;function_code=CON702"/>
+            <a:dataSet id="et_agreement_status_ds" lookupCode="CON_ET_STATUS"/>
+            <a:dataSet id="con501_status_name_ds" lookupCode="CON500_CONTRACT_STATUS"/>
+            <a:dataSet id="con501_lease_organization_name_ds" loadData="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="contract_et_Screen_paraDs">
+                <a:fields>
+                    <a:field name="contract_status_desc" displayField="code_value_name" options="con501_status_name_ds" returnField="contract_status" valueField="code_value"/>
+                    <a:field name="et_agreement_status_desc" displayField="code_value_name" options="et_agreement_status_ds" returnField="et_agreement_status" valueField="code_value"/>
+                    <a:field name="lease_organization_name" displayField="description" options="con501_lease_organization_name_ds" returnField="lease_organization" valueField="lease_organization"/>
+                    <a:field name="contract_number"/>
+                    <a:field name="project_number"/>
+                    <a:field name="guarantor_id"/>
+                    <!-- <a:field name="guarantor_name" lovGridHeight="330" lovHeight="470" lovLabelWidth="120" lovService="cont.CON370.hls_bp_master_v_all_lov?bp_category=GUARANTOR" lovWidth="700" title="担保人">
+                        <a:mapping>
+                            <a:map from="bp_id" to="guarantor_id"/>
+                            <a:map from="bp_name" to="guarantor_name"/>
+                        </a:mapping>
+                    </a:field> -->
+                    <a:field name="bp_id"/>
+                    <a:field name="bp_name" lovGridHeight="330" lovHeight="470" lovLabelWidth="120" lovService="cont.CON370.hls_bp_master_v_all_lov?bp_category=TENANT" lovWidth="700" title="承租人">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="contract_et_Screen_mainDs" autoQuery="true" model="cont.CON611.con_contract_et_hd_maintain_query" pageSize="12" queryDataSet="contract_et_Screen_paraDs" queryUrl="${/request/@context_path}/autocrud/cont.CON611.con_contract_et_hd_maintain_query/query?et_agreement_status=NEW" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="document_type_desc" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="cont.CON701.hls_document_type_for_et_lov" lovWidth="500" prompt="资产处置类型">
+                        <a:mapping>
+                            <a:map from="document_type" to="document_type"/>
+                            <a:map from="document_type_desc" to="document_type_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="et_type_desc" readOnly="true"/>
+                    <a:field name="termination_date" readOnly="false" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="query" handler="aut_authority_list_validate_query"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="contractQueryScreen_query" text="HLS.QUERY"/>
+                <a:gridButton click="contractQueryScreen_reset" text="HLS.RESET"/>
+                <a:gridButton click="cancel" text="HLS.CANCLE"/>
+                <a:gridButton click="contractQueryScreen_maintance" text="维护"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="110" marginWidth="30" title="HLS.QUERY_TITLE">
+                <a:textField name="et_agreement_number" bindTarget="contract_et_Screen_paraDs" prompt="资产处置编号" typeCase="upper"/>
+                <a:textField name="contract_number" bindTarget="contract_et_Screen_paraDs" prompt="合同编号" typeCase="upper"/>
+                <a:textField name="contract_name" bindTarget="contract_et_Screen_paraDs" prompt="合同名称"/>
+                <a:textField name="project_number" bindTarget="contract_et_Screen_paraDs" prompt="项目编号" typeCase="upper"/>
+                <a:lov name="bp_name" bindTarget="contract_et_Screen_paraDs" prompt="承租人"/>
+                <!-- <a:lov name="guarantor_name" bindTarget="contract_et_Screen_paraDs" prompt="担保人"/> -->
+                <!-- <a:textField name="license_number" bindTarget="contract_et_Screen_paraDs" prompt="车牌号" typeCase="upper"/> -->
+                <a:comboBox name="et_agreement_status_desc" bindTarget="contract_et_Screen_paraDs" prompt="资产处置状态"/>
+                <a:datePicker name="termination_date_from" bindTarget="contract_et_Screen_paraDs" prompt="资产处置日从"/>
+                <a:datePicker name="termination_date_to" bindTarget="contract_et_Screen_paraDs" prompt="资产处置日至"/>
+                <a:datePicker name="creation_date_from" bindTarget="contract_et_Screen_paraDs" prompt="创建日期从"/>
+                <a:datePicker name="creation_date_to" bindTarget="contract_et_Screen_paraDs" prompt="创建日期到"/>
+                <a:datePicker name="date_from" bindTarget="contract_et_Screen_paraDs" prompt="起租日期从"/>
+                <a:datePicker name="date_to" bindTarget="contract_et_Screen_paraDs" prompt="起租日期到"/>
+                <a:datePicker name="lease_end_date_from" bindTarget="contract_et_Screen_paraDs" prompt="到期日从"/>
+                <a:datePicker name="lease_end_date_to" bindTarget="contract_et_Screen_paraDs" prompt="到期日至"/>
+            </a:form>
+            <a:grid id="contract_et_Screen_mainDs_grid" bindTarget="contract_et_Screen_mainDs" marginHeight="240" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="et_agreement_number" lock="true" prompt="资产处置编号" renderer="render_et_agreement_number" width="100"/>
+                    <a:column name="contract_number" lock="true" prompt="合同编号" width="120"/>
+                    <a:column name="contract_name" prompt="合同名称" showTitle="true" width="200"/>
+                    <a:column name="project_number" prompt="项目编号" width="120"/>
+                    <a:column name="bp_name" prompt="承租人名称" showTitle="true" width="100"/>
+                    <a:column name="received_times" prompt="已还款期数" showTitle="true" width="120"/>
+                    <!-- <a:column name="license_number" align="center" prompt="车牌号" width="80"/> -->
+                    <a:column name="termination_date" align="center" prompt="资产处置日" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="creation_date" align="center" prompt="创建日期" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="inception_of_lease" align="center" prompt="起租日" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="lease_end_date" align="center" prompt="到期日" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="et_agreement_status_desc" align="center" prompt="资产处置状态" width="80"/>
+                    <!-- <a:column name="et_profile_desc" align="center" prompt="结清规则" width="90"/> -->
+                    <a:column name="owner" align="center" prompt="单据所有者" width="90"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

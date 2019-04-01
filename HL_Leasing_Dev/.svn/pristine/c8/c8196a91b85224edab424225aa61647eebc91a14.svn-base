@@ -1,0 +1,753 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-7-23 下午04:30:35  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:view>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <script><![CDATA[
+            var global_button_code = '';
+            var global_save_data_first = '';
+            var global_javascript = '';
+            var global_action_after_button = '';
+            var global_root_ds = '';
+            
+            function get_config_column_name(name) {
+                var query_name;
+                if (name.substring(name.length - 2, name.length) == '_n') {
+                    query_name = name.substring(0, name.length - 2);
+                } else {
+                    query_name = name;
+                }
+                return query_name;
+            }
+            
+            window['${/parameter/@bp_seq}${/parameter/@tab_code}_on_con_doc_update'] = function(ds, record, name, value, old_value) {
+                if (name == 'employee_id') {
+                    record.isReady = false;
+                    $('${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_sys_user_ds').setQueryParameter('employee_id', value);
+                    $('${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_sys_user_ds').query();
+            
+                    function on_sys_user_load(ds) {
+                        var sys_user_rec = ds.getAll();
+                        if (sys_user_rec.length == 1) {
+                            record.set('owner_user_id', sys_user_rec[0].get('user_id'));
+                            record.set('owner_user_id_n', sys_user_rec[0].get('description'));
+                        } else {
+                            record.set('owner_user_id', '');
+                            record.set('owner_user_id_n', '');
+                        }
+                        record.isReady = true;
+                        $('${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_sys_user_ds').un('load', on_sys_user_load);
+                    }
+                    $('${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_sys_user_ds').on('load', on_sys_user_load);
+                } else if (name == 'bp_id') {
+                    record.set('total_assets', '');
+                    record.set('net_assets', '');
+                    record.set('annual_income', '');
+                    record.set('net_profit', '');
+                    record.set('fin_statement_currency', '');
+                    record.set('financial_audit_date', '');
+                    record.set('fin_statement_templet_id', '');
+                } else if ((name == 'price' || name == 'quantity') && '${/parameter/@base_table}' == 'prj_project_lease_item') {
+                    set_lease_item_total_amount(name, record);
+                }
+                window['${/parameter/@bp_seq}${/parameter/@tab_code}_on_con_update_clear_lovpara'](ds, record, name, value, old_value);
+            };
+            
+            function get_lov_cascade(value) {
+                if (Ext.isEmpty(value)) {
+                    return '';
+                } else {
+                    return value;
+                }
+            }
+            
+            function setObjectPara(object, ds, field, para, record) {
+                if (para) {
+                    if (object == 'LOV') {
+                        field.setLovPara(para, get_lov_cascade(record.get(para)));
+                    } else if (object == 'COMBOBOX') {
+                        ds.setQueryParameter(para, get_lov_cascade(record.get(para)));
+                    }
+                }
+            }
+            
+            function set_clear_lovpara_empty(name, lov_cascade_para, record, config_record) {
+                var validation_type = config_record.get('validation_type'),
+                    column_name = config_record.get('column_name');
+                if (name == lov_cascade_para) {
+                    record.set(column_name, '');
+                    if (validation_type == 'LOV' || validation_type == 'LOV_C' || validation_type == 'TREE' || validation_type == 'TREE_C' || validation_type == 'COMBOBOX' || validation_type == 'COMBOBOX_C') {
+                        record.set(column_name + '_n', '');
+                    }
+                }
+            }
+            
+            window['${/parameter/@bp_seq}${/parameter/@tab_code}_on_con_update_clear_lovpara'] = function(ds, record, name, value, old_value) {
+                if (Ext.isEmpty(value)) {
+                    var query_name = get_config_column_name(name),
+                        field = record.getField(name),
+                        config_records = $('${/parameter/@bp_seq}${/parameter/@tab_code}_con_layout_config_ds').getAll();
+                    var current_field_value;
+                    for (var i = 0;i < config_records.length;i++) {
+                        var config_record = config_records[i];
+                        var lov_cascade_para1 = config_record.get('lov_cascade_para1'),
+                            lov_cascade_para2 = config_record.get('lov_cascade_para2'),
+                            lov_cascade_para3 = config_record.get('lov_cascade_para3');
+                        set_clear_lovpara_empty(query_name, lov_cascade_para1, record, config_record);
+                        set_clear_lovpara_empty(query_name, lov_cascade_para2, record, config_record);
+                        set_clear_lovpara_empty(query_name, lov_cascade_para3, record, config_record);
+                    }
+                    var current_field = record.getField(name),
+                        current_lovpara = current_field.get('lovpara'),
+                        validation_sql;
+                    if (current_lovpara) {
+                        validation_sql = current_lovpara['validation_sql'];
+                    }
+                    if (!value && validation_sql) {
+                        var current_loadpara_ds = $('${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_lov_getmapping_ds');
+            
+                        function on_lov_getmapping_load(load_ds) {
+                            var lov_records = load_ds.getAll();
+                            for (var j = 0;j < lov_records.length;j++) {
+                                var lov_record = lov_records[j],
+                                    mapping = current_field.get('mapping'),
+                                    exists_flag = false,
+                                    lov_name = lov_record.data['name'].toLowerCase();
+                                for (var i = 0,
+                                    mapping_length = mapping.length;i < mapping_length;i++) {
+                                    if ((exists_flag = (lov_name == mapping[i]['from']))) {
+                                        break;
+                                    }
+                                }
+                                if (!exists_flag) {
+                                    record.set(lov_name, '');
+                                }
+                                current_field.setMapping(mapping);
+                            }
+                            current_loadpara_ds.un('load', on_lov_getmapping_load);
+                            unlock_current_window();
+                        }
+                        for (var lov_para_name in current_lovpara) {
+                            current_loadpara_ds.setQueryParameter(lov_para_name, record.get(lov_para_name));
+                        }
+                        current_loadpara_ds.setQueryParameter('validation_sql', validation_sql);
+                        lock_current_window();
+                        current_loadpara_ds.query();
+                        current_loadpara_ds.on('load', on_lov_getmapping_load);
+                    }
+                }
+                for (var show_name in record.data) {
+                    var show_field = record.getField(show_name);
+                    var lovpara_field = show_field.get('lovpara');
+                    if (lovpara_field && lovpara_field[name]) {
+                        record.set(show_name, '');
+                        var save_name = get_config_column_name(show_name);
+                        if (save_name != show_name) {
+                            record.set(save_name, '');
+                        }
+                    }
+                }
+            };
+            
+            function lock_current_window() {
+                parent.Aurora.Masker.mask(parent.$('${/parameter/@winid}').wrap, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_current_window() {
+                parent.Aurora.Masker.unmask(parent.$('${/parameter/@winid}').wrap);
+            }
+            
+            function set_lease_item_total_amount(name, record) {
+                var total_amount;
+                if (name == 'price') {
+                    if (!Ext.isEmpty(record.get('quantity'))) {
+                        total_amount = mul(record.get(name), record.get('quantity'));
+                    }
+                } else if (name == 'quantity') {
+                    if (!Ext.isEmpty(record.get('price'))) {
+                        total_amount = mul(record.get(name), record.get('price'));
+                    }
+                }
+                record.set('total_amount', total_amount);
+            }
+            
+            window['${/parameter/@bp_seq}${/parameter/@tab_code}_on_con_update_dymanic'] = function(ds, record) {
+                for (var name in record.data) {
+                    if (name == 'employee_id' && Ext.isEmpty(record.get('owner_user_id'))) {
+                        record.isReady = false;
+                        $('${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_sys_user_ds').setQueryParameter('employee_id', record.get(name));
+                        $('${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_sys_user_ds').query();
+            
+                        function on_dynamic_load(ds) {
+                            var sys_user_rec = ds.getAll();
+                            if (sys_user_rec.length == 1) {
+                                record.set('owner_user_id', sys_user_rec[0].get('user_id'), true);
+                                record.set('owner_user_id_n', sys_user_rec[0].get('description'), true);
+                            } else {
+                                record.set('owner_user_id', '', true);
+                                record.set('owner_user_id_n', '', true);
+                            }
+                            record.isReady = true;
+                            $('${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_sys_user_ds').un('load', on_dynamic_load);
+                        }
+                        $('${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_sys_user_ds').on('load', on_dynamic_load);
+                    } else if ((name == 'price' || name == 'quantity') && '${/parameter/@base_table}' == 'prj_project_lease_item') {
+                        set_lease_item_total_amount(name, record);
+                    }
+                }
+            };
+            
+            window['${/parameter/@bp_seq}${/parameter/@tab_code}_on_con_result_grid_add_dynamic'] = function(ds, record) {
+                if ('${/parameter/@base_table}' == 'prj_quotation') {
+                    var records = ds.getAll(),
+                        version_num = 0;
+                    if (records.length) {
+                        for (var i = 0;i < records.length;i++) {
+                            var current_record = records[i],
+                                version = current_record.get('version');
+                            if (!Ext.isEmpty(version)) {
+                                index = version.indexOf('v');
+                                if (index == -1) {
+                                    version_num = version_num;
+                                } else {
+                                    var current_version = version.substring(index + 1);
+                                    if (isNaN(current_version) || parseFloat(current_version) <= parseFloat(version_num)) {
+                                        version_num = version_num;
+                                    } else {
+                                        version_num = current_version;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    record.set('version', 'v' + parseInt(plus(version_num, 1)).toFixed(1));
+                }
+            };
+            
+            function prj_user_define_execute(ds) {
+                var button_record = ds.find('button_code', global_button_code);
+                if (button_record) {
+                    global_save_data_first = button_record.get('save_data_first');
+                    global_action_after_button = button_record.get('action_after_button');
+                    global_javascript = button_record.get('javascript');
+                    if (Ext.isDefined(global_javascript)) {
+                        if (global_save_data_first == 'Y') {
+                            parent.prj500_project_save(prj_define_button_js);
+                        } else {
+                            prj_define_button_js();
+                        }
+                    } else {
+                        if (global_save_data_first == 'Y') {
+                            parent.prj500_project_save(prj_define_button_execute);
+                        } else {
+                            prj_define_button_execute();
+                        }
+                    }
+                }
+            }
+            
+            function prj_action_after_button() {
+                if (global_action_after_button == 'EXIT') {
+                    parent.prj500_project_exit();
+                } else if (global_action_after_button == 'QUERY') {
+                    global_root_ds.query();
+                }
+            }
+            
+            function prj_define_button(btn, root_ds) {
+                lock_current_window();
+                global_button_code = btn.id.substring(7);
+                global_root_ds = root_ds;
+                $('${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_doc_btn_ds').setQueryParameter('button_code', global_button_code);
+                $('${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_doc_btn_ds').query();
+                $('${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_doc_btn_ds').on('load', prj_user_define_execute);
+            }
+            
+            function prj_define_button_js() {
+                // if (window.execScript) {
+                // window.execScript(global_javascript);
+                // } else {
+                eval(global_javascript);
+                // }
+                $('${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_doc_btn_ds').un('load', prj_user_define_execute);
+                unlock_current_window();
+                prj_action_after_button();
+            }
+            
+            function prj_define_button_execute() {
+                var root_record = global_root_ds.getCurrentRecord(),
+                    document_category = '${/parameter/@document_category}',
+                    document_id;
+                if (document_category == 'PROJECT') {
+                    document_id = root_record.get('project_id');
+                }
+                if (Ext.isEmpty(document_id)) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.EXECUTE_AFTER_SAVE}');
+                    return;
+                }
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/cont.CON500.con_doc_layout_user_define_btn/update',
+                    para: {
+                        button_code: global_button_code,
+                        document_id: document_id,
+                        document_category: document_category,
+                        function_code: '${/parameter/@function_code}'
+                    },
+                    success: function(res) {
+                        unlock_current_window();
+                        parent.Aurora.SideBar.show({
+                            html: '<div style="background-color:#ccfbd5;position:absolute;padding:3px;border:1px solid #009900">' + res.result.return_value + '</div>',
+                            duration: 5000
+                        });
+                        $('${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_doc_btn_ds').un('load', prj_user_define_execute);
+                        prj_action_after_button();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            
+            
+            function hls_doc_get_layout_code(bm_url, param, win_url, list_ds) {
+                Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+                Aurora.request({
+                    url: bm_url,
+                    para: param,
+                    success: function(res) {
+                        Aurora.Masker.unmask(Ext.getBody());
+                        if (!res.result.layout_code) {
+                            Aurora.showMessage('${l:PROMPT}', '${l:HLS.LAYOUT_CODE_IS_NULL}');
+                            return;
+                        }
+                        var win = new Aurora.Window({
+                            id: 'hls_doc_get_layout_code_winid',
+                            params: {
+                                document_id: param['document_id'],
+                                document_category: param['document_category'],
+                                from_master_flag: 'Y',
+                                company_id: param['company_id'],
+                                layout_code: res.result.layout_code,
+                                function_usage: param['function_usage'],
+                                master_id: param['master_id'],
+                                master_type: param['master_type'],
+                                function_code: param['function_code'],
+                                maintain_type: param['maintain_type'],
+                                default_value_dsid: param['default_value_dsid'],
+                                winid: 'hls_doc_get_layout_code_winid'
+                            },
+                            url: win_url,
+                            title: param['url_title'] + '(' + res.result.layout_code + ')',
+                            fullScreen: true,
+                            draggable: true
+                        });
+                        win.on('close', function() {
+                            if (list_ds) {
+                                $(list_ds).query();
+                            }
+                        });
+                    },
+                    failure: function() {
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    error: function() {
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    scope: this
+                });
+            }
+            
+            
+            (function() {
+                var hls_form_render_record = {};
+                window['${/parameter/@bp_seq}${/parameter/@tab_code}_link_render'] = function(value, record, name) {
+                    var config_record = $('${/parameter/@bp_seq}${/parameter/@tab_code}_con_layout_config_ds').find('column_name', name);
+                    hls_form_render_record[record.id + '---' + name] = record;
+                    if (config_record.get('validation_type') == 'BUTTON') {
+                        if (Ext.isIE || Ext.isIE9 || Ext.isIE10) {
+                            return '<button style="font-size:11px;height:22px;width:45px;text-align:center;padding:0 4px 4px 0" onclick="${/parameter/@bp_seq}${/parameter/@tab_code}_open_form_render_window(\'' + record.id + '\',\'' + name + '\');"><div style="height: 18px; line-height: 16px; text-decoration: none;">' + config_record.get('prompt') + '</div></button>';
+                        } else {
+                            return '<button style="font-size:11px;height:22px;width:45px;text-align:center;" onclick="${/parameter/@bp_seq}${/parameter/@tab_code}_open_form_render_window(\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</button>';
+                        }
+                    } else {
+                        var specialColor = {};
+                        if (name == 'fin_statement_notes') {
+                            specialColor = {
+                                form_render: 'red'
+                            };
+                        }
+                        return '<a style="color:' + specialColor['form_render'] + '" href="javascript:void(0);return;" onclick="window[\'${/parameter/@bp_seq}${/parameter/@tab_code}_open_form_render_window\'](\'' + record.id + '\',\'' + name + '\',this);">' + config_record.get('prompt') + '</a>';
+                    }
+                };
+            
+            
+            
+                window['${/parameter/@bp_seq}${/parameter/@tab_code}_open_form_render_window'] = function(id, name, obj) {
+                    var record = hls_form_render_record[id + '---' + name];
+                    if (record.get('bp_id')) {
+                        var url, url_title, open_win_flag, show_message;
+                        if (name == 'change_rate') {
+                            url = $('${/parameter/@bp_seq}${/parameter/@tab_code}_rsc_fin_change_rate_link_id').getUrl();
+                            url_title = '${l:PRJ501.RATE_OF_CHANGE_DETAILS_REPORT}';
+                        } else if (name == 'fin_indicator') {
+                            url = $('${/parameter/@bp_seq}${/parameter/@tab_code}_rsc_fin_handle_formula_link_id').getUrl();
+                            url_title = '${l:PRJ501.FINANCIAL_INDEX_DETAILS}';
+                        } else if (name == 'fin_statement') {
+                            url = $('${/parameter/@bp_seq}${/parameter/@tab_code}_rsc_fin_handle_query_link_id').getUrl();
+                            url_title = '${l:PRJ501.FINANCIAL_STATEMENT_ROWS}';
+                        } else if (name == 'fin_statement_notes') {
+                            url = $('${/parameter/@bp_seq}${/parameter/@tab_code}_prj_project_statement_note_link_id').getUrl();
+                            url_title = '${l:PRJ501.NOTES_TO_THE_FINANCIAL_STATEMENTS_MAINTAINED}';
+                        } else if (name == 'cashflow_forecast') {
+                            url = $('${/parameter/@bp_seq}${/parameter/@tab_code}_rsc_fin_statement_prj_import_cashflow_forecast_link_id').getUrl();
+                            url_title = '${l:RSC_FIN_STATEMENT_TMPLT_HDS.CASHFLOW_FORECAST}';
+                        } else if (name == 'bp_info_link') {
+                            url = '';
+                            open_win_flag = 'Y';
+                        } else if (name == 'psr_report_info_link' || name == 'gua_psr_report_info_link') {
+                            if (record.get('fin_statement_templet_id')) {
+                                url = '${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_import_handle_query.screen?fin_statement_templet_id=' + record.get('fin_statement_templet_id') + '&amp;bp_id=' + record.get('bp_id');
+                                url_title = '${l:RSC_FIN_STATEMENT_TMPLT_HDS.FIN_STATEMENT_DETAIL}';
+                            } else {
+                                if (name == 'psr_report_info_link') {
+                                    show_message = '该承租人财务报表信息不存在！';
+                                } else if (name == 'gua_psr_report_info_link') {
+                                    show_message = '该担保人财务报表信息不存在！';
+                                }
+                            }
+                        } else if (name == 'psr_target_info_link' || name == 'gua_psr_target_info_link') {
+                            if (record.get('fin_statement_templet_id')) {
+                                url = '${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_import_handle_formula.screen?fin_statement_templet_id=' + record.get('fin_statement_templet_id') + '&amp;bp_id=' + record.get('bp_id');
+                                url_title = '${l:RSC_FIN_INDICATOR_FORMULA.INDICATOR_DETAIL}';
+                            } else {
+                                if (name == 'psr_target_info_link') {
+                                    show_message = '该承租人财务指标明细信息不存在！';
+                                } else if (name == 'gua_psr_target_info_link') {
+                                    show_message = '该担保人财务指标明细信息不存在！';
+                                }
+            
+                            }
+                        } else if (name == 'psr_change_info_link' || name == 'gua_psr_change_info_link') {
+                            if (record.get('fin_statement_templet_id')) {
+                                url = '${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_import_change_rate.screen?fin_statement_templet_id=' + record.get('fin_statement_templet_id') + '&amp;bp_id=' + record.get('bp_id');
+                                url_title = '${l:RSC_FIN_STATEMENT_TMPLT_HDS.CHANGERATE_DETAIL}';
+                            } else {
+                                if (name == 'psr_change_info_link') {
+                                    show_message = '该承租人财务变化率明细信息不存在！';
+                                } else if (name == 'gua_psr_change_info_link') {
+                                    show_message = '该担保人财务变化率明细信息不存在！';
+                                }
+                            }
+                        } else if (name == 'bp_statement_note') {
+                            var bp_id = record.get('bp_id');
+                            if (bp_id) {
+                                url = '${/request/@context_path}/modules/prj/PRJ509/prj_project_statement_note.screen';
+                                url_title = '财务报表附注';
+                            }
+                        }
+                        if (url) {
+                            parent.open_render_window('${/parameter/@bp_seq}${/parameter/@tab_code}' + name + '_form_render_winid', ({
+                                bp_id: record.get('bp_id'),
+                                winid: '${/parameter/@bp_seq}${/parameter/@tab_code}' + name + '_form_render_winid'
+                            }), url, url_title);
+                        } else if (open_win_flag == 'Y') {
+                            var param = {};
+                            param['function_code'] = 'HLS306';
+                            param['function_usage'] = 'QUERY';
+                            param['url_title'] = '${l:HLS212.BP_MASTER_QUERY}';
+                            param['master_type'] = 'BP_MASTER';
+                            param['master_id'] = record.get('bp_id');
+                            param['bp_class'] = record.get('bp_class');
+                            hls_doc_get_layout_code('${/request/@context_path}/autocrud/hls.HLS213.hls_bp_master_get_layout_code/update', param, '${/request/@context_path}/modules/hls/HLS213/hls_bp_master_dynamic_update.screen', '');
+            
+                        } else if (show_message) {
+                            Aurora.SideBar.show({
+                                duration: 2000,
+                                html: '<div class="item-slideBar" style="width:200px"><div class="inner">' + show_message + '</div></div>'
+                            });
+                        }
+            
+            
+                    } else {
+                        Aurora.showMessage('${l:PROMPT}', '${l:PRJ501.PLEASE_MODIFY_BP_INFORMATION}');
+                        return;
+                    }
+                };
+            })();
+            window['${/parameter/@bp_seq}${/parameter/@tab_code}_prj500_project_item_save'] = function() {
+                lock_current_window();
+                var form_ds = $('${/parameter/@bp_seq}${/parameter/@tab_code}_${/parameter/@base_table}_ds');
+                if (form_ds.validate()) {
+                    form_ds.submit();
+                    form_ds.on('submitsuccess', function(ds) {
+                        var ref_grid_ds = $('${/parameter/@bp_seq}${/parameter/@ref_tab_code}_${/parameter/@base_table}_ds');
+                        ref_grid_ds.query();
+                        unlock_current_window();
+                    });
+                } else {
+                    unlock_current_window();
+                }
+            };
+            window['${/parameter/@bp_seq}${/parameter/@tab_code}_prj500_project_item_add'] = function() {
+                var form_ds = $('${/parameter/@bp_seq}${/parameter/@tab_code}_${/parameter/@base_table}_ds');
+                var ref_grid_ds = $('${/parameter/@bp_seq}${/parameter/@ref_tab_code}_${/parameter/@base_table}_ds');
+            
+                // function child_ds_create(ref_ds) {
+                // for (var child_name in ref_ds.fields) {
+                // var field = ref_ds.fields[child_name];
+                // if (field.type == 'dataset') {
+                // var child_ds = field.get('dataset');
+                // var id=child_ds.id;
+                //
+                // child_ds.create();
+                // child_ds_create(child_ds);
+                // }
+                // }
+                // }
+                form_ds.removeAll();
+                var record = form_ds.create();
+                // child_ds_create(ref_grid_ds);
+                record.set('project_id', '${/parameter/@document_id}');
+                record.set('project_id_n', '${/parameter/@project_id_n}');
+            };
+            
+            window['${/parameter/@bp_seq}${/parameter/@tab_code}_on_con_doc_indexchange'] = function(ds, record) {
+                var form_ds_id = '${/parameter/@bp_seq}${/parameter/@ref_tab_code}_${/parameter/@base_table}_ds';
+                if ($A.CmpManager.get(form_ds_id)) {
+                    var form_ds = $(form_ds_id);
+                    if (record.get('project_lease_item_id')) {
+                        form_ds.setQueryParameter('project_lease_item_id', record.get('project_lease_item_id'));
+                        form_ds.query();
+                    } else if (record.get('prj_mortgage_id')) {
+                        form_ds.setQueryParameter('prj_mortgage_id', record.get('prj_mortgage_id'));
+                        form_ds.query();
+                    }
+                }
+            };
+            window['${/parameter/@bp_seq}${/parameter/@tab_code}_on_con_doc_submitsuccess'] = function(ds) {
+                var form_ds = '${/parameter/@bp_seq}${/parameter/@ref_tab_code}_${/parameter/@base_table}_ds';
+                var record = ds.getCurrentRecord();
+                if ($A.CmpManager.get(form_ds)) {
+                    if (record.get('project_lease_item_id')) {
+                        $(form_ds).setQueryParameter('project_lease_item_id', record.get('project_lease_item_id'));
+                        $(form_ds).query();
+                    } else if (record.get('prj_mortgage_id')) {
+                        $(form_ds).setQueryParameter('prj_mortgage_id', record.get('prj_mortgage_id'));
+                        $(form_ds).query();
+                    }
+                }
+            };
+            (function() {
+                var prj_project_link_record = {};
+                window['${/parameter/@bp_seq}${/parameter/@tab_code}_link_return'] = function(value, record, name, link_url) {
+                    var config_record = $('${/parameter/@bp_seq}${/parameter/@tab_code}_con_layout_config_ds').find('column_name', name);
+                    prj_project_link_record[record.id + '---' + name] = record;
+                    if (config_record.get('validation_type') == 'BUTTON') {
+                        if (Ext.isIE || Ext.isIE9 || Ext.isIE10) {
+                            return '<button style="font-size:11px;height:22px;width:70%;text-align:center;padding:0 4px 4px 0" onclick="window[\'' + link_url + '\'](\'' + record.id + '\',\'' + name + '\');"><div style="height: 18px; line-height: 16px; text-decoration: none;">' + config_record.get('prompt') + '</div></button>';
+                        } else {
+                            return '<button style="font-size:11px;height:22px;width:70%;text-align:center;" onclick="window[\'' + link_url + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</button>';
+                        }
+                    } else {
+                        return '<a href="javascript:window[\'' + link_url + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+                    }
+                };
+                window['${/parameter/@bp_seq}${/parameter/@tab_code}_renderer'] = function(value, record, name) {
+                    if (name == 'quote') {
+                        return window['${/parameter/@bp_seq}${/parameter/@tab_code}_link_return'](value, record, name, '${/parameter/@bp_seq}${/parameter/@tab_code}_openquotewindow');
+                    } else if (name == 'import') {
+                        return window['${/parameter/@bp_seq}${/parameter/@tab_code}_link_return'](value, record, name, '${/parameter/@bp_seq}${/parameter/@tab_code}_prj_lease_item_list_import');
+                    } else if (name == 'li_list') {
+                        return window['${/parameter/@bp_seq}${/parameter/@tab_code}_link_return'](value, record, name, '${/parameter/@bp_seq}${/parameter/@tab_code}_prj_lease_item_list');
+                    } else if (name == 'quote_query') {
+                        return window['${/parameter/@bp_seq}${/parameter/@tab_code}_link_return'](value, record, name, '${/parameter/@bp_seq}${/parameter/@tab_code}_openquote_query_window');
+                    } else if (name == 'print_scheme') {
+                        return window['${/parameter/@bp_seq}${/parameter/@tab_code}_link_return'](value, record, name, '${/parameter/@bp_seq}${/parameter/@tab_code}_open_scheme_query_window');
+                    } else if (name == 'print_intention') {
+                        return window['${/parameter/@bp_seq}${/parameter/@tab_code}_link_return'](value, record, name, '${/parameter/@bp_seq}${/parameter/@tab_code}_open_print_intention_query_window');
+            
+                    }
+                };
+            
+                window['${/parameter/@tab_code}_open_print_intention_query_window'] = function(id, name) {
+                    var record = prj_project_link_record[id + '---' + name],
+                        url = $('${/parameter/@bp_seq}${/parameter/@tab_code}_prj_project_print_intention_detail_link_id').getUrl() + '?quotation_id=' + record.get('quotation_id') + '&project_id=' + record.get('document_id');
+                    if (!record.get('calc_session_id')) {
+                        Aurora.showMessage('${l:PROMPT}', '${l:CON500.QUOTATION_NEED_UPDATE}');
+                        return;
+                    }
+                    var form = document.createElement("form");
+                    form.target = "prj_intention_word_export_window";
+                    form.method = "post";
+                    form.action = url;
+                    var iframe = Ext.get('prj_intention_word_export_window') || new Ext.Template('<iframe id ="prj_intention_word_export_window" name="prj_intention_word_export_window" style="position:absolute;left:-10000px;top:-10000px;width:1px;height:1px;display:none"></iframe>').insertFirst(document.body, {}, true);
+                    document.body.appendChild(form);
+                    form.submit();
+                    Ext.fly(form).remove();
+                };
+                window['${/parameter/@tab_code}_open_scheme_query_window'] = function(id, name) {
+                    var record = prj_project_link_record[id + '---' + name],
+                        url = $('${/parameter/@bp_seq}${/parameter/@tab_code}_prj_project_plan_print_link_id').getUrl() + '?quotation_id=' + record.get('quotation_id');
+                    if (!record.get('calc_session_id')) {
+                        Aurora.showMessage('${l:PROMPT}', '${l:CON500.QUOTATION_NEED_UPDATE}');
+                        return;
+                    }
+                    var form = document.createElement("form");
+                    form.target = "prj_scheme_word_export_window";
+                    form.method = "post";
+                    form.action = url;
+                    var iframe = Ext.get('prj_scheme_word_export_window') || new Ext.Template('<iframe id ="prj_scheme_word_export_window" name="prj_scheme_word_export_window" style="position:absolute;left:-10000px;top:-10000px;width:1px;height:1px;display:none"></iframe>').insertFirst(document.body, {}, true);
+                    document.body.appendChild(form);
+                    form.submit();
+                    Ext.fly(form).remove();
+                };
+            
+                window['${/parameter/@bp_seq}${/parameter/@tab_code}_prj_lease_item_list'] = function(id, name) {
+                    var record = prj_project_link_record[id + '---' + name];
+                    var win = new Aurora.Window({
+                        id: '${/parameter/@bp_seq}${/parameter/@tab_code}_prj_lease_item_list_id',
+                        params: {
+                            project_lease_item_id: record.get('project_lease_item_id'),
+                            li_list_type: record.get('li_list_type'),
+                            winid: '${/parameter/@bp_seq}${/parameter/@tab_code}_prj_lease_item_list_id'
+                        },
+                        url: $('${/parameter/@bp_seq}${/parameter/@tab_code}_prj_lease_item_detail_link_id').getUrl(),
+                        title: '${l:HLS201.HLS_LEASE_ITEM_LIST}',
+                        width: 900,
+                        height: 480
+                    });
+                };
+                window['${/parameter/@bp_seq}${/parameter/@tab_code}_prj_lease_item_list_import'] = function(id, name) {
+                    var record = prj_project_link_record[id + '---' + name];
+                    var ds = $('${/parameter/@bp_seq}${/parameter/@tab_code}_${/parameter/@base_table}_ds');
+                    var win = new Aurora.Window({
+                        id: '${/parameter/@bp_seq}${/parameter/@tab_code}_prj_lease_item_list_import_handle_id',
+                        params: {
+                            session_id: '${/session/@session_id}',
+                            project_lease_item_id: record.get('project_lease_item_id'),
+                            winid: '${/parameter/@bp_seq}${/parameter/@tab_code}_prj_lease_item_list_import_handle_id',
+                            li_ds: ds.id,
+                            currentpage: ds.currentPage
+                        },
+                        url: $('${/parameter/@bp_seq}${/parameter/@tab_code}_prj_lease_item_list_import_handle_link_id').getUrl(),
+                        title: '${l:HLS201.HLS_LEASE_ITEM_LIST}',
+                        width: 420,
+                        height: 275
+                    });
+                    win.on('close', function() {
+                        ds.query(ds.currentPage);
+                    });
+                };
+                window['${/parameter/@bp_seq}${/parameter/@tab_code}_openquote_query_window'] = function(id, name) {
+                    var record = prj_project_link_record[id + '---' + name],
+                        url = $('${/parameter/@bp_seq}${/parameter/@tab_code}_hls_fin_calculator_readonly_link_id').getUrl();
+                    if (record.get('calc_session_id')) {
+                        parent.open_render_window('${/parameter/@bp_seq}${/parameter/@tab_code}_hls_fin_calc_readonly_link_winid', ({
+                            document_id: '${/parameter/@document_id}',
+                            document_category: '${/parameter/@document_category}',
+                            maintain_type: 'READONLY',
+                            calc_session_id: record.get('calc_session_id'),
+                            winId: '${/parameter/@bp_seq}${/parameter/@tab_code}_hls_fin_calc_readonly_link_winid',
+                            global_flag: 'Y',
+                            calc_type: 'CLASSIC_CALCULATOR'
+                        }), url, '');
+                    } else {
+                        Aurora.showMessage('${l:PROMPT}', '${l:CON500.QUOTATION_NOT_CALC}');
+                        return;
+                    }
+                };
+                window['${/parameter/@bp_seq}${/parameter/@tab_code}_openquotewindow'] = function(id, name) {
+                    var record = prj_project_link_record[id + '---' + name],
+                        config_record = $('${/parameter/@bp_seq}${/parameter/@tab_code}_con_layout_config_ds').find('column_name', name),
+                        head_record = $('${/parameter/@bp_seq}${/parameter/@parent_table_tab_code}_${/parameter/@parent_table}_ds').getAt(0),
+                        url;
+                    if ('${/parameter/@calc_type}' == 'LITE_CALCULATOR') {
+                        url = $('${/parameter/@bp_seq}${/parameter/@tab_code}_hls_fin_calc_quotation_header_link_id').getUrl();
+                    } else {
+                        url = $('${/parameter/@bp_seq}${/parameter/@tab_code}_hls_fin_calculator_update_link_id').getUrl();
+                    }
+                    // else {
+                    // Aurora.showMessage('${l:PROMPT}', '${l:HLS.CALC_TYPE_IS_NULL}');
+                    // return;
+                    // }
+                    if (head_record.dirty == true) {
+                        Aurora.showMessage('${l:PROMPT}', '${l:HLS.EXECUTE_AFTER_SAVE}');
+                        return;
+                    }
+                    if ($('${/parameter/@bp_seq}${/parameter/@tab_code}_${/parameter/@base_table}_ds').validate()) {
+                        if (!record.get('price_list') || !record.get('currency') || !record.get('lease_times')) {
+                            Aurora.showMessage('${l:PROMPT}', '${l:HLS.QUOTATION_EXECUTE_AFTER_SAVE}');
+                            return;
+                        }
+                        lock_current_window();
+                        var parent_pk_value = head_record.get('${/parameter/@parent_base_table_pk}');
+                        record.set('function_code', '${/parameter/@function_code}');
+                        record.set('function_usage', '${/parameter/@function_usage}');
+                        record.set('${/parameter/@parent_base_table_pk}', parent_pk_value);
+                        record.set('to_doc_table', 'HLS_FIN_CALCULATOR_HD');
+                        record.set('from_doc_table', 'PRJ_QUOTATION');
+                        record.set('from_doc_pk', record.get('quotation_id'));
+                        record.set('calculate_flag', 'N');
+                        var calc_recreate_L_formula;
+                        if (record.get('quotation_id') && !record.get('calc_session_id')) {
+                            calc_recreate_L_formula = 'Y';
+                            record.set('_status', 'update');
+                        } else if (record.get('quotation_id') && record.get('calc_session_id')) {
+                            calc_recreate_L_formula = 'N';
+                            record.set('_status', 'execute');
+                        } else {
+                            calc_recreate_L_formula = 'Y';
+                            record.set('_status', 'insert');
+                        }
+                        var saveData = [];
+                        saveData.push(record.data);
+                        Aurora.request({
+                            url: $('${/parameter/@bp_seq}${/parameter/@tab_code}_hls_fin_doc_quotation_link_id').getUrl(),
+                            para: saveData,
+                            success: function(res) {
+                                unlock_current_window();
+                                $('${/parameter/@bp_seq}${/parameter/@tab_code}_${/parameter/@base_table}_ds').query();
+                                var quotation_id = record.get('quotation_id') || res.result.quotation_id;
+                                parent.open_render_window('${/parameter/@bp_seq}${/parameter/@tab_code}_hls_fin_calc_quotation_header_link_winid', ({
+                                    document_id: parent_pk_value,
+                                    document_category: '${/parameter/@document_category}',
+                                    maintain_type: '${/parameter/@maintain_type}',
+                                    calc_session_id: res.result.record.calc_session_id,
+                                    quotation_id: quotation_id,
+                                    dsId: '${/parameter/@bp_seq}${/parameter/@tab_code}_${/parameter/@base_table}_ds',
+                                    winId: '${/parameter/@bp_seq}${/parameter/@tab_code}_hls_fin_calc_quotation_header_link_winid',
+                                    global_flag: 'Y',
+                                    id_num: 0,
+                                    calc_type: '${/parameter/@calc_type}' || 'CLASSIC_CALCULATOR',
+                                    recreate_L_formula: calc_recreate_L_formula
+                                }), url, '');
+                            },
+                            failure: function() {
+                                unlock_current_window();
+                            },
+                            error: function() {
+                                unlock_current_window();
+                            },
+                            scope: this
+                        });
+                    }
+                };
+            })();
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_lov_getmapping_ds" fetchAll="true" queryUrl="${/request/@context_path}/modules/hls/HLS500/hls_parameters_load.svc"/>
+            <a:dataSet id="${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_sys_user_ds" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/basic.sys_user/query"/>
+            <a:dataSet id="${/parameter/@bp_seq}${/parameter/@layout_code}_${/parameter/@tab_code}_doc_btn_ds" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/cont.CON500.hls_doc_layout_button/query?function_code=${/parameter/@function_code}"/>
+        </a:dataSets>
+    </a:view>
+</a:screen>

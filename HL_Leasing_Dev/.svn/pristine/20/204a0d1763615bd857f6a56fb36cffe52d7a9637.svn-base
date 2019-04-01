@@ -1,0 +1,649 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Yenick  
+    $Date: 2019/01/11
+    $Revision: 1.0  
+    $Purpose: 宏菱df收入确认
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.role_id=${/session/@role_id} and t1.company_id=${/session/@company_id}" fetchAll="true" model="hls.HLS109.hls_default_parameter" rootPath="hls_default_parameter_path"/>
+        <a:model-query defaultWhereClause="fc.company_id=${/session/@company_id}" fetchAll="true" model="fnd.fnd_companies" rootPath="default_company_path"/>
+        <a:model-query autoCount="false" fetchAll="true" model="gld.FND5800.gld_period_status_fieldset" rootPath="fieldset"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_finance_income_link" url="${/request/@context_path}/modules/cont/CON901/con_finance_income.screen"/>
+        <!--   <a:link id="tre_accrued_interest_link" url="${/request/@context_path}/modules/hls/HLS801/tre_accrued_interest.screen"/>
+        <a:link id="con_unearned_finance_income_link" url="${/request/@context_path}/modules/hls/HLS801/con_unearned_finance_income.screen"/> -->
+        <a:link id="hls_monthly_statement_link" url="${/request/@context_path}/modules/hls/HLS801/hls_monthly_statement.screen"/>
+        <a:link id="gld_period_pkg_init_period_link" model="db.gld_period_pkg.init_period" modelaction="update"/>
+        <a:link id="gld_period_pkg_close_period_link" model="db.gld_period_pkg.close_period" modelaction="execute"/>
+        <a:link id="gld_period_pkg_open_period_link" model="db.gld_period_pkg.open_period" modelaction="execute"/>
+        <a:link id="formula_sheets_excel_id" url="${/request/@context_path}/modules/hls/HLS801/con_unearned_finance_income_excel_sheets.svc"/>
+        <a:link id="insert_tre_accrued_interest_link" model="hls.HLS801.insert_tre_accrued_interest" modelaction="execute"/>
+        <a:link id="insert_con_finance_income_link" model="hls.HLS802.df_finance_income" modelaction="update"/>
+        <a:link id="period_month_close_link" model="hls.HLS801.period_month_close" modelaction="execute"/>
+        <a:link id="tre_interest_confirm_link" model="hls.HLS801.tre_interest_confirm" modelaction="execute"/>
+        <a:link id="main_link" url="${/request/@context_path}/welcome.screen"/>
+        <script><![CDATA[
+            //HLS801.NEXT_STEP
+            var step = 0;
+            var g_company_id;
+            var g_company_id_2;
+            
+            function nextStep() {
+                var stepTabPanel = $('step');
+                step = step + 1;
+                stepTabPanel.setEnabled(step);
+                stepTabPanel.selectTab(step);
+                stepTabPanel.setDisabled(step - 1);
+                
+            }
+            //HLS801.LAST_STEP
+            
+            function upStep() {
+                var stepTabPanel = $('step');
+            
+                step = step - 1;
+                stepTabPanel.setEnabled(step);
+                stepTabPanel.selectTab(step);
+                stepTabPanel.setDisabled(step + 1);
+            
+            }
+            //取消
+            
+            function cancelFun() {
+                //history.go(-1);
+                window.location.href = $('main_link').getUrl();
+            }
+            
+            function backFun() {
+                Aurora.showConfirm('${l:HLS.PROMPT}', '确定返回？', function okFun() {
+                    window.location.href = $('hls_monthly_statement_link').getUrl();
+                }, function canFun() {});
+            }
+            
+            function step_0NextStep() {
+                debugger;
+                var headers_ds = $('hls_monthly_statement_ds');
+                var record = headers_ds.getAt(0);
+                var period_name = typeof(record.get('period_name')) == 'undefined' ? 0 : record.get('period_name');
+            
+                if (period_name == 0 || period_name == '') {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请确认期间！');
+                } else {
+                    nextStep();
+            
+                }
+            }
+            
+            function step_1NextStep() {
+                debugger;
+                var headers_ds = $('hls_monthly_statement_ds');
+                var record = headers_ds.getAt(0);
+                var period_name = record.get('period_name');
+                var calc_end_date = record.get('period_name');
+            
+                $('unearned_finance_income_ds').setQueryParameter('calc_end_date', record.get('period_name'));
+                $('unearned_finance_income_ds').query();
+                nextStep();
+                /* year = period_name.substring(0, 4);
+                 month = period_name.substring(5, 7);
+                 var query_ds = $('unearned_finance_income_query_ds');
+                 var qrecord = query_ds.getAt(0);
+                 qrecord.set('year',year);
+                 qrecord.set('month',month);
+                 $('unearned_finance_income_ds').setQueryParameter('calc_end_date', record.get('period_name'));
+                 $('unearned_finance_income_ds').query(); */
+            
+            }
+            
+            function step_2NextStep() {
+                debugger;
+                nextStep();
+            }
+            
+            function hls202_link_con901_fun() {
+                // window.location.href = $('con_finance_income_link').getUrl();
+                new Aurora.Window({
+                    id: 'con_finance_income_window',
+                    url: $('con_finance_income_link').getUrl(),
+                    params: {
+                        winId: 'con_finance_income_window'
+                    },
+                    title: '',
+                    fullScreen: true
+                });
+            }
+            
+            
+            
+            function accrued_interest_query() {
+                var headers_ds = $('hls_monthly_statement_ds');
+                var record = headers_ds.getAt(0);
+                $('tre_accrued_interest_ds').setQueryParameter('calc_end_date', record.get('period_name'));
+                $('tre_accrued_interest_ds').query();
+            
+            }
+            
+            function do_accrued_interest_excel() {
+                var url;
+                var headers_ds = $('hls_monthly_statement_ds');
+                var record = headers_ds.getAt(0);
+                if (Ext.isEmpty(g_company_id)) {
+                    url = $('formula_sheets_excel_id').getUrl() + '?internal_period_num=' + record.get('internal_period_num') + '&period_name=' + record.get('period_name') + '&datasoure_type=accrued_interest';
+                } else {
+                    url = $('formula_sheets_excel_id').getUrl() + '?company_id=' + g_company_id + '&internal_period_num=' + record.get('internal_period_num') + '&period_name=' + record.get('period_name') + '&datasoure_type=accrued_interest';
+                }
+                window.open(url);
+            }
+            
+            function accrued_interest_Onupdate(ds, record, name, value, oldVlaue) {
+                if (name == 'company_id') {
+                    g_company_id = value;
+                }
+            
+            
+            }
+            
+            function unearned_finance_income_query() {
+                var headers_ds = $('hls_monthly_statement_ds');
+                var record = headers_ds.getAt(0);
+                $('unearned_finance_income_ds').setQueryParameter('calc_end_date', record.get('period_name'));
+                $('unearned_finance_income_ds').query();
+            
+            }
+            
+            function do_unearned_finance_income_excel() {
+                var url;
+                var headers_ds = $('hls_monthly_statement_ds');
+                var record = headers_ds.getAt(0);
+                if (Ext.isEmpty(g_company_id_2)) {
+                    url = $('formula_sheets_excel_id').getUrl() + '?internal_period_num=' + record.get('internal_period_num') + '&period_name=' + record.get('period_name') + '&datasoure_type=unearned_finance_income';
+                } else {
+                    url = $('formula_sheets_excel_id').getUrl() + '?company_id=' + g_company_id_2 + '&internal_period_num=' + record.get('internal_period_num') + '&period_name=' + record.get('period_name') + '&datasoure_type=unearned_finance_income';
+                }
+                window.open(url);
+            }
+            
+            function unearned_finance_income_Onupdate(ds, record, name, value, oldVlaue) {
+                if (name == 'company_id') {
+                    g_company_id_2 = value;
+                }
+            }
+            
+            function monthly_statement_Onupdate(ds, record, name, value, oldVlaue) {
+                debugger;
+                if (name == 'period_name') {
+                    year = value.substring(0, 4);
+                    month = value.substring(5, 7);
+                    var query_ds = $('accrued_interest_query_ds');
+                    var qrecord = query_ds.getAt(0);
+                    var query_ds_1 = $('unearned_finance_income_query_ds');
+                    var qrecord_1 = query_ds_1.getAt(0);
+                    qrecord.set('year', year);
+                    qrecord.set('month', month);
+                    qrecord_1.set('year', year);
+                    qrecord_1.set('month', month);
+                    $('tre_accrued_interest_ds').setQueryParameter('internal_period_num', record.get('internal_period_num'));
+                    $('tre_accrued_interest_ds').query();
+                    // $('unearned_finance_income_ds').setQueryParameter('internal_period_num', record.get('internal_period_num'));
+                    // $('unearned_finance_income_ds').query();
+                    $('unearned_finance_income_ds').setQueryParameter('calc_end_date', record.get('period_name'));
+                    $('unearned_finance_income_ds').query();
+                    $('close_open_ds').setQueryParameter('internal_period_num', record.get('internal_period_num'));
+                    $('close_open_ds').setQueryParameter('period_set_code', '${/model/fieldset/record/@period_set_code}');
+                    $('close_open_ds').query();
+                    record.getField('calc_end_date').setLovPara('internal_period_num', record.get('internal_period_num'));
+                } else if (name == 'calc_end_date') {
+                    // day = value.substring(8, 10);
+                    // var quer_ds_1 = $('unearned_finance_income_query_ds');
+                    // var qrec_1 = quer_ds_1.getAt(0);
+                    // qrec_1.set('day', day);
+                    // qrec_1.set('calc_end_date', value);	
+                    $('unearned_finance_income_ds').setQueryParameter('calc_end_date', record.get('internal_period_num'));
+                    $('unearned_finance_income_ds').query();
+                }else if(name="internal_period_num"){
+                      $('unearned_finance_income_ds').setQueryParameter('internal_period_num', record.get('internal_period_num'));
+                      $('unearned_finance_income_ds').setQueryParameter('calc_end_date', record.get('internal_period_num'));
+                    $('unearned_finance_income_ds').query();
+                }
+            }
+            
+            
+            function openPeriodDs(value, record, name) {
+            
+                var period_status_code = record.get('period_status_code');
+                var ds = "close_open_ds";
+                if (period_status_code == 'C' || period_status_code == 'U') {
+                    var url = $('gld_period_pkg_open_period_link').getUrl();
+                    return '<a href="javascript:executeOpen(\'' + ds + '\',\'' + url + '\',' + record.id + ')">${l:OPEN_PERIOD}</a>';
+                } else if (period_status_code == 'O') {
+                    return '';
+                }
+            }
+            
+            function closePeriodDs(value, record, name) {
+                var period_status_code = record.get('period_status_code');
+                var ds = "close_open_ds";
+                if (period_status_code == 'C' || period_status_code == 'U') {
+                    return '';
+                } else if (period_status_code == 'O') {
+                    var url = $('gld_period_pkg_close_period_link').getUrl();
+                    return '<a href="javascript:executeClose(\'' + ds + '\',\'' + url + '\',' + record.id + ')">${l:CLOSE_PERIOD}</a>';
+                }
+            }
+            
+            
+            function statusRenderer(value, record, name) {
+            
+                if (value == null || value == undefined) {
+                    return '${l:PROMPT.NOT_OPEN}';
+                } else if (value == 'O') {
+                    return '${l:PROMPT.OPENED}';
+                } else if (value == 'C') {
+                    return '${l:PROMPT.CLOSED}';
+                }
+            }
+            
+            function executeOpen(ds, url, id) {
+                record = $(ds).findById(id);
+                Aurora.request({
+                    url: url,
+                    para: record.data,
+                    success: function() {
+            
+                        record.set('period_status_code', 'O');
+                        Aurora.SideBar.enable = true;
+                        Aurora.SideBar.show({
+                            msg: '打开成功',
+                            duration: 3000
+                        });
+            
+                    },
+                    scope: this
+                });
+            }
+            
+            function executeClose(ds, url, id) {
+                record = $(ds).findById(id);
+                if ($('close_open_ds').getAll().length == 0) {
+                    Aurora.request({
+                        url: $('gld_period_pkg_init_period_link').getUrl(),
+                        para: record.data,
+                        success: function() {
+                            Aurora.showMessage('${l:PROMPT}', '${l:FND_DIMENSION_VALUES.OPR_SUC}', function(cmp) {
+                                document.location.reload();
+                                cmp.close();
+                            });
+                        },
+                        scope: this
+                    });
+                } else {
+                    Aurora.request({
+                        url: url,
+                        para: record.data,
+                        success: function() {
+            
+                            record.set('period_status_code', 'C');
+            
+                            Aurora.SideBar.enable = true;
+                            Aurora.SideBar.show({
+                                msg: '关闭成功',
+                                duration: 3000
+                            });
+            
+                        },
+                        scope: this
+                    });
+                }
+            }
+            
+            function unearned_finance_income_clear() {
+                $('unearned_finance_income_grid').clear();
+            }
+            
+            function accrued_interest_clear() {
+                $('tre_accrued_interest_grid').clear();
+            }
+            var g_return_value_1;
+            
+            function accrued_interest_calculate() {
+                var headers_ds = $('hls_monthly_statement_ds');
+                var record = headers_ds.getAt(0);
+                year = record.get('period_name').substring(0, 4);
+                month = record.get('period_name').substring(5, 7);
+                Aurora.showConfirm('${l:HLS.PROMPT}', year + '年' + month + '月' + '结算，确认计算计提利息？', function okFun() {
+                    Aurora.Masker.mask(Ext.getBody(), '${l:HLS.SAVING}');
+                    Aurora.request({
+                        url: $('insert_tre_accrued_interest_link').getUrl(),
+                        para: {
+                            internal_period_num: record.get('internal_period_num')
+                        },
+                        success: function(args) { //debugger;
+                            var result = args.result;
+                            if (!result) {
+                                Aurora.showWarningMessage('', '${l:PRJ509.DATA_NOT_BACK}', null, 200, 100);
+                                return;
+                            }
+                            g_return_value_1 = result.return_value_1;
+                            if (g_return_value_1 != 'SUCCESS') {
+                                Aurora.showWarningMessage('', '计提利息计算出错！', null, 200, 100);
+                                Aurora.Masker.unmask(Ext.getBody());
+                                return;
+                            }
+                            Aurora.Masker.unmask(Ext.getBody());
+                            $('tre_accrued_interest_ds').setQueryParameter('internal_period_num', record.get('internal_period_num'));
+                            $('tre_accrued_interest_ds').query();
+            
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                }, Aurora.Masker.unmask(Ext.getBody()));
+            }
+            var g_return_value;
+            
+            function unearned_finance_income_confirm() {
+			debugger;
+                var headers_ds = $('hls_monthly_statement_ds');
+                var record = headers_ds.getAt(0);
+            var query_ds=$('unearned_finance_income_query_ds');
+            var record_1 = query_ds.getAt(0);
+                //add by wdd 20180514
+                var income_ds = $('unearned_finance_income_ds');
+                var income_record = income_ds.getAll();
+                if (income_record.length) {
+                    for (var i = 0;i < income_record.length;i++) {
+                        var line_income_record = income_record[i];
+                        var finance_income_recognized = line_income_record.get('finance_income_recognized');
+                        // if (finance_income_recognized == 'Y') {
+                            // Aurora.showMessage('提示', '该日收入已确认，请勿重复确认！', null, 250, 100);
+                            // return;
+                        // }
+            
+                    }
+                }
+                //end by wdd
+                year = record.get('period_name').substring(0, 4);
+                month = record.get('period_name').substring(5, 7);
+                //day = record.get('calc_end_date').substring(8, 10);
+                Aurora.showConfirm('${l:HLS.PROMPT}', year + '年' + month + '月' + '结算，确定执行收入确认？', function okFun() {
+                    Aurora.Masker.mask(Ext.getBody(), '${l:HLS.SAVING}');
+                    Aurora.request({
+                        url: $('insert_con_finance_income_link').getUrl(),
+                        para: {
+                            internal_period_num: record.get('internal_period_num'),
+                            calc_end_date: record.get('period_name'),
+                            bp_id:record_1.get('bp_id')
+                        },
+                        success: function(args) {
+                            // modify by wdd 20180514
+                            // 收入确认出错校验移至PKG
+                            // var result = args.result;
+                            // if (!result) {
+                            // Aurora.showWarningMessage('', '${l:PRJ509.DATA_NOT_BACK}', null, 200, 100);
+                            // return;
+                            // }
+                            // g_return_value = result.return_value;
+                            // if (g_return_value != 'SUCCESS') {
+                            // Aurora.showWarningMessage('', '收入确认出错！', null, 200, 100);
+                            // Aurora.Masker.unmask(Ext.getBody());
+                            // return;
+                            // }
+                            //end by wdd
+                            Aurora.Masker.unmask(Ext.getBody());
+                            $('unearned_finance_income_ds').setQueryParameter('calc_end_date', record.get('calc_end_date'));
+                            $('unearned_finance_income_ds').query();
+            
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                }, Aurora.Masker.unmask(Ext.getBody()));
+            }
+            
+            function monthlyendFun() {
+                var headers_ds = $('hls_monthly_statement_ds');
+                var record = headers_ds.getAt(0);
+                Aurora.showConfirm('${l:HLS.PROMPT}', '本次月结结束后不可执行当月其他相关操作，是否确认结束？', function okFun() {
+                    Aurora.Masker.mask(Ext.getBody(), '${l:HLS.SAVING}');
+                    Aurora.request({
+                        url: $('period_month_close_link').getUrl(),
+                        para: {
+                            internal_period_num: record.get('internal_period_num'),
+                            calc_end_date: record.get('period_name')
+                        },
+                        success: function(args) {
+                            var result = args.result;
+                            if (!result) {
+                                Aurora.showWarningMessage('', '${l:PRJ509.DATA_NOT_BACK}', null, 200, 100);
+                                return;
+                            }
+                            var period_return_value = result.period_return_value;
+                            if (period_return_value != 'SUCCESS') {
+                                Aurora.showWarningMessage('', '月结结束出错！', null, 200, 100);
+                                Aurora.Masker.unmask(Ext.getBody());
+                                return;
+                            }
+                            Aurora.Masker.unmask(Ext.getBody());
+            
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                }, Aurora.Masker.unmask(Ext.getBody()));
+            }
+            
+            function accrued_interest_confirm() {
+                var headers_ds = $('hls_monthly_statement_ds');
+                var record = headers_ds.getAt(0);
+                year = record.get('period_name').substring(0, 4);
+                month = record.get('period_name').substring(5, 7);
+                Aurora.showConfirm('${l:HLS.PROMPT}', year + '年' + month + '月' + '结算，确认计提利息？', function okFun() {
+                    Aurora.Masker.mask(Ext.getBody(), '${l:HLS.SAVING}');
+                    Aurora.request({
+                        url: $('tre_interest_confirm_link').getUrl(),
+                        para: {
+                            internal_period_num: record.get('internal_period_num'),
+                            calc_end_date: record.get('period_name')
+                        },
+                        success: function(args) { //debugger;
+                            var result = args.result;
+                            if (!result) {
+                                Aurora.showWarningMessage('', '${l:PRJ509.DATA_NOT_BACK}', null, 200, 100);
+                                return;
+                            }
+                            var confirm_return_value = result.confirm_return_value;
+                            if (confirm_return_value != 'SUCCESS') {
+                                Aurora.showWarningMessage('', '计提利息确认出错！', null, 200, 100);
+                                Aurora.Masker.unmask(Ext.getBody());
+                                return;
+                            }
+                            Aurora.Masker.unmask(Ext.getBody());
+            
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                }, Aurora.Masker.unmask(Ext.getBody()));
+            
+            }
+            
+            function ratePercentRender(value, record, name) {
+                if (!Ext.isEmpty(value)) {
+                    return parseFloat(mul(value, 100)) + '%';
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="yes_no_ds" lookupCode="YES_NO"/>
+            <a:dataSet id="hls_monthly_statement_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="period_name" lovGridHeight="300" lovHeight="500" lovService="gld.gld_period_lov?monthly_closed_flag=N&amp;period_status_code=O" lovWidth="500" required="true" title="GLD_PERIODS.PERIOD_NAME">
+                        <a:mapping>
+                            <a:map from="internal_period_num" to="internal_period_num"/>
+                            <a:map from="period_name" to="period_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="internal_period_num"/>
+                    <a:field name="calc_end_date" lovGridHeight="300" lovHeight="500" lovService="hls.HLS801.calc_end_date_ds" lovWidth="500" required="true" title="截止日查询">
+                        <a:mapping>
+                            <!--   <a:map from="internal_period_num" to="internal_period_num"/> -->
+                            <a:map from="calc_end_date" to="calc_end_date"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="monthly_statement_Onupdate"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="accrued_interest_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="company_code" lovGridHeight="300" lovHeight="450" lovService="hls.HLS801.fnd_companies_for_lov" lovWidth="500" title="">
+                        <a:mapping>
+                            <a:map from="company_id" to="company_id"/>
+                            <a:map from="company_code" to="company_code"/>
+                            <a:map from="company_short_name" to="company_short_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="year" defaultValue="${/parameter/@year}"/>
+                    <a:field name="month" defaultValue="${/parameter/@month}"/>
+                    <a:field name="internal_period_num" defaultValue="${/parameter/@internal_period_num}"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="accrued_interest_Onupdate"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="tre_accrued_interest_ds" autoPageSize="true" autoQuery="false" model="hls.HLS801.tre_accrued_interest" queryDataSet="accrued_interest_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="recognized_flag" checkedValue="Y" defaultValue="Y" readOnly="true" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="unearned_finance_income_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="company_code" lovGridHeight="300" lovHeight="450" lovService="hls.HLS801.fnd_companies_for_lov" lovWidth="500" title="">
+                        <a:mapping>
+                            <a:map from="company_id" to="company_id"/>
+                            <a:map from="company_code" to="company_code"/>
+                            <a:map from="company_short_name" to="company_short_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="year" defaultValue="${/parameter/@year}"/>
+                    <a:field name="month" defaultValue="${/parameter/@month}"/>
+                    <a:field name="internal_period_num" defaultValue="${/parameter/@internal_period_num}"/>
+                    <a:field name="calc_end_date" defaultValue="${/parameter/@calc_end_date}"/>
+                    <a:field name="finance_income_recognized" defaultValue="N" displayField="code_value_name" options="yes_no_ds" returnField="finance_income_recognized" valueField="code_value"/>
+                    <a:field name="bp_name" lovGridHeight="350" lovHeight="500" lovService="ast.AST503.ast_hls_bp_master" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="unearned_finance_income_Onupdate"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="unearned_finance_income_ds" autoPageSize="true" autoQuery="false" model="hls.HLS802.df_unearned_finance_income" queryDataSet="unearned_finance_income_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="finance_income_recognized" checkedValue="Y" defaultValue="N" readOnly="true" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="close_open_ds" autoQuery="false" fetchAll="true" model="hls.HLS801.hls_current_period_query" queryUrl="${/request/@context_path}/autocrud/hls.HLS801.hls_current_period_query/query"><![CDATA[
+          
+            ]]></a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+            </a:screenTopToolbar>
+            <a:hBox>
+                <a:tabPanel id="step" marginHeight="80" marginWidth="50">
+                    <a:tabs>
+                        <a:tab id="step_0" disabled="false" prompt="GLD_PERIODS.PERIOD_NAME" selected="true" width="100">
+                            <a:hBox height="50">
+                                <a:button disabled="true" text="HLS801.LAST_STEP"/>
+                                <a:label width="5"/>
+                                <a:button click="step_0NextStep" text="HLS801.NEXT_STEP"/>
+                            </a:hBox>
+                            <a:hBox>
+                                <a:fieldSet height="250" title="GLD_PERIODS.PERIOD_NAME" width="300">
+                                    <a:lov name="period_name" bindTarget="hls_monthly_statement_ds" prompt="GLD_PERIODS.PERIOD_NAME" width="200"/>
+                                    <!--                                     <a:lov name="calc_end_date" bindTarget="hls_monthly_statement_ds" prompt="截止日" width="200"/>
+ -->
+                                </a:fieldSet>
+                            </a:hBox>
+                        </a:tab>
+                        <a:tab id="step_1" disabled="true" marginHeight="20" prompt="HLS801.INCOME" selected="false" width="100">
+                            <a:hBox height="50">
+                                <a:button click="upStep" text="HLS801.LAST_STEP"/>
+                                <a:label width="5"/>
+                                <a:button click="nextStep" text="HLS801.NEXT_STEP"/>
+                                <a:label width="80"/>
+                                <a:button click="unearned_finance_income_confirm" text="HLS801.INCOME_CONFIRM"/>
+                                <!-- <a:button click="unearned_finance_income_query" text="HLS.QUERY"/>
+                                <a:button click="unearned_finance_income_clear" text="HLS.CLEAR"/> -->
+                                <a:label width="5"/>
+                                <!--  <a:button click="hls202_link_con901_fun" text="HLS801.OTHER_INCOME_CONFIRM"/> -->
+                                <!-- <a:button click="do_unearned_finance_income_excel" text="RSC_FIN_STATEMENT_TMPLT_HDS.EXCEL_OUTPUT"/> -->
+                            </a:hBox>
+                            <a:form column="1" marginWidth="80" style="margin-left:3px" title="HLS.QUERY_TITLE">
+                                <a:box column="2" labelWidth="150" style="margin-left:-80px">
+                                    <a:textField name="year" bindTarget="unearned_finance_income_query_ds" prompt="HLS801.YEAR" readOnly="true"/>
+                                    <a:textField name="month" bindTarget="unearned_finance_income_query_ds" prompt="HLS801.MONTH" readOnly="true"/>
+                                    <!--   <a:textField name="day" bindTarget="unearned_finance_income_query_ds" prompt="日" readOnly="true"/> -->
+                                    <a:lov name="company_code" bindTarget="unearned_finance_income_query_ds" prompt="HLS.COMPANY_CODE"/>
+                                    <a:textField name="company_short_name" bindTarget="unearned_finance_income_query_ds" prompt="HLS.COMPANY_NAME" readOnly="true"/>
+                                    <a:comboBox name="finance_income_recognized" bindTarget="unearned_finance_income_query_ds" prompt="是否确认"/>
+                                    <a:lov name="bp_name" bindTarget="unearned_finance_income_query_ds" prompt="经销商" width="150"/>
+                                </a:box>
+                            </a:form>
+                            <p/>
+                            <a:grid id="unearned_finance_income_grid" bindTarget="unearned_finance_income_ds" marginHeight="300" marginWidth="80" navBar="true" style="margin-left:3px">
+                                <a:toolBar>
+                                    <a:button click="unearned_finance_income_query" icon="${/request/@context_path}/images/search.png" text="HLS.QUERY"/>
+                                    <a:button type="clear"/>
+                                    <a:button icon="${/request/@context_path}/images/excel_16.png" text="HLS.EXPORT" type="excel"/>
+                                </a:toolBar>
+                                <a:columns>
+                                    <a:column name="bp_name" prompt="经销商" width="150"/>
+                                    <a:column name="contract_number" prompt="合同编号" width="150"/>
+                                    <a:column name="due_amount" prompt="赎证款" renderer="Aurora.formatMoney" width="150"/>
+                                    <a:column name="internal_period_num" prompt="GLD_BALANCES.PERIOD_NAME" width="150"/>
+                                    <a:column name="calc_start_date" prompt="计息开始日" renderer="Aurora.formatDate" width="150"/>
+                                    <a:column name="calc_end_date" prompt="计息截止日" renderer="Aurora.formatDate" width="150"/>
+                                    <a:column name="days" prompt="当月计息天数" width="150"/>
+                                    <a:column name="unearned_finance_income" align="right" prompt="管理费(含税)" renderer="Aurora.formatMoney" width="110"/>
+                                    <a:column name="net_unearned_finance_income" align="right" prompt="管理费(不含税)" renderer="Aurora.formatMoney" width="110"/>
+                                    <a:column name="vat_unearned_finance_income" align="right" prompt="管理费(税额)" renderer="Aurora.formatMoney" width="110"/>
+                                    <a:column name="finance_income_recognized" prompt="HLS801.FINANCE_INCOME_RECOGNIZED" width="80"/>
+                                </a:columns>
+                            </a:grid>
+                        </a:tab>
+                    </a:tabs>
+                </a:tabPanel>
+            </a:hBox>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Yenick  
+    $Date: 2018-04-24
+    $Revision: 1.0  
+    $Purpose:宏菱sbo接口_发送数据
+-->
+<a:service xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            importPackage(java.io);
+            importPackage(Packages.org.tempuri);
+            var xml_results;
+            var xml_bm = $bm('sbo_inf.hl_transport_xml');
+            var xml_result = xml_bm.queryAsMap({
+                xml_id: xml_id
+            });
+            xml_results = xml_result.getChildren();
+            //  var xml = xml_result[0].xml_content;
+            var sbo_deal_xml_response_bm = $bm('sbo_inf.hls_sbo_splice_xml');
+            var sbo_batch_xml_response_bm = $bm('sbo_inf.hl_transport_xml');
+            function hl_sbo_xml_send() {
+                try {
+            
+                    if (je_type == 'BP') {
+                        //商业伙伴主数据 拿到返回结果 直接解析
+                        var response_xml = new WebserviceSoapStub.BPMasterData(xml_results.xml_content);
+            
+                        sbo_deal_xml_response_bm.update({
+                            resquest_id: xml_results.resquest_id,
+                            response_xml: response_xml
+                        });
+                    } else if (je_type == 'JE' && data_type == '0') {
+                        var response_xml = new WebserviceSoapStub.JEDocument(xml_results.xml_content);
+                        //少量凭证传输结果 直接解析
+                        sbo_deal_xml_response_bm.exceute({
+                            resquest_id: xml_results.resquest_id,
+                            response_xml: response_xml
+                        });
+                        else if (je_type == 'JE' && data_type == '1') {
+                            var response_xml = new WebserviceSoapStub.JEDocument(xml_results.xml_content);
+                            //大量凭证传输结果  先拿到返回结果  后做查询
+                            sbo_batch_xml_response_bm.update({
+                                resquest_id: xml_results.resquest_id,
+                                response_xml: response_xml
+                            });
+                        }
+                    } catch (e) {
+                        println("错误信息" + e);
+                    }
+            
+                }
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

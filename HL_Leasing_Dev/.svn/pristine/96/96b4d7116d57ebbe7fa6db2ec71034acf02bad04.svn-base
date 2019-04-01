@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-9-29 下午01:23:29  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="currency_path"/>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootPath="default_time_path"/>
+        <a:model-query defaultWhereClause="t1.currency_code=&apos;CNY&apos;" fetchAll="true" model="gld.gld_currency_vl" rootPath="default_currency_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_aging_buckets_analyze_detail_link_id" url="${/request/@context_path}/modules/cont/CON307R/con_revenue_aging_buckets_analyze_detail.screen"/>
+        <a:link id="con_cf_forecast_tmp_save_link_id" url="${/request/@context_path}/modules/cont/CON307/con_cf_forecast_tmp_save.svc"/>
+        <script><![CDATA[
+            function con307_aging_buckets_analyze_query() {
+                if ($('con307_aging_buckets_analyze_ds').validate()) {
+                    lock_window();
+                    var record = $('con307_aging_buckets_analyze_ds').getCurrentRecord();
+                    record.set('winid', 'con_aging_buckets_analyze_detail_winid');
+                    record.set('rental_flag','Y');
+                    record.set('analyze_type','2');
+                    var obj = record.getObject();
+                    for (var v in obj) {
+                        if (Ext.isEmpty(obj[v])) {
+                            delete obj[v];
+                        }
+                    }
+                    Aurora.request({
+                        url: $('con_cf_forecast_tmp_save_link_id').getUrl(),
+                        para: obj,
+                        success: function(res) {
+                            unlock_window();
+                            new Aurora.Window({
+                                id: 'con_aging_buckets_analyze_detail_winid',
+                                url: $('con_aging_buckets_analyze_detail_link_id').getUrl(),
+                                params: obj,
+                                fullScreen: true,
+                                draggable: true,
+                                title: '收益账龄分析'
+                            });
+                        },
+                        failure: function() {
+                            unlock_window();
+                        },
+                        error: function() {
+                            unlock_window();
+                        },
+                        scope: this
+                    });
+                }
+            }
+            
+            function lock_window() {
+                Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_window() {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            
+            function con307_aging_buckets_analyze_reset() {
+                $('con307_aging_buckets_analyze_ds').reset();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="currency_ds">
+                <a:datas dataSource="/model/currency_path"/>
+            </a:dataSet>
+            <a:dataSet id="lease_channel_desc_ds" fetchAll="true" loadData="true" model="basic.hls_lease_channel_for_lov"/>
+            <a:dataSet id="lease_organization_name_ds" fetchAll="true" loadData="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="con307_aging_buckets_analyze_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="aging_bucket_code" lovGridHeight="350" lovHeight="500" lovLabelWidth="100" lovService="basic.hls_aging_buckets_for_lov?enabled_flag=Y" lovWidth="550" required="true" title="账龄时段">
+                        <a:mapping>
+                            <a:map from="aging_bucket_id" to="aging_bucket_id"/>
+                            <a:map from="aging_bucket_code" to="aging_bucket_code"/>
+                            <a:map from="description" to="aging_bucket_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="aging_bucket_name" readOnly="true"/>
+                    <a:field name="analyze_date" defaultValue="${/model/default_time_path/record/@now_time}" required="true"/>
+                    <a:field name="currency_code" defaultValue="${/model/default_currency_path/record/@currency_code}"/>
+                    <a:field name="currency_name" defaultValue="${/model/default_currency_path/record/@currency_name}" displayField="currency_name" options="currency_ds" required="false" returnField="currency_code" valueField="currency_code"/>
+                    <a:field name="contract_number_from" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="cont.CON307.con_cf_aging_buckets_contract_for_lov" lovWidth="500" title="HLS.CONTRACT_NUMBER">
+                        <a:mapping>
+                            <a:map from="contract_number" to="contract_number_from"/>
+                            <a:map from="contract_name" to="contract_name_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_name_from" readOnly="true"/>
+                    <a:field name="contract_number_to" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="cont.CON307.con_cf_aging_buckets_contract_for_lov" lovWidth="500" title="HLS.CONTRACT_NUMBER">
+                        <a:mapping>
+                            <a:map from="contract_number" to="contract_number_to"/>
+                            <a:map from="contract_name" to="contract_name_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_name_to" readOnly="true"/>
+                    <a:field name="company_name" lovGridHeight="350" lovHeight="500" lovService="fnd.fnd_companies_lov" lovWidth="500" title="HLS.COMPANY">
+                        <a:mapping>
+                            <a:map from="company_id" to="company_id"/>
+                            <a:map from="company_short_name" to="company_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="company_id"/>
+                    <a:field name="lease_channel_name" displayField="description" options="lease_channel_desc_ds" returnField="lease_channel" valueField="lease_channel"/>
+                    <a:field name="lease_organization_name" displayField="description" options="lease_organization_name_ds" returnField="lease_organization" valueField="lease_organization"/>
+                    <a:field name="analyze_date_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="rental_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="con307_aging_buckets_analyze_query" text="HLS.QUERY"/>
+                <a:gridButton click="con307_aging_buckets_analyze_reset" text="HLS.RESET"/>
+            </a:screenTopToolbar>
+            <a:form column="1" title="CON307.CF_AGING_BUCKETS_ANALYZE" width="600">
+                <a:hBox labelWidth="120">
+                    <a:lov name="aging_bucket_code" bindTarget="con307_aging_buckets_analyze_ds" prompt="HLS.AGING_BUCKET_CODE"/>
+                    <a:lov name="aging_bucket_name" bindTarget="con307_aging_buckets_analyze_ds" prompt="HLS.AGING_BUCKET_NAME"/>
+                </a:hBox>
+                <a:hBox labelWidth="120">
+                    <a:datePicker name="analyze_date" bindTarget="con307_aging_buckets_analyze_ds" prompt="HLS.ANALYZE_DATE"/>
+                    <a:comboBox name="currency_name" bindTarget="con307_aging_buckets_analyze_ds" prompt="HLS.CURRENCY"/>
+                </a:hBox>
+                <a:hBox labelWidth="120">
+                    <a:lov name="contract_number_from" bindTarget="con307_aging_buckets_analyze_ds" prompt="HLS.CONTRACT_NUMBER_FROM"/>
+                    <a:textField name="contract_name_from" bindTarget="con307_aging_buckets_analyze_ds" prompt="HLS.CONTRACT_NAME"/>
+                </a:hBox>
+                <a:hBox labelWidth="120">
+                    <a:lov name="contract_number_to" bindTarget="con307_aging_buckets_analyze_ds" prompt="HLS.CONTRACT_NUMBER_TO_LANG"/>
+                    <a:textField name="contract_name_to" bindTarget="con307_aging_buckets_analyze_ds" prompt="HLS.CONTRACT_NAME"/>
+                </a:hBox>
+                <a:hBox labelWidth="120">
+                    <a:lov name="company_name" bindTarget="con307_aging_buckets_analyze_ds" prompt="HLS.COMPANY"/>
+                    <a:comboBox name="lease_channel_name" bindTarget="con307_aging_buckets_analyze_ds" prompt="HLS.LEASE_CHANNEL"/>
+                </a:hBox>
+                <a:hBox labelWidth="120">
+                    <a:comboBox name="lease_organization_name" bindTarget="con307_aging_buckets_analyze_ds" prompt="HLS.LEASE_ORGANIZATION"/>
+                    <a:checkBox name="analyze_date_flag" bindTarget="con307_aging_buckets_analyze_ds" prompt="CON307.INCLUDE_ANALYZE_DATE"/>
+                    <!-- <a:hBox labelWidth="114">
+                        <a:checkBox name="rental_flag" bindTarget="con307_aging_buckets_analyze_ds" prompt="CON307.ONLY_RENTAL_FLAG"/>
+                    </a:hBox> -->
+                </a:hBox>
+            </a:form>
+        </a:screenBody>
+    </a:view>
+</a:screen>

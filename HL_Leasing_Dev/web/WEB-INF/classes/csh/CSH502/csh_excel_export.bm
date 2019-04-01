@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: admin  
+    $Date: 2018-11-28 下午12:55:31  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    t.bank_account_num,
+                    t.bank_account_name,
+                    t.sum_act_amount,
+                    t.bp_bank_account_num,
+                    t.bp_name,
+                    t.bank_full_name||'+'||t.bank_branch_name bp_bank_account_name,
+                    t.work_province,
+                    t.work_city,
+                    t.trans_account_type,
+                
+                    substr(t.use_of_funds,1,20) use_of_funds
+                FROM
+                    (SELECT
+					   
+                        (SELECT
+                            a.bank_account_num
+                        FROM
+                            csh_bank_account a
+                        WHERE
+                            a.bank_account_code = 'PINGAN00101'
+                        ) bank_account_num,
+                        (SELECT
+                            a.bank_account_name
+                        FROM
+                            csh_bank_account a
+                        WHERE
+                            a.bank_account_code = 'PINGAN00101'
+                        ) bank_account_name,
+                        (SELECT
+                            SUM(NVL(rl.amount, 0) - NVL(
+                            (SELECT
+                                SUM(amount)
+                            FROM
+                                csh_payment_req_ln_ddct ld
+                            WHERE
+                                ld.payment_req_ln_id = rl.payment_req_ln_id
+                            ), 0) - NVL(
+                            (SELECT
+                                SUM(lp.write_off_amt)
+                            FROM
+                                csh_payment_req_ln_prepay lp
+                            WHERE
+                                lp.payment_req_ln_id = rl.payment_req_ln_id
+                            ), 0))
+                        FROM
+                            csh_payment_req_ln rl
+                        WHERE
+                            rl.payment_req_id = h.payment_req_id
+                        ) sum_act_amount,
+                        h.bp_bank_account_num bp_bank_account_num,
+                        b.bp_name bp_name,
+						 (SELECT a.bank_full_name FROM hls_bp_master_bank_account a WHERE a.bp_id = h.bp_id AND a.enabled_flag='Y' AND a.bank_branch_name=h.bank_full_name) bank_full_name,
+                         h.bank_full_name bank_branch_name,
+                        
+                         --(SELECT a.bank_full_name FROM hls_bp_master_bank_account a WHERE a.bp_id = h.bp_id AND a.enabled_flag='Y') bank_full_name,
+                        --(SELECT a.bank_branch_name FROM hls_bp_master_bank_account a WHERE a.bp_id = h.bp_id AND a.enabled_flag='Y') bank_branch_name,
+                       CASE
+                            WHEN b.work_province IN (1, 2, 9, 22)
+                            THEN
+                                (SELECT
+                                    REPLACE(fp.description, '市', '')
+                                FROM
+                                    fnd_province fp
+                                WHERE
+                                    fp.province_id = b.work_province
+                                )
+							 WHEN b.work_province IN (5, 20, 30, 31)
+                            THEN
+                                (SELECT
+                                    SUBSTR(fp.description,1,2)
+                                FROM
+                                    fnd_province fp
+                                WHERE
+                                    fp.province_id = b.work_province
+                                )
+                            ELSE
+                                (SELECT
+                                    REPLACE(fp.description, '省', '')
+                                FROM
+                                    fnd_province fp
+                                WHERE
+                                    fp.province_id = b.work_province
+                                )
+                        END AS work_province,
+                        (SELECT fc.description FROM fnd_city fc WHERE fc.city_id = b.work_city
+                        ) work_city,
+                        CASE
+                            WHEN instr(h.bank_full_name,'平安')>0
+                            THEN '行内转账'
+                            ELSE (
+                                    CASE
+                                        WHEN b.work_province=9
+                                        THEN '同城跨行'
+                                        ELSE '异地跨行'
+                                    END)
+                        END AS trans_account_type,
+                        yonda_individual_pkg.string_combination(p_sql => 'select hm.bp_name from con_contract t1,csh_payment_req_ln t2,hls_bp_master hm where hm.bp_id = t1.bp_id_tenant and t1.contract_id = t2.ref_doc_id and t2.payment_req_id=', p_compare_column_val => h.payment_req_id, p_division_symbol => ',') use_of_funds
+                    FROM
+                        csh_payment_req_hd h,
+                        hls_bp_master b
+                    WHERE
+                        h.bp_id           = b.bp_id(+)AND
+                        h.closed_flag     ='N' AND
+                        h.submitted_flag  = 'Y' AND
+                        h.approval_status = 'APPROVED' AND
+                        EXISTS
+                        (SELECT
+                            1
+                        FROM
+                            csh_payment_req_ln a
+                        WHERE
+                            a.payment_req_id =h.payment_req_id AND
+                            a.payment_status<>'FULL'
+                        ) AND
+                        h.company_id IN
+                        (SELECT
+                            company_id
+                        FROM
+                            fnd_companies START
+                        WITH company_id =1 CONNECT BY prior company_id = parent_biz_company_id
+                        )
+                    --add by lara 11355 20190131 同步付款支付入口排序    
+                  	ORDER BY
+                      	h.req_date DESC,
+                      	h.payment_req_number DESC 
+                    --end add by lara 11355 20190131
+                    ) t  
+					 
+                    
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

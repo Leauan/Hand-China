@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129 $
+    $Date: 2013/08/28 10:12:58 $
+    $Revision: 1.1 $
+    $Purpose: “会计期间控制”中，用于查询没有打开的期间信息
+-->
+<ns1:model xmlns:ns1="http://www.aurora-framework.org/schema/bm">
+    <ns1:operations>
+        <ns1:operation name="query">
+            <ns1:query-sql><![CDATA[
+      
+			    select p.*,
+				       to_char(p.start_date, 'yyyy-mm-dd') start_date_c,
+				       to_char(p.end_date, 'yyyy-mm-dd') end_date_c,
+				       (select max(s.internal_period_num)
+				          from gld_period_status s
+				         where s.period_set_code = p.period_set_code
+				           and s.company_id = ${/session/@company_id}) as internal_period_num_max,
+				       nvl((select s.period_status_code
+				             from gld_period_status s
+				            where s.company_id = ${/session/@company_id}
+				              and s.period_set_code = p.period_set_code
+				              and s.internal_period_num = p.internal_period_num),
+				           'U') as period_status_code,
+				           (select b.monthly_closed_flag from gld_period_status b where b.company_id = ${/session/@company_id} and p.internal_period_num=b.internal_period_num and p.period_set_code=b.period_set_code) monthly_closed_flag
+				  from gld_periods p
+				 where p.period_set_code = ${@period_set_code}
+			  order by p.period_set_code,internal_period_num
+            
+            ]]></ns1:query-sql>
+        </ns1:operation>
+        <ns1:operation name="update">
+            <ns1:update-sql><![CDATA[
+            	BEGIN
+            	    UPDATE
+            	        GLD_PERIOD_STATUS t
+            	    SET
+            	        t.MONTHLY_CLOSED_FLAG =${@monthly_closed_flag},
+            	        t.last_update_date    = sysdate,
+           				t.last_updated_by     = ${/session/@user_id}
+            	    WHERE
+            	        t.company_id          = ${/session/@company_id} AND
+            	        t.internal_period_num = ${@internal_period_num} AND
+            	        t.period_set_code     = ${@period_set_code};
+            	END;
+        	]]></ns1:update-sql>
+        </ns1:operation>
+    </ns1:operations>
+</ns1:model>

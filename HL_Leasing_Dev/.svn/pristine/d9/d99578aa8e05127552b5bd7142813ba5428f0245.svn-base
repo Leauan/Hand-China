@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: xuls  
+    $Date: 2014-9-19 下午13:10:33  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure/>
+    <a:view>
+        <script><![CDATA[
+        	/*退出*/
+			function csh710_deduction_return(){
+			    $('csh710_deducate_detail_link').close();
+			}
+			/*抵扣执行*/
+			function csh710_deducate_exe(){
+			    var inflow_count = $('csh710_deduction_inflow_ds').getAll().length;
+			    if (inflow_count==0){ /*确保抵扣收付项均存在*/
+			        Aurora.showMessage('${l:HLS.PROMPT}','${l:CSH710.CONFIRM_DEDUCTION_INOUT_ITEM}');
+			        return;
+			    }
+			    var unreceived_amount = $('csh710_outflow_cashflow_ds').getAt(0).get('unreceived_amount');
+			    var total_inflow_amount = $('csh710_outflow_cashflow_ds').getAt(0).get('total_inflow_amount');
+			    if (unreceived_amount<total_inflow_amount){/*确保抵扣应收项总额不超过应付项总额*/
+			        Aurora.showMessage('${l:HLS.PROMPT}','${l:CSH710.CONFIRM_DEDUCTION_INOUT_ITEM}');
+			        return;
+			    }
+			    $('csh710_outflow_cashflow_ds').submit();
+			}
+			/*应收更新事件*/
+			function csh710_deduction_inflow_update(ds,record,name,value,oldvalue){
+			    if(name=='transaction_amount'){
+			        var rs = ds.getAll();
+				    var amount = 0;
+				    for (var i =0 ; i<rs.length;i++){
+				        var transaction_amount = rs[i].get('transaction_amount');
+				        if(!transaction_amount){
+				            transaction_amount = 0;
+				        }
+				        amount += transaction_amount;
+				    }
+				    $('csh710_outflow_cashflow_ds').getAt(0).set('total_inflow_amount',amount);
+				    }
+			}
+			/*应收删除记录事件*/
+			function csh710_deduction_inflow_delete(record){
+			    	var rs = $('csh710_deduction_inflow_ds').getAll();
+				    var amount = 0;
+				    for (var i =0 ; i<rs.length;i++){
+				        var transaction_amount = rs[i].get('transaction_amount');
+				        if(!transaction_amount){
+				            transaction_amount = 0;
+				        }
+				        amount += transaction_amount;
+				    }
+				    $('csh710_outflow_cashflow_ds').getAt(0).set('total_inflow_amount',amount); 
+			}
+			/*单行金额校验*/
+			function csh710_transaction_amount_validate(record,name,value){
+			    var unreceived_amount = record.get('unreceived_amount');
+			    if (value > unreceived_amount){
+			        return '本次核销金额不能超过剩余金额';
+			    }
+			    return true;
+			}
+			/*单行金额总额校验*/
+			function csh710_transaction_pi_validate(record,name,value){
+			    var transaction_amount = record.get('transaction_amount');
+			    var transaction_principal = record.get('transaction_principal');
+			    var transaction_interest  = record.get('transaction_interest');
+			    if (!transaction_principal) {transaction_principal = 0;}
+			    if (!transaction_interest) {transaction_interest = 0;}
+			    var total_amount = transaction_principal + transaction_interest;
+			    if (total_amount > transaction_amount){
+			        return '本金和利息之和应该等于本次核销金额';
+			    }
+			    return true;
+			}
+			function csh710_submit_sucess_fun(ds,res){
+			    csh710_deduction_return();
+			}
+		]]></script>
+        <a:dataSets>
+            <a:dataSet id="csh710_inflow_cashflow_ds" fetchAll="true" model="csh.CSH710.csh_deduction_cashflow_v" queryUrl="${/request/@context_path}/autocrud/csh.CSH710.csh_deduction_cashflow_v/query?cf_direction=INFLOW&amp;contract_id=${/parameter/@contract_id}&amp;bp_id=${/parameter/@bp_id}" selectable="true">
+                <a:fields>
+                    <a:field name="due_date" datatype="java.util.Date"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="csh710_outflow_cashflow_ds" submitUrl="${/request/@context_path}/modules/csh/CSH710/csh_deduction_write_off.svc">
+                <a:fields>
+                    <a:field name="transaction_category" defaultValue="BUSINESS"/>
+                    <a:field name="transaction_type" defaultValue="DEDUCTION"/>
+                    <a:field name="write_off_type" defaultValue="PAYMENT_DEBT"/>
+                    <a:field name="cf_item_name" lovHeight="550" lovService="csh.CSH710.csh_deduction_cashflow_v?cf_direction=OUTFLOW&amp;contract_id=${/parameter/@contract_id}&amp;bp_id=${/parameter/@bp_id}" lovWidth="750" required="true">
+                        <a:mapping>
+                            <a:map from="bp_id_tenant" to="bp_id_tenant"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="cf_item_name" to="cf_item_name"/>
+                            <a:map from="times" to="times"/>
+                            <a:map from="due_date" to="due_date"/>
+                            <a:map from="due_amount" to="due_amount"/>
+                            <a:map from="received_amount" to="received_amount"/>
+                            <a:map from="unreceived_amount" to="unreceived_amount"/>
+                            <a:map from="unreceived_principal" to="unreceived_principal"/>
+                            <a:map from="unreceived_interest" to="unreceived_interest"/>
+                            <a:map from="unreceived_amount" to="transaction_amount"/>
+                            <a:map from="unreceived_principal" to="transaction_principal"/>
+                            <a:map from="unreceived_interest" to="transaction_interest"/>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="cashflow_id" to="cashflow_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="document_category" defaultValue="CON_CONTRACT"/>
+                    <a:field name="due_date" datatype="java.util.Date"/>
+                    <a:field name="total_inflow_amount"/>
+                    <a:field name="transaction_date" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="csh710_submit_sucess_fun"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="csh710_deduction_head_ds" autoCreate="true"/>
+            <a:dataSet id="csh710_deduction_inflow_ds" bindName="inflows" bindTarget="csh710_outflow_cashflow_ds" selectable="true">
+                <a:fields>
+                    <a:field name="document_category" defaultValue="CON_CONTRACT"/>
+                    <a:field name="transaction_category" defaultValue="BUSINESS"/>
+                    <a:field name="write_off_type" defaultValue="RECEIPT_CREDIT"/>
+                    <a:field name="transaction_type" defaultValue="DEDUCTION"/>
+                    <a:field name="contract_id" defaultValue="${/parameter/@contract_id}"/>
+                    <a:field name="cf_item_name" lovHeight="550" lovService="csh.CSH710.csh_deduction_cashflow_v?cf_direction=INFLOW&amp;contract_id=${/parameter/@contract_id}&amp;bp_id=${/parameter/@bp_id}" lovWidth="750">
+                        <a:mapping>
+                            <a:map from="cf_item_name" to="cf_item_name"/>
+                            <a:map from="times" to="times"/>
+                            <a:map from="due_date" to="due_date"/>
+                            <a:map from="due_amount" to="due_amount"/>
+                            <a:map from="received_amount" to="received_amount"/>
+                            <a:map from="unreceived_amount" to="unreceived_amount"/>
+                            <a:map from="unreceived_principal" to="unreceived_principal"/>
+                            <a:map from="unreceived_interest" to="unreceived_interest"/>
+                            <a:map from="unreceived_amount" to="transaction_amount"/>
+                            <a:map from="unreceived_principal" to="transaction_principal"/>
+                            <a:map from="unreceived_interest" to="transaction_interest"/>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="cashflow_id" to="cashflow_id"/>
+                            <a:map from="penalty" to="penalty"/>
+                            <a:map from="penalty_cashflow_id" to="penalty_cashflow_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="transaction_amount" required="true" validator="csh710_transaction_amount_validate"/>
+                    <a:field name="transaction_principal" validator="csh710_transaction_pi_validate"/>
+                    <a:field name="transaction_interest" validator="csh710_transaction_pi_validate"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="csh710_deduction_inflow_update"/>
+                    <a:event name="remove" handler="csh710_deduction_inflow_delete"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="csh710_deduction_return" text="HLS.CLOSE"/>
+                <a:gridButton click="csh710_deducate_exe" text="CSH710.PAYMENT_DECUCATE"/>
+            </a:screenTopToolbar>
+            <a:form marginWidth="30" title="收付抵扣">
+                <a:hBox>
+                    <a:datePicker name="transaction_date" bindTarget="csh710_outflow_cashflow_ds" prompt="HLS.WRITE_OFF_DATE"/>
+                    <a:lov name="cf_item_name" bindTarget="csh710_outflow_cashflow_ds" prompt="HLS.CF_ITEM_DESC"/>
+                    <a:numberField name="times" bindTarget="csh710_outflow_cashflow_ds" prompt="HLS.TIMES" readOnly="true"/>
+                    <a:datePicker name="due_date" bindTarget="csh710_outflow_cashflow_ds" prompt="TRE502.PAYABLE_DATE" readOnly="true" renderer="Aurora.formatDate"/>
+                </a:hBox>
+                <a:hBox>
+                    <a:numberField name="due_amount" bindTarget="csh710_outflow_cashflow_ds" prompt="CSH502.CSH_PAYMENT_AMOUNT" readOnly="true" renderer="Aurora.formatMoney"/>
+                    <a:numberField name="received_amount" bindTarget="csh710_outflow_cashflow_ds" prompt="CSH710.PAYED_AMOUNT" readOnly="true" renderer="Aurora.formatMoney"/>
+                    <a:numberField name="unreceived_amount" align="right" bindTarget="csh710_outflow_cashflow_ds" prompt="CSH513.UNRECEIVED_AMOUNT" readOnly="true" renderer="Aurora.formatMoney"/>
+                    <a:numberField name="total_inflow_amount" align="right" bindTarget="csh710_outflow_cashflow_ds" prompt="CSH710.DEDUCTION_AMOUNT" readOnly="true" renderer="Aurora.formatMoney"/>
+                </a:hBox>
+                <a:hBox>
+                    <a:textField name="bp_name" bindTarget="csh710_outflow_cashflow_ds" prompt="HLS.TENANT_CODE" readOnly="true"/>
+                    <a:textField name="transaction_description" bindTarget="csh710_outflow_cashflow_ds" prompt="HLS.COMMENT" width="600"/>
+                </a:hBox>
+            </a:form>
+            <a:grid id="csh710_deduction_infolow_detail_gd" bindTarget="csh710_deduction_inflow_ds" marginHeight="250" marginWidth="30" navBar="true">
+                <a:toolBar>
+                    <a:button type="add"/>
+                    <a:button type="delete"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="cf_item_name" editor="csh710_loved" prompt="HLS.CF_ITEM_DESC"/>
+                    <a:column name="times" align="center" prompt="HLS.TIMES" width="50"/>
+                    <a:column name="due_date" align="center" prompt="CSH710.DUE_DATE" renderer="Aurora.formatDate"/>
+                    <a:column name="due_amount" align="right" prompt="ACR.DUE_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="received_amount" align="right" prompt="ACR.RECEIVED_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="unreceived_amount" align="right" prompt="CSH513.UNRECEIVED_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="unreceived_principal" align="right" prompt="CSH513.UNRECEIVED_PRINCIPAL" renderer="Aurora.formatMoney"/>
+                    <a:column name="unreceived_interest" align="right" prompt="CSH513.UNRECEIVED_INTEREST" renderer="Aurora.formatMoney"/>
+                    <a:column prompt="CSH301.CSH_WRITE_OFF_DETAIL">
+                        <a:column name="transaction_amount" align="right" editor="csh710_numed" prompt="CSH513.WRITE_OFF_DUE_AMOUNT" renderer="Aurora.formatMoney"/>
+                        <a:column name="transaction_principal" align="right" editor="csh710_numed" prompt="CON500.CON_CONTRACT_CASHFLOW.PRINCIPAL" renderer="Aurora.formatMoney"/>
+                        <a:column name="transaction_interest" align="right" editor="csh710_numed" prompt="CON500.CON_CONTRACT_CASHFLOW.INTEREST" renderer="Aurora.formatMoney"/>
+                        <a:column name="penalty" align="right" editor="csh710_numed" prompt="CSH513.WRITE_OFF_PENALTY"/>
+                    </a:column>
+                    <a:column name="description" editor="csh710_texted" prompt="HLS.DESCRIPTION"/>
+                </a:columns>
+                <a:editors>
+                    <a:lov id="csh710_loved"/>
+                    <a:numberField id="csh710_numed" allowFormat="true"/>
+                    <a:textField id="csh710_texted"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

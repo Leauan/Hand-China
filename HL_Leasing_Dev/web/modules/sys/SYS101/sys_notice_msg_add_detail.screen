@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-1-22 下午02:40:46  
+    $Revision: 1.0  
+    $Purpose: 系统公告新增
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query model="basic.hls_sys_time_default_value" rootPath="sys_date_rp"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="sys_notice_msg_save_link" model="sys.SYS101.sys_notice_msg_save" modelaction="batch_update"/>
+        <script charset="utf-8" src="${/request/@context_path}/kindeditor/kindeditor-min.js"><![CDATA[ ]]></script>
+        <script charset="utf-8" src="${/request/@context_path}/kindeditor/lang/zh_CN.js"><![CDATA[ ]]></script>
+        <script><![CDATA[
+            var mailEditorList = [];
+            
+            function mailEditorWriteBack(record) {
+                var list = mailEditorList;
+            
+                for (var i = 0;i < list.length;i++) {
+                    var value = list[i]['value'].html();
+                    var name = list[i]['name'];
+                    record.set(name, value);
+                }
+            }
+            
+            function mailEditorClear() {
+                var list = mailEditorList;
+            
+                for (var i = 0;i < list.length;i++) {
+                    list[i]['value'].html('');
+                }
+            }
+            
+            function mailEdit_create(list) {
+                var k = KindEditor;
+            
+                var config = {
+                    width: '604px',
+                    height: '300px',
+                    uploadJson: '${/request/@context_path}/kindeditor/jsp/upload_json.jsp',
+                    resizeType: 0,
+                    allowPreviewEmoticons: false,
+                    allowImageUpload: true,
+                    items: ['undo', 'redo', '|', 'cut', 'copy', 'paste', 'plainpaste', '|', 'preview', 'print', '|', 'insertorderedlist', 'insertunorderedlist', '|', 'table', 'link', 'unlink', 'pagebreak', 'hr', 'image','|', '/', 'fontname', 'fontsize', 'forecolor', 'hilitecolor', 'bold', 'italic', 'underline', '|', 'lineheight', 'justifyleft', 'justifycenter', 'justifyright', 'indent', 'outdent', '|', 'selectall', 'removeformat', '|']
+                };
+            
+                for (var i = 0;i < list.length;i++) {
+                    list[i]['value'] = k.create('textarea[id="' + list[i]['name'] + '"]', config);
+                }
+            }
+            
+            function sys_notice_mas_add_detail_save() {
+                if (!$('sys_notice_msg_user_save_ds').validate()) {
+                    return;
+                }
+            
+                var all_record = $('sys_notice_msg_user_query').getAll();
+                var sys_notice_msg_user_save_record = $('sys_notice_msg_user_save_ds').getCurrentRecord();
+                var selected_data = [];
+                var n = 0;
+                mailEditorWriteBack(sys_notice_msg_user_save_record);
+                for (var i = 0;i < all_record.length;i++) {
+                    if (all_record[i].get('checked') == 'Y' && all_record[i].get('user_id')) {
+                        selected_data[n] = {
+                            'start_date': sys_notice_msg_user_save_record.get('start_date'),
+                            'end_date': sys_notice_msg_user_save_record.get('end_date'),
+                            'priority': sys_notice_msg_user_save_record.get('priority'),
+                            'notice_type': sys_notice_msg_user_save_record.get('notice_type'),
+                            'source_type': sys_notice_msg_user_save_record.get('source_type'),
+                            'msg_title': sys_notice_msg_user_save_record.get('msg_title'),
+                            'msg_body': sys_notice_msg_user_save_record.get('msg_body'),
+                            'user_id': all_record[i].get('user_id'),
+                            'notice_html': sys_notice_msg_user_save_record.get('notice_html'),
+                            'notice_url': sys_notice_msg_user_save_record.get('notice_url'),
+                            '_status': 'update'
+                        };
+                        n++;
+                    }
+                }
+            
+                if (n == 0) {
+                    Aurora.showMessage('提示', '请选择要通知的用户');
+                    return;
+                }
+                Aurora.showConfirm('${l:HLS.PROMPT}', '是否确认？', function() {
+                    Aurora.Masker.mask(win.body, '${l:HLS.EXECUTING}');
+                    Aurora.request({
+                        url: $('sys_notice_msg_save_link').getUrl(),
+                        para: selected_data,
+                        success: function() {
+                            Aurora.Masker.unmask(win.body);
+                            $('sys_notice_msg_user_save_ds').reset();
+                            mailEditorClear();
+                            Aurora.showMessage('提示', '保存成功');
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(win.body);
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(win.body);
+                        },
+                        scope: this
+                    });
+                }, function() {
+                    Aurora.Masker.unmask(win.body);
+                });
+            }
+            
+            
+            function sys_notice_mas_add_detail_close() {
+                $('sys_notice_mas_add_detail_win').close();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="priority_ds" lookupCode="SYS_NOTICE_PRIORITY"/>
+            <a:dataSet id="notice_type_ds" lookupCode="SYS_NOTICE_TYPE"/>
+            <a:dataSet id="sys_notice_msg_user_query" autoQuery="true" fetchAll="true" model="sys.SYS101.sys_notice_msg_user"/>
+            <a:dataSet id="sys_notice_msg_user_save_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="start_date" defaultValue="${/model/sys_date_rp/record/@now_time}" required="true"/>
+                    <a:field name="end_date" defaultValue="${/model/sys_date_rp/record/@now_time}" required="true"/>
+                    <a:field name="priority" defaultValue="3"/>
+                    <a:field name="priority_desc" displayField="code_value_name" options="priority_ds" required="true" returnField="priority" valueField="code_value"/>
+                    <a:field name="notice_type" defaultValue="NONE"/>
+                    <a:field name="source_type" defaultValue="SYS101"/>
+                    <a:field name="msg_title" required="true"/>
+                    <a:field name="msg_body" required="true"/>
+                    <a:field name="notice_url" required="false"/>
+                    <a:field name="notice_type_desc" displayField="code_value_name" options="notice_type_ds" required="true" returnField="notice_type" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="sys_notice_mas_add_detail_close" text="HLS.BACK"/>
+                <a:gridButton click="sys_notice_mas_add_detail_save" text="HLS.CONFIRM"/>
+            </a:screenTopToolbar>
+            <a:hBox>
+                <a:form height="500" title="公告内容" width="720">
+                    <a:box column="4" labelWidth="80">
+                        <a:datePicker name="start_date" bindTarget="sys_notice_msg_user_save_ds" prompt="开始时间" width="90"/>
+                        <a:datePicker name="end_date" bindTarget="sys_notice_msg_user_save_ds" prompt="结束时间" width="90"/>
+                        <a:comboBox name="priority_desc" bindTarget="sys_notice_msg_user_save_ds" prompt="优先等级" width="80"/>
+                        <a:comboBox name="notice_type_desc" bindTarget="sys_notice_msg_user_save_ds" prompt="公告类型" width="80"/>
+                    </a:box>
+                    <a:box labelWidth="80">
+                        <a:textField name="msg_title" bindTarget="sys_notice_msg_user_save_ds" prompt="主题" width="604"/>
+                    </a:box>
+                    <a:box labelWidth="80">
+                        <a:textArea name="msg_body" bindTarget="sys_notice_msg_user_save_ds" height="45" prompt="内容" width="600"/>
+                    </a:box>
+                    <a:box labelWidth="80">
+                        <a:textArea name="notice_html" id="notice_html" bindTarget="sys_notice_msg_user_save_ds" prompt="明细"/>
+                        <a:textArea name="notice_url" bindTarget="sys_notice_msg_user_save_ds" height="20" prompt="超链接" width="604"/>
+                    </a:box>
+                </a:form>
+                <a:form height="500" title="选择通知人" width="480">
+                    <a:treeGrid bindTarget="sys_notice_msg_user_query" height="470" idField="unit_id" parentField="parent_unit_id" sequenceField="seq" showCheckBox="true" width="480">
+                        <a:columns>
+                            <a:column name="unit_name" prompt="" width="130"/>
+                            <a:column name="user_name" prompt="代码" width="120"/>
+                            <a:column name="description" prompt="名称" width="200"/>
+                        </a:columns>
+                    </a:treeGrid>
+                </a:form>
+            </a:hBox>
+            <script><![CDATA[
+	            Aurora.onReady(function(K) {
+	            
+	                var list = mailEditorList;
+	            
+	                list[0] = {
+	                    name: 'notice_html'
+	                };
+	            
+	                mailEdit_create(list);
+	            
+	            });
+            ]]></script>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            select DETAIL_ID,
+			       GRAPHIC_ID,
+			       CONFIG,
+			       TABLE_NAME,
+			       TABLE_ID,
+			       TYPE,
+			       (select n.link_workflow_id
+			          from zj_wfl_workflow_node n
+			         where n.node_id = o.table_id) as link_workflow_id,
+			       h.status as ACTION_TYPE,
+			       to_char(H.CREATION_DATE, 'yyyy-mm-dd hh24:mi:ss') as arrive_date,
+			       to_char(zj_wfl_workflow_pkg.get_dispose_date(H.history_record_id),
+			               'yyyy-mm-dd hh24:mi:ss') as dispose_date,
+			       zj_wfl_workflow_pkg.get_dispose_user(H.history_record_id,
+			                                            H.node_id,
+			                                            H.instance_id) as dispose_user
+			  from (SELECT GD.DETAIL_ID,
+			               GD.GRAPHIC_ID,
+			               GD.CONFIG,
+			               GD.TABLE_NAME,
+			               GD.TABLE_ID,
+			               GD.TYPE,
+			               ${@instance_id} as instance_id,
+			               ${@workflow_id} as workflow_id,
+			               i.approve_count
+			          FROM ZJ_WFL_GRAPHICS_DETAIL   GD,
+			               ZJ_WFL_GRAPHICS          G,
+			               zj_wfl_workflow_instance I
+			         where GD.GRAPHIC_ID = G.GRAPHIC_ID
+			           and i.instance_id = ${@instance_id}
+			           and g.workflow_id = ${@workflow_id}) o,
+			       zj_wfl_instance_node_history h
+			 where o.approve_count = h.approve_count(+)
+			   and o.instance_id = h.instance_id(+)
+			   and o.table_id = h.node_id(+)
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

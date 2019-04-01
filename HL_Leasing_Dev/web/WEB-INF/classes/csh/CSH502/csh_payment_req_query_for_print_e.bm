@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: xuls  
+    $Date: 2017-1-4 下午03:42:50  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    v.*
+                FROM
+                    (SELECT DISTINCT
+                        rank() over(Order By cl.contract_number DESC) rk,
+                        cl.payment_req_id,
+                        cl.contract_id,
+                        cl.contract_number,
+                        (SELECT
+                            h.bp_name
+                        FROM
+                            con_contract cc,
+                            hls_bp_master h
+                        WHERE
+                            cc.bp_id_tenant = h.bp_id AND
+                            cc.contract_id  = cl.ref_doc_id
+                        ) bp_id_tenant_n,
+                        cl.item_frame_number,
+                        cl.actual_amount,
+                        to_char(cl.due_date,'yyyy-mm-dd') due_date,
+                        fnd_convert_to_chinese_pkg.amount_convert_to_chinese(cl.actual_amount) sum_act_amount_big
+                    FROM
+                        csh_payment_req_debt_ln_lv cl,
+                        csh_payment_req_ln a
+                    WHERE
+                        cl.payment_req_id IN (${:@payment_req_id}) AND
+                        a.payment_req_id   = cl.payment_req_id
+                    ) v #WHERE_CLAUSE#
+                ORDER BY
+                    v.rk
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

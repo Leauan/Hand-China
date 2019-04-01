@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2014-2-10 下午02:39:07  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    t1.visit_report_id,
+                    t1.company_id,
+                    fc.company_full_name company_id_n,
+                    t1.visit_report_desc,
+                    t1.visit_date,
+                    t1.visit_method,
+                    (SELECT
+                        sc.code_value_name
+                    FROM
+                        sys_code_values_v sc
+                    WHERE
+                        sc.code       = 'CON_VISIT_METHOD' AND
+                        sc.code_value = t1.visit_method
+                    ) visit_method_desc,
+                    t1.visit_result,
+                    (SELECT
+                        sc.code_value_name
+                    FROM
+                        sys_code_values_v sc
+                    WHERE
+                        sc.code       = 'CON_VISIT_RESULT' AND
+                        sc.code_value = t1.visit_result
+                    ) visit_result_desc,
+                    (SELECT
+                        TO_CHAR(MAX(h.visit_date), 'yyyy-mm-dd')
+                    FROM
+                        con_visit_report_hds h
+                    WHERE
+                        h.tenant_id  = t1.tenant_id AND
+                        h.visit_date < t1.visit_date
+                    ) lase_visit_date,
+                    (SELECT
+                        rh.visit_result
+                    FROM
+                        con_visit_report_hds rh
+                    WHERE
+                        rh.visit_date =
+                        (SELECT
+                            MAX(h.visit_date)
+                        FROM
+                            con_visit_report_hds h
+                        WHERE
+                            h.tenant_id  = t1.tenant_id AND
+                            h.visit_date < t1.visit_date
+                        ) AND
+                        rh.tenant_id = t1.tenant_id AND
+                        rownum       = 1
+                    ) last_visit_result,
+                    (SELECT
+                        sc.code_value_name
+                    FROM
+                        con_visit_report_hds rh,
+                        sys_code_values_v sc
+                    WHERE
+                        sc.code       = 'CON_VISIT_RESULT' AND
+                        sc.code_value = rh.visit_result AND
+                        rh.visit_date =
+                        (SELECT
+                            MAX(h.visit_date)
+                        FROM
+                            con_visit_report_hds h
+                        WHERE
+                            h.tenant_id  = t1.tenant_id AND
+                            h.visit_date < t1.visit_date
+                        ) AND
+                        rh.tenant_id = t1.tenant_id AND
+                        rownum       = 1
+                    ) last_visit_result_desc,
+                    t1.tenant_id,
+                    tv.bp_name tenant_id_desc,
+                    t1.tenant_id object_id,
+                    tv.bp_name object_id_desc,
+                    t1.document_category,
+                    t1.owner_user_id,
+                    (SELECT su.description FROM sys_user su WHERE su.user_id = t1.owner_user_id
+                    ) owner_user_id_desc,
+                    t1.created_by,
+                    t1.creation_date,
+                    t1.last_updated_by,
+                    t1.last_update_date,
+                    TO_CHAR(tv.prj_total_amount,'FM99,999,999,999,990.00') prj_total_amount,
+                    TO_CHAR(tv.prj_overdue_amount,'FM99,999,999,999,990.00') prj_overdue_amount,
+                    TO_CHAR((NVL(tv.prj_total_amount, 0) - NVL(tv.total_received, 0)),
+                    'FM99,999,999,999,990.00') prj_outstanding_balance, tv.prj_overdue_status, tv.prj_overdue_days,
+                (SELECT
+                    eea.unit_id
+                FROM
+                    exp_employee_assigns_v eea
+                WHERE
+                    eea.employee_id           = tv.prj_employee_id AND
+                    eea.company_id            = tv.prj_company_id AND
+                    eea.primary_position_flag = 'Y' AND
+                    rownum                    = 1
+                ) unit_id,
+                (SELECT
+                    eea.unit_name
+                FROM
+                    exp_employee_assigns_v eea
+                WHERE
+                    eea.employee_id           = tv.prj_employee_id AND
+                    eea.company_id            = tv.prj_company_id AND
+                    eea.primary_position_flag = 'Y' AND
+                    rownum                    = 1
+                ) unit_id_desc,
+                con_visit_report_pkg.get_all_visitor(p_visit_report_id=>t1.visit_report_id,p_user_id=>${/session/@user_id}) all_visitor,
+                con_visit_report_pkg.get_all_visit_result(p_visit_report_id=>t1.visit_report_id,p_object_type=>'TENANT_BASIC_INFO',p_user_id=>${/session/@user_id}) tenant_vit_desc,
+                con_visit_report_pkg.get_all_visit_result(p_visit_report_id=>t1.visit_report_id,p_object_type=>'LEASE_ITEM_INFO',p_user_id=>${/session/@user_id}) lease_item_vit_desc,
+                con_visit_report_pkg.get_all_visit_result(p_visit_report_id=>t1.visit_report_id,p_object_type=>'GUARANTOR',p_user_id=>${/session/@user_id}) guarantor_vit_desc,
+                con_visit_report_pkg.get_all_visit_result(p_visit_report_id=>t1.visit_report_id,p_object_type=>'MORTGAGE_INFO',p_user_id=>${/session/@user_id}) mortgage_vit_desc,
+                con_visit_report_pkg.get_all_visit_result(p_visit_report_id=>t1.visit_report_id,p_object_type=>'PROJECT_OVERALL_INFO',p_user_id=>${/session/@user_id}) overall_info_vit_desc FROM con_visit_report_hds t1,
+                fnd_companies_vl fc,
+                con_visit_report_tenant_v tv WHERE t1.company_id = fc.company_id AND t1.tenant_id = tv.bp_id AND t1.visit_report_id=${@visit_report_id}
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

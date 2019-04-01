@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-7-15 下午7:59:08  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" needAccessControl="false">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    t1.et_agreement_id,
+                    t1.et_agreement_number,
+                    t1.business_type,
+                    t1.document_type,
+                    t1.document_category,
+                    t1.company_id,
+                    t1.contract_id,
+                    t1.status,
+                    t1.termination_date,
+                    t1.overdue_amount,
+                    t1.penalty,
+                    t1.rentals_payable,
+                    t1.discount_total_amount,
+                    t1.undue_principal,
+                    t1.et_interest,
+                    t1.mgt_fee_after_discount,
+                    500 AS et_fee,
+                    t1.residual_value,
+                    t1.et_total_amount,
+                    t1.last_paydue_date,
+                    t1.last_paydue_times,
+                    t1.discount_days,
+                    t1.submit_date,
+                    t1.approved_date,
+                    t1.ref_v01,
+                    t1.ref_v02,
+                    t1.ref_v03,
+                    t1.ref_v04,
+                    t1.ref_v05,
+                    t1.ref_n01,
+                    t1.ref_n02,
+                    t1.ref_n03,
+                    t1.ref_n04,
+                    t1.ref_n05,
+                    t1.ref_n06,
+                    t1.ref_n07,
+                    t1.ref_n08,
+                    t1.ref_n09,
+                    nvl(t1.ref_n10,'0') ref_n10,
+                    t1.ref_d01,
+                    t1.ref_d02,
+                    t1.ref_d03,
+                    t1.ref_d04,
+                    t1.ref_d05,
+                    t1.et_profile,
+                    t1.undue_amount,
+                    t1.overdue_interest,
+                    t1.overdue_principal,
+                    t1.undue_interest,
+                    t1.others_fee,
+                    t1.note,
+                    t1.total_amount,
+                    (SELECT
+                        due_date
+                    FROM
+                        con_contract tt1,
+                        con_contract_cashflow tt2
+                    WHERE
+                        tt1.contract_id  = tt2.contract_id AND
+                        t1.contract_id   = tt1.contract_id AND
+                        tt2.cf_item      = 1 AND
+                        tt2.cf_type      = 1 AND
+                        tt2.times        = tt1.lease_times AND
+                        tt2.cf_status    = 'RELEASE' AND
+                        tt2.cf_direction = 'INFLOW'
+                    ) AS lease_end_date,
+                    (SELECT
+                        tt3.license_number
+                    FROM
+                        con_contract_lease_item tt1,
+                        con_contract_item_detail tt2,
+                        ast_car_license tt3
+                    WHERE
+                        tt1.contract_id            = t1.contract_id AND
+                        tt1.contract_lease_item_id = tt2.contract_lease_item_id AND
+                        tt2.item_detail_id         = tt3.item_detail_id AND
+                        tt1.enabled_flag           = 'Y' AND
+                        tt3.enabled_flag           = 'Y'
+                    ) AS license_number,
+                    t1.deposit_deduction_flag,
+                    t1.balance_deduction_flag,
+                    t1.debt_fee,
+                    nvl((SELECT
+                        (ccc.due_amount - ccc.received_amount)
+                    FROM
+                        con_contract_cashflow ccc
+                    WHERE
+                        ccc.cf_item     = 62 AND
+                        ccc.cf_type     = 6 AND
+                        ccc.contract_id = t1.contract_id
+                    ),0) AS unpay_insurance_fee,
+                    nvl((SELECT
+                        (ccc.due_amount - ccc.received_amount)
+                    FROM
+                        con_contract_cashflow ccc
+                    WHERE
+                        ccc.cf_item     = 83 AND
+                        ccc.cf_type     = 100 AND
+                        ccc.contract_id = t1.contract_id
+                    ),0) AS unpay_travel_tax,
+                    -- 0 AS unpay_gps_fee,
+                    (select nvl((select ccc.due_amount from con_contract_cashflow ccc where ccc.cf_item = 81 and ccc.cf_type = 110 and ccc.cf_direction = 'OUTFLOW' and ccc.contract_id = t1.contract_id),0) from dual) unpay_gps_fee,
+                    (0.05* t1.undue_principal) AS defaults_fee,
+                    t1.month_interest_fee,
+                    (SELECT su.description FROM sys_user su WHERE su.user_id = t1.created_by
+                    ) AS test_employee,
+                    t1.note_s,
+                    nvl(t1.collecting_fee,0)collecting_fee,
+                    nvl(t1.take_back_fee,0)take_back_fee,
+                    nvl(t1.damages_fee,0)damages_fee,
+                    nvl(t1.collection_fee,0)collection_fee,
+                    nvl(t1.loy_fee,0)loy_fee,
+                    t1.pay_method,
+                    t1.current_interest,
+                    nvl(t1.assessment_fee,0)assessment_fee,
+                    (select c.finance_amount from con_contract c where c.contract_id=t1.contract_id) finance_amount
+                FROM
+                    CON_CONTRACT_ET_HD t1
+                WHERE
+                    t1.et_agreement_id = ${@et_agreement_id} AND
+                    t1.contract_id     = ${@contract_id}
+            ]]></bm:query-sql>
+            <bm:parameters>
+                <bm:parameter name="contract_id"/>
+                <bm:parameter name="et_agreement_id"/>
+            </bm:parameters>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ZLF  
+    $Date: 2014-11-20 下午1:45:12  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query model="csh.CSH750.csh_transfer_fee_import_head_id" rootPath="header"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="transfer_fee_link" url="${/request/@context_path}/modules/csh/CSH750/csh_transfer_fee_query.screen"/>
+        <a:link id="import_save_link" model="csh.CSH750.save_data" modelaction="update"/>
+        <a:link id="import_err_link" url="${/request/@context_path}/modules/csh/CSH750/transfer_fee_import_show_error.screen"/>
+        <a:link id="csh508_import_check_link" model="csh.CSH750.check_data" modelaction="update"/>
+        <a:link id="import_upload_link" url="${/request/@context_path}/modules/csh/CSH750/csh_transfer_fee_import_upload.screen"/>
+        <script><![CDATA[
+            var flag;
+            var check_flag = 'N';
+            //导入数据
+            function loadData() {
+                new Aurora.Window({
+                    id: 'upload_window',
+                    url: $('import_upload_link').getUrl(),
+                    title: '导入实例',
+                    width: 420,
+                    height: 275
+                });
+            }
+            //校验数据
+            function checkData() {
+                var allData = $('fnd_interface_lines_ds').getAll();
+                if (allData.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '请导入数据!');
+                } else {
+                    var param = {};
+                    param['header_id'] = '${/parameter/@header_id}';
+                    Aurora.request({
+                        url: $('csh508_import_check_link').getUrl(),
+                        para: param,
+                        success: function(res) {
+                            check_flag = 'Y';
+                            flag = res.result.return_id;
+                            if (res.result.return_id == 0) {
+                                Aurora.showMessage('${l:PROMPT}', '有错误,请查看错误！');
+                            } else {
+                                Aurora.SideBar.show({
+                                    msg: '核对操作成功！',
+                                    duration: 2000
+                                });
+                            }
+                        },
+                        scope: this
+                    });
+                }
+            }
+            
+            //提交数据
+            
+            function submitData() {
+                debugger;
+                if (check_flag == 'N') {
+                    Aurora.showMessage('${l:PROMPT}', '请先核对通过再提交，谢谢！');
+                    return;
+                } else {
+                    if (flag == 0) {
+                        Aurora.showMessage('${l:PROMPT}', '导入的数据有错误，请重新导入，谢谢！');
+                        return;
+                    } else {
+                        $('submitData_btn_id').disable(); //让按钮失效
+                        var url = $('transfer_fee_link').getUrl();
+                        var param = {};
+                        param['header_id'] = '${/parameter/@header_id}';
+                        Aurora.request({
+                            url: $('import_save_link').getUrl(),
+                            para: param,
+                            success: function() {
+                                Aurora.SideBar.show({
+                                    //msg: res.result.v_save_message,
+                                    msg: '提交操作成功！',
+                                    duration: 2000
+                                });
+                                Aurora.go(url);
+                            },
+                            error:function(){
+                                $('submitData_btn_id').enable();
+                            },
+                            failure:function(){
+                                $('submitData_btn_id').enable();
+                            },
+                            scope: this
+                        });
+                    }
+                }
+            }
+            
+            function errorData() {
+                var allData = $('fnd_interface_lines_ds').getAll();
+                if (allData.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '请导入数据!');
+                    return;
+                }
+                new Aurora.Window({
+                    id: 'error_window',
+                    url: $('import_err_link').getUrl() + '?header_id=${/parameter/@header_id}',
+                    title: '错误信息',
+                    width: 500,
+                    height: 300
+                });
+                // window.open($('import_err_link').getUrl() + '?batch_id=${/model/batch_id/record/@batch_id}');
+                //window.open($('import_err_link').getUrl()+'?batch_id=${/model/batch_id/record/@batch_id}');
+            }
+            
+            function csh750_quit() {
+                window.location.href = $('transfer_fee_link').getUrl();
+            }
+            	function summaryRenderer(datas, name) {
+            		var sum2=0;
+            		if(name=="invoice_title"){
+            		    return '合计:<font color="red"></font>';
+            		}
+	        		if(name=="attribute_3"){
+	        			for(var k=0;k<datas.length;k++){
+		            		var record2=datas[k];
+		            		var payment_amount_vl2=record2.get("attribute_3");
+		            		var payment_amount2=parseFloat(payment_amount_vl2);
+		            		if(!isNaN(payment_amount2)){
+		            			sum2+=payment_amount2;
+		            		}
+            			}
+		                return '<font color="red">' + Aurora.formatNumber(sum2 ,2)+ '</font>';
+	        		}
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="fnd_interface_lines_ds" autoQuery="true" model="csh.CSH750.fnd_interface_lines" queryUrl="${/request/@context_path}/autocrud/csh.CSH750.fnd_interface_lines/query?header_id=${/parameter/@header_id}"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:toolbarButton click="csh750_quit" text="HLS.EXIT"/>
+                <!--                 <a:toolbarButton click="loadData" text="PROMPT.LOADDATA" width="80"/>
+ -->
+                <a:toolbarButton click="checkData" text="PROMPT.CHECK"/>
+                <a:toolbarButton id="submitData_btn_id" click="submitData" text="PROMPT.SUBMIT" width="80"/>
+                <!-- <a:toolbarButton bind="grid" text="HAP_EXPORT" type="excel" width="80"/> -->
+                <a:toolbarButton click="errorData" text="PROMPT.ERROR"/>
+            </a:screenTopToolbar>
+            <a:grid bindTarget="fnd_interface_lines_ds" marginHeight="200" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="attribute_1" prompt="交易日期" width="150"/>
+                    <a:column name="attribute_2" prompt="对方账户" renderer="Aurora.formatDate" width="120"/>
+                    <a:column name="attribute_3" footerRenderer="summaryRenderer" prompt="手续费金额" width="80"/>
+                    <a:column name="attribute_10" prompt="摘要" width="300"/>
+                    <a:column name="attribute_11" prompt="用途" width="400"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hyb  
+    $Date: 2012-10-10 下午3:12:32  
+    $Revision: 1.0  
+    $Purpose: 科目余额查询
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="enabled_flag=&apos;Y&apos;" fetchAll="true" model="basic.gld_currency_v_lov" rootPath="currency_list"/>
+        <a:model-query fetchAll="true" model="basic.sys_session_info" rootPath="sys_session"/>
+        <a:model-query defaultWhereClause="t1.company_id=${/session/@company_id} and t1.company_enabled_flag = &apos;Y&apos;" fetchAll="true" model="basic.fnd_company_book_set_v" rootPath="company_book_set"/>
+        <a:model-query defaultWhereClause="t1.company_id=${/session/@top_biz_company_id} and t1.company_enabled_flag = &apos;Y&apos;" fetchAll="true" model="basic.fnd_company_book_set_v" rootPath="top_biz_company_book_set"/>
+        <a:model-query defaultWhereClause="t1.period_set_code=${/model/top_biz_company_book_set/record/@period_set_code} and t1.period_year=${/model/sys_session/record/@current_year} and t1.period_num=${/model/sys_session/record/@current_month}" model="basic.gld_periods" rootPath="default_period"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+            function balanceDs_query() {
+                var ds = $('balanceDs');
+                var paraDs = $('para_balanceDs');
+                if (!paraDs.validate()) {
+                    return;
+                }
+                
+                if(paraDs.getAt(0).get('functional_currency_flag')=='Y')
+                {
+                    ds.setQueryUrl('${/request/@context_path}/autocrud/gld.GLD302.gld_balances_functional_currency_summary/query');
+                }
+                else
+                {
+                    ds.setQueryUrl('${/request/@context_path}/autocrud/gld.GLD302.gld_balances_query/query');
+                }
+                ds.query();
+            }
+            
+            function handleTab(functional_currency_flag)
+            {
+                var tab = $('balanceTab');
+                if(functional_currency_flag=='Y')
+                {
+                    tab.setDisabled(1);
+                }
+                else
+                {
+                    tab.setEnabled(1);
+                }
+            }
+            
+            function onUpdate_functional_currency_flag(record)
+            {
+                var field = record.getField('currency_desc');
+                var functional_currency_flag = record.get('functional_currency_flag');
+            	if(functional_currency_flag == 'Y')
+            	{
+            	    record.set('currency_code', record.get('functional_currency_code'));
+                    record.set('currency_desc', record.get('functional_currency_desc'));
+                    field.setReadOnly(true);
+                    handleTab(functional_currency_flag);
+            	}
+            	else
+            	{
+                    field.setReadOnly(false);
+                    handleTab(functional_currency_flag);
+            	}
+            }
+            
+            function refresh_para_balanceDs(record)
+            {
+            	onUpdate_functional_currency_flag(record);
+            }
+            
+            function copyToTheOther(record,name,from_name,to_name) {
+            	if(name==from_name && Ext.isEmpty(record.get(to_name)))
+                {
+                    record.set(to_name,record.get(from_name));
+                }
+            }
+            
+            function onUpdate_para_balanceDs(ds, record, name, value, oldValue) {
+                if (name == 'functional_currency_flag') {
+                    onUpdate_functional_currency_flag(record);
+                }
+                else if(name=='company_short_name')
+                {
+                    refresh_para_balanceDs(record);
+                }
+                if(name=='resp_center_code_from'||name=='resp_center_code_to'||name=='account_code_from'||name=='account_code_to')
+                {
+                    copyToTheOther(record,name,'resp_center_code_from','resp_center_code_to');
+                    copyToTheOther(record,name,'resp_center_code_to','resp_center_code_from');
+                    copyToTheOther(record,name,'account_code_from','account_code_to');
+                    copyToTheOther(record,name,'account_code_to','account_code_from');
+                }
+            }
+            
+            function balanceDs_export() {
+                $('balanceDs_grid')._export();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="currencyDs">
+                <a:datas dataSource="/model/currency_list"/>
+            </a:dataSet>
+            <a:dataSet id="para_balanceDs" autoCreate="true">
+                <a:fields>
+                    <a:field name="account_summary_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="account_sub_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="resp_summary_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="resp_sub_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="company_id" defaultValue="${/model/company_book_set/record/@company_id}"/>
+                    <a:field name="functional_currency_code" defaultValue="${/model/company_book_set/record/@functional_currency_code}"/>
+                    <a:field name="functional_currency_desc" defaultValue="${/model/company_book_set/record/@functional_currency_desc}"/>
+                    <a:field name="currency_code" defaultValue="${/model/company_book_set/record/@functional_currency_code}"/>
+                    <a:field name="currency_desc" defaultValue="${/model/company_book_set/record/@functional_currency_desc}" displayField="currency_name" options="currencyDs" required="true" returnField="currency_code" valueField="currency_code"/>
+                    <a:field name="company_short_name" defaultValue="${/model/sys_session/record/@company_short_name}" lovGridHeight="300" lovHeight="460" lovService="basic.fnd_company_book_set_v_lov" lovWidth="500" required="true" title="公司">
+                        <a:mapping>
+                            <a:map from="company_id" to="company_id"/>
+                            <a:map from="functional_currency_code" to="functional_currency_code"/>
+                            <a:map from="functional_currency_desc" to="functional_currency_desc"/>
+                            <a:map from="functional_currency_code" to="currency_code"/>
+                            <a:map from="functional_currency_desc" to="currency_desc"/>
+                            <a:map from="company_short_name" to="company_short_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="internal_period_num_from" defaultValue="${/model/default_period/record/@internal_period_num}" lovGridHeight="375" lovHeight="540" lovService="basic.gld_periods_lov" lovWidth="550" lovpagesize="13" required="true" title="期间">
+                        <a:mapping>
+                            <a:map from="internal_period_num" to="internal_period_num_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="internal_period_num_to" defaultValue="${/model/default_period/record/@internal_period_num}" lovGridHeight="375" lovHeight="540" lovService="basic.gld_periods_lov" lovWidth="550" lovpagesize="13" required="true" title="期间">
+                        <a:mapping>
+                            <a:map from="internal_period_num" to="internal_period_num_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="account_code_from" autoComplete="true" lovGridHeight="300" lovHeight="460" lovService="basic.gld_accounts_v_lov" lovWidth="650" title="科目">
+                        <a:mapping>
+                            <a:map from="account_code" to="account_code_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="account_code_to" lovHeight="600" lovUrl="${/request/@context_path}/modules/gld/gld_accounts_tree_lov.screen" lovWidth="550" title="科目">
+                        <a:mapping>
+                            <a:map from="account_code" to="account_code_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="functional_currency_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="resp_center_code_from" lovGridHeight="300" lovHeight="460" lovLabelWidth="90" lovService="basic.fnd_responsibility_center_v_lov" lovWidth="450" title="责任中心">
+                        <a:mapping>
+                            <a:map from="responsibility_center_code" to="resp_center_code_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="resp_center_code_to" lovGridHeight="300" lovHeight="460" lovLabelWidth="90" lovService="basic.fnd_responsibility_center_v_lov" lovWidth="450" title="责任中心">
+                        <a:mapping>
+                            <a:map from="responsibility_center_code" to="resp_center_code_to"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_para_balanceDs"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="balanceDs" autoPageSize="true" model="gld.GLD302.gld_balances_query" queryDataSet="para_balanceDs"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="balanceDs_query" text="HLS.QUERY"/>
+                <a:gridButton click="balanceDs_export" text="HLS.EXPORT"/>
+            </a:screenTopToolbar>
+            <a:form padding="0" title="科目余额查询">
+                <a:hBox padding="0">
+                    <a:vBox labelSeparator="" labelWidth="90">
+                        <a:lov name="company_short_name" bindTarget="para_balanceDs" prompt="公司" width="120"/>
+                        <a:lov name="account_code_from" bindTarget="para_balanceDs" prompt="科目从" width="120"/>
+                        <a:checkBox name="account_summary_flag" bindTarget="para_balanceDs" prompt="汇总科目" width="18"/>
+                    </a:vBox>
+                    <a:vBox labelSeparator="" labelWidth="90">
+                        <a:lov name="internal_period_num_from" bindTarget="para_balanceDs" prompt="期间从" width="120"/>
+                        <a:lov name="account_code_to" bindTarget="para_balanceDs" prompt="科目到" width="120"/>
+                        <a:checkBox name="account_sub_flag" bindTarget="para_balanceDs" prompt="明细科目" width="18"/>
+                    </a:vBox>
+                    <a:vBox labelSeparator="" labelWidth="90">
+                        <a:lov name="internal_period_num_to" bindTarget="para_balanceDs" prompt="期间到" width="120"/>
+                        <a:lov name="resp_center_code_from" bindTarget="para_balanceDs" prompt="责任中心从" width="120"/>
+                        <a:checkBox name="resp_summary_flag" bindTarget="para_balanceDs" prompt="汇总责任中心" width="18"/>
+                    </a:vBox>
+                    <a:vBox labelSeparator="" labelWidth="90">
+                        <a:comboBox name="currency_desc" bindTarget="para_balanceDs" prompt="币种" width="120"/>
+                        <a:lov name="resp_center_code_to" bindTarget="para_balanceDs" prompt="责任中心到" width="120"/>
+                        <a:checkBox name="resp_sub_flag" bindTarget="para_balanceDs" prompt="明细责任中心" width="18"/>
+                    </a:vBox>
+                    <a:vBox labelSeparator="" labelWidth="90">
+                        <a:checkBox name="functional_currency_flag" bindTarget="para_balanceDs" prompt="本位币汇总" width="18"/>
+                    </a:vBox>
+                </a:hBox>
+                <!-- <a:hBox labelWidth="90" >
+            		<a:lov name="company_short_name" bindTarget="para_balanceDs" prompt="公司" width="120"/>
+	                <a:lov name="internal_period_num_from" bindTarget="para_balanceDs" prompt="期间从" width="120"/>
+	                <a:lov name="internal_period_num_to" bindTarget="para_balanceDs" prompt="至" width="120"/>
+	                <a:comboBox name="currency_desc" bindTarget="para_balanceDs" prompt="币种" width="120"/>
+	                <a:checkBox name="functional_currency_flag" bindTarget="para_balanceDs" prompt="本位币汇总" width="18"/>
+            	</a:hBox>
+                <a:hBox labelWidth="90" >
+                	<a:lov name="account_code_from" bindTarget="para_balanceDs" prompt="科目从" width="120"/>
+	                <a:lov name="account_code_to" bindTarget="para_balanceDs" prompt="至" width="120"/>
+	                <a:lov name="resp_center_code_from" bindTarget="para_balanceDs" prompt="责任中心从" width="120"/>
+	                <a:lov name="resp_center_code_to" bindTarget="para_balanceDs" prompt="到" width="120"/>
+                </a:hBox>
+                <a:hBox labelWidth="90" >
+                	<a:checkBox name="account_summary_flag" bindTarget="para_balanceDs" prompt="汇总科目" width="18"/>
+	                <a:checkBox name="account_sub_flag" bindTarget="para_balanceDs" prompt="明细科目" width="18"/>
+	                <a:checkBox name="resp_summary_flag" bindTarget="para_balanceDs" prompt="汇总责任中心" width="18"/>
+	                <a:checkBox name="resp_sub_flag" bindTarget="para_balanceDs" prompt="子责任中心" width="18"/>
+                </a:hBox> -->
+            </a:form>
+            <a:tabPanel id="balanceTab" marginHeight="220" marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="本位币" width="100">
+                        <a:grid id="balanceDs_grid" bindTarget="balanceDs" marginHeight="250" marginWidth="60" navBar="true">
+                            <a:columns>
+                                <a:column name="company_code" hidden="true" lock="true" prompt="公司代码" width="100"/>
+                                <a:column name="company_short_name" hidden="true" lock="true" prompt="公司简称" width="150"/>
+                                <a:column name="responsibility_center_code" hidden="true" lock="true" prompt="责任中心代码" width="60"/>
+                                <a:column name="responsibility_center_name" autoAdjust="false" lock="true" prompt="责任中心" showTitle="true" width="100"/>
+                                <a:column name="account_code" lock="true" prompt="科目代码" width="100"/>
+                                <a:column name="account_desc" autoAdjust="false" lock="true" prompt="科目名称" showTitle="true" width="200"/>
+                                <a:column name="internal_period_num" hidden="true" lock="true" prompt="期间号" width="60"/>
+                                <a:column name="period_name" align="right" lock="true" prompt="期间" width="60"/>
+                                <a:column name="functional_to_date_amt" align="right" prompt="期初余额" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="functional_period_net_dr" align="right" prompt="借方发生额" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="functional_period_net_cr" align="right" prompt="贷方发生额" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="functional_project_to_date" align="right" prompt="期末余额" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="functional_quarter_net_dr" align="right" prompt="季度借方累计" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="functional_quarter_net_cr" align="right" prompt="季度贷方累计" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="functional_year_net_dr" align="right" prompt="年度借方累计" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="functional_year_net_cr" align="right" prompt="年度贷方累计" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="functional_project_net_dr" align="right" prompt="借方累计" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="functional_project_net_cr" align="right" prompt="贷方累计" renderer="Aurora.formatMoney" width="120"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab prompt="原币" width="100">
+                        <a:grid id="balanceDs_grid2" bindTarget="balanceDs" marginHeight="250" marginWidth="60" navBar="true">
+                            <a:columns>
+                                <a:column name="company_code" hidden="true" lock="true" prompt="公司代码" width="100"/>
+                                <a:column name="company_short_name" hidden="true" lock="true" prompt="公司简称" width="150"/>
+                                <a:column name="responsibility_center_code" hidden="true" lock="true" prompt="责任中心代码" width="60"/>
+                                <a:column name="responsibility_center_name" autoAdjust="false" lock="true" prompt="责任中心" showTitle="true" width="100"/>
+                                <a:column name="account_code" lock="true" prompt="科目代码" width="100"/>
+                                <a:column name="account_desc" autoAdjust="false" lock="true" prompt="科目名称" showTitle="true" width="200"/>
+                                <a:column name="internal_period_num" hidden="true" lock="true" prompt="期间号" width="60"/>
+                                <a:column name="period_name" align="right" lock="true" prompt="期间" width="60"/>
+                                <a:column name="entered_to_date_amt" align="right" prompt="期初余额" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="entered_period_net_dr_amt" align="right" prompt="借方发生额" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="entered_period_net_cr_amt" align="right" prompt="贷方发生额" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="entered_project_to_date_amt" align="right" prompt="期末余额" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="entered_quarter_net_dr_amt" align="right" prompt="季度借方累计" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="entered_quarter_net_cr_amt" align="right" prompt="季度贷方累计" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="entered_year_net_dr_amt" align="right" prompt="年度借方累计" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="entered_year_net_cr_amt" align="right" prompt="年度贷方累计" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="entered_project_net_dr_amt" align="right" prompt="借方累计" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="entered_project_net_cr_amt" align="right" prompt="贷方累计" renderer="Aurora.formatMoney" width="120"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+        <script><![CDATA[
+    		(
+    		function (){
+    		    var record = $('para_balanceDs').getAt(0);
+    			refresh_para_balanceDs(record);
+    		})();
+    	]]></script>
+    </a:view>
+</a:screen>

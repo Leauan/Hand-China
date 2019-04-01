@@ -1,0 +1,615 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-8-19 下午2:20:39  
+    $Revision: 1.0  
+    $Purpose: 提前结清维护页面
+-->
+<a:screen xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <s:server-script import="con_print_path.js"><![CDATA[
+            set_parameter_file_path();
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:view package="aurora.ui.std" template="default">
+        <a:link id="con_contract_et_heads_save_link" modelaction="insert" url="${/request/@context_path}/autocrud/cont.CON701.con_contract_et_heads/batch_update"/>
+        <a:link id="con_contract_et_lines_save_link" modelaction="insert" url="${/request/@context_path}/autocrud/cont.CON701.con_contract_et_lines/batch_update"/>
+        <a:link id="con_contract_et_calculate_link" url="${/request/@context_path}/modules/cont/CON701/con_contract_et_calculate.svc"/>
+        <a:link id="con_contract_et_save_link" model="cont.CON701.con_contract_et_save" modelaction="execute"/>
+        <a:link id="con_contract_et_submit_link" model="cont.CON701.con_contract_et_submit" modelaction="execute"/>
+        <a:link id="con_contract_termination_date_check_link" model="cont.CON701.con_contract_termination_date_check" modelaction="execute"/>
+        <a:link id="et_attachment_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="con_contract_et_link" url="${/request/@context_path}/modules/cont/CON701/con_contract_et_print.svc"/>
+        <a:link id="attachment_et_link" model="cont.CON701.con_contract_attachment_et" modelaction="update"/>
+		<a:link id="contract_et_cancel_link" model="cont.CON701.contract_et_cancel" modelaction="execute"/>
+        <!--一下为打印使用-->
+        <a:link id="hls_doc_file_content_link_id" model="cont.CON701.con701_hls_doc_file_content" modelaction="update"/>
+        <a:link id="hls_doc_file_batch_create_print_link_id" url="${/request/@context_path}/modules/cont/CON701/hls_doc_file_batch_create.svc"/>
+        <a:link id="hls_doc_batch_download_pdf_print_link_id" url="${/request/@context_path}/modules/cont/CON701/hls_doc_batch_download_pdf.svc"/>
+        <script><![CDATA[
+            var new_recs = []; //任务数组
+            var total_index = 0;
+            var current_index = 0;
+            var file_path = '${/parameter/@file_path}';
+            var download_arr = [];
+            
+            
+            function Screen_forward() {
+                history.go(1);
+            }
+            
+            function Screen_back() {
+                $('${/parameter/@winId}').close();
+            }
+            
+            function Screen_exit() {
+                $('${/parameter/@winId}').close();
+            }
+            
+            function contractCreateScreen_calculate() {
+                var ds = $('contract_et_Screen_mainDs'),
+                    et_ds = $('early_terminationDs'),
+                    et_record = et_ds.getAt(0),
+                    record = ds.getCurrentRecord();
+                var et_agreement_id, et_fee, et_profile, et_first_calc_flag = 'N';
+                if (record.validateRecord(true)) {
+                    var termination_date = Aurora.formatDate(record.get('termination_date'));
+                    var contract_id = record.get('contract_id');
+                    var et_type = record.get('et_type');
+                    et_profile = record.get('et_profile') ? record.get('et_profile') : et_record.get('et_profile');
+                    if (et_record) {
+                        et_agreement_id = et_record.get('et_agreement_id');
+                        et_fee = et_record.get('et_fee');
+                    } else {
+                        et_first_calc_flag = 'Y';
+                    }
+                    Aurora.Masker.mask($('${/parameter/@winId}').wrap, '正在加载...');
+                    Aurora.request({
+                        url: $('con_contract_et_calculate_link').getUrl(),
+                        para: {
+                            termination_date: termination_date,
+                            contract_id: contract_id,
+                            et_type: et_type,
+                            et_agreement_id: et_agreement_id,
+                            et_profile: et_profile,
+                            et_fee: et_fee,
+                            et_first_calc_flag: et_first_calc_flag
+                        },
+                        success: function(args) { //
+                            var et_agreement_id = args.result.et_agreement_id;
+                            et_ds.setQueryParameter('et_agreement_id', et_agreement_id);
+                            et_ds.query();
+                            $('unreceivedAmountDs').setQueryParameter('contract_id', record.get('contract_id'));
+                            $('unreceivedAmountDs').setQueryParameter('et_agreement_id', et_agreement_id);
+                            $('unreceivedAmountDs').query();
+                            $('receivedAmountDs').setQueryParameter('contract_id', record.get('contract_id'));
+                            $('receivedAmountDs').query();
+                            Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                        },
+                        scope: this
+                    });
+                }
+            }
+            
+            function et_save(value) {
+                var et_ds = $('early_terminationDs'),
+                    et_record = et_ds.getAt(0);
+                if (!et_record.validateRecord(true)) {
+                    Aurora.showWariningMessage('提示', '必输字段不能为空！');
+                } else if (et_record) {
+                    var et_agreement_id = et_record.get('et_agreement_id');
+                    var ref_n04 = et_record.get('ref_n04');
+                    var ref_n05 = et_record.get('ref_n05');
+                    var ref_n06 = et_record.get('ref_n06');
+                    var ref_n07 = et_record.get('ref_n07');
+                    var penalty = et_record.get('penalty');
+                    var et_fee = et_record.get('et_fee');
+                    var ref_n01 = et_record.get('ref_n01');
+                    var ref_n02 = et_record.get('ref_n02');
+                    var et_total_amount = et_record.get('et_total_amount');
+                    var note = et_record.get('note');
+                    if (ref_n04 > penalty) {
+                        Aurora.showMessage('提示', '罚息减免金额不能大于逾期罚息！');
+                        return;
+                    }
+                    // if (ref_n05 > et_fee) {
+                        // Aurora.showMessage('提示', '违约金减免金额不能大于违约金！');
+                        // return;
+                    // }
+                    if (ref_n06 > ref_n01) {
+                        Aurora.showMessage('提示', '经销商保证金减免金额不能大于应收经销商保证金！');
+                        return;
+                    }
+                    if (ref_n07 > ref_n02) {
+                        Aurora.showMessage('提示', '风险金减免金额不能大于应收风险金！');
+                        return;
+                    }
+                    Aurora.request({
+                        url: $('con_contract_et_save_link').getUrl(),
+                        para: {
+                            et_agreement_id: et_agreement_id,
+                            ref_n04: ref_n04,
+                            ref_n05: ref_n05,
+                            ref_n06: ref_n06,
+                            ref_n07: ref_n07,
+                            note: note,
+                            et_total_amount: et_total_amount
+                        },
+                        success: function(args) {
+                            if (value == 'sub') {
+                                et_submit();
+                            } else if (value === 'calc') {
+                                contractCreateScreen_calculate();
+                            } else {
+                                et_ds.setQueryParameter('et_agreement_id', et_agreement_id);
+                                et_ds.query();
+                                $('unreceivedAmountDs').setQueryParameter('contract_id', et_record.get('contract_id'));
+                                $('unreceivedAmountDs').setQueryParameter('et_agreement_id', et_agreement_id);
+                                $('unreceivedAmountDs').query();
+                                Aurora.SideBar.show({
+                                    msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                    duration: 2000
+                                });
+                            }
+                        },
+                        scope: this
+                    });
+                } else {
+                    Aurora.showWarningMessage('提示', '请先测算再保存！');
+                }
+            }
+            
+            function et_submit() {
+                var et_ds = $('early_terminationDs'),
+                    et_record = et_ds.getAt(0);
+                Aurora.showConfirm('${l:HLS.PROMPT}', '确定要提交？', function() {
+                    if (et_record) {
+                        var et_agreement_id = et_record.get('et_agreement_id');
+                        Aurora.request({
+                            url: $('con_contract_et_submit_link').getUrl(),
+                            para: {
+                                et_agreement_id: et_agreement_id
+                            },
+                            success: function(args) { //
+                                Aurora.SideBar.show({
+                                    msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                    duration: 2000
+                                });
+                                Screen_back();
+                            },
+                            scope: this
+                        });
+                    } else {
+                        Aurora.showMessage('提示', '请先测算！');
+                    }
+                });
+            }
+			
+			 //add 取消提前结清
+            function et_cancel() {
+                var et_ds = $('early_terminationDs'),
+                    et_record = et_ds.getAt(0);
+                Aurora.showConfirm('${l:HLS.PROMPT}', '确定取消提前结清？', function() {
+                    if (et_record) {
+                        var et_agreement_id = et_record.get('et_agreement_id');
+                        Aurora.request({
+                            url: $('contract_et_cancel_link').getUrl(),
+                            para: {
+                                et_agreement_id: et_agreement_id
+                            },
+                            success: function(args) { //
+                                Aurora.SideBar.show({
+                                    msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                    duration: 2000
+                                });
+                                Screen_back();
+                            },
+                            scope: this
+                        });
+                    }
+                });
+            }
+            
+            
+            function et_submit_entrance() {
+                et_save();
+                var et_ds = $('early_terminationDs'),
+                    et_record = et_ds.getAt(0);
+                var et_agreement_id = et_record.get('et_agreement_id');
+                //lock_current_window();
+                Aurora.request({
+                    url: $('attachment_et_link').getUrl(),
+                    para: {
+                        table_name: 'CON_CONTRACT_ET_HD',
+                        table_pk_value: et_agreement_id
+                    },
+                    success: function(res) {
+                        var attachment_num = res.result.attachment_num;
+                        //alert(attachment_num);
+                        if (attachment_num == 0) {
+                            // Aurora.showMessage('提示', '您未上传附件不能进行提交，请先上传附件！');
+                            et_save('sub');
+                        } else {
+                            et_save('sub');
+                        }
+                        unlock_current_window();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            function et_calc_entrance() {
+                et_save('calc');
+            }
+            
+            function detail_attachment() {
+                var val = $('early_terminationDs').getAt(0).get('et_agreement_id');
+                var url = $('et_attachment_uploadFile_id').getUrl() + '?table_name=CON_CONTRACT_ET_HD&header_id=' + val;
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'et_uploadFile_id',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {});
+            }
+            
+            function ds_set_readonly(ds_id) {
+                var fields = $(ds_id).fields;
+                var ds_record = $(ds_id).getCurrentRecord();
+                if (ds_record) {
+                    for (var name in fields) {
+                        ds_record.getField(name).setReadOnly(true);
+                    }
+                }
+            }
+            
+            function on_early_terminationDs_load(ds) {
+                if ('${/parameter/@function_usage}' == 'QUERY') {
+                    ds_set_readonly(ds.id);
+                }
+            }
+            
+            
+            //提前还款报价清单打印
+            
+            function con701_print_transfer() {
+                debugger;
+                var ds = $('early_terminationDs');
+                var records = ds.getAt(0);
+                var et_agreement_id = records.get('et_agreement_id');
+                var contract_id = records.get('contract_id');
+                /* var xmlTemp = '';
+                 var fileName = '';
+                 xmlTemp = 'con_contract_et_early_repayment.xml';
+                 fileName = '合同提前终止通知书.pdf';*/
+                if (Ext.isEmpty(et_agreement_id)) {
+                    Aurora.showMessage('提示', '请先保存再点击打印');
+                } else {
+            
+                    var content_id;
+                    Aurora.request({
+                        url: $('hls_doc_file_content_link_id').getUrl(),
+                        para: {
+                            content_id: content_id,
+                            document_table: 'CON_CONTRACT_ET_HD',
+                            document_id: et_agreement_id
+                        },
+                        success: function(rsc) {
+                            Aurora.request({
+                                url: $('hls_doc_file_batch_create_print_link_id').getUrl(),
+                                para: {
+                                    document_id: et_agreement_id,
+                                    document_table: 'CON_CONTRACT_ET_HD',
+                                    batch_flag: 'Y',
+                                    source_type: 'COMMON'
+                                },
+                                success: function(res) {
+                                    var url_l = $('hls_doc_batch_download_pdf_print_link_id').getUrl() + '?content_id=' + rsc.result.content_id + '&download_file_flag=Y&file_path=${/parameter/@file_path}&source_type=COMMON&type=SIN&fnd_atm_flag=Y';
+                                    window.open(href = url_l, target = "_self");
+                                }
+                            });
+                        }
+                    });
+                }
+            }
+            
+            
+            //合同提前终止通知书打印
+            
+            // function con701_print_stop() {
+            // debugger;
+            // var ds = $('early_terminationDs');
+            // var records = ds.getAt(0);
+            // var contract_id = records.get('contract_id');
+            // var et_agreement_id = records.get('et_agreement_id');
+            // var xmlTemp = '';
+            // var fileName = '';
+            // xmlTemp = 'con_contract_et_cancle.xml';
+            // fileName = '合同提前终止通知书.pdf';
+            // var url = $('con_contract_et_link').getUrl() + '?contract_id=' + contract_id + '&xmlTemp=' + xmlTemp + '&fileName=' + fileName;
+            // window.open(url);
+            // }
+            
+            
+            //add by liukang start
+            
+            
+            function onUpdate1(ds, record, name, value) {
+                record = $('early_terminationDs').getAt(0);
+                var penalty = record.get('penalty') || 0;
+                var et_fee = record.get('et_fee') || 0;
+                var ref_n01 = record.get('ref_n01') || 0;
+                var ref_n02 = record.get('ref_n02') || 0;
+                if ('${/parameter/@function_usage}' == 'QUERY') {
+                    record.getField('ref_n04').setReadOnly(true);
+                    record.getField('ref_n05').setReadOnly(true);
+                    record.getField('ref_n06').setReadOnly(true);
+                    record.getField('ref_n07').setReadOnly(true);
+            
+                } else {
+                    if (penalty == 0) {
+                        record.getField('ref_n04').setReadOnly(true);
+                    }
+                    if (et_fee == 0) {
+                        record.getField('ref_n05').setReadOnly(true);
+                    }
+                    if (ref_n01 == 0) {
+                        record.getField('ref_n06').setReadOnly(true);
+                    }
+                    if (ref_n02 == 0) {
+                        record.getField('ref_n07').setReadOnly(true);
+                    }
+                }
+                var collecting_fee = record.get('collecting_fee') || 0;
+                var take_back_fee = record.get('take_back_fee') || 0;
+                var damages_fee = record.get('damages_fee') || 0;
+                var assessment_fee = record.get('assessment_fee') || 0;
+                var collection_fee = record.get('collection_fee') || 0;
+                var loy_fee = record.get('loy_fee') || 0;
+            
+                debt_fee = penalty * 1 + collecting_fee * 1 + take_back_fee * 1 + damages_fee * 1 + assessment_fee * 1 + collection_fee * 1 + loy_fee * 1;
+                record.set('debt_fee', debt_fee);
+                if ('${/parameter/@function_usage}' == 'QUERY') {
+                    record.getField('et_fee').setReadOnly(true);
+                    record.getField('et_fee').setRequired(false);
+                    record.getField('note_s').setReadOnly(true);
+                } else {
+                    record.getField('et_fee').setReadOnly(false);
+                    record.getField('et_fee').setRequired(true);
+                }
+            }
+            //end
+            
+            
+            function calc_et_total_amount_update(ds, record, name, value) {
+                var ref_n01 = record.get('ref_n01') || 0;
+                var ref_n02 = record.get('ref_n02') || 0;
+                var ref_n03 = record.get('ref_n03') || 0;
+                var ref_n04 = record.get('ref_n04') || 0;
+                var ref_n05 = record.get('ref_n05') || 0;
+                var ref_n06 = record.get('ref_n06') || 0;
+                var ref_n07 = record.get('ref_n07') || 0;
+                var ref_n08 = record.get('ref_n08') || 0;
+                var overdue_amount = record.get('overdue_amount') || 0;
+                var penalty = record.get('penalty') || 0;
+                var undue_principal = record.get('undue_principal') || 0;
+                var residual_value = record.get('residual_value') || 0;
+                var et_fee = record.get('et_fee') || 0;
+            
+                if (ref_n04 > penalty) {
+                    Aurora.showMessage('提示', '罚息减免金额不能大于逾期罚息！');
+                    return;
+                }
+                // if (ref_n05 > et_fee) {
+                    // Aurora.showMessage('提示', '违约金减免金额不能大于违约金！');
+                    // return;
+                // }
+                if (ref_n06 > ref_n01) {
+                    Aurora.showMessage('提示', '经销商保证金减免金额不能大于应收经销商保证金！');
+                    return;
+                }
+                if (ref_n07 > ref_n02) {
+                    Aurora.showMessage('提示', '风险金减免金额不能大于应收风险金！');
+                    return;
+                }
+            
+                if (name == 'ref_n04' || name == 'ref_n05' || name == 'ref_n06' || name == 'ref_n07') {
+                    var sum_amount = overdue_amount + penalty + undue_principal + et_fee + residual_value + ref_n01 + ref_n02 + ref_n08 - (ref_n03 + ref_n04 + ref_n05 + ref_n06 + ref_n07);
+                    record.set('et_total_amount', sum_amount);
+                }
+            }
+			//校验提前结清日选择
+            
+            function checkDate(cell, date, text) {
+                var sysdate = Aurora.formatDate(new Date(), 'yyyy-mm-dd');
+                date = Aurora.formatDate(date, 'yyyy-mm-dd');
+                if (date < sysdate) {
+                    cell.disabled = true;
+                }
+                return text;
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="et_pay_method_ds" lookupCode="ET_PAY_METHOD"/>
+            <a:dataSet id="early_terminationDs" autoQuery="true" model="cont.CON701.con_contract_et_hd" queryUrl="${/request/@context_path}/autocrud/cont.CON701.con_contract_et_hd/query?et_agreement_id=${/parameter/@et_agreement_id}">
+                <a:fields>
+                    <a:field name="others_fee" required="true"/>
+                    <a:field name="pay_method"/>
+                    <a:field name="defaults_fee"/>
+                    <a:field name="pay_method_desc" displayField="code_value_name" options="et_pay_method_ds" returnField="pay_method" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="on_early_terminationDs_load"/>
+                    <a:event name="load" handler="onUpdate1"/>
+                    <a:event name="update" handler="calc_et_total_amount_update"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="receivedAmountDs" fetchAll="true" model="cont.CON701.con_contract_received_amount"/>
+            <a:dataSet id="unreceivedAmountDs" fetchAll="true" model="cont.CON701.con_contract_unreceived_amount"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:switch test="/parameter/@function_usage">
+                <a:case value="QUERY">
+                    <a:screenTopToolbar>
+                        <a:gridButton click="Screen_exit" text="HLS.EXIT"/>
+                    </a:screenTopToolbar>
+                </a:case>
+                <a:case value="*">
+                    <a:screenTopToolbar>
+                        <a:gridButton click="Screen_exit" text="HLS.EXIT"/>
+                        <a:gridButton click="et_calc_entrance" text="测算"/>
+                        <a:gridButton click="et_save" text="HLS.SAVE"/>
+                        <a:gridButton click="et_submit_entrance" text="提交"/>
+                        <a:gridButton click="detail_attachment" text="HLS.ATTACHMENT"/>
+						<a:gridButton click="et_cancel" text="取消提前结清"/>
+                        <!-- 
+                        <a:gridButton click="con701_print_finish" text="费用结算表生成"/>
+                        <a:gridButton click="con701_print_transfer" text="交接单生成"/>
+                        <a:gridButton click="con701_print_stop" text="合同终止协议生成"/> -->
+                        <!-- <a:gridButton click="con701_print_transfer" text="正常合同提前终止生成"/> -->
+                        <!-- <a:gridButton click="con701_print_stop" text="强制合同提前终止生成"/> -->
+                    </a:screenTopToolbar>
+                </a:case>
+            </a:switch>
+            <a:form column="4" labelWidth="110" marginWidth="30" title="基础信息">
+                <a:textField name="contract_number" bindTarget="contract_et_Screen_mainDs" prompt="合同编码" readOnly="true"/>
+                <a:textField name="contract_name" bindTarget="contract_et_Screen_mainDs" prompt="合同名称" readOnly="true"/>
+                <a:textField name="document_type_desc" bindTarget="contract_et_Screen_mainDs" prompt="合同类型" readOnly="true"/>
+                <a:textField name="document_category_desc" bindTarget="contract_et_Screen_mainDs" prompt="合同类别" readOnly="true"/>
+                <a:textField name="bp_name" bindTarget="contract_et_Screen_mainDs" prompt="承租人名称" readOnly="true"/>
+                <a:textField name="received_times" bindTarget="contract_et_Screen_mainDs" prompt="已还款期数" readOnly="true"/>
+                <a:textField name="contract_status_desc" bindTarget="contract_et_Screen_mainDs" prompt="合同状态" readOnly="true"/>
+                <a:datePicker name="inception_of_lease" bindTarget="contract_et_Screen_mainDs" prompt="起租日期" readOnly="true"/>
+                <a:datePicker name="start_due_date" bindTarget="contract_et_Screen_mainDs" prompt="支付开始日" readOnly="true"/>
+                <a:textField name="overdue_status" bindTarget="contract_et_Screen_mainDs" prompt="是否逾期" readOnly="true"/>
+                <a:datePicker name="termination_date" bindTarget="contract_et_Screen_mainDs" prompt="提前结清日" renderer="Aurora.formatDate" dayRenderer="checkDate"/>
+                <a:lov name="bp_agent" bindTarget="contract_et_Screen_mainDs" prompt="经销商" readOnly="true"/>
+                <!--   <a:textField name="car_description" bindTarget="contract_et_Screen_mainDs" prompt="车辆描述" readOnly="true"/> -->
+                <a:lov name="item_frame_number" bindTarget="contract_et_Screen_mainDs" prompt="车架号" readOnly="true"/>
+                <a:textField name="division_n" bindTarget="contract_et_Screen_mainDs" prompt="产品线" readOnly="true"/>
+                <a:lov name="bp_name_1" bindTarget="contract_et_Screen_mainDs" prompt="供应商" readOnly="true"/>
+                <a:lov name="product_name_write" bindTarget="contract_et_Screen_mainDs" prompt="融资租赁产品" readOnly="true"/>
+                <a:textField name="lease_times" bindTarget="contract_et_Screen_mainDs" prompt="租赁期数" readOnly="true"/>
+                <a:textField name="int_rate_display" bindTarget="contract_et_Screen_mainDs" prompt="租赁年利率" readOnly="true"/>
+                <a:numberField name="invoice_price" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="购置价" readOnly="true"/>
+                <a:numberField name="finance_amount" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="融资额" readOnly="true"/>
+                <a:numberField name="down_payment" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="首付金额" readOnly="true"/>
+                <a:textField name="down_payment_ratio" bindTarget="contract_et_Screen_mainDs" prompt="首付比例" readOnly="true"/>
+                <!--  <a:textField name="deposit_ratio" bindTarget="contract_et_Screen_mainDs" prompt="保证金比例" readOnly="true"/>
+                <a:numberField name="deposit" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="保证金" readOnly="true"/>
+                <a:textField name="lease_charge_ratio" bindTarget="contract_et_Screen_mainDs" prompt="手续费比例" readOnly="true"/> -->
+                <a:numberField name="lease_charge" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="手续费" readOnly="true"/>
+                <a:textField name="license_fee_flag_n" bindTarget="contract_et_Screen_mainDs" prompt="是否包牌" readOnly="true"/>
+                <a:numberField name="plate_price" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="上牌费" readOnly="true"/>
+                <!--     <a:textField name="insurance_flag_n" bindTarget="contract_et_Screen_mainDs" prompt="是否融保险" readOnly="true"/> -->
+                <a:numberField name="insurance_amount" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="保险费" readOnly="true"/>
+                <!--   <a:textField name="purchase_tax_flag_n" bindTarget="contract_et_Screen_mainDs" prompt="是否融购置税" readOnly="true"/> -->
+                <a:numberField name="purchase_tax" allowDecimals="true" allowFormat="true" bindTarget="contract_et_Screen_mainDs" decimalPrecision="2" prompt="购置税" readOnly="true"/>
+                <a:textField name="discount_method_n" bindTarget="contract_et_Screen_mainDs" prompt="贴息方式" readOnly="true"/>
+            </a:form>
+            <div id="detail_flag_id">
+                <a:form title="提前结清信息">
+                    <a:form column="4" labelWidth="110" marginWidth="30">
+                        <!--<a:numberField name="finance_amount" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="融资额" readOnly="true"/>
+                        <a:numberField name="overdue_amount" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="逾期租金" readOnly="true"/>
+                        <a:numberField name="debt_fee" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="费用欠款" readOnly="true"/>
+                        <a:numberField name="unpay_insurance_fee" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="未支付保险" readOnly="true"/>
+                        <a:numberField name="unpay_travel_tax" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="未支付车船税" readOnly="true"/>
+                        <a:numberField name="unpay_gps_fee" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="GPS服务费" readOnly="true"/>
+                        <a:numberField name="undue_principal" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="未逾期剩余本金" readOnly="true"/>
+                        <a:numberField name="et_fee" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="提前结清手续费"/>
+                        <a:numberField name="defaults_fee" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="违约金" readOnly="true"/>
+                        <a:numberField name="overdue_interest" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="当月利息" readOnly="true"/>
+                        <a:numberField name="ref_n05" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="未退还保证金" readOnly="true"/>
+                        <a:numberField name="et_total_amount" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="试算金额" readOnly="true"/>
+                        <a:textField name="test_employee" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="试算人员" readOnly="true"/>
+                        <a:comboBox name="pay_method_desc" bindTarget="early_terminationDs" prompt="还款方式"/>
+                        <a:numberField name="current_interest" bindTarget="early_terminationDs" prompt="当期应收利息" readOnly="true"/>
+                        <a:textField name="note_s" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="备注"/> -->
+                        <a:numberField name="overdue_amount" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="已到期金额" readOnly="true"/>
+                       <!-- <a:numberField name="overdue_principal" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="已到期本金" readOnly="true"/>-->
+                        <a:numberField name="undue_amount" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="未到期金额" readOnly="true"/>
+                        <a:numberField name="residual_value" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="留购金" readOnly="true"/>
+                        <a:numberField name="penalty" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="逾期罚息" readOnly="true"/>
+                        <!--<a:numberField name="ref_n04" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="罚息减免金额"/>-->
+                        <a:numberField name="et_fee" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="违约金" readOnly="true"/>
+                        <a:numberField name="ref_n05" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="违约金减免金额"/>
+                        <!--  <a:numberField name="ref_n01" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="应收经销商保证金" readOnly="true"/>
+                        <a:numberField name="ref_n06" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="经销商保证金减免金额"/> -->
+                        <!--  <a:numberField name="ref_n02" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="应收风险金" readOnly="true"/>
+                        <a:numberField name="ref_n07" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="风险金减免金额"/>
+                        <a:numberField name="ref_n03" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="应退还客户保证金" readOnly="true"/> -->
+                        <!--<a:numberField name="ref_n08" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="贴息-承租人" readOnly="true"/>-->
+                        <a:numberField name="et_total_amount" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="提前结清总费用"/>
+                    </a:form>
+                    <a:tabPanel marginHeight="400" marginWidth="30">
+                        <a:tabs>
+                            <a:tab prompt="未收金额" width="110">
+                                <a:grid bindTarget="unreceivedAmountDs" marginHeight="430" marginWidth="100" navBar="true">
+                                    <a:columns>
+                                        <a:column name="times" prompt="期数"/>
+                                        <a:column name="cf_item_dis" prompt="类型"/>
+                                        <a:column name="due_amount" prompt="应付金额" renderer="Aurora.formatMoney"/>
+                                        <a:column name="received_amount" prompt="已收金额" renderer="Aurora.formatMoney"/>
+                                        <a:column name="due_date" prompt="预定支付日期"/>
+                                        <a:column name="principal" prompt="本金" renderer="Aurora.formatMoney"/>
+                                        <a:column name="interest" prompt="利息" renderer="Aurora.formatMoney"/>
+                                        <!-- <a:column name="termination_date" prompt="结清日"/> -->
+                                        <a:column name="cf_status_dis" prompt="现金流状态"/>
+                                    </a:columns>
+                                </a:grid>
+                            </a:tab>
+                            <a:tab prompt="已收金额" width="110">
+                                <a:grid bindTarget="receivedAmountDs" marginHeight="430" marginWidth="100" navBar="true">
+                                    <a:columns>
+                                        <a:column name="times" prompt="期数"/>
+                                        <a:column name="cf_item_dis" prompt="类型"/>
+                                        <a:column name="due_amount" prompt="应付金额" renderer="Aurora.formatMoney"/>
+                                        <a:column name="received_amount" prompt="未付金额" renderer="Aurora.formatMoney"/>
+                                        <a:column name="due_date" prompt="预定支付日期"/>
+                                        <a:column name="received_principal" prompt="已收本金" renderer="Aurora.formatMoney"/>
+                                        <a:column name="received_interest" prompt="已收利息" renderer="Aurora.formatMoney"/>
+                                        <!-- <a:column name="termination_date" prompt="结清日"/> -->
+                                        <a:column name="cf_status_dis" prompt="现金流状态"/>
+                                    </a:columns>
+                                </a:grid>
+                            </a:tab>
+                        </a:tabs>
+                    </a:tabPanel>
+                </a:form>
+            </div>
+        </a:screenBody>
+        <script><![CDATA[
+            Aurora.onReady(init);
+            
+            function init() {
+                var record = $('contract_et_Screen_mainDs').getCurrentRecord();
+                if ('${/parameter/@function_usage}' == 'QUERY') {
+                    record.getField('termination_date').setReadOnly(true);
+                    record.getField('car_in_date').setReadOnly(true);
+                }
+                // $('early_terminationDs').setQueryParameter('et_agreement_id', record.get('et_agreement_id'));
+                // $('early_terminationDs').query();
+                $('unreceivedAmountDs').setQueryParameter('contract_id', record.get('contract_id'));
+                $('unreceivedAmountDs').setQueryParameter('et_agreement_id', record.get('et_agreement_id'));
+                $('unreceivedAmountDs').query();
+                $('receivedAmountDs').setQueryParameter('contract_id', record.get('contract_id'));
+                $('receivedAmountDs').query();
+            }
+        ]]></script>
+    </a:view>
+</a:screen>

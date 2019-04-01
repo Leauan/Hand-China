@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ZLF  
+    $Date: 2015-1-15 下午8:46:58  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        c.contract_id,
+                        c.contract_number,
+                        c.bp_id_tenant,
+                        (SELECT h.bp_name FROM hls_bp_master h WHERE h.bp_id = c.bp_id_tenant
+                        ) bp_name,
+                        cli.brand_id,
+                        (SELECT
+                            bv.description
+                        FROM
+                            hls_car_brands_vl bv
+                        WHERE
+                            bv.brand_id = cli.brand_id
+                        ) brand_des,
+                        cli.series_id,
+                        (SELECT
+                            sv.description
+                        FROM
+                            hls_car_series_vl sv
+                        WHERE
+                            sv.series_id = cli.series_id
+                        ) series_des,
+                        cli.model_id,
+                        (SELECT
+                            mv.description
+                        FROM
+                            hls_car_model_vl mv
+                        WHERE
+                            mv.model_id = cli.model_id
+                        ) model_des,
+                        cid.item_frame_number,
+                        c.contract_status,
+                        (SELECT
+                            v.code_value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code      ='CON500_CONTRACT_STATUS' AND
+                            v.code_value=c.contract_status
+                        ) contract_status_des,
+                        (NVL(
+                        (SELECT
+                            '已结清'
+                        FROM
+                            dual
+                        WHERE
+                            NOT EXISTS
+                            (SELECT
+                                *
+                            FROM
+                                con_contract_cashflow ccc
+                            WHERE
+                                ccc.contract_id     =c.contract_id AND
+                                ccc.write_off_flag IN ('NOT','PARTIAL')
+                            )
+                        ),'未结清')) terminate_flag_des,
+                        (NVL(
+                        (SELECT
+                            '过户已完成'
+                        FROM
+                            dual
+                        WHERE
+                            EXISTS
+                            (SELECT
+                                *
+                            FROM
+                                con_contract_item_detail cd
+                            WHERE
+                                cd.item_detail_id                  =cid.item_detail_id AND
+                                NVL(cd.ownership_transfer_flag,'N')='Y' AND
+                                cd.transfer_date                  IS NOT NULL
+                            )
+                        ),'过户未完成')) transfer_flag_des,
+                        (NVL(
+                        (SELECT
+                            '已解除抵押'
+                        FROM
+                            dual
+                        WHERE
+                            EXISTS
+                            (SELECT
+                                *
+                            FROM
+                                ast_car_license al
+                            WHERE
+                                al.item_detail_id                =cid.item_detail_id AND
+                                NVL(al.relieve_mortgage_flag,'N')='Y' AND
+                                al.relieve_mortgage_date        IS NOT NULL
+                            )
+                        ),'未解除抵押')) relieve_mortgage_flag_des,
+                        (SELECT
+                            MAX(ai.insurance_date_to)
+                        FROM
+                            ast_car_insurance ai
+                        WHERE
+                            ai.item_detail_id=cid.item_detail_id AND
+                            ai.insurance_type='10'
+                        ) compulsory_insurance_end_date,
+                        (SELECT
+                            MAX(ai.insurance_date_to)
+                        FROM
+                            ast_car_insurance ai
+                        WHERE
+                            ai.item_detail_id=cid.item_detail_id AND
+                            ai.insurance_type='20'
+                        ) commercial_insurance_end_date
+                    FROM
+                        con_contract c,
+                        con_contract_lease_item cli,
+                        con_contract_item_detail cid
+                    WHERE
+                        c.contract_id              = cli.contract_id AND
+                        cli.contract_lease_item_id = cid.contract_lease_item_id AND
+                        c.data_class               = 'NORMAL' AND
+                        c.contract_status in ('ET','ETING','TERMINATE')
+                    ) t1 #WHERE_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="contract_number" queryExpression="t1.contract_number like ${@contract_number}"/>
+        <bm:query-field name="bp_name" queryExpression="t1.bp_name like ${@bp_name}"/>
+    </bm:query-fields>
+</bm:model>

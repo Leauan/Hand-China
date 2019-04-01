@@ -1,0 +1,353 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: lpc 9874  
+    $Date: 2017/11/24 13:52:40  
+    $Revision: 1.0  
+    $purpose: 经销商创建  创建界面      
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="hls.HLS303.hls_bp_agentemployee_id" rootPath="employee_id_path"/>
+        <s:server-script import="contract_print_path.js"><![CDATA[
+           $ctx.parameter.file_path = con_print_path['con_print_path'];
+           $ctx.parameter.tomcat_source = con_print_path['tomcat_source'];
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="bp_agent_import_link" url="${/request/@context_path}/modules/hls/HLS303/bp_agent_import.screen"/>
+        <a:link id="import_upload_link" url="${/request/@context_path}/modules/hls/HLS303/bp_agent_import_upload.screen"/>
+        <!--<script src="${/request/@context_path}/modules/prj/PRJ500N/javascripts/input_validator.js"/>-->
+        <link href="${/request/@context_path}/css/lightbox.css" rel="stylesheet" type="text/css"/>
+        <script src="${/request/@context_path}/javascripts/lightbox.js"/>
+        <a:link id="hls303_cdd_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="hls303_cdd_downloadFile_id" url="${/request/@context_path}/downloadFile.screen"/>
+        <!-- <script src="${/request/@context_path}/modules/prj/PRJ500N/javascripts/check_org_code.js"/> -->
+        <a:link id="hls_bp_master_agent_submit_link_id" model="hls.HLS303.hls_bp_master_asgent_modify" modelaction="update"/>
+        <a:link id="get_special_fields_link_id" model="cont.CON500.con_contract_get_special_fields" modelaction="update"/>
+        <script><![CDATA[
+            Ext.ux.Lightbox.register('a[ref=img]', true);
+            //提交审批
+            var save_flag = 'N';
+            
+            window['${/parameter/@layout_code}_submit_approval_layout_dynamic_click'] = function() {
+                //debugger;
+                var root_ds = $('${/parameter/@layout_code}_virtual_ds');
+                if (root_ds.validate()) {
+                    var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+                    var record = $(ds_id).getCurrentRecord();
+                    if ('${/parameter/@agent_instance_status}' == 'APPROVING') {
+                        Aurora.showMessage('${l:HLS.PROMPT}', '该单据已在审批中，请勿重复提交!');
+                        return;
+                    }
+            
+                    window['${/parameter/@layout_code}_SAVE_LAYOUT_DYNAMIC_CLICK']();
+                    if (save_flag == 'Y') {
+                        Aurora.showConfirm('${l:HLS.PROMPT}', '确认提交经销商准入流程？', function() {
+            
+                            //window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                            window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                            Aurora.request({
+                                url: $('hls_bp_master_agent_submit_link_id').getUrl(),
+                                para: {
+                                    bp_id: record.get('bp_id')
+                                },
+                                scope: this,
+                                success: function() {
+                                    window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                                    Aurora.SideBar.show({
+                                        msg: '操作成功',
+                                        duration: 2000
+                                    });
+                                    $('${/parameter/@winid}').close();
+            
+                                },
+                                failure: function() {
+                                    window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                                },
+                                error: function() {
+                                    window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                                }
+                            });
+                        });
+                    }
+                }
+            };
+            //保存前调用，生成商机编号
+            window['${/parameter/@layout_code}_on_layout_dynamic_before_submit'] = function(ds, record) {
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+                var head_record = $(ds_id).getCurrentRecord();
+                var check_flag = false;
+                if (head_record.get('bp_code')) {
+                    return true;
+                }
+                Aurora.request({
+                    url: $('get_special_fields_link_id').getUrl(),
+                    para: {
+                        document_category: 'BUSINESS_PARTNR',
+                        document_type: head_record.get('bp_type'),
+                        bp_class: head_record.get('bp_class'),
+                        id_type: head_record.get('id_type'),
+                        id_card_no: head_record.get('id_card_no'),
+                        bp_info: head_record.get('bp_info'),
+                        province_id: head_record.get('province_id'),
+                        organization_code: head_record.get('organization_code'),
+                        function_code: '${/parameter/@function_code}',
+                        function_usage: '${/parameter/@function_usage}'
+                    },
+                    success: function(res) {
+                        var document_number = res.result.document_number;
+                        head_record.set('bp_code', document_number);
+                        head_record.set('company_id', '${/session/@company_id}');
+                        head_record.set('unbrand', '${/parameter/@unbrand}');
+                        check_flag = true;
+                    },
+                    error: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    failure: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    sync: true,
+                    scope: this
+                });
+                return check_flag;
+            };
+            //财务报表导入
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+                var record = $(ds_id).getCurrentRecord();
+                bp_id = record.get('bp_id');
+                if (!bp_id) {
+                    return;
+                }
+                new Aurora.Window({
+                    id: 'rsc_fin_statement_prj_import_handle_winid',
+                    url: '${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_import_handle.screen',
+                    params: {
+                        bp_id: bp_id,
+                        winid: 'rsc_fin_statement_prj_import_handle_winid'
+                    },
+                    title: '${l:STATEMENTS_BUSINESS_DATA_IMPORT}',
+                    width: 950,
+                    height: 200
+                });
+            };
+            //单店统计表导入
+            window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function() {
+                var ds_bp_master_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+                var ds_sale_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master_agent_sale');
+                var ds_rebate_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master_agent_rebate');
+                var ds_loan_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master_agent_loan');
+                var bp_master_record = $(ds_bp_master_id).getCurrentRecord();
+                var bp_id = bp_master_record.get("bp_id");
+                var sale_record = $(ds_sale_id).getCurrentRecord();
+                var rebate_record = $(ds_rebate_id).getCurrentRecord();
+                var loan_record = $(ds_loan_id).getCurrentRecord();
+                if (!bp_id) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先保存!');
+                } else {
+                    var win = new Aurora.Window({
+                        id: 'bp_agent_import_window',
+                        url: $('import_upload_link').getUrl(),
+                        params: {
+                            'winid': 'bp_agent_import_window',
+                            'bp_id': bp_id
+                        },
+                        title: '导入',
+                        width: 420,
+                        height: 275
+                    });
+                    win.on('close', function() {
+                        $('${/parameter/@layout_code}_G_SALE_DETAIL_hls_bp_master_agent_sale_ds').setQueryParameter('bp_id', bp_id);
+                        $('${/parameter/@layout_code}_G_REBATE_hls_bp_master_agent_rebate_ds').setQueryParameter('bp_id', bp_id);
+                        $('${/parameter/@layout_code}_G_LOAN_DETAIL_hls_bp_master_agent_loan_ds').setQueryParameter('bp_id', bp_id);
+                        $('${/parameter/@layout_code}_G_BILLS_hls_bp_master_agent_loan_ds').setQueryParameter('bp_id', bp_id);
+                        $('${/parameter/@layout_code}_G_SALE_DETAIL_hls_bp_master_agent_sale_ds').query();
+                        $('${/parameter/@layout_code}_G_REBATE_hls_bp_master_agent_rebate_ds').query();
+                        $('${/parameter/@layout_code}_G_LOAN_DETAIL_hls_bp_master_agent_loan_ds').query();
+                        $('${/parameter/@layout_code}_G_BILLS_hls_bp_master_agent_loan_ds').query();
+                    });
+                }
+            };
+            
+            function view_pdf(attachment_id) {
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/fnd.fnd_atm_attachment/query',
+                    para: {
+                        attachment_id: attachment_id
+                    },
+                    success: function(res) {
+                        //debugger;
+                        var path = res.result.record.file_path;
+                        path = path.substr(path.indexOf('hls_attachment'));
+                        var tomcat_source = '${/parameter/@tomcat_source}';
+                        var source_path = 'http://' + window.location.host + '/' + tomcat_source + '/' + path;
+                        var oWin = window.open(source_path);
+                    },
+                    scope: this
+                });
+            }
+            
+            function upload_file(id, name, query_only) {
+                //debugger;
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][id + '---' + name];
+                if (record.get('check_id')) {
+                    var url;
+                    if (query_only == 'Y') {
+                        url = $('hls303_cdd_downloadFile_id').getUrl() + '?table_name=PRJ_CDD_ITEM_CHECK&header_id=' + record.get('check_id');
+                    } else {
+                        url = $('hls303_cdd_uploadFile_id').getUrl() + '?table_name=PRJ_CDD_ITEM_CHECK&header_id=' + record.get('check_id');
+                    }
+                    var win = new Aurora.Window({
+                        url: url,
+                        title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                        id: 'prj500_cdd_uploadFile_screen_id',
+                        width: 850,
+                        height: 400
+                    });
+            
+                    win.on('close', function() {
+                        record.ds.query();
+                    });
+                } else {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先保存!');
+            
+                }
+            }
+            
+            
+            
+            
+            //超链接渲染
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                //debugger;
+                window['${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                if (name == 'attachment') {
+                    link_function = 'upload_file';
+                    if (record.get('attach_count') == 0 || !record.get('attach_count')) {
+                        return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                    } else {
+                        return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '(' + record.get('attach_count') + ')' + '</a>';
+                    }
+            
+                } else if (name == 'attach_file_name') {
+                    if (value != null) {
+                        var link = '${/request/@context_path}/atm_download.svc?attachment_id=';
+                        var str = value.split(';;');
+                        var url = '';
+                        for (var i = 0;i < str.length;i++) {
+                            var temp = str[i].split('--');
+                            if (!Aurora.isEmpty(temp[0])) {
+                                var file_name = temp[0].toUpperCase();
+                                var file_suffix = temp[0].substr(temp[0].lastIndexOf('.') + 1).toUpperCase();
+                                if (file_name.indexOf('.PDF') >= 0) {
+                                    url = url + '<a href=javascript:view_pdf(\'' + temp[1] + '\')>' + temp[0] + '</a>' + ',';
+                                } else if (file_suffix == 'BMP' || file_suffix == 'JPG' || file_suffix == 'JPEG' || file_suffix == 'PNG' || file_suffix == 'GIF') {
+                                    url = url + '<a href=' + link + temp[1] + ' ref="img">' + temp[0] + '</a>' + ',';
+                                } else {
+                                    url = url + '<a href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                                }
+                            }
+                        }
+                        return url;
+            
+                    }
+                } else if (name == 'description') {
+                    if (record.get('important_flag') == 'Y') {
+                        return '<font color="RED">' + value + '</font>';
+                    }
+                    return value;
+                }
+            };
+            
+            //保存submitsuccess调用
+            window['${/parameter/@layout_code}_on_layout_dynamic_submitsuccess'] = function(ds, record, res) {
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+                var cdd_item_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_cdd_item_doc_ref');
+                if (ds_id) {
+                    record = $(ds_id).getAt(0);
+                    var prj_cdd_item_doc_ref_ds = $(cdd_item_ds_id);
+                    prj_cdd_item_doc_ref_ds.setQueryParameter('cdd_list_id', record.get('cdd_list_id'));
+                    prj_cdd_item_doc_ref_ds.query();
+            
+                    function prj_cdd_item_doc_ref_load() {
+                        //取消重复监听
+                        prj_cdd_item_doc_ref_ds.un('load', prj_cdd_item_doc_ref_load);
+                        $(cdd_item_ds_id).submit();
+                    }
+                    prj_cdd_item_doc_ref_ds.on('load', prj_cdd_item_doc_ref_load);
+                }
+            
+                save_flag = 'Y';
+                window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+            
+            };
+            
+            //新增和加载时调用(form)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_form_add_and_load'] = function(ds, record, config_records, bp_seq) {
+                //debugger;
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+                var bp_record = $(ds_id).getCurrentRecord();
+                if (ds_id == ds.id) {
+                    if (record.get('taxpayer_type') == 'Y') {
+                        record.getField('tax_registry_num').setRequired(true);
+                        record.getField('invoice_bp_address_phone_num').setRequired(true);
+                        record.getField('invoice_title').setRequired(true);
+                        record.getField('invoice_bp_bank_account').setRequired(true);
+                    } else {
+                        record.getField('tax_registry_num').setRequired(false);
+                        record.getField('invoice_bp_address_phone_num').setRequired(false);
+                        record.getField('invoice_title').setRequired(false);
+                        record.getField('invoice_bp_bank_account').setRequired(false);
+                    }
+            
+                    bp_record.set('employee_id','${/model/employee_id_path/record/@employee_id}');
+                    bp_record.set('employee_id_n', '${/model/employee_id_path/record/@employee_name}');
+
+                }
+            };
+            
+            //更新时调用
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+                if (ds_id == ds.id) {
+                    if (record.get('taxpayer_type') == 'Y') {
+                        record.getField('tax_registry_num').setRequired(true);
+                        record.getField('invoice_bp_address_phone_num').setRequired(true);
+                        record.getField('invoice_title').setRequired(true);
+                        record.getField('invoice_bp_bank_account').setRequired(true);
+                    } else {
+                        record.getField('tax_registry_num').setRequired(false);
+                        record.getField('invoice_bp_address_phone_num').setRequired(false);
+                        record.getField('invoice_title').setRequired(false);
+                        record.getField('invoice_bp_bank_account').setRequired(false);
+                    }
+                }
+            };
+            
+            
+            Aurora.onReady(function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master_role');
+                if (ds_id) {
+                    var head_record = $(ds_id).getCurrentRecord();
+                    var bp_master_role_ds = $(ds_id);
+                    var record = new Aurora.Record({
+                        'primary_flag': 'Y',
+                        'bp_category': 'AGENT',
+                        'bp_category_n': '经销商',
+                        'bp_type': 'AGENT',
+                        'bp_type_n': '经销商',
+                        'enabled_flag': 'Y'
+                    });
+                    bp_master_role_ds.add(record);
+                    var current_record = bp_master_role_ds.getAt(0);
+                    current_record.getField('primary_flag').setReadOnly(true);
+                    current_record.getField('enabled_flag').setReadOnly(true);
+                }
+            });
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

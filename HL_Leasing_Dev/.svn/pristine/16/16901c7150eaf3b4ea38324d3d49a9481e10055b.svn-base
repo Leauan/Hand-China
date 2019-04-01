@@ -1,0 +1,191 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qm  
+    $Date: 2014-4-18 下午3:54:53  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:e="aurora.service.exception" xmlns:f="aurora.database.features" xmlns:bm="http://www.aurora-framework.org/schema/bm" alias="t1" baseTable="CON_CONTRACT_ITEM_V">
+    <bm:fields>
+        <bm:field name="bp_id"/>
+        <bm:field name="bp_name"/>
+        <!--   <bm:field name="project_id"/>
+        <bm:field name="document_type"/>
+        <bm:field name="document_category"/> -->
+        <bm:field name="contract_id"/>
+        <bm:field name="contract_lease_item_id"/>
+        <bm:field name="item_detail_id"/>
+        <bm:field name="brand_id"/>
+        <bm:field name="brand_dis"/>
+        <bm:field name="model_id"/>
+        <bm:field name="model_dis"/>
+        <bm:field name="series_id"/>
+        <bm:field name="series_dis"/>
+        <bm:field name="pattern"/>
+        <!--   <bm:field name="model_id"/>
+        <bm:field name="model_dis"/> -->
+        <!-- <bm:field name="contract_name"/> -->
+        <bm:field name="contract_number"/>
+        <bm:field name="color_of_apprearance"/>
+        <!-- <bm:field name="color_of_decoration"/> -->
+        <bm:field name="item_frame_number"/>
+        <bm:field name="item_engine_number"/>
+        <!--         <bm:field name="purchase_tax"/> -->
+        <!--         <bm:field name="purchase_fee"/> -->
+        <!--         <bm:field name="badge_price"/>
+        <bm:field name="badge_license_fee"/> -->
+        <!--        <bm:field name="insurance_price"/> -->
+        <!--  <bm:field name="badge_fee"/>
+        <bm:field name="gps_fee"/> -->
+        <bm:field name="key_flag"/>
+        <bm:field name="registration_flag"/>
+        <bm:field name="purchase_flag"/>
+        <bm:field name="insurance_flag"/>
+        <bm:field name="gps_install_flag"/>
+        <bm:field name="enabled_flag"/>
+        <bm:field name="mortgage_flag"/>
+    </bm:fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="exists (select 1               from yonda_doc_status_history h              where h.document_id = t.contract_id                and h.document_category = &apos;CONTRACT&apos;                and h.status = &apos;280&apos;)"/>
+        <!-- <bm:data-filter name="query" expression="(exists (select 1 from ast_car_gps acg where acg.item_detail_id=t.item_detail_id and t.gps_install_flag=&apos;Y&apos;) or t.gps_install_flag=&apos;N&apos;)"/> -->
+        <!-- <bm:data-filter name="query" expression="(exists (select 1 from ast_car_insurance aci where aci.item_detail_id=t.item_detail_id))"/> -->
+    </bm:data-filters>
+    <bm:query-fields>
+        <bm:query-field name="bp_id_gua" queryExpression="exists (select 1 from con_contract_bp cbp where cbp.bp_id = ${@bp_id_gua} and cbp.bp_category=&apos;GUARANTOR&apos; and cbp.contract_id = t.contract_id)"/>
+        <bm:query-field field="bp_name" queryExpression="bp_name like &apos;%&apos;|| ${@bp_name} || &apos;%&apos;"/>
+        <!-- <bm:query-field field="series_id" queryOperator="="/> -->
+        <!-- <bm:query-field field="model_id" queryOperator="="/> -->
+        <bm:query-field field="brand_id" queryOperator="="/>
+        <bm:query-field field="model_id" queryOperator="="/>
+        <bm:query-field field="series_id" queryOperator="="/>
+        <bm:query-field field="enabled_flag" queryOperator="="/>
+        <bm:query-field field="mortgage_flag" queryOperator="="/>
+        <bm:query-field name="contract_number" queryExpression="contract_number like &apos;%&apos;|| ${@contract_number} || &apos;%&apos;"/>
+        <bm:query-field name="item_frame_number" queryExpression="item_frame_number like &apos;%&apos;||${@item_frame_number}||&apos;%&apos;"/>
+        <bm:query-field name="item_engine_number" queryExpression="item_engine_number like &apos;%&apos;||${@item_engine_number}||&apos;%&apos;"/>
+        <bm:query-field name="company_authority" queryExpression="t.company_id in (select company_id from fnd_companies start with company_id =${@company_authority} connect by prior company_id = parent_biz_company_id)"/>
+        <bm:query-field name="owner_user_id" queryExpression="t.owner_user_id = ${/session/@user_id}"/>
+    </bm:query-fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+					SELECT
+                    *
+                FROM
+                    (SELECT
+                        t3.contract_lease_item_id,
+                        t1.item_detail_id,
+                        t2.contract_number,
+                        t2.company_id,
+                        t2.contract_id,
+                         t2.owner_user_id,
+                        t2.contract_status,
+                        t2.bp_id_tenant bp_id,
+                        t2.bp_id_tenant_n bp_name,
+                        t3.brand_id,
+                        (SELECT v.description FROM hls_car_brands_vl v WHERE v.brand_id=t3.brand_id
+                        ) brand_dis,
+                        t3.model_id,
+                        (SELECT v.description FROM hls_car_model_vl v WHERE v.model_id=t3.model_id
+                        ) model_dis,
+                        t3.series_id,
+                        (SELECT v.description FROM hls_car_series_vl v WHERE v.series_id=t3.series_id
+                        ) series_dis,
+                        t3.color_of_apprearance,
+                        t3.pattern,
+                        t3.item_frame_number,
+                        t3.item_engine_number,
+                        (nvl((SELECT 'Y'
+                       FROM dual
+                      WHERE EXISTS (SELECT 1 FROM ast_car_license t WHERE t.item_detail_id = t1.item_detail_id and t.enabled_flag='Y')),
+                     'N')) enabled_flag,
+                     	(nvl((SELECT 'Y'
+                       FROM dual
+                      WHERE EXISTS (SELECT 1 FROM ast_car_license t WHERE t.item_detail_id = t1.item_detail_id and t.enabled_flag='Y' and t.mortgage_flag = 'Y')),
+                     'N')) mortgage_flag,
+                        t1.key_flag,
+                        t1.registration_flag,
+                        t1.purchase_flag,
+                        t1.insurance_flag,
+                        t1.gps_install_flag
+                    FROM
+                        con_contract_item_detail t1,
+                        con_contract_lv t2,
+                        con_contract_lease_item t3
+                       
+                    WHERE
+                        t1.contract_lease_item_id = t3.contract_lease_item_id AND
+                        t3.contract_id            = t2.contract_id AND
+                        t2.data_class             = 'NORMAL'
+						AND t2.contract_status !='CANCEL'
+						and  t2.contract_status ='INCEPT'
+						AND
+                        ('Y' = 'Y' AND
+                            EXISTS
+                            (SELECT
+                                1
+                            FROM
+                                aut_trx_user_authorize a1,
+                                aut_owner_user_authorize a2
+                            WHERE
+                                a1.trx_category = 'CONTRACT' AND
+                                a1.trx_id       = t1.contract_id AND
+                                TRUNC(Sysdate) BETWEEN a1.start_date AND NVL(a1.end_date, TRUNC(Sysdate)) AND
+                                a1.user_id            = a2.owner_user_id AND
+                                a1.trx_category       = a2.trx_category AND
+                                a2.authorized_user_id = ${/session/@user_id} AND
+                                TRUNC(Sysdate) BETWEEN a2.start_date AND NVL(a2.end_date, TRUNC(Sysdate))
+                            )
+                        )
+                    ) t #WHERE_CLAUSE#
+                ORDER BY
+                    contract_number DESC
+			]]></bm:query-sql>
+        </bm:operation>
+        <!-- <bm:operation name="insert" >
+        	<bm:update-sql >
+        	</bm:update-sql>
+        </bm:operation> <bm:field name="key_flag" />
+        <bm:field name="registration_flag" />
+        <bm:field name="purchase_flag" />
+        <bm:field name="insurance_flag" />-->
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+            	declare
+            		v_length number;
+            		e_frame_err exception;
+            	begin
+            		v_length:=length(${@item_frame_number});
+            		if v_length != 17 then
+            			raise e_frame_err;
+            		end if;
+	        		UPDATE
+					    CON_CONTRACT_ITEM_DETAIL t1
+					SET
+					    t1.ITEM_FRAME_NUMBER =${@item_frame_number},
+					    t1.ITEM_ENGINE_NUMBER=${@item_engine_number},
+					    t1.key_flag		     =${@key_flag},
+					    t1.registration_flag =${@registration_flag},
+					    t1.purchase_flag     =${@purchase_flag},
+					    t1.insurance_flag    =${@insurance_flag},
+					    t1.LAST_UPDATED_BY   =${/session/@user_id},
+					    t1.LAST_UPDATE_DATE  =sysdate
+					WHERE
+					    t1.ITEM_DETAIL_ID = ${@item_detail_id};
+					exception
+						when e_frame_err then 
+							sys_raise_app_error_pkg.raise_user_define_error('CON_CONTRACT_ITEM_DETAIL_PKG.FRAME_NUMBER_ERROR',
+                                                      ${/session/@user_id},
+                                                      '',
+                                                      '');
+      						raise_application_error(sys_raise_app_error_pkg.c_error_number,sys_raise_app_error_pkg.g_err_line_id);
+				end;
+        	]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <e:exception-descriptor-config>
+        <e:exception-descriptor exception="java.sql.SQLException" handleClass="aurora.database.SQLExceptionDescriptor">
+            <e:error-message code="1" message="车架号或发动机号不能重复"/>
+        </e:exception-descriptor>
+    </e:exception-descriptor-config>
+</bm:model>

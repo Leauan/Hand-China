@@ -1,0 +1,421 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ
+    $Date: 2013-6-8 上午11:23:44  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="document_category=&apos;CHANCE&apos;" fetchAll="true" model="basic.hls_document_type_v_lov" rootPath="chanceScreen_document_type_list"/>
+        <a:model-query model="basic.sys_session_info" rootPath="chanceScreen_default_record"/>
+    </a:init-procedure>
+    <a:view>
+        <style><![CDATA[
+    		.hide_dom {
+    			display:none
+    		}
+    	]]></style>
+        <script><![CDATA[
+            function hideDom(dom_id) {
+                var className = 'hide_dom';
+                var obj = Ext.get(dom_id);
+                if(!Ext.isEmpty(obj))
+                {
+                    if (!obj.hasClass(className)) {
+                    obj.addClass(className);
+                	}
+                }
+            }
+            
+            function displayDom(dom_id) {
+                var className = 'hide_dom';
+                var obj = Ext.get(dom_id);
+                if(!Ext.isEmpty(obj))
+                {
+	                if (obj.hasClass(className)) {
+	                    obj.removeClass(className);
+	                }
+                }
+            }
+            
+            function displayHandle(type) {
+                var config = {
+                    chanceKyc: {
+                        dsName: 'chanceKycDs',
+                        divId: 'chanceKycInfo'
+                    }
+                };
+                var obj = config[type];
+                var dsName = obj['dsName'];
+                var divId = obj['divId'];
+                var records = $(dsName).getAll();
+                if (records.length == 0) {
+                    hideDom(divId);
+                } else {
+                    displayDom(divId);
+                }
+            }
+            
+            
+            function chanceCreateScreen_forward() {
+	            history.go(1);
+	        }
+	        
+	        function chanceCreateScreen_back() {
+	            history.go(-1);
+	        }
+	        
+            function unmask_chanceCreateScreen()
+            {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            
+            function mask_chanceCreateScreen()
+            {
+                Aurora.Masker.mask(Ext.getBody(),'${l:HLS.SAVING}');
+            }
+	        
+	        function chanceCreateDs_grid_save() {
+	            mask_chanceCreateScreen();
+	            var ds = $('chanceCreateDs');
+	            if (ds.validate()) {
+	                ds.submit();
+	            }
+	        }
+	        
+	        function projectMaintainScreen_validateDs() {
+                var dsTabConfig = {
+                    'chanceCreateDs': {
+                        tabIndex: 0
+                    },
+                    'chanceDocDs': {
+                        tabIndex: 1
+                    },
+                    'chanceKycDs': {
+                        tabIndex: 2
+                    }
+                };
+                
+                var tabPanel = $('chanceCreateScreen_tabPanel');
+            
+                for (var dsName in dsTabConfig) {
+                    
+                    if(Aurora.CmpManager.get(dsName))
+                    {
+                        if (!$(dsName).validateSelf()) {
+                        
+                        tabPanel.selectTab(dsTabConfig[dsName]['tabIndex']);
+                        unmask_chanceCreateScreen();
+                        return false;
+                    	}
+                    }
+                }
+                return true;
+            }
+	        
+	        
+	        function onSumitFailed_chanceCreateDs(ds, res) {
+                unmask_chanceCreateScreen();
+            }
+            
+            function onSubmitSuccess_chanceCreateDs(ds, res) {
+                unmask_chanceCreateScreen();
+            }
+            
+            function onAjaxfailed_chanceCreateDs(ds, res, opt) {
+                unmask_chanceCreateScreen();
+            }
+	        
+	        
+            function onUpdate_chanceCreateDs(dataSet, record, name, value, oldValue) {
+                if(name=='country'||name=='province'||name=='city'||name=='district')
+                {
+                    if(value!=oldValue)
+                    {
+                        var nameConfig={
+	                    	country:{
+	                    		clearNameList:['province_name','province','city_name','city','district_name','district','street'],
+	                    		lovConfig:{
+	                    			lovName:'province_name',
+	                    			paraName:'country_id'
+	                    		}
+	                    	},
+	                    	province:{
+	                    		clearNameList:['city_name','city','district_name','district','street'],
+	                    		lovConfig:{
+	                    			lovName:'city_name',
+	                    			paraName:'province_id'
+	                    		}
+	                    	},
+	                    	city:{
+	                    		clearNameList:['district_name','district','street'],
+	                    		lovConfig:{
+	                    			lovName:'district_name',
+	                    			paraName:'city_id'
+	                    		}
+	                    	},
+	                    	district:{
+	                    		clearNameList:['street']
+	                    	}
+	                    };
+                        var config=nameConfig[name];
+	                    var clearNameList=config['clearNameList'];
+	                    for(var i=0,j=clearNameList.length;i<j;i++)
+	                    {
+	                        record.set(clearNameList[i],'');
+	                    }
+	                    if(config['lovConfig']!=undefined)
+	                    {
+	                        var lovConfig=config['lovConfig'];
+	                        record.getField(lovConfig['lovName']).setLovPara(lovConfig['paraName'],value);
+	                    }
+                    }
+                    
+                }
+            }
+            
+            //只读record
+            
+            function record_setReadOnly(ds, record) {
+                if (record.get('all_readonly_flag') != 'Y') {
+                    var fields = ds.fields;
+                    for (var name in fields) {
+                        record.getField(name).setReadOnly(true);
+                    }
+                    record.set('all_readonly_flag', 'Y', true);
+                }
+            }
+            //record是否只读
+            
+            function record_displayControl(ds, record) {
+                if ('${/parameter/@maintain_type}' == 'READONLY') {
+                    record_setReadOnly(ds, record);
+                }
+            }
+            
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="documentTypeDs">
+                <a:datas dataSource="/model/chanceScreen_document_type_list"/>
+            </a:dataSet>
+            <a:dataSet id="chanceCreate_organizationDs" loadData="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="chanceCreate_channelDs" loadData="true" model="basic.hls_lease_channel_for_lov"/>
+            <a:dataSet id="chanceCreate_divisionDs" loadData="true" model="basic.hls_division_for_lov"/>
+            <a:dataSet id="chanceCreate_currencyDs" loadData="true" model="basic.gld_currency_v_lov"/>
+            <a:dataSet id="chanceCreate_bpClassDs" lookupCode="HLS211_BP_CLASS"/>
+            <a:dataSet id="chanceCreate_annualPayTimesDs" lookupCode="HLS500_ANNUAL_PAY_TIMES"/>
+            <a:dataSet id="chanceCreate_chanceSourceDs" lookupCode="LCH501_CHANCE_SOURCE"/>
+            <a:dataSet id="chanceCreate_YesNoDs" lookupCode="YES_NO"/>
+            <a:dataSet id="chanceCreateDs" loadData="true" model="lch.LCH501.lch_lease_chance_hds_update" submitUrl="lease_chance_update.svc">
+                <a:fields>
+                    <a:field name="bp_name" fetchRemote="false" lovGridHeight="350" lovHeight="500" lovService="prj.PRJ501.hls_bp_master_prj_v_lov" lovWidth="600" required="true" title="HLS.BP_NAME">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="document_type_desc" displayField="document_type_desc" options="documentTypeDs" required="true">
+                        <a:mapping>
+                            <a:map from="document_type" to="document_type"/>
+                            <a:map from="document_category" to="document_category"/>
+                            <a:map from="business_type" to="business_type"/>
+                            <a:map from="code_update_flag" to="code_update_flag"/>
+                            <a:map from="code_auto_flag" to="code_auto_flag"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="check_flag_desc" displayField="code_value_name" options="chanceCreate_YesNoDs" readOnly="true" returnField="check_flag" valueField="code_value"/>
+                    <a:field name="listed_flag_desc" displayField="code_value_name" options="chanceCreate_YesNoDs" returnField="listed_flag" valueField="code_value"/>
+                    <a:field name="chance_source_desc" displayField="code_value_name" options="chanceCreate_chanceSourceDs" returnField="chance_source" valueField="code_value"/>
+                    <a:field name="expect_pay_times_desc" displayField="code_value_name" options="chanceCreate_annualPayTimesDs" returnField="expect_pay_times" valueField="code_value"/>
+                    <a:field name="bp_class_desc" displayField="code_value_name" options="chanceCreate_bpClassDs" returnField="bp_class" valueField="code_value"/>
+                    <a:field name="currency_name" displayField="currency_name" options="chanceCreate_currencyDs" returnField="currency" valueField="currency_code"/>
+                    <a:field name="fin_statement_currency_name" displayField="currency_name" options="chanceCreate_currencyDs" returnField="fin_statement_currency" valueField="currency_code"/>
+                    <a:field name="lease_organization" defaultValue="${/model/chanceScreen_default_record/record/@lease_organization}"/>
+                    <a:field name="lease_organization_desc" defaultValue="${/model/chanceScreen_default_record/record/@lease_organization_desc}" displayField="description" options="chanceCreate_organizationDs" returnField="lease_organization" valueField="lease_organization"/>
+                    <a:field name="lease_channel" defaultValue="${/model/chanceScreen_default_record/record/@lease_channel}"/>
+                    <a:field name="lease_channel_desc" defaultValue="${/model/chanceScreen_default_record/record/@lease_channel_desc}" displayField="description" options="chanceCreate_channelDs" returnField="lease_channel" valueField="lease_channel"/>
+                    <a:field name="division" defaultValue="${/model/chanceScreen_default_record/record/@division}"/>
+                    <a:field name="division_desc" defaultValue="${/model/chanceScreen_default_record/record/@division_desc}" displayField="description" options="chanceCreate_divisionDs" returnField="division" valueField="division"/>
+                    <a:field name="short_name" fetchRemote="false" lovGridHeight="350" lovHeight="500" lovService="basic.hls_lease_item_v_for_lov" lovWidth="500" required="true" title="HLS.LEASE_ITEM">
+                        <a:mapping>
+                            <a:map from="bp_id_vender" to="vender_id"/>
+                            <a:map from="vender_name" to="vender_name"/>
+                            <a:map from="lease_item_id" to="lease_item_id"/>
+                            <a:map from="short_name" to="short_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="employee_id"/>
+                    <a:field name="employee_name" lovGridHeight="300" lovHeight="550" lovService="basic.hls_salesman_org_mgr_v_lov" lovWidth="1000" title="PRJ501.PRJ_PROJECT.EMPLOYEE_NAME">
+                        <a:mapping>
+                            <a:map from="employee_id" to="employee_id"/>
+                            <a:map from="employee_name" to="employee_name"/>
+                            <a:map from="unit_id" to="unit_id"/>
+                            <a:map from="unit_name" to="unit_name"/>
+                            <a:map from="mgr_employee_id" to="employee_id_of_manager"/>
+                            <a:map from="mgr_employee_name" to="employee_name_of_manager"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="employee_id_of_manager"/>
+                    <a:field name="employee_name_of_manager" fetchRemote="false" lovGridHeight="300" lovHeight="450" lovService="basic.exp_org_unit_manager_lov" lovWidth="500" title="PRJ501.PRJ_PROJECT.EMPLOYEE_NAME_OF_MANAGER">
+                        <a:mapping>
+                            <a:map from="mgr_employee_id" to="employee_id_of_manager"/>
+                            <a:map from="mgr_employee_name" to="employee_name_of_manager"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="unit_id"/>
+                    <a:field name="unit_name" lovGridHeight="300" lovHeight="450" lovService="basic.exp_org_unit_name_lov" lovWidth="500" title="HLS.UNIT_NAME">
+                        <a:mapping>
+                            <a:map from="unit_id" to="unit_id"/>
+                            <a:map from="unit_name" to="unit_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="country" defaultValue="${/model/chanceScreen_default_record/record/@country_id}"/>
+                    <a:field name="country_name" defaultValue="${/model/chanceScreen_default_record/record/@country_name}" lovGridHeight="350" lovHeight="500" lovService="basic.fnd_country_for_lov" lovWidth="500" title="HLS.COUNTRY">
+                        <a:mapping>
+                            <a:map from="country_id" to="country"/>
+                            <a:map from="description" to="country_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="province_name" lovGridHeight="350" lovHeight="500" lovService="basic.fnd_province_for_lov?country_flag=Y&amp;country_id=${/model/chanceScreen_default_record/record/@country_id}" lovWidth="650" title="HLS.PROVINCE">
+                        <a:mapping>
+                            <a:map from="province_id" to="province"/>
+                            <a:map from="description" to="province_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="province"/>
+                    <a:field name="city_name" lovGridHeight="350" lovHeight="500" lovService="basic.fnd_city_for_lov?province_flag=Y" lovWidth="650" title="HLS.CITY">
+                        <a:mapping>
+                            <a:map from="city_id" to="city"/>
+                            <a:map from="description" to="city_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="city"/>
+                    <a:field name="district_name" lovGridHeight="350" lovHeight="500" lovService="basic.fnd_district_for_lov?city_flag=Y" lovWidth="500" title="HLS.DISTRICT">
+                        <a:mapping>
+                            <a:map from="district_id" to="district"/>
+                            <a:map from="description" to="district_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="assets_amount" required="true"/>
+                    <a:field name="short_name" required="true"/>
+                    <a:field name="price_list_desc" lovGridHeight="350" lovHeight="500" lovService="hls.HLS050.hls_price_list_for_lov" lovWidth="500" required="true" title="HLS.PRICE_LIST">
+                        <a:mapping>
+                            <a:map from="price_list" to="price_list"/>
+                            <a:map from="description" to="price_list_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="lease_chance_code" readOnly="true"/>
+                    <a:field name="status_desc" readOnly="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_chanceCreateDs"/>
+                    <a:event name="submitfailed" handler="onSumitFailed_chanceCreateDs"/>
+                    <a:event name="submitsuccess" handler="onSubmitSuccess_chanceCreateDs"/>
+                    <a:event name="ajaxfailed" handler="onAjaxfailed_chanceCreateDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <script><![CDATA[
+        	(
+    		function ()
+    		{
+    		    
+    		    var ds=$('chanceCreateDs');
+		        var record=ds.getAt(0);
+    		    if(!Ext.isEmpty(record))
+    		    {
+    		        record_displayControl(ds,record);
+    		    }
+    		    
+    		})();
+    	]]></script>
+        <a:screenBody>
+            <a:switch test="/parameter/@maintain_type">
+                <a:case value="READONLY">
+                    <a:screenTopToolbar>
+                        <a:screenTitle/>
+                        <a:gridButton click="chanceCreateScreen_forward" text="HLS.FORWARD"/>
+                        <a:gridButton click="chanceCreateScreen_back" text="HLS.BACK"/>
+                    </a:screenTopToolbar>
+                </a:case>
+                <a:case value="*">
+                    <a:screenTopToolbar>
+                        <a:screenTitle/>
+                        <a:gridButton click="chanceCreateScreen_forward" text="HLS.FORWARD"/>
+                        <a:gridButton click="chanceCreateScreen_back" text="HLS.BACK"/>
+                        <a:gridButton click="chanceCreateDs_grid_save" text="HLS.SAVE"/>
+                    </a:screenTopToolbar>
+                </a:case>
+            </a:switch>
+            <a:tabPanel id="chanceCreateScreen_tabPanel" marginHeight="90" marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="LCH501.TAB_TITLE.CHANCE" width="100">
+                        <a:form column="4" labelWidth="120" marginWidth="60" title="LCH501.FORM_TITLE.BASIC_INFO">
+                            <a:textField name="lease_chance_code" bindTarget="chanceCreateDs"/>
+                            <a:textField name="status_desc" bindTarget="chanceCreateDs"/>
+                            <a:comboBox name="check_flag_desc" bindTarget="chanceCreateDs"/>
+                            <a:comboBox name="document_type_desc" bindTarget="chanceCreateDs"/>
+                            <a:comboBox name="chance_source_desc" bindTarget="chanceCreateDs"/>
+                            <a:lov name="employee_name" bindTarget="chanceCreateDs"/>
+                            <a:lov name="unit_name" bindTarget="chanceCreateDs"/>
+                            <a:lov name="employee_name_of_manager" bindTarget="chanceCreateDs"/>
+                            <a:datePicker name="first_contact_date" bindTarget="chanceCreateDs"/>
+                            <a:comboBox name="lease_organization_desc" bindTarget="chanceCreateDs"/>
+                            <a:comboBox name="lease_channel_desc" bindTarget="chanceCreateDs"/>
+                            <a:comboBox name="division_desc" bindTarget="chanceCreateDs"/>
+                            <a:numberField name="possibility" bindTarget="chanceCreateDs"/>
+                            <a:textField name="competitor" bindTarget="chanceCreateDs"/>
+                        </a:form>
+                        <a:form column="4" labelWidth="120" marginWidth="60" title="LCH501.FORM_TITLE.LESSEE_INFO">
+                            <a:lov name="bp_name" bindTarget="chanceCreateDs"/>
+                            <a:comboBox name="bp_class_desc" bindTarget="chanceCreateDs"/>
+                            <a:textField name="industry" bindTarget="chanceCreateDs"/>
+                            <a:textField name="primary_business" bindTarget="chanceCreateDs"/>
+                            <a:numberField name="staff_num" allowDecimals="false" bindTarget="chanceCreateDs"/>
+                            <a:comboBox name="listed_flag_desc" bindTarget="chanceCreateDs"/>
+                            <a:numberField name="net_profit" allowFormat="true" bindTarget="chanceCreateDs"/>
+                            <a:numberField name="prime_operating_revenue" allowFormat="true" bindTarget="chanceCreateDs"/>
+                            <a:comboBox name="fin_statement_currency_name" bindTarget="chanceCreateDs"/>
+                            <a:lov name="country_name" bindTarget="chanceCreateDs"/>
+                            <a:lov name="province_name" bindTarget="chanceCreateDs"/>
+                            <a:lov name="city_name" bindTarget="chanceCreateDs"/>
+                            <a:lov name="district_name" bindTarget="chanceCreateDs"/>
+                            <a:textField name="street" bindTarget="chanceCreateDs"/>
+                            <a:textField name="address" bindTarget="chanceCreateDs"/>
+                        </a:form>
+                        <a:form column="4" labelWidth="120" marginWidth="60" title="LCH501.FORM_TITLE.CONTACT_INFO">
+                            <a:textField name="contact_person" bindTarget="chanceCreateDs" prompt="姓名"/>
+                            <a:textField name="position" bindTarget="chanceCreateDs"/>
+                            <a:textField name="cell_phone" bindTarget="chanceCreateDs"/>
+                            <a:textField name="phone" bindTarget="chanceCreateDs"/>
+                        </a:form>
+                        <a:form column="4" labelWidth="120" marginWidth="60" title="LCH501.FORM_TITLE.ITEM_INFO">
+                            <a:lov name="short_name" bindTarget="chanceCreateDs"/>
+                            <a:textField name="vender_name" bindTarget="chanceCreateDs"/>
+                            <a:numberField name="assets_amount" allowFormat="true" bindTarget="chanceCreateDs"/>
+                            <a:datePicker name="expect_contract_date" bindTarget="chanceCreateDs"/>
+                            <a:datePicker name="expect_financing_date" bindTarget="chanceCreateDs"/>
+                            <!--
+			                <a:textField name="expect_financed_amount" bindTarget="chanceCreateDs"/>
+			                <a:numberField name="expect_down_payment" bindTarget="chanceCreateDs"/>
+			                -->
+                            <a:textField name="expect_lease_period" bindTarget="chanceCreateDs"/>
+                            <a:comboBox name="expect_pay_times_desc" bindTarget="chanceCreateDs"/>
+                            <a:textField name="installation_site" bindTarget="chanceCreateDs"/>
+                            <a:comboBox name="currency_name" bindTarget="chanceCreateDs"/>
+                            <a:lov name="price_list_desc" bindTarget="chanceCreateDs"/>
+                        </a:form>
+                    </a:tab>
+                    <!-- <a:tab prompt="报价" ref="${/request/@context_path}/modules/lch/LCH502/lease_chance_quote.screen?lease_chance_id=${/parameter/@lease_chance_id}"/> -->
+                    <!-- <a:tab prompt="租赁申请" ref="${/request/@context_path}/modules/lch/LCH502/lease_chance_req_relation.screen?lease_chance_id=${/parameter/@lease_chance_id}"/> -->
+                    <!-- <a:tab prompt="丢单原因" ref="${/request/@context_path}/modules/lch/LCH502/lease_chance_lost_reason.screen?lease_chance_id=${/parameter/@lease_chance_id}"/>
+                    <a:tab prompt="租金测算" ref="${/request/@context_path}/modules/lch/LCH502/lease_chance_recalculate.screen?lease_chance_id=${/parameter/@lease_chance_id}"/> -->
+                    <a:tab prompt="LCH501.TAB_TITLE.DOC" ref="${/request/@context_path}/modules/lch/LCH502/lease_chance_doc_clt.screen?lease_chance_id=${/parameter/@lease_chance_id}" width="100"/>
+                    <a:tab prompt="LCH501.TAB_TITLE.CLUE" ref="${/request/@context_path}/modules/lch/LCH502/lease_chance_kyc.screen?lease_chance_id=${/parameter/@lease_chance_id}" width="100"/>
+                    <a:tab prompt="HLS.QUOTATION_INFORMATION" ref="${/request/@context_path}/modules/hls/HLS500/hls_fin_calc_quotation.screen?document_id=${/parameter/@lease_chance_id}&amp;document_category=CHANCE&amp;basic_ds=chanceCreateDs&amp;maintain_type=${/parameter/@maintain_type}" width="100"/>
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

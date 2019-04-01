@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+        Select t1.*
+          From (Select (Select ci.item_frame_number
+                          From con_contract_df_car_info ci
+                         Where ci.contract_id = cc.contract_id) As item_frame_number,
+                       (Select scv.code_value_name
+                          From sys_code_values_v scv
+                         Where scv.code = 'CON660_CONTRACT_STATUS'
+                           And scv.code_enabled_flag = 'Y'
+                           And scv.code_value_enabled_flag = 'Y'
+                           And scv.code_value = cc.contract_status) As contract_status_desc,
+                       cc.contract_number,
+                       pp.project_name,
+                       ca.cf_item_name,
+                       (Select bm.bp_name
+                          From hls_bp_master bm
+                         Where bm.bp_id = cc.bp_id_tenant) bp_name,
+                       to_char(ca.due_date, 'yyyy-mm-dd') As due_date,
+                       cwo.session_id,
+                       cwo.write_off_type,
+                       cwo.transaction_category,
+                       cwo.transaction_type,
+                       cwo.write_off_date,
+                       cwo.write_off_due_amount,
+                       cwo.write_off_principal,
+                       cwo.write_off_interest,
+                       cwo.write_off_due_amount_cny,
+                       cwo.write_off_principal_cny,
+                       cwo.write_off_interest_cny,
+                       cwo.exchange_rate,
+                       cwo.company_id,
+                       cwo.document_category,
+                       cwo.document_id,
+                       cwo.document_line_id,
+                       cwo.description,
+                       cwo.creation_date,
+                       cwo.created_by,
+                       cwo.last_update_date,
+                       cwo.last_updated_by,
+                       cwo.subsequent_csh_bp_id,
+                       cwo.sub_write_off_type,
+                       cwo.opposite_doc_category,
+                       cwo.opposite_doc_type,
+                       cwo.opposite_doc_id,
+                       cwo.opposite_doc_line_id,
+                       cwo.opposite_doc_detail_id,
+                       cwo.opposite_write_off_amount,
+                       cwo.transaction_id,
+                       cwo.temp_id,
+                       cwo.bp_id,
+                       cwo.year_flag,
+                       cwo.quarter_flag,
+                       cwo.month_flag,
+                       cwo.transfer_type,
+                       cwo.wfl_instance_id,
+                       cwo.risk_in_dec,
+                       cwo.write_off_id,
+                       ca.cashflow_id,
+                       ca.due_amount,
+                       ca.principal,
+                       ca.interest,
+                       ca.times,
+                       ca.received_amount,
+                       ca.received_principal,
+                       ca.received_interest,
+                       ca.penalty,
+                       ca.penalty_cashflow_id,
+                       ca.unreceived_amount,
+                       ca.unreceived_principal,
+                       ca.unreceived_interest,
+                       -- ca.bp_id_tenant bp_id,
+                       ca.write_off_order,
+                       ca.write_off_order100,
+                       ca.write_off_order101,
+                       ca.cf_item,
+                       ca.cf_type,
+                       Null                  write_off_penalty,
+                       Null                  penalty_tmp_id,
+                       cc.contract_status
+                  From csh_write_off_temp      cwo,
+                       con_contract            cc,
+                       prj_project             pp,
+                       CON_CONTRACT_CASHFLOW_V ca
+                 Where cwo.session_id = ${/session/@session_id}
+                   And cwo.write_off_type In ('RECEIPT_CREDIT',
+                                              'ADVANCE_RECEIPT_CREDIT',
+                                              'DEPOSIT_CREDIT',
+                                              'RISK_CREDIT')
+                   And cwo.document_id = cc.contract_id
+                   And cc.project_id = pp.project_id(+)
+                   And cwo.document_line_id = ca.cashflow_id) t1
+                #WHERE_CLAUSE#
+                order by decode(t1.contract_status, 'REDEMPTING', 1, 'INCEPT', 2, 3), t1.due_date
+            ]]></bm:query-sql>
+            <!--<bm:parameters>
+                <bm:parameter name="transaction_id"/>
+            </bm:parameters>-->
+        </bm:operation>
+        <bm:operation name="delete">
+            <bm:update-sql><![CDATA[
+            begin
+        		delete from csh_write_off_temp  cwo where cwo.temp_id = ${@temp_id};
+        	end;	
+        	]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="contract_number" queryExpression="t1.contract_number like &apos;%&apos; || ${@contract_number}  || &apos;%&apos;"/>
+        <bm:query-field name="project_name" queryExpression="t1.project_name like &apos;%&apos; || ${@project_name}  || &apos;%&apos;"/>
+        <bm:query-field name="due_date_from" queryExpression="t1.due_date &gt;= ${@due_date_from}"/>
+        <bm:query-field name="due_date_to" queryExpression="t1.due_date &lt;= ${@due_date_to}"/>
+    </bm:query-fields>
+</bm:model>

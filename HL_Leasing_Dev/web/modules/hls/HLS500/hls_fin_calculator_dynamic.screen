@@ -1,0 +1,875 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-8-9 下午03:55:25  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.enabled_flag=&apos;Y&apos;" fetchAll="true" model="fnd.FND2100.fnd_tax_type_codes" rootPath="tax_type_codes_path"/>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="doc_currency_path"/>
+        <a:model-query fetchAll="true" model="csh.CSH511.csh_transaction_default_exchange_rate_type" rootPath="doc_functional_currency_path"/>
+        <a:model-query fetchAll="true" model="csh.CSH511.fnd_financial_option" rootPath="fnd_financial_option_path"/>
+        <a:model-query fetchAll="true" model="gld.gld_exchage_rate_types" rootPath="gld_exchage_rate_types_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="hls_fin_calc_get_base_rate_link_id" model="hls.HLS500.hls_fin_calc_get_base_rate" modelaction="update"/>
+        <a:link id="get_exchange_rate_link_id" model="basic.hls_get_exchange_rate" modelaction="update"/>
+        <script><![CDATA[
+            var new_calc_flag = 'N';
+            var body_winId = '${/parameter/@winId}',
+                body = body_winId == '' ? Ext.getBody() : $(body_winId).wrap;
+            
+            function lock_calc_current_window(msg) {
+                Aurora.Masker.mask(body, msg || '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_calc_current_window() {
+                Aurora.Masker.unmask(body);
+            }
+            
+            
+            function get_warning_message(msg) {
+                var warning_message, duration;
+                if (msg) {
+                    warning_message = msg;
+                    warning_message = '<font color="red">'+warning_message + '</font>';
+                    duration = 8000;
+                } else {
+                    warning_message = '${l:HLS.SUBMIT_SUCCESS}';
+                    duration = 2000;
+                }
+                parent.Aurora.SideBar.enable = true;
+                parent.Aurora.SideBar.show({
+                    html: '<div style="background-color:#ccfbd5;position:absolute;padding-top:5px;padding-bottom:5px;padding-left:20px;padding-right:20px;border:0px solid #009900"><b>'+warning_message+'</b></div>',
+                    duration: duration
+                });
+            }
+            
+            
+            function set_field_limit(config_record, field) {
+                // if (config_record.get('lower_limit') || config_record.get('upper_limit')) {
+                // field.setPropertity('min', config_record.get('lower_limit'));
+                // field.setPropertity('max', config_record.get('upper_limit'));
+                // }
+            }
+            
+            function set_field_input_mode(record, field, name, input_mode) {
+                var current_value = record.get(name);
+                if (input_mode == 'REQUIRED' || (input_mode == 'REQUIRED_ONLY_NOT_NULL' && !Ext.isEmpty(current_value)) || (input_mode == 'REQUIRED_ONLY_NULL' && Ext.isEmpty(current_value))) {
+                    field.setRequired(true);
+                    field.setReadOnly(false);
+                } else if (input_mode == 'OPTION' || (input_mode == 'OPTION_ONLY_NOT_NULL' && !Ext.isEmpty(current_value)) || (input_mode == 'OPTION_ONLY_NULL' && Ext.isEmpty(current_value))) {
+                    field.setRequired(false);
+                    field.setReadOnly(false);
+                } else {
+                    field.setReadOnly(true);
+                }
+            }
+            
+            function get_config_column_name(name) {
+                var query_name, length = name.length;
+                if (name.substring(length - 2, length) == '_n') {
+                    query_name = name.substring(0, length - 2);
+                } else {
+                    query_name = name;
+                }
+                return query_name;
+            }
+            
+            function success_sidebar_show() {
+                Aurora.SideBar.show({
+                    msg: '${l:HLS.SUBMIT_SUCCESS}',
+                    duration: 2000
+                });
+            }
+            
+            function get_ds_record(ds1, ds2, name) {
+                return ds1.find('column_name', name) || ds2.find('column_name', name);
+            }
+            
+            function from_load_or_update_set(record, fromLoad, name, value) {
+                if (record.get('percent') == '%' && record.get('validation_type') == 'NUMBERFIELD') {
+                    value = mul(value, 100);
+                }
+                if (fromLoad) {
+                    record.data[name] = value;
+                } else {
+                    record.set(name, value);
+                }
+            }
+            
+            function get_record_column_value(record) {
+                if (record) {
+                    if (record.get('lov_return_vcode') == 'N' && (record.get('validation_type') == 'COMBOBOX' || record.get('validation_type') == 'LOV')) {
+                        return record.get('column_value_c');
+                    } else {
+                        return record.get('column_value');
+                    }
+                } else {
+                    return null;
+                }
+            }
+            
+            function get_data_column_value(record) {
+                if (record.data) {
+                    if (record.data['lov_return_vcode'] == 'N' && (record.data['validation_type'] == 'COMBOBOX' || record.data['validation_type'] == 'LOV')) {
+                        return record.data['column_value_c'];
+                    } else {
+                        return record.data['column_value'];
+                    }
+                } else {
+                    return null;
+                }
+            }
+            
+            function execute_hls_save_special_field(record, value, fromLoad, display_value) {
+                if (record.get('lov_return_vcode') == 'N' && (record.get('validation_type') == 'COMBOBOX' || record.get('validation_type') == 'LOV')) {
+                    from_load_or_update_set(record, fromLoad, 'column_value_c', value);
+                    if (!Ext.isEmpty(display_value)) {
+                        from_load_or_update_set(record, fromLoad, 'column_value', display_value);
+                    }
+                } else {
+                    from_load_or_update_set(record, fromLoad, 'column_value', value);
+                }
+            }
+            
+            function data_or_record_set(record, name, value) {
+                if (record.set) {
+                    record.set(name, value);
+                } else {
+                    record.data[name] = value;
+                }
+            }
+            
+            function get_hls_special_field(record, value, value_name) {
+                data_or_record_set(record, 'column_value_c', value);
+                if (record.data['lov_return_vcode'] == 'N' && (record.data['validation_type'] == 'LOV' || record.data['validation_type'] == 'COMBOBOX')) {
+                    data_or_record_set(record, 'column_value', value_name);
+                    return value_name;
+                } else {
+                    data_or_record_set(record, 'column_value', value);
+                    return value;
+                }
+            }
+            
+            function set_after_check_empty(record, old_value, value, fromLoad, display_value) {
+                if (Ext.isEmpty(old_value)) {
+                    execute_hls_save_special_field(record, value, fromLoad, display_value);
+                }
+            }
+            
+            function special_editor_function(ds, record, name) {
+                var temp_hd_attribute_ds = $('temp_hd_attribute_ds'),
+                    column_name = record.get('column_name'),
+                    exchange_rate_type_record = get_ds_record(ds, temp_hd_attribute_ds, 'exchange_rate_type'),
+                    exchange_rate_record = get_ds_record(ds, temp_hd_attribute_ds, 'exchange_rate'),
+                    currency_record = get_ds_record(ds, temp_hd_attribute_ds, 'currency');
+                if (exchange_rate_type_record && exchange_rate_record && currency_record) {
+                    var exchange_rate_type_field = exchange_rate_type_record.getField('column_value'),
+                        exchange_rate_field = exchange_rate_record.getField('column_value');
+                    var currency = get_record_column_value(currency_record),
+                        exchange_rate_type = get_record_column_value(exchange_rate_type_record);
+                    var rate_method_code_record = $('gld_exchage_rate_types_ds').find('type_code', exchange_rate_type);
+                    var rate_method_code;
+                    if (rate_method_code_record) {
+                        rate_method_code = rate_method_code_record.get('rate_method_code');
+                    }
+                    if (currency == '${/model/doc_functional_currency_path/record/@functional_currency_code}') {
+                        exchange_rate_type_field.setRequired(false);
+                        exchange_rate_type_field.setReadOnly(true);
+                        exchange_rate_field.setReadOnly(true);
+                        exchange_rate_field.setRequired(false);
+                    } else {
+                        exchange_rate_type_field.setRequired(true);
+                        exchange_rate_type_field.setReadOnly(false);
+                        if (check_rate_method_code(rate_method_code)) {
+                            exchange_rate_field.setReadOnly(true);
+                            exchange_rate_field.setRequired(false);
+                        } else {
+                            exchange_rate_field.setRequired(true);
+                            exchange_rate_field.setReadOnly(false);
+                        }
+                    }
+                }
+            }
+            
+            function call_back_after_check_input_mode(ds, record, name, value, old_value, config_record, fromLine) {
+                var input_mode, lower_limit;
+                if (fromLine) {
+                    input_mode = config_record.get('input_mode');
+                    lower_limit = config_record.get('lower_limit');
+                } else {
+                    input_mode = record.get('input_mode');
+                    lower_limit = record.get('lower_limit');
+                }
+                if (Ext.isEmpty(value) && (input_mode == 'REQUIRED_ONLY_NOT_NULL' || input_mode == 'OPTION_ONLY_NOT_NULL')) {
+                    Aurora.SideBar.show({
+                        html: '<div style="background-color:#ccfbd5;position:absolute;padding:3px;border:1px solid #009900;font-size:20px;">' + '${l:HLS500.FIELD_IS_NOT_NULL}' + '</div>',
+                        duration: 2000
+                    });
+                    setTimeout(function() {
+                        record.set(name, old_value);
+                    }, 5);
+                }
+            }
+            
+            function create_record_column(temp_head_records, headRecord) {
+                for (var m = 0;m < temp_head_records.length;m++) {
+                    var temp_head_record = temp_head_records[m];
+                    var column_name = temp_head_record.get('column_name'),
+                        validation_type = temp_head_record.get('validation_type'),
+                        column_value_c = temp_head_record.get('column_value_c'),
+                        column_value = temp_head_record.get('column_value'),
+                        finnal_value = '';
+                    if (column_name == 'price_list') {
+                        finnal_value = '${/parameter/@price_list}';
+                    }
+                    if (column_name == 'currency') {
+                        finnal_value = '${/parameter/@currency}';
+                    }
+                    if (column_name == 'currency_precision') {
+                        finnal_value = '${/parameter/@precision}';
+                    }
+                    if (!Ext.isEmpty(column_value) || !Ext.isEmpty(column_value_c)) {
+                        if (validation_type == 'DATEPICKER') {
+                            finnal_value = Aurora.formatDate(column_value);
+                        } else if (temp_head_record.get('lov_return_vcode') == 'N' && (validation_type == 'COMBOBOX' || validation_type == 'LOV')) {
+                            if (temp_head_record.get('percent') == '%') {
+                                finnal_value = div(column_value_c, 100);
+                            } else {
+                                finnal_value = column_value_c;
+                            }
+                        } else if (temp_head_record.get('percent') == '%') {
+                            finnal_value = div(column_value, 100);
+                        } else {
+                            finnal_value = column_value;
+                        }
+                    }
+                    headRecord.set(column_name, finnal_value);
+                }
+            }
+            
+            function call_back_after_check_limit(ds, record, name, value, old_value, config_record, fromLine) {
+                var lower_limit, upper_limit, finnal_value, set_value, current_record;
+                if (fromLine) {
+                    current_record = config_record;
+                } else {
+                    current_record = record;
+                }
+                lower_limit = current_record.get('lower_limit');
+                upper_limit = current_record.get('upper_limit');
+                if (current_record.get('percent') == '%') {
+                    finnal_value = div(value, 100);
+                    set_value = mul(lower_limit, 100);
+                } else {
+                    finnal_value = value;
+                    set_value = lower_limit;
+                }
+                if (!set_value) {
+                    set_value = 0;
+                }
+                if (!Ext.isEmpty(value) && (finnal_value < lower_limit || finnal_value > upper_limit)) {
+                    if (fromLine) {
+                        Aurora.showMessage('${l:PROMPT}', config_record.get('prompt') + '${l:HLS500.VALUE_IS_NOT_BEYOND}');
+                        setTimeout(function() {
+                            if (config_record.get('input_mode') != 'REQUIRED_ONLY_NOT_NULL' && config_record.get('input_mode') != 'OPTION_ONLY_NOT_NULL') {
+                                record.set(name, null);
+                            } else {
+                                record.set(name, set_value);
+                            }
+                        }, 5);
+                    } else {
+                        if (name != 'column_value_c') {
+                            Aurora.showMessage('${l:PROMPT}', record.get('prompt') + '${l:HLS500.VALUE_IS_NOT_BEYOND}');
+                        }
+                        setTimeout(function() {
+                            if (record.get('input_mode') != 'REQUIRED_ONLY_NOT_NULL' && record.get('input_mode') != 'OPTION_ONLY_NOT_NULL') {
+                                data_or_record_set(record, 'column_value_c', null);
+                                data_or_record_set(record, 'column_value', null);
+                            } else {
+                                data_or_record_set(record, 'column_value_c', set_value);
+                                data_or_record_set(record, 'column_value', set_value);
+                            }
+                        }, 5);
+                    }
+                }
+            }
+            
+            function onLineupdate_setEmpty(ds, record, name, value, old_value) {
+                var config_record = $('line_attribute_ds').find('column_name', name);
+                if (config_record) {
+                    var input_mode = config_record.get('input_mode');
+                    call_back_after_check_input_mode(ds, record, name, value, old_value, config_record, true);
+                    call_back_after_check_limit(ds, record, name, value, old_value, config_record, true);
+                }
+            }
+            
+            function clear_hd_lov_sql_mapping(hd_ds, column_name) {
+                var hd_lov_mapping_ds = $('hls_fin_calc_lov_getmapping_ds');
+                var hd_records = hd_ds.getAll();
+                hd_lov_mapping_ds.setQueryParameter('price_list', '${/parameter/@price_list}');
+                hd_lov_mapping_ds.setQueryParameter('column_name', column_name);
+                hd_lov_mapping_ds.setQueryParameter('layout_area_seq', 'H');
+            
+                function clear_mapping_detail(ds) {
+                    hd_lov_mapping_ds.un('load', clear_mapping_detail);
+                    var detail_records = ds.getAll();
+                    for (var m = 0;m < detail_records.length;m++) {
+                        var detail_record = detail_records[m];
+                        for (var name in detail_record.data) {
+                            var current_name = detail_record.get(name).toLowerCase();
+                            if (current_name != 'value_code' && current_name != 'value_name') {
+                                for (var i = 0;i < hd_records.length;i++) {
+                                    var single_record = hd_records[i];
+                                    if (single_record.get('column_name').toLowerCase() == current_name) {
+                                        data_or_record_set(single_record, 'column_value_c', null);
+                                        data_or_record_set(single_record, 'column_value', null);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    unlock_calc_current_window();
+                }
+                hd_lov_mapping_ds.on('load', clear_mapping_detail);
+                hd_lov_mapping_ds.query();
+            }
+            
+            function onEditorupdate_setEmpty(ds, record, name, value, old_value, fromLoad) {
+                if (!fromLoad) {
+                    var column_name = record.get('column_name');
+                    var all_records = ds.getAll();
+                    for (var i = 0;i < all_records.length;i++) {
+                        var all_record = all_records[i];
+                        var lov_cascade_para1 = all_record.get('lov_cascade_para1'),
+                            lov_cascade_para2 = all_record.get('lov_cascade_para2'),
+                            lov_cascade_para3 = all_record.get('lov_cascade_para3');
+                        if (column_name == lov_cascade_para1 || column_name == lov_cascade_para2 || column_name == lov_cascade_para3) {
+                            data_or_record_set(all_record, 'column_value_c', null);
+                            data_or_record_set(all_record, 'column_value', null);
+                        }
+                    }
+                    if (Ext.isEmpty(value) && (record.get('validation_type') == 'LOV' || record.get('validation_type') == 'LOV_C') && !fromLoad) {
+                        lock_calc_current_window();
+                        clear_hd_lov_sql_mapping(ds, column_name);
+                    }
+                    call_back_after_check_input_mode(ds, record, name, value, old_value);
+                    call_back_after_check_limit(ds, record, name, value, old_value);
+                }
+            }
+            
+            function onEditorupdate(ds, record, name, value, old_value, fromLoad) {
+                if (record.get('lov_return_vcode') == 'N' && (record.get('validation_type') == 'COMBOBOX' || record.get('validation_type') == 'LOV') && name == 'column_value') {
+                    return;
+                }
+                var column_name = record.get('column_name');
+                var temp_hd_attribute_ds = $('temp_hd_attribute_ds');
+                var exchange_rate_type_record, exchange_rate_record, currency_record, lease_start_date_record, exchange_rate_type_field;
+                if (column_name == 'lease_times' || column_name == 'annual_pay_times') {
+                    var lease_times_record = get_ds_record(ds, temp_hd_attribute_ds, 'lease_times'),
+                        annual_pay_times_record = get_ds_record(ds, temp_hd_attribute_ds, 'annual_pay_times'),
+                        lease_term_record = get_ds_record(ds, temp_hd_attribute_ds, 'lease_term'),
+                        lease_term, annual_pay_times = get_record_column_value(annual_pay_times_record),
+                        lease_times = get_record_column_value(lease_times_record);
+                    if (column_name == 'lease_times' && !Ext.isEmpty(value)) {
+                        if (annual_pay_times_record && !Ext.isEmpty(annual_pay_times)) {
+                            if (lease_term_record) {
+                                lease_term = div(value, annual_pay_times).toFixed(3) * 1;
+                                from_load_or_update_set(lease_term_record, fromLoad, 'column_value', lease_term);
+                            }
+                        }
+                    } else if (column_name == 'annual_pay_times' && !Ext.isEmpty(value)) {
+                        if (lease_times_record && !Ext.isEmpty(lease_times)) {
+                            if (lease_term_record) {
+                                lease_term = div(lease_times, value).toFixed(3) * 1;
+                                from_load_or_update_set(lease_term_record, fromLoad, 'column_value', lease_term);
+                            }
+                        }
+                    }
+                } else if (column_name == 'lease_term') {
+                    value = get_record_column_value(record);
+                    lease_start_date_record = get_ds_record(ds, temp_hd_attribute_ds, 'lease_start_date');
+                    var base_rate_type_record = get_ds_record(ds, temp_hd_attribute_ds, 'base_rate_type');
+                    currency_record = get_ds_record(ds, temp_hd_attribute_ds, 'currency');
+                    var base_rate_type = get_record_column_value(base_rate_type_record),
+                        lease_start_date = get_record_column_value(lease_start_date_record),
+                        currency;
+                    if ('${/parameter/@calc_session_id}') {
+                        currency = get_record_column_value(currency_record);
+                    } else {
+                        currency = '${/parameter/@currency}';
+                    }
+                    getBaseRate({
+                        base_rate_type: base_rate_type,
+                        currency: currency,
+                        valid_date: lease_start_date,
+                        month: mul(value, 12)
+                    });
+                } else if (column_name == 'tax_type_id') {
+                    var vat_flag_record = get_ds_record(ds, temp_hd_attribute_ds, 'vat_flag'),
+                        vat_rate_record = get_ds_record(ds, temp_hd_attribute_ds, 'vat_rate');
+                    if (!Ext.isEmpty(value)) {
+                        var tax_type_codes_record = $('tax_type_codes_ds').find('tax_type_id', value);
+                        from_load_or_update_set(vat_flag_record, fromLoad, 'column_value', tax_type_codes_record.get('vat_flag'));
+                        // from_load_or_update_set(vat_rate_record, fromLoad, 'column_value', tax_type_codes_record.get('tax_type_rate'));
+                    } else {
+                        from_load_or_update_set(vat_flag_record, fromLoad, 'column_value', '');
+                        // from_load_or_update_set(vat_rate_record, fromLoad, 'column_value', '');
+                    }
+                } else if (column_name == 'currency') {
+                    exchange_rate_type_record = get_ds_record(ds, temp_hd_attribute_ds, 'exchange_rate_type');
+                    exchange_rate_record = get_ds_record(ds, temp_hd_attribute_ds, 'exchange_rate');
+                    if (exchange_rate_type_record && exchange_rate_record) {
+                        exchange_rate_type_field = exchange_rate_type_record.getField('column_value');
+                        if (value == '${/model/doc_functional_currency_path/record/@functional_currency_code}') {
+                            // var default_exchage_rate_type_record = $('gld_exchage_rate_types_ds').find('type_code', 'MANUAL');
+                            // if (default_exchage_rate_type_record) {
+                            // from_load_or_update_set(exchange_rate_type_record, fromLoad, 'column_value_c', 'MANUAL');
+                            // from_load_or_update_set(exchange_rate_type_record, fromLoad, 'column_value', default_exchage_rate_type_record.get('type_name'));
+                            // }
+                            from_load_or_update_set(exchange_rate_record, fromLoad, 'column_value', 1);
+                        } else {
+                            set_after_check_empty(exchange_rate_type_record, get_record_column_value(exchange_rate_type_record), '${/model/fnd_financial_option_path/record/@default_exchange_rate_type}', fromLoad, '${/model/fnd_financial_option_path/record/@exchange_rate_type_display}');
+                        }
+                    }
+                } else if (column_name == 'exchange_rate_type' || column_name == 'lease_start_date') {
+                    exchange_rate_record = get_ds_record(ds, temp_hd_attribute_ds, 'exchange_rate');
+                    currency_record = get_ds_record(ds, temp_hd_attribute_ds, 'currency');
+                    lease_start_date_record = get_ds_record(ds, temp_hd_attribute_ds, 'lease_start_date');
+                    exchange_rate_type_record = get_ds_record(ds, temp_hd_attribute_ds, 'exchange_rate_type');
+                    getExchangeRate({
+                        fromCur: '${/model/doc_functional_currency_path/record/@functional_currency_code}',
+                        toCur: get_record_column_value(currency_record),
+                        exchangeRateType: get_record_column_value(exchange_rate_type_record),
+                        exchangeDate: get_record_column_value(lease_start_date_record)
+                    }, ds, temp_hd_attribute_ds, fromLoad);
+                    if (!fromLoad && value != old_value) {
+                        exchange_rate_record.set('column_value', '');
+                    }
+                }
+                onEditorupdate_setEmpty(ds, record, name, value, old_value, fromLoad);
+            }
+            
+            function execute_after_getexchangerate(res, ds, temp_hd_attribute_ds, fromLoad, success_flag) {
+                var rate_method_code, exchange_rate_record = get_ds_record(ds, temp_hd_attribute_ds, 'exchange_rate'),
+                    exchange_rate_field = exchange_rate_record.getField('column_value');
+                if (success_flag) {
+                    var exchange_rate_quotation_record = get_ds_record(ds, temp_hd_attribute_ds, 'exchange_rate_quotation'),
+                        exchange_rate = res.result.exchange_rate;
+                    rate_method_code = res.result.rate_method_code;
+                    if (check_rate_method_code(rate_method_code)) {
+                        exchange_rate_field.setReadOnly(true);
+                        exchange_rate_field.setRequired(false);
+                        if (!Ext.isDefined(exchange_rate)) {
+                            exchange_rate = '';
+                        }
+                        execute_hls_save_special_field(exchange_rate_record, exchange_rate, false, null);
+                    } else {
+                        exchange_rate_field.setRequired(true);
+                        exchange_rate_field.setReadOnly(false);
+                    }
+                    var exchange_rate_quotation = res.result.exchange_rate_quotation;
+                    if (!Ext.isDefined(exchange_rate_quotation)) {
+                        exchange_rate_quotation = 'DIRECT QUOTATION';
+                    }
+                    execute_hls_save_special_field(exchange_rate_quotation_record, exchange_rate_quotation, false, null);
+                } else {
+                    var exchange_rate_type_record = get_ds_record(ds, temp_hd_attribute_ds, 'exchange_rate_type'),
+                        exchange_rate_type = get_record_column_value(exchange_rate_type_record);
+                    var rate_method_code_record = $('gld_exchage_rate_types_ds').find('type_code', exchange_rate_type);
+                    rate_method_code = rate_method_code_record.get('rate_method_code');
+                    if (check_rate_method_code(rate_method_code)) {
+                        exchange_rate_field.setRequired(true);
+                        exchange_rate_field.setReadOnly(true);
+                    }
+                }
+            }
+            
+            function getExchangeRate(param, ds, temp_hd_attribute_ds, fromLoad) {
+                Aurora.request({
+                    url: $('get_exchange_rate_link_id').getUrl(),
+                    para: {
+                        from_currency: param.fromCur,
+                        to_currency: param.toCur,
+                        exchange_date: param.exchangeDate,
+                        exchange_rate_type: param.exchangeRateType
+                    },
+                    success: function(res) {
+                        execute_after_getexchangerate(res, ds, temp_hd_attribute_ds, fromLoad, true);
+                    },
+                    error: function(res) {
+                        execute_after_getexchangerate(res, ds, temp_hd_attribute_ds, fromLoad);
+                    },
+                    failure: function(res) {
+                        execute_after_getexchangerate(res, ds, temp_hd_attribute_ds, fromLoad);
+                    },
+                    scope: this
+                });
+            }
+            
+            function onEditor_load_fire(ds, record, name, value, old_value) {
+                var temp_hd_attribute_ds = $('temp_hd_attribute_ds');
+                var currency_record = get_ds_record(ds, temp_hd_attribute_ds, 'currency'),
+                    currency = get_record_column_value(currency_record),
+                    lease_start_date_record = get_ds_record(ds, temp_hd_attribute_ds, 'lease_start_date'),
+                    exchange_rate_type_record = get_ds_record(ds, temp_hd_attribute_ds, 'lease_start_date'),
+                    lease_times_record = get_ds_record(ds, temp_hd_attribute_ds, 'lease_times'),
+                    lease_term_record = get_ds_record(ds, temp_hd_attribute_ds, 'lease_term'),
+                    annual_pay_times_record = get_ds_record(ds, temp_hd_attribute_ds, 'annual_pay_times'),
+                    lease_times = get_record_column_value(lease_times_record),
+                    annual_pay_times = get_record_column_value(annual_pay_times_record);
+                if (name == 'base_rate' && Ext.isEmpty(value)) {
+                    var base_rate_type_record = get_ds_record(ds, temp_hd_attribute_ds, 'base_rate_type');
+                    var base_rate_type = get_record_column_value(base_rate_type_record),
+                        lease_start_date = get_record_column_value(lease_start_date_record),
+                        lease_term = get_record_column_value(lease_term_record);
+                    if (Ext.isEmpty(lease_term) && lease_times_record) {
+                        onEditorupdate(ds, lease_times_record, 'lease_times', lease_times, '', true);
+                        lease_term = get_record_column_value(lease_term_record);
+                    }
+                    getBaseRate({
+                        base_rate_type: base_rate_type,
+                        currency: currency,
+                        valid_date: lease_start_date,
+                        month: mul(lease_term, 12)
+                    });
+                } else if (name == 'lease_times' || name == 'annual_pay_times') {
+                    if (Ext.isEmpty(lease_term)) {
+                        if (name == 'lease_times' && lease_times_record) {
+                            onEditorupdate(ds, lease_times_record, 'lease_times', lease_times, '', true);
+                        } else if (name == 'annual_pay_times' && annual_pay_times_record) {
+                            onEditorupdate(ds, annual_pay_times_record, 'annual_pay_times', annual_pay_times, '', true);
+                        }
+                    }
+                } else if (name == 'currency_precision') {
+                    if (Ext.isEmpty(value)) {
+                        var doc_currency_record = $('doc_currency_ds').find('currency_code', currency);
+                        if (doc_currency_record) {
+                            record.data['column_value'] = doc_currency_record.get('precision');
+                        }
+                    }
+                }
+                // else if (name == 'calc_method' && Ext.isEmpty(value)) {
+                // var calc_method_record = get_ds_record(ds, temp_hd_attribute_ds, 'calc_method');
+                // var calc_method = calc_method_record.get('calc_method'),
+                // calc_method_name = calc_method_record.get('calc_method_name');
+                // get_hls_special_field(calc_method_record, calc_method, calc_method_name);
+                // }
+                else if (name == 'exchange_rate_type' || name == 'lease_start_date') {
+                    var exchange_rate_record = get_ds_record(ds, temp_hd_attribute_ds, 'exchange_rate');
+                    if (Ext.isEmpty(get_record_column_value(exchange_rate_record))) {
+                        getExchangeRate({
+                            fromCur: '${/model/doc_functional_currency_path/record/@functional_currency_code}',
+                            toCur: get_record_column_value(currency_record),
+                            exchangeRateType: get_record_column_value(exchange_rate_type_record),
+                            exchangeDate: get_record_column_value(lease_start_date_record)
+                        }, ds, temp_hd_attribute_ds, true);
+                    }
+                }
+            }
+            
+            
+            function onEditorupdate_header(ds, record, name, value, old_value, fromAdd) {
+                if (name == 'lease_times' || name == 'annual_pay_times') {
+                    var lease_term;
+                    if (name == 'lease_times' && !Ext.isEmpty(record.get('annual_pay_times'))) {
+                        lease_term = div(value, record.get('annual_pay_times')).toFixed(3) * 1;
+                    } else if (name == 'annual_pay_times' && !Ext.isEmpty(record.get('lease_times'))) {
+                        lease_term = div(record.get('lease_times'), value).toFixed(3) * 1;
+                    }
+                    if (fromAdd) {
+                        record.data['lease_term'] = lease_term;
+                    } else {
+                        record.set('lease_term', lease_term);
+                    }
+                } else if (name == 'lease_term') {
+                    if (value != old_value) {
+                        new_calc_flag = 'Y';
+                        getBaseRate({
+                            base_rate_type: record.get('base_rate_type'),
+                            currency: record.get('currency'),
+                            valid_date: record.get('lease_start_date'),
+                            month: mul(value, 12)
+                        });
+                    }
+                } else if (name == 'tax_type_id') {
+                    if (!Ext.isEmpty(value) && (record.get('vat_flag') || record.get('vat_rate'))) {
+                        var tax_type_codes_record = $('tax_type_codes_ds').find('tax_type_id', value);
+                        from_load_or_update_set(record, fromAdd, 'vat_flag', tax_type_codes_record.get('vat_flag'));
+                        // from_load_or_update_set(record, fromAdd, 'vat_rate', tax_type_codes_record.get('tax_type_rate'));
+                    } else {
+                        from_load_or_update_set(record, fromAdd, 'vat_flag', '');
+                        // from_load_or_update_set(record, fromAdd, 'vat_rate', '');
+                    }
+                } else if (name == 'currency_precision') {
+                    if (Ext.isEmpty(value) && fromAdd) {
+                        var doc_currency_record = $('doc_currency_ds').find('currency_code', record.get('currency'));
+                        if (doc_currency_record) {
+                            record.data['currency_precision'] = doc_currency_record.get('precision');
+                        }
+                    }
+                } else if (name == 'exchange_rate_type' || name == 'lease_start_date') {
+                    get_quotation_ExchangeRate({
+                        fromCur: '${/model/doc_functional_currency_path/record/@functional_currency_code}',
+                        toCur: record.get('currency'),
+                        exchangeRateType: record.get('exchange_rate_type'),
+                        exchangeDate: record.get('lease_start_date')
+                    }, record, fromAdd);
+                }
+            }
+            
+            function check_rate_method_code(rate_method_code) {
+                if (!rate_method_code || !Ext.isDefined(rate_method_code) || rate_method_code == 'PERIOD' || rate_method_code == 'DAILY' || rate_method_code == 'FIXED') {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            
+            function execute_after_quotation_getexchangerate(res, record, fromAdd, success_flag) {
+                var rate_method_code, exchange_rate, exchange_rate_field = record.getField('exchange_rate');
+                if (success_flag) {
+                    rate_method_code = res.result.rate_method_code;
+                    exchange_rate = res.result.exchange_rate;
+                    if (check_rate_method_code(rate_method_code)) {
+                        exchange_rate_field.setReadOnly(true);
+                        exchange_rate_field.setRequired(false);
+                        if (!Ext.isDefined(exchange_rate)) {
+                            exchange_rate = '';
+                        }
+                        from_load_or_update_set(record, fromAdd, 'exchange_rate', exchange_rate);
+                    } else {
+                        exchange_rate_field.setRequired(true);
+                        exchange_rate_field.setReadOnly(false);
+                    }
+                    var exchange_rate_quotation = res.result.exchange_rate_quotation;
+                    if (!Ext.isDefined(exchange_rate_quotation)) {
+                        exchange_rate_quotation = 'DIRECT QUOTATION';
+                    }
+                    from_load_or_update_set(record, fromAdd, 'exchange_rate_quotation', exchange_rate_quotation);
+                } else {
+                    rate_method_code = $('gld_exchage_rate_types_ds').find('type_code', record.get('exchange_rate_type'));
+                    if (check_rate_method_code(rate_method_code)) {
+                        exchange_rate_field.setReadOnly(true);
+                        exchange_rate_field.setRequired(false);
+                    }
+                }
+            }
+            
+            function get_quotation_ExchangeRate(param, record, fromAdd) {
+                Aurora.request({
+                    url: $('get_exchange_rate_link_id').getUrl(),
+                    para: {
+                        from_currency: param.fromCur,
+                        to_currency: param.toCur,
+                        exchange_date: param.exchangeDate,
+                        exchange_rate_type: param.exchangeRateType
+                    },
+                    success: function(res) {
+                        execute_after_quotation_getexchangerate(res, record, fromAdd, true);
+                    },
+                    error: function(res) {
+                        execute_after_quotation_getexchangerate(res, record, fromAdd);
+                    },
+                    failure: function(res) {
+                        execute_after_quotation_getexchangerate(res, record, fromAdd);
+                    },
+                    scope: this
+                });
+            }
+            
+            function getBaseRate(param) {
+                Aurora.request({
+                    url: $('hls_fin_calc_get_base_rate_link_id').getUrl(),
+                    para: {
+                        base_rate_type: param.base_rate_type,
+                        currency: param.currency,
+                        valid_date: param.valid_date,
+                        month: param.month
+                    },
+                    sync: true,
+                    success: setBaseRate,
+                    failure: function() {},
+                    error: function() {},
+                    scope: this
+                });
+            }
+            
+            function setBaseRate(res) {
+                if (new_calc_flag == 'N') {
+                    base_rate_record = get_ds_record($('hls_fin_calculator_hd_ds'), $('temp_hd_attribute_ds'), 'base_rate');
+                    if (!base_rate_record) {
+                        Aurora.showMessage('${l:PROMPT}', '${l:HLS500.BASE_RATE_IS_NULL}');
+                    }
+                    if (res.result.base_rate && base_rate_record) {
+                        base_rate_record.set('column_value', mul(res.result.base_rate, 100));
+                    }
+                } else {
+                    var head_record = $('hls_fin_calculator_hd_ds').getAt(0);
+                    head_record.set('base_rate', mul(res.result.base_rate, 100));
+                }
+            }
+            
+            function set_calc_record_para(object, record, combobox_ds, field, param) {
+                if (param && '${/parameter/@calc_type}' == 'CLASSIC_CALCULATOR') {
+                    record = get_ds_record($('hls_fin_calculator_hd_ds'), $('temp_hd_attribute_ds'), param);
+                    if (object == 'LOV') {
+                        var temp = get_record_column_value(record);
+                        field.setLovPara(param, get_record_column_value(record));
+                    } else if (object == 'COMBOBOX') {
+                        combobox_ds.setQueryParameter(param, get_record_column_value(record));
+                    }
+                } else if (param && '${/parameter/@calc_type}' == 'LITE_CALCULATOR') {
+                    var current_record = $('hls_fin_calculator_hd_ds').getCurrentRecord();
+                    if (object == 'LOV') {
+                        field.setLovPara(param, current_record.get(param));
+                    } else if (object == 'COMBOBOX') {
+                        combobox_ds.setQueryParameter(param, current_record.get(param));
+                    }
+                }
+            }
+            
+            function hls_fin_get_column_name(name) {
+                var query_name, length = name.length;
+                if (name.substring(length - 2, length) == '_n') {
+                    query_name = name.substring(0, length - 2);
+                } else {
+                    query_name = name;
+                }
+                return query_name;
+            }
+            
+            function get_lov_cascade(value) {
+                if (Ext.isEmpty(value)) {
+                    return '';
+                } else {
+                    return value;
+                }
+            }
+            
+            function setObjectPara(object, ds, field, para, record) {
+                if (para) {
+                    if (object == 'LOV') {
+                        field.setLovPara(para, get_lov_cascade(record.get(para)));
+                    } else if (object == 'COMBOBOX') {
+                        ds.setQueryParameter(para, get_lov_cascade(record.get(para)));
+                    }
+                }
+            }
+            
+            function on_object_hd_calc_focus(object) {
+                var config_ds = '${/parameter/@calc_type}' == 'CLASSIC_CALCULATOR' ? $('hls_fin_calculator_hd_ds') : $('hd_field_ds'),
+                    record = object.record,
+                    display_name = object.binder.name;
+                var column_name, field;
+                if ('${/parameter/@calc_type}' == 'CLASSIC_CALCULATOR') {
+                    column_name = record.get('column_name');
+                    field = record.getField('column_value');
+                } else {
+                    column_name = hls_fin_get_column_name(display_name);
+                    field = record.getField(display_name);
+                }
+                var config_record;
+                var lov_cascade_para1 = record.get('lov_cascade_para1'),
+                    lov_cascade_para2 = record.get('lov_cascade_para2'),
+                    lov_cascade_para3 = record.get('lov_cascade_para3');
+                if (object instanceof $A.Lov) {
+                    set_calc_record_para('LOV', config_record, '', field, lov_cascade_para1);
+                    set_calc_record_para('LOV', config_record, '', field, lov_cascade_para2);
+                    set_calc_record_para('LOV', config_record, '', field, lov_cascade_para3);
+                } else if (object instanceof $A.ComboBox) {
+                    var combobox_ds = object.optionDataSet;
+                    set_calc_record_para('COMBOBOX', config_record, combobox_ds, field, lov_cascade_para1);
+                    set_calc_record_para('COMBOBOX', config_record, combobox_ds, field, lov_cascade_para2);
+                    set_calc_record_para('COMBOBOX', config_record, combobox_ds, field, lov_cascade_para3);
+                    combobox_ds.query();
+                }
+            }
+            
+            function on_object_ln_calc_focus(object) {
+                var config_ds = $('line_field_ds'),
+                    record = object.record,
+                    name = object.binder.name;
+                var config_record = config_ds.find('column_name', name);
+                var lov_cascade_para1 = config_record.get('lov_cascade_para1'),
+                    lov_cascade_para2 = config_record.get('lov_cascade_para2'),
+                    lov_cascade_para3 = config_record.get('lov_cascade_para3'),
+                    field = record.getField(name);
+                if (object instanceof $A.Lov) {
+                    setObjectPara('LOV', '', field, lov_cascade_para1, record);
+                    setObjectPara('LOV', '', field, lov_cascade_para2, record);
+                    setObjectPara('LOV', '', field, lov_cascade_para3, record);
+                }
+            }
+            
+            function on_calc_success_query(dsId, document_category) {
+              if (!Ext.isEmpty(dsId)) {
+                     //王炜5743修改，租赁申请项目类不是树组件
+                    if(!Ext.isEmpty(document.getElementById('mainFrame2_id'))){
+                    (document_category == 'PROJECT' ? document.getElementById('mainFrame2_id').contentWindow : self)['$'](dsId).query();
+                    }else{
+                        $(dsId).query();
+                    }
+                }
+            }
+            
+            function current_win_close() {
+                $('${/parameter/@winId}').close();
+            }
+            
+            function on_object_hd_calc_beforecommit(object, record, lov_record) {
+                var display_name = object.binder.name,
+                    exists_flag = false,
+                    ds = object.binder.ds;
+                var all_records = ds.getAll();
+                for (var name in lov_record.data) {
+                    if (name != 'value_code' && name != 'value_name') {
+                        for (var m = 0;m < all_records.length;m++) {
+                            var single_record = all_records[m];
+                            if (single_record.get('column_name').toLowerCase() == name.toLowerCase()) {
+                                execute_hls_save_special_field(single_record, lov_record.get(name), false, lov_record.get(name + '_n'));
+                            }
+                        }
+                    }
+                }
+            }
+            
+            function on_object_ln_calc_beforecommit(object, record, lov_record) {
+                var display_name = object.binder.name,
+                    field = record.getField(display_name),
+                    mapping = field.get('mapping'),
+                    exists_flag = false;
+                for (var name in lov_record.data) {
+                    exists_flag = false;
+                    for (var i = 0,
+                        mapping_length = mapping.length;i < mapping_length;i++) {
+                        if ((exists_flag = (name == mapping[i]['from']))) {
+                            break;
+                        }
+                    }
+                    if (!exists_flag) {
+                        mapping.push({
+                            from: name,
+                            to: name
+                        });
+                    }
+                }
+                field.setMapping(mapping);
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="tax_type_codes_ds">
+                <a:datas dataSource="/model/tax_type_codes_path"/>
+            </a:dataSet>
+            <a:dataSet id="doc_currency_ds">
+                <a:datas dataSource="/model/doc_currency_path"/>
+            </a:dataSet>
+            <a:dataSet id="gld_exchage_rate_types_ds">
+                <a:datas dataSource="/model/gld_exchage_rate_types_path"/>
+            </a:dataSet>
+            <a:dataSet id="hls_fin_calc_lov_getmapping_ds" fetchAll="true" queryUrl="${/request/@context_path}/modules/hls/HLS500N/hls_parameters_load_n.svc"/>
+        </a:dataSets>
+    </a:view>
+</a:screen>

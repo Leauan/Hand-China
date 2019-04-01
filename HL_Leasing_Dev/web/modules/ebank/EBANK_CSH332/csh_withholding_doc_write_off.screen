@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author:  
+    $Date: 2015-1-13 下午02:36:37  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:view>
+        <a:link id="ebank_csh332_trans_batch_query_link_id" model="ebank.EBANK_CSH332.spd_transaction_txds72" modelaction="execute"/>
+        <a:link id="ebank_csh332_trans_detail_query_link_id" model="ebank.EBANK_CSH332.spd_transaction_txds73" modelaction="execute"/>
+        <a:link id="ebank_csh332_trans_merge_link_id" model="ebank.EBANK_CSH332.merge_csh_transaction" modelaction="execute"/>
+        <a:link id="ebank_csh332_write_off_trans_merge_link_id" model="ebank.EBANK_CSH332.wirte_off_merge_csh_transaction" modelaction="execute"/>
+        <a:link id="ebank_csh332_withholding_receipt_doc_link_id" url="${/request/@context_path}/modules/ebank/EBANK_CSH331/csh_withholding_doc_write_off.screen"/>
+        <!-- <a:link id="ebank_csh332_withholding_payment_doc_link_id" url="${/request/@context_path}/modules/ebank/EBANK_CSH335/csh_withholding_doc_write_off.screen"/> -->
+        <a:link id="ebank_csh332_rd_ebank_spd_trans_txds72_link_id" url="${/request/@context_path}/modules/ebank/EBANK_CSH332/rd_ebank_spd_trans_txds72.screen"/>
+        <a:link id="ebank_csh332_rd_ebank_spd_trans_txds73_link_id" url="${/request/@context_path}/modules/ebank/EBANK_CSH332/rd_ebank_spd_trans_txds73.screen"/>
+        <script><![CDATA[
+            //锁表
+            function lock_current_window() {
+                Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+            }
+            
+            //解锁
+            function unlock_current_window() {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            
+            //查询
+            function ebank_csh332_ds_query() {
+                $('ebank_csh332_withholding_doc_result').query();
+            }
+            
+            //重置
+            function ebank_csh332_ds_reset() {
+                $('ebank_csh332_withholding_doc_query').reset();
+            }
+            
+            //代扣批次查询
+            function ebank_csh332_ds_batch_query() {
+                var record = $('ebank_csh332_withholding_doc_result').getCurrentRecord();
+                if (Aurora.isEmpty(record)) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '至少选择一行');
+                    return;
+                }
+            
+                if (record.get('dealstatus') == 'SUCCESS') {
+                    Aurora.showMessage('${l:PROMPT}', '已成功执行代扣批次查询，不可重复执行！');
+                    return;
+                } else if (record.get('dealstatus') != 'DEAL' && record.get('dealstatus') != 'EXCEPTION') {
+                    Aurora.showMessage('${l:PROMPT}', '交易状态不正确，不可进行代扣批次查询！');
+                    return;
+                }
+            
+                var params = {
+                    electron_number: record.get('electronnumber'),
+                    entrust_seqno: record.get('entrustseqno')
+                };
+                var url = $('ebank_csh332_trans_batch_query_link_id').getUrl();
+            
+                lock_current_window();
+                Aurora.request({
+                    para: params,
+                    url: url,
+                    success: function() {
+                        unlock_current_window();
+                        //$('ebank_csh332_withholding_doc_query').getAt(0).set('dealstatus', 'DEAL');
+                        //$('ebank_csh332_withholding_doc_query').getAt(0).set('dealstatus_n', '交易中');
+                        $('ebank_csh332_withholding_doc_query').getAt(0).set('dealstatus', '');
+                        $('ebank_csh332_withholding_doc_query').getAt(0).set('dealstatus_n', '');
+                        $('ebank_csh332_withholding_doc_query').getAt(0).set('transaction_number', record.get('transaction_number'));
+                        $('ebank_csh332_withholding_doc_result').query();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            
+            }
+            
+            //代扣详细查询
+            function ebank_csh332_ds_detail_query() {
+                var record = $('ebank_csh332_withholding_doc_result').getCurrentRecord();
+                if (Aurora.isEmpty(record)) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '至少选择一行');
+                    return;
+                }
+            
+                if (record.get('dealstatus') == 'QUERY') {
+                    Aurora.showMessage('${l:PROMPT}', '已成功执行代扣详细查询，不可重复执行！');
+                    return;
+                } else if (record.get('dealstatus') != 'SUCCESS') {
+                    Aurora.showMessage('${l:PROMPT}', '交易状态不正确，不可进行代扣详细查询！');
+                    return;
+                }
+            
+                var params = {
+                    electron_number: record.get('electronnumber'),
+                    entrust_seqno: record.get('entrustseqno')
+                };
+                var url = $('ebank_csh332_trans_detail_query_link_id').getUrl();
+            
+                lock_current_window();
+                Aurora.request({
+                    para: params,
+                    url: url,
+                    success: function() {
+                        unlock_current_window();
+                        //$('ebank_csh332_withholding_doc_query').getAt(0).set('dealstatus', 'SUCCESS');
+                        //$('ebank_csh332_withholding_doc_query').getAt(0).set('dealstatus_n', '成功');
+                        $('ebank_csh332_withholding_doc_query').getAt(0).set('dealstatus', '');
+                        $('ebank_csh332_withholding_doc_query').getAt(0).set('dealstatus_n', '');
+                        $('ebank_csh332_withholding_doc_query').getAt(0).set('transaction_number', record.get('transaction_number'));
+                        $('ebank_csh332_withholding_doc_result').query();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            //事务合并生成现金事务
+            function ebank_csh332_ds_merge_trans() {
+                var record = $('ebank_csh332_withholding_doc_result').getCurrentRecord();
+                var url = $('ebank_csh332_trans_merge_link_id').getUrl();
+            
+                if (record.get('dealstatus') == 'MERGE') {
+                    Aurora.showMessage('${l:PROMPT}', '已合并的代扣事务，不可重复合并！');
+                    return;
+                } else if (record.get('dealstatus') != 'QUERY') {
+                    Aurora.showMessage('${l:PROMPT}', '交易状态不正确，不可进行合并！');
+                    return;
+                }
+            
+            
+                lock_current_window();
+                Aurora.request({
+                    url: url,
+                    para: {
+                        'transaction_id': record.get('transaction_id')
+                    },
+                    success: function(res) {
+                        unlock_current_window();
+                        //$('ebank_csh332_withholding_doc_query').getAt(0).set('dealstatus', 'QUERY');
+                        //$('ebank_csh332_withholding_doc_query').getAt(0).set('dealstatus_n', '批次查询');
+                        $('ebank_csh332_withholding_doc_query').getAt(0).set('dealstatus', '');
+                        $('ebank_csh332_withholding_doc_query').getAt(0).set('dealstatus_n', '');
+                        $('ebank_csh332_withholding_doc_query').getAt(0).set('transaction_number', record.get('transaction_number'));
+                        $('ebank_csh332_withholding_doc_result').query();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            }
+            //核销生成现金事务
+            function ebank_csh332_ds_write_off_trans(){
+                
+                var url = $('ebank_csh332_write_off_trans_merge_link_id').getUrl();
+                
+                lock_current_window();
+                Aurora.request({
+                    url: url,
+                    para: {
+                        'ebank_vender': 'SPD'
+                    },
+                    success: function(res) {
+                        unlock_current_window();
+                        $('ebank_csh332_withholding_doc_result').query();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            function open_withholding_doc_win(transaction_number, transtype) {
+                var url;
+                if (transtype == 1){
+                    url = $('ebank_csh332_withholding_receipt_doc_link_id').getUrl() + '?transaction_number=' + transaction_number;
+                }
+                // else if (transtype == 2){
+                    // url = $('ebank_csh332_withholding_payment_doc_link_id').getUrl() + '?transaction_number=' + transaction_number + '&function_code=EBANK_CSH335&layout_code=EBANK_CSH335';
+                // }
+                window.open(url);
+            }
+            
+            function open_rd_ebank_spd_trans_txds72_win(value) {
+                var win = new Aurora.Window({
+                    url: $('ebank_csh332_rd_ebank_spd_trans_txds72_link_id').getUrl(),
+                    params: {
+                        transaction_number: value
+                    },
+                    title: '批次查询事务',
+                    id: '',
+                    width: 1270,
+                    height: 240
+                });
+            }
+            
+            function open_rd_ebank_spd_trans_txds73_win(value) {
+                var win = new Aurora.Window({
+                    url: $('ebank_csh332_rd_ebank_spd_trans_txds73_link_id').getUrl(),
+                    params: {
+                        transaction_number: value
+                    },
+                    title: '批次查询事务',
+                    id: '',
+                    width: 1270,
+                    height: 240
+                });
+            }
+            
+            //grid 列渲染
+            function EBANK_CSH332_render_func(value, record, name) {
+                if (name == 'transaction_number' && !Aurora.isEmpty(value)) {
+                    var transtype = record.get('transtype');
+                    return '<a href="javascript:open_withholding_doc_win(\'' + value + '\', \'' + transtype + '\')">' + value + '</a>';
+                }
+            }
+            
+            //批次查询事务
+            function EBANK_CSH332_render_func2(value, record, name) {
+                if (name == 'ref_bqr_trans_id_n' && !Aurora.isEmpty(value)) {
+                    return '<a href="javascript:open_rd_ebank_spd_trans_txds72_win(\'' + value + '\')">' + value + '</a>';
+                }
+            }
+            
+            //详细查询事务
+            function EBANK_CSH332_render_func3(value, record, name) {
+                if (name == 'ref_dqr_trans_id_n' && !Aurora.isEmpty(value)) {
+                    return '<a href="javascript:open_rd_ebank_spd_trans_txds73_win(\'' + value + '\')">' + value + '</a>';
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="doc_status_ds" lookupCode="RD_EBANK_SPD_TRANSACTION_STATUS"/>
+            <a:dataSet id="doc_send_status_ds" lookupCode="RD_EBANK_SPD_TRANSACTION_SEND_STATUS"/>
+            <a:dataSet id="trans_type_ds">
+                <a:datas>
+                    <a:record name="代收业务" code="1"/>
+                    <a:record name="代付业务" code="2"/>
+                    <a:record name="全部" code="ALL"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="ebank_csh332_withholding_doc_query">
+                <a:fields>
+                    <a:field name="transaction_number"/>
+                    <a:field name="status_n" defaultValue="成功" displayField="code_value_name" options="doc_send_status_ds" returnField="status" valueField="code_value"/>
+                    <a:field name="status" defaultValue="SUCCESS"/>
+                    <a:field name="dealstatus_n" displayField="code_value_name" options="doc_status_ds" returnField="dealstatus" valueField="code_value"/>
+                    <a:field name="dealstatus"/>
+                    <a:field name="transtype"/>
+                    <a:field name="transtype_n" displayField="name" options="trans_type_ds" returnField="transtype" valueField="code"/>
+                    <a:field name="status_date_from"/>
+                    <a:field name="status_date_to"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="ebank_csh332_withholding_doc_result" autoQuery="true" model="ebank.EBANK_CSH332.rd_ebank_spd_trans_txds71" queryDataSet="ebank_csh332_withholding_doc_query" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="note" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="ebank_csh332_ds_query" text="HLS.QUERY"/>
+                <a:gridButton click="ebank_csh332_ds_reset" text="HLS.RESET"/>
+                <a:gridButton click="ebank_csh332_ds_batch_query" text="批次查询指令"/>
+                <a:gridButton click="ebank_csh332_ds_detail_query" text="详细查询指令"/>
+                <a:gridButton click="ebank_csh332_ds_merge_trans" text="生成现金事务"/>
+                <a:gridButton click="ebank_csh332_ds_write_off_trans" text="核销现金事务"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="110" marginWidth="30" title="代扣事务查询">
+                <a:textField name="transaction_number" bindTarget="ebank_csh332_withholding_doc_query" prompt="批次编号"/>
+                <a:comboBox name="dealstatus_n" bindTarget="ebank_csh332_withholding_doc_query" prompt="事务状态"/>
+                <a:comboBox name="status_n" bindTarget="ebank_csh332_withholding_doc_query" prompt="发送状态"/>
+                <a:comboBox name="transtype_n" bindTarget="ebank_csh332_withholding_doc_query" prompt="业务类型"/>
+                <a:textField name="seqno_from" bindTarget="ebank_csh332_withholding_doc_query" prompt="交易流水号从"/>
+                <a:textField name="seqno_to" bindTarget="ebank_csh332_withholding_doc_query" prompt="交易流水号到"/>
+                <a:textField name="electronnumber_from" bindTarget="ebank_csh332_withholding_doc_query" prompt="电子凭证号从"/>
+                <a:textField name="electronnumber_to" bindTarget="ebank_csh332_withholding_doc_query" prompt="电子凭证号到"/>
+                <a:datePicker name="transdate_from" bindTarget="ebank_csh332_withholding_doc_query" prompt="受理时间从"/>
+                <a:datePicker name="transdate_to" bindTarget="ebank_csh332_withholding_doc_query" prompt="受理时间到"/>
+                <a:dateTimePicker name="status_date_from" bindTarget="ebank_csh332_withholding_doc_query" prompt="最后处理时间从"/>
+                <a:dateTimePicker name="status_date_to" bindTarget="ebank_csh332_withholding_doc_query" prompt="最后处理时间到"/>
+            </a:form>
+            <a:grid id="ebank_csh332_withholding_doc_result_grid_id" bindTarget="ebank_csh332_withholding_doc_result" marginHeight="200" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="transaction_number" align="center" lock="true" prompt="批次编号" renderer="EBANK_CSH332_render_func" width="120"/>
+                    <a:column name="seqno" align="center" lock="true" prompt="交易流水号" width="150"/>
+                    <a:column name="transtype_n" prompt="业务类型" width="70"/>
+                    <a:column name="transdate" align="center" prompt="受理时间" width="80"/>
+                    <a:column name="entrustseqno" prompt="委托编号" width="130"/>
+                    <a:column name="electronnumber" prompt="电子凭证" width="150"/>
+                    <a:column name="status_n" prompt="发送状态" width="80"/>
+                    <a:column name="dealstatus_n" prompt="事务状态" width="80"/>
+                    <a:column name="masterid" prompt="企业号" width="120"/>
+                    <a:column name="acctno" prompt="本方账号" width="140"/>
+                    <a:column name="totalnumber" align="right" prompt="交易笔数" width="80"/>
+                    <a:column name="totalamount" align="right" prompt="交易金额" renderer="Aurora.formatMoney" width="90"/>
+                    <a:column name="successnumber" align="right" prompt="成功笔数" width="120"/>
+                    <a:column name="successamount" align="right" prompt="成功金额" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="failnumber" align="right" prompt="失败笔数" width="120"/>
+                    <a:column name="failamount" align="right" prompt="失败金额" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="return_msg" prompt="返回信息" width="120"/>
+                    <a:column name="ref_bqr_trans_id_n" prompt="批次查询编号" renderer="EBANK_CSH332_render_func2" width="120"/>
+                    <a:column name="resp_rem_1" prompt="批次查询信息" width="120"/>
+                    <a:column name="ref_dqr_trans_id_n" prompt="详细查询编号" renderer="EBANK_CSH332_render_func3" width="120"/>
+                    <a:column name="resp_rem_2" prompt="详细查询信息" width="120"/>
+                    <a:column name="status_date" prompt="最后处理时间" width="130"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

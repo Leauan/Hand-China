@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-8-1 下午4:56:01  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[SELECT f.line_number,
+       (SELECT v.code_value_name
+          FROM sys_code_values_v v
+         WHERE v.code = 'INDICATOR_TYPE'
+           AND v.code_value = t.indicator_type) indicator_type_desc,
+       t.*
+  FROM (select indicator_type, indicator_name,
+ max(decode(rvl, 1, indicator_value)) as fourth_year_amount,
+ max(decode(rvl, 2, indicator_value)) as third_year_amount,
+ max(decode(rvl, 3, indicator_value)) as second_year_amount,
+ max(decode(rvl, 4, indicator_value)) as first_year_amount
+  from (select indicator_name,
+               indicator_value,
+               line_number,
+               fiscal_year,
+               indicator_type,
+               rank() over(partition by indicator_name order by fiscal_year desc) as rvl
+          from rsc_fin_indicator_lns_v
+         where fin_statement_templet_id = ${@fin_statement_templet_id}
+           and bp_id = ${@bp_id})
+ group by indicator_name, indicator_type) t,
+       rsc_fin_indicator_formula f
+ WHERE t.indicator_name = f.indicator_name
+   AND f.fin_statement_templet_id = ${@fin_statement_templet_id}
+ ORDER BY f.line_number]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

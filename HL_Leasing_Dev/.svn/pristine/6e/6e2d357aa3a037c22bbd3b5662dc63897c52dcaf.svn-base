@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hp  
+    $Date: 2014-1-9 上午10:08:56  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="enabled_flag=&apos;Y&apos;" fetchAll="true" model="basic.gld_currency_v_lov" rootPath="currency_list"/>
+        <a:model-query fetchAll="true" model="basic.sys_session_info" rootPath="sys_session"/>
+        <a:model-query defaultWhereClause="t1.company_id=${/session/@company_id} and t1.company_enabled_flag = &apos;Y&apos;" fetchAll="true" model="basic.fnd_company_book_set_v" rootPath="company_book_set"/>
+        <a:model-query defaultWhereClause="t1.company_id=${/session/@top_biz_company_id} and t1.company_enabled_flag = &apos;Y&apos;" fetchAll="true" model="basic.fnd_company_book_set_v" rootPath="top_biz_company_book_set"/>
+        <a:model-query defaultWhereClause="t1.period_set_code=${/model/top_biz_company_book_set/record/@period_set_code} and t1.period_year=${/model/sys_session/record/@current_year} and t1.period_num=${/model/sys_session/record/@current_month}" model="basic.gld_periods" rootPath="default_period"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="bmLink_calculate_book3c" model="gld.GLD320.gld_3c_book" modelaction="update"/>
+        <a:link id="pageLink_book3c_detail" url="${/request/@context_path}/modules/gld/GLD320/gld_3c_book_detail.screen"/>
+        <a:screen-include screen="modules/hls/hls_common_javascript.screen"/>
+        <script><![CDATA[
+            function book3cDs_calculate() {
+                f_hls.winMask();
+                var ds = $('para_book3cDs');
+            
+                if (!ds.validate()) {
+                    f_hls.winNoMask();
+                    return;
+                }
+            
+                var record = ds.getAt(0);
+                var year_from = Number(record.get('period_name_from').substr(0, 4));
+                var year_to = Number(record.get('period_name_to').substr(0, 4));
+                if (year_from != year_to) {
+                    f_hls.winNoMask();
+                    Aurora.showMessage('${l:HLS.PROMPT}', '期间不能跨年！');
+                    return;
+                }
+            
+                record.set('period_year', year_from);
+            
+                Aurora.request({
+                    url: $('bmLink_calculate_book3c').getUrl(),
+                    para: record.data,
+                    success: function(res) {
+                        f_hls.winNoMask();
+            
+                        var ds = $('book3cDs');
+                        ds.setQueryParameter('report_id', res.result.report_id);
+                        ds.query();
+                    },
+                    failure: function() {
+                        f_hls.winNoMask();
+                    },
+                    error: function() {
+                        f_hls.winNoMask();
+                    },
+                    scope: this
+                });
+            
+            }
+            
+            function para_book3cDs_reset() {
+                $('para_book3cDs').reset();
+            }
+            
+            function onUpdate_functional_currency_flag(record) {
+                var field = record.getField('currency_desc');
+                var functional_currency_flag = record.get('functional_currency_flag');
+                if (functional_currency_flag == 'Y') {
+                    record.set('currency_code', record.get('functional_currency_code'));
+                    record.set('currency_desc', record.get('functional_currency_desc'));
+                    field.setReadOnly(true);
+                } else {
+                    field.setReadOnly(false);
+                }
+            }
+            
+            function refresh_para_book3cDs(record) {
+                // record.getField('period_name_from').setLovPara('period_year',record.get('period_year'))
+                // record.getField('period_name_to').setLovPara('period_year',record.get('period_year'))
+                onUpdate_functional_currency_flag(record);
+            }
+            
+            
+            function copyToTheOther(record, name, from_name, to_name) {
+                if (name == from_name && Ext.isEmpty(record.get(to_name))) {
+                    record.set(to_name, record.get(from_name));
+                }
+            }
+            
+            function onUpdate_para_book3cDs(ds, record, name, value, oldValue) {
+            
+                if (name == 'functional_currency_flag') {
+                    onUpdate_functional_currency_flag(record);
+                } else if (name == 'company_short_name') {
+                    refresh_para_book3cDs(record);
+                } else if (name == 'account_code_from' || name == 'account_code_to') {
+                    copyToTheOther(record, name, 'account_code_from', 'account_code_to');
+                    copyToTheOther(record, name, 'account_code_to', 'account_code_from');
+                }
+            }
+            
+            function book3c_detail_view() {
+                var records = $('book3cDs').getSelected();
+            	if(records.length == 0)
+            	{
+            	    return;
+            	}
+            	var record = records[0];
+            	var functional_currency_flag = $('para_book3cDs').getAt(0).get('functional_currency_flag');
+                    
+                new Aurora.Window({
+                    id: 'gld_3c_book_detail',
+                    url: $('pageLink_book3c_detail').getUrl(),
+                    params:{
+                        report_id : record.get('report_id'),
+                        account_id : record.get('account_id'),
+                        functional_currency_flag : functional_currency_flag
+                    },
+                    title: '明细查询',
+                    fullScreen:true
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="currencyDs">
+                <a:datas dataSource="/model/currency_list"/>
+            </a:dataSet>
+            <a:dataSet id="periodDs" fetchAll="true" model="basic.gld_periods_lov">
+                <a:datas dataSource="/model/default_period_list"/>
+            </a:dataSet>
+            <a:dataSet id="para_book3cDs" autoCreate="true">
+                <a:fields>
+                    <a:field name="period_year"/>
+                    <a:field name="account_summary_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="account_sub_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="resp_summary_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="resp_sub_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="company_id" defaultValue="${/model/company_book_set/record/@company_id}"/>
+                    <a:field name="functional_currency_code" defaultValue="${/model/company_book_set/record/@functional_currency_code}"/>
+                    <a:field name="functional_currency_desc" defaultValue="${/model/company_book_set/record/@functional_currency_desc}"/>
+                    <a:field name="currency_code" defaultValue="${/model/company_book_set/record/@functional_currency_code}"/>
+                    <a:field name="currency_desc" defaultValue="${/model/company_book_set/record/@functional_currency_desc}" displayField="currency_name" options="currencyDs" required="true" returnField="currency_code" valueField="currency_code"/>
+                    <a:field name="company_short_name" defaultValue="${/model/sys_session/record/@company_short_name}" lovGridHeight="300" lovHeight="460" lovService="basic.fnd_company_book_set_v_lov" lovWidth="500" required="true" title="公司">
+                        <a:mapping>
+                            <a:map from="company_id" to="company_id"/>
+                            <a:map from="functional_currency_code" to="functional_currency_code"/>
+                            <a:map from="functional_currency_desc" to="functional_currency_desc"/>
+                            <a:map from="functional_currency_code" to="currency_code"/>
+                            <a:map from="functional_currency_desc" to="currency_desc"/>
+                            <a:map from="company_short_name" to="company_short_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="period_name_from" defaultValue="${/model/default_period/record/@period_name}" lovGridHeight="375" lovHeight="540" lovService="basic.gld_periods_lov" lovWidth="550" lovpagesize="13" required="true" title="期间">
+                        <a:mapping>
+                            <a:map from="period_name" to="period_name_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="period_name_to" defaultValue="${/model/default_period/record/@period_name}" lovGridHeight="375" lovHeight="540" lovService="basic.gld_periods_lov" lovWidth="550" lovpagesize="13" required="true" title="期间">
+                        <a:mapping>
+                            <a:map from="period_name" to="period_name_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="account_code_from" autoComplete="true" lovGridHeight="300" lovHeight="460" lovService="basic.gld_accounts_v_lov" lovWidth="650" title="科目">
+                        <a:mapping>
+                            <a:map from="account_code" to="account_code_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="account_code_to" lovHeight="600" lovUrl="${/request/@context_path}/modules/gld/gld_accounts_tree_lov.screen" lovWidth="550" title="科目">
+                        <a:mapping>
+                            <a:map from="account_code" to="account_code_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="functional_currency_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="zero_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_para_book3cDs"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="book3cDs" autoPageSize="true" model="gld.GLD320.gld_3c_book_summary_v" selectable="true" selectionModel="single">
+                <a:fields><![CDATA[
+                ]]></a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="para_book3cDs_reset" text="HLS.RESET"/>
+                <a:gridButton click="book3cDs_calculate" text="计算"/>
+                <a:gridButton click="book3c_detail_view" text="查看明细"/>
+            </a:screenTopToolbar>
+            <a:form column="5" labelWidth="100" title="三栏账查询">
+                <a:lov name="period_name_from" bindTarget="para_book3cDs" prompt="期间从" width="120"/>
+                <a:lov name="period_name_to" bindTarget="para_book3cDs" prompt="期间到" width="120"/>
+                <a:lov name="company_short_name" bindTarget="para_book3cDs" prompt="公司" width="120"/>
+                <a:comboBox name="currency_desc" bindTarget="para_book3cDs" prompt="币种" width="120"/>
+                <a:checkBox name="functional_currency_flag" bindTarget="para_book3cDs" prompt="本位币汇总" width="18"/>
+                <a:lov name="account_code_from" bindTarget="para_book3cDs" prompt="科目从" width="120"/>
+                <a:lov name="account_code_to" bindTarget="para_book3cDs" prompt="科目到" width="120"/>
+                <a:checkBox name="zero_flag" bindTarget="para_book3cDs" prompt="只有期初也显示" width="18"/>
+                <a:checkBox name="account_summary_flag" bindTarget="para_book3cDs" prompt="汇总科目" width="18"/>
+                <a:checkBox name="account_sub_flag" bindTarget="para_book3cDs" prompt="明细科目" width="18"/>
+            </a:form>
+            <a:grid bindTarget="book3cDs" marginHeight="190" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="account_code" lock="true" prompt="科目代码" width="120"/>
+                    <a:column name="description" lock="true" prompt="科目名称" width="350"/>
+                    <a:column name="currency_desc" align="true" lock="true" prompt="币种" width="80"/>
+                    <a:column name="open_balance" align="right" prompt="期初余额" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="amount_dr" align="right" prompt="借方合计" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="amount_cr" align="right" prompt="贷方合计" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="balance" align="right" prompt="期末余额" renderer="Aurora.formatMoney" width="120"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+        <script><![CDATA[
+    		(
+    		function (){
+    		    var record = $('para_book3cDs').getAt(0);
+    			refresh_para_book3cDs(record);
+    		})();
+    	]]></script>
+    </a:view>
+</a:screen>

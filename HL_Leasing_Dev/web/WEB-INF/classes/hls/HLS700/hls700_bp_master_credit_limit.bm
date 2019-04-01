@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT t1.*FROM (SELECT 
+                  -- bp.project_id, DF系统中商业伙伴对应多个项目
+                  bp.bp_id,
+                  bp.bp_code,
+                  bp.bp_name,
+                  bp.bp_type,
+                  bp.bp_category,
+                  (SELECT v.code_value_name
+                     FROM sys_code_values_v v
+                    WHERE v.code = 'BP_CATEGORY'
+                      AND v.code_enabled_flag = 'Y'
+                      AND v.code_value = bp.bp_category) bp_category_n,
+                  (SELECT SUM(nvl(l.credit_total_amount,
+                                  0))
+                     FROM hls_bp_master_credit_ln l
+                    WHERE l.bp_id = bp.bp_id
+                      AND trunc(l.credit_date_from) <= trunc(SYSDATE)
+                      AND trunc(l.credit_date_to) >= trunc(SYSDATE)
+                      AND l.enable_flag = 'Y') credit_total_amount,
+                  hls_bp_master_credit_pkg.calc_used_amount_bp(p_bp_id => bp.bp_id,
+                                                               p_user_id         => 1) AS used_amount,
+                  ((SELECT SUM(nvl(l.credit_total_amount,
+                                   0))
+                      FROM hls_bp_master_credit_ln l
+                     WHERE l.bp_id = bp.bp_id
+                       AND trunc(l.credit_date_from) <= trunc(SYSDATE)
+                       AND trunc(l.credit_date_to) >= trunc(SYSDATE)
+                       AND l.enable_flag = 'Y') -
+                  (hls_bp_master_credit_pkg.calc_used_amount_bp(p_bp_id => bp.bp_id,
+                                                                 p_user_id         => 1))) last_amount ,
+                  --add by wuts 2019 -02-26
+                  (SELECT SUM(nvl(l.credit_total_amount,
+                                  0))
+                     FROM hls_bp_master_credit_ln l
+                    WHERE l.bp_id = parent.bp_id
+                      AND trunc(l.credit_date_from) <= trunc(SYSDATE)
+                      AND trunc(l.credit_date_to) >= trunc(SYSDATE)
+                      AND l.enable_flag = 'Y') parent_total_amount,
+                  hls_bp_master_credit_pkg.calc_used_amount_parent_bp(p_bp_id => parent.bp_id,
+                                                               p_user_id         => 1) AS parent_used_amount,
+                  ((SELECT SUM(nvl(l.credit_total_amount,
+                                   0))
+                      FROM hls_bp_master_credit_ln l
+                     WHERE l.bp_id = parent.bp_id
+                       AND trunc(l.credit_date_from) <= trunc(SYSDATE)
+                       AND trunc(l.credit_date_to) >= trunc(SYSDATE)
+                       AND l.enable_flag = 'Y') -
+                  (hls_bp_master_credit_pkg.calc_used_amount_parent_bp(p_bp_id => parent.bp_id,
+                                                                 p_user_id         => 1))) parent_last_amount ,   
+                 parent.bp_name parent_name,
+                 parent.bp_code parent_code,
+                 bp.parent_id                                                   
+                   --end;                                                                                                                                      
+             FROM hls_bp_master bp,hls_bp_master parent
+                
+            WHERE bp.parent_id =parent.bp_id(+)
+            and bp.bp_category = 'AGENT'
+              AND bp.enabled_flag = 'Y') t1 #WHERE_CLAUSE#
+              ORDER BY t1.bp_code
+            ]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+                BEGIN
+                    hls_bp_master_credit_pkg.hls_credit_hd_save(p_bp_credit_hd_id => ${@bp_credit_hd_id},
+                    										    p_bp_id => ${@bp_id},
+	                    										    p_user_id => ${/session/@user_id});
+                END ;
+            ]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="insert">
+            <bm:update-sql><![CDATA[
+				BEGIN
+				  INSERT INTO hls_bp_master_credit_hd
+				    (bp_credit_hd_id,
+				     bp_id,
+				     created_by,
+				     creation_date,
+				     last_updated_by,
+				     last_update_date)
+				  VALUES
+				    (hls_bp_master_credit_hd_s.nextval,
+				     ${@bp_id},
+				     ${/session/@user_id},
+				     SYSDATE,
+				     ${/session/@user_id},
+				     SYSDATE)
+				  RETURNING bp_credit_hd_id INTO ${@bp_credit_hd_id};
+				END;
+        	]]></bm:update-sql>
+            <bm:parameters>
+                <bm:parameter name="bp_credit_hd_id" input="false" output="true"/>
+            </bm:parameters>
+        </bm:operation>
+        <bm:operation name="execute">
+            <bm:update-sql><![CDATA[
+		       begin
+				delete  hls_bp_master_credit_ln
+				where   bp_credit_line_id=${@bp_credit_line_id};
+				end;
+        	]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <!--  <bm:field name="bp_credit_hd_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="BP_CREDIT_HD_ID" required="true"/> -->
+        <bm:field name="bp_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="BP_ID" required="true"/>
+        <bm:field name="bp_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="BP_CODE"/>
+        <bm:field name="bp_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="BP_NAME"/>
+        <bm:field name="bp_type" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="BP_TYPE"/>
+        <bm:field name="credit_total_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="CREDIT_TOTAL_AMOUNT"/>
+        <bm:field name="used_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="USED_AMOUNT"/>
+        <bm:field name="last_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="LAST_AMOUNT"/>
+        <bm:field name="bp_category"/>
+        <bm:field name="bp_category_n"/>
+        <bm:field name="parent_total_amount"/>
+        <bm:field name="parent_used_amount"/>
+        <bm:field name="parent_last_amount"/>
+        <bm:field name="parent_name"/>
+        <bm:field name="parent_code"/>
+        <bm:field name="parent_id"/>
+        <!--modify by lara 11355 20181225 DF系统中商业伙伴对应多个项目 -->
+        <!-- <bm:field name="project_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="PROJECT_ID"/> -->
+        <!--end modify by lara 11355 20181225-->
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field field="bp_code" queryExpression="t1.bp_code like upper(&apos;%&apos;||${@bp_code}||&apos;%&apos;)"/>
+        <bm:query-field field="bp_name" queryOperator="like"/>
+        <bm:query-field name="parent_name" queryExpression="t1.parent_name like &apos;%&apos;||${@parent_name}||&apos;%&apos;"/>
+        <bm:query-field name="parent_code" queryExpression="t1.parent_code = ${@parent_code}"/>
+        <bm:query-field field="bp_category_n" queryOperator="like"/>
+        <!--modify by lara 11355 20181225 DF系统中商业伙伴对应多个项目 -->
+        <!-- <bm:query-field name="project_d" queryExpression="="/> -->
+        <!--end modify by lara 11355 20181225-->
+    </bm:query-fields>
+</bm:model>

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei  
+    $Date: 2015-2-5 上午9:18:07  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure><![CDATA[
+		
+	]]></a:init-procedure>
+    <a:view>
+        <a:link id="hls_sms_list_link" model="cont.CON750.hls_sms_list" modelaction="update"/>
+        <script><![CDATA[
+         function grid_delete(){
+           var ds = $('hls_sms_list_ds');
+                var records = ds.getSelected();
+                if (records.length != 0) {
+                    Aurora.showConfirm( '${l:HLS.PROMPT}', '${l:HLS030.CONFIRM_DELETE}', function () {
+                        ds.remove(records);
+                    });
+                }
+            
+        }
+        
+        function query_ds(){
+            $('hls_sms_list_ds').query();
+        }
+        
+        function sms_send(){
+            Aurora.showConfirm('${l:HLS.PROMPT}', '确认后将发送以下列表中所有短信内容，您确认吗？', function() {
+                 Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+                   Aurora.request({
+                            url: $('hls_sms_list_link').getUrl(),
+                            success: function(data) {
+                                debugger;
+                                if(data.result.v_return_char=='SUCCESS'){
+                                Aurora.showMessage('提示', '短信发送成功！！！');
+                                Aurora.Masker.unmask(Ext.getBody());
+                                $('hls_sms_list_ds').query();
+                                }else{
+                                Aurora.showMessage('提示', '短信发送中存在错误，请核对列表错误信息，再次发送！！！');
+                                Aurora.Masker.unmask(Ext.getBody());
+                                $('hls_sms_list_ds').query();   
+                                }
+                            },
+                            failure: function() {
+                                Aurora.Masker.unmask(Ext.getBody());
+                            },
+                            error: function() {
+                                Aurora.Masker.unmask(Ext.getBody());
+                            },
+                            scope: this
+                        });                    
+                });
+            
+        }
+		]]></script>
+        <a:dataSets>
+            <a:dataSet id="sms_type_ds" lookupCode="YONDA_SMS_NAME"/>
+            <a:dataSet id="for_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="tenant_name"/>
+                    <a:field name="contract_id"/>
+                    <a:field name="contract_number" fetchRemote="true" lovGridHeight="300" lovHeight="500" lovService="cont.CON749.con_contract_for_lov" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="contract_number" to="contract_number"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="sms_type"/>
+                    <a:field name="sms_type_des" displayField="code_value_name" options="sms_type_ds" returnField="sms_type" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="hls_sms_list_ds" autoPageSize="true" autoQuery="true" model="cont.CON750.hls_sms_list" queryDataSet="for_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="content" readOnly="true"/>
+                    <a:field name="response" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="query_ds" text="查询"/>
+                <a:gridButton click="grid_delete" text="删除"/>
+                <a:gridButton click="sms_send" text="发送"/>
+            </a:screenTopToolbar>
+            <a:form column="4" marginWidth="80" title="查询条件">
+                <a:lov name="contract_number" bindTarget="for_query_ds" prompt="合同编号"/>
+                <a:textField name="tenant_name" bindTarget="for_query_ds" prompt="承租人"/>
+                <a:comboBox name="sms_type_des" bindTarget="for_query_ds" prompt="短信类型"/>
+            </a:form>
+            <a:grid bindTarget="hls_sms_list_ds" marginHeight="180" marginWidth="80" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" prompt="合同编号" width="150"/>
+                    <a:column name="tenant_name" prompt="承租人名称" width="150"/>
+                    <a:column name="phone_number" prompt="手机号" width="150"/>
+                    <a:column name="sms_type_des" prompt="短信类型" width="150"/>
+                    <a:column name="response" editor="textArea_e_1" prompt="发送失败信息" width="250"/>
+                    <a:column name="content" editor="textArea_e" prompt="发送内容" width="400"/>
+                </a:columns>
+                <a:editors>
+                    <a:textArea id="textArea_e_1" height="60" width="250"/>
+                    <a:textArea id="textArea_e" height="60" width="300"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

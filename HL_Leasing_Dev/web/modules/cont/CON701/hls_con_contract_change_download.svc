@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            //importPackage(java.util.zip);
+            importPackage(java.io);
+            importPackage(Packages.org.apache.tools.zip); /*可以传入参数*/
+            
+            function writeFile(zos, fn, fp) {
+                // println(fn+'---'+fp);
+                var ze = new Packages.org.apache.tools.zip.ZipEntry(fn);
+                zos.putNextEntry(ze);
+                transfer(fp, zos);
+            }
+            
+            function transfer(file, os) {
+                var fis = new FileInputStream(file);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    os.write(b, 0, len);
+                }
+                fis.close();
+            }
+   
+            function getdate() {
+                var now = new Date()
+                y = now.getFullYear()
+                m = now.getMonth() + 1
+                d = now.getDate()
+                m = m < 10 ? "0" + m : m
+                d = d < 10 ? "0" + d : d
+                return y + "" + m + "" + d
+            }
+            $ctx["__request_type__"] = 'file'; //to indicate this request is not a JSON_REQUEST
+            var resp = $ctx['_instance.javax.servlet.http.HttpServletResponse'];
+            resp.setHeader("Pragma", "No-cache");
+            resp.setHeader("Cache-Control", "no-cache, must-revalidate");
+            var date_str = getdate();
+            var doc_code = $ctx.parameter.doc_code;
+            var type = $ctx.parameter.type;
+            var filename = doc_code + '-' + date_str + ".zip";
+            // println(filename+'--------')
+            resp.setHeader("Content-disposition", "attachment; filename=" + encodeURI(filename));
+            resp.setDateHeader("Expires", 0);
+            resp.setContentType("application/x-msdownload");
+            //resp.setCharacterEncoding("utf-8");
+            //resp.setContentType("application/octet-stream")
+            //resp.setContentType("application/application/octet-stream bin");
+            try {
+                // var attachment_batch_dl = $bm('prj.PRJ705.prj_project_atm_download');
+                // var result = attachment_batch_dl.queryAsMap({
+                    // content_id: $ctx.parameter.content_id,
+                    // project_id: $ctx.parameter.project_id
+                // });
+                // println('2');
+                // println($ctx.parameter.toXML())
+                var file_path = $ctx.parameter.file_path;
+                var arr = $ctx.parameter.download_arr.split(',');
+                if (arr.length >= 1) {
+                    if (type == 'SIN') {
+                        // 单个生成PDF
+                        resp.setHeader("Content-Disposition", "attachment; filename=" + encodeURI(arr[0].file_name, 'utf-8'));
+                        var os = resp.getOutputStream();
+                        transfer(file_path+arr[0].file_name, os);
+                        os.flush();
+                    }
+                    if (type == 'ZIP') {
+                        
+                        //打包下载
+                        var zos = new Packages.org.apache.tools.zip.ZipOutputStream(resp.getOutputStream());
+                        zos.setEncoding("GBK"); //如果是org.apache.tools.zip需要追加字符集
+                        // println(arr.length);
+                        for (var i = 0;i < arr.length;i++) {
+                            // println(i);
+                            var f = arr[i];
+                             // println(decodeURI(f));
+                            if (file_path && f) {
+                                writeFile(zos, f, file_path+'/'+f);
+                            }
+                        }
+                        zos.close();
+                    }
+                }
+            } catch (e) {
+                var logger = $logger("server-script");
+                logger.severe(e.message);
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

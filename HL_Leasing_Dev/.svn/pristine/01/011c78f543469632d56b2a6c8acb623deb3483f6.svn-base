@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ZLF  
+    $Date: 2014-11-18 上午10:16:14  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" needAccessControl="false">
+    <bm:fields>
+        <bm:field name="change_req_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CHANGE_REQ_ID" prompt="CON_CONTRACT_CHANGE_REQ.CHANGE_REQ_ID"/>
+        <bm:field name="change_req_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CHANGE_REQ_NUMBER" prompt="CON_CONTRACT_CHANGE_REQ.CHANGE_REQ_NUMBER"/>
+        <bm:field name="contract_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONTRACT_NUMBER"/>
+        <bm:field name="contract_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONTRACT_NAME"/>
+        <bm:field name="req_status_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="REQ_STATUS_DESC"/>
+        <bm:field name="bp_code"/>
+        <bm:field name="bp_name"/>
+        <bm:field name="contract_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CONTRACT_ID" prompt="CON_CONTRACT_CHANGE_REQ.CONTRACT_ID"/>
+        <bm:field name="req_status" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="REQ_STATUS" prompt="CON_CONTRACT_CHANGE_REQ.REQ_STATUS"/>
+        <bm:field name="req_date" databaseType="DATE" datatype="java.util.Date" physicalName="REQ_DATE" prompt="CON_CONTRACT_CHANGE_REQ.REQ_DATE"/>
+        <bm:field name="description"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        b.bp_name,
+                        b.bp_code,
+                        ccr.change_req_id,
+                        ccr.change_req_number,
+                        ccr.contract_id,
+                        (SELECT
+                            c.contract_number
+                        FROM
+                            con_contract c
+                        WHERE
+                            c.contract_id=ccr.contract_id
+                        ) contract_number,
+                        (SELECT
+                            c.contract_name
+                        FROM
+                            con_contract c
+                        WHERE
+                            c.contract_id=ccr.contract_id
+                        ) contract_name,
+                        ccr.req_date,
+                        ccr.req_status,
+                        (SELECT
+                            v.code_value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code       = 'CON_CHANGE_REQ_STATUS' AND
+                            v.code_value = CCR.REQ_STATUS
+                        ) AS req_status_desc,
+                        ccr.description,
+                       t.lease_channel
+                    FROM
+                        con_contract_change_req ccr,
+                        hls_bp_master b ,
+                        con_contract t
+                    WHERE
+                        ccr.contract_id=t.contract_id(+) AND
+                        t.bp_id_tenant = b.bp_id(+)
+                        and ccr.document_type='DEBT_EXEMPT'
+                    ) t1 #WHERE_CLAUSE#
+                ORDER BY
+                    T1.change_req_id desc 
+            ]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+            BEGIN
+                con_penalty_change_req_pkg.save_change_req_header(p_change_req_id =>${@change_req_id}, 
+													              p_company_id =>${/session/@company_id}, 
+													              p_contract_id =>${@contract_id}, 
+													              p_penalty_note =>${@change_reason}, 
+													              p_user_id =>${/session/@user_id} );
+            END;
+        ]]></bm:update-sql>
+            <bm:parameters>
+                <bm:parameter name="change_req_id" input="true" output="true"/>
+            </bm:parameters>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field field="bp_code" queryOperator="="/>
+        <bm:query-field field="change_req_id" queryOperator="="/>
+        <bm:query-field field="req_status" queryOperator="="/>
+        <bm:query-field name="change_req_number" queryExpression="t1.change_req_number like ${@change_req_number}"/>
+        <bm:query-field name="contract_number" queryExpression="t1.contract_number like ${@contract_number}"/>
+        <bm:query-field name="date_from" dataType="java.util.Date" queryExpression="t1.req_date &gt;= ${@date_from} "/>
+        <bm:query-field name="date_to" dataType="java.util.Date" queryExpression="t1.req_date &lt;= ${@date_from} "/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="t1.lease_channel=&apos;00&apos;"/>
+    </bm:data-filters>
+</bm:model>

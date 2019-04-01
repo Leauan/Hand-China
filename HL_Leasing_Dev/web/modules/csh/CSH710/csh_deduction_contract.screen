@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: xuls  
+    $Date: 2014-9-19 上午11:30:53  
+    $Revision: 1.0  
+    $Purpose: create for payment deducate
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.document_category=&apos;CONTRACT&apos;" fetchAll="true" model="basic.hls_document_type_for_lov" rootPath="csh710_document_type_path"/>
+        <a:model-query fetchAll="true" model="cont.CON301.con_contract_business_type_list" rootPath="csh710_business_type_list"/>
+        <a:model-query defaultWhereClause="(exists(select 1 from hls_lease_org_assign ha where ha.unit_id=t1.unit_id))" fetchAll="true" model="basic.exp_org_unit_manager_lov" rootPath="csh710_exp_org_unit_manager_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="csh_deduction_detail_link" url="${/request/@context_path}/modules/csh/CSH710/csh_deduction_detail.screen"/>
+        <script><![CDATA[
+			function csh710_contract_return() {
+                history.go(-1);
+            }
+            function csh710_contract_query(){
+               $('csh710_contract_result_ds').query(); 
+            }
+            function csh710_contract_reset(){
+                $('csh710_contract_query_ds').reset();
+            }
+            
+            function csh710_decuate_openWindow(contract_id) {
+                new Aurora.Window({
+                    id: 'csh710_deducate_detail_link',
+                    params: {
+                        contract_id: contract_id
+                    },
+                    url: $('csh_deduction_detail_link').getUrl(),
+                    title: '${l:CSH710.PAYMENT_DECUCATE}',
+                    fullScreen: true
+                });
+            }
+            
+            function csh710_render_deducate(value, record, name) {
+                var contract_id = record.get('contract_id');
+                return '<a href="javascript:csh710_decuate_openWindow(' + contract_id + ');">' + value + '</a>';
+            }
+            
+            function csh710_deducate_jump(){
+               var rs = $('csh710_contract_result_ds').getSelected();
+                if (rs.length < 1) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+                var contract_id = rs[0].get('contract_id');
+                csh710_decuate_openWindow(contract_id);
+                
+            }
+            
+		]]></script>
+        <a:dataSets>
+            <a:dataSet id="csh710_employee_name_of_manager_ds">
+                <a:datas dataSource="/model/csh710_exp_org_unit_manager_path"/>
+            </a:dataSet>
+            <a:dataSet id="csh710_unit_name_ds" loadData="true" model="basic.exp_org_unit_name_lov"/>
+            <a:dataSet id="csh710_lease_organization_name_ds" loadData="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="csh710_division_name_ds" loadData="true" model="basic.hls_division_for_lov"/>
+            <a:dataSet id="csh710_lease_channel_name_ds" loadData="true" model="basic.hls_lease_channel_for_lov"/>
+            <a:dataSet id="csh710_status_name_ds" lookupCode="CON500_CONTRACT_STATUS"/>
+            <a:dataSet id="csh710_document_type_name_ds">
+                <a:datas dataSource="/model/csh710_document_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="csh710_business_type_ds">
+                <a:datas dataSource="/model/csh710_business_type_list"/>
+            </a:dataSet>
+            <a:dataSet id="csh710_contract_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="bp_code" autoComplete="true" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov?bp_category=TENANT" lovWidth="500" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_id" to="bp_id_tenant"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_id_tenant"/>
+                    <a:field name="project_number" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="prj.PRJ501.prj_project_for_lov" lovWidth="500" title="HLS.PROJECT_NUMBER">
+                        <a:mapping>
+                            <a:map from="project_number" to="project_number"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="project_employee_name" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="basic.hls_exp_employees_for_lov?sales_flag=Y" lovWidth="500" title="HLS.SALES_EMPLOYEE">
+                        <a:mapping>
+                            <a:map from="name" to="project_employee_name"/>
+                            <a:map from="employee_id" to="employee_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_number" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="cont.CON500.con_contract_number_lov" lovWidth="500" title="HLS.CONTRACT_NUMBER">
+                        <a:mapping>
+                            <a:map from="contract_number" to="contract_number"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="employee_id"/>
+                    <a:field name="employee_name_of_manager" displayField="mgr_employee_name" options="csh710_employee_name_of_manager_ds" returnField="employee_id_of_manager" valueField="mgr_employee_id"/>
+                    <a:field name="unit_name" displayField="unit_name" options="csh710_unit_name_ds" returnField="unit_id" valueField="unit_id"/>
+                    <a:field name="lease_organization_name" displayField="description" options="csh710_lease_organization_name_ds" returnField="lease_organization" valueField="lease_organization"/>
+                    <a:field name="division_desc" displayField="description" options="csh710_division_name_ds" returnField="division" valueField="division"/>
+                    <a:field name="lease_channel_desc" displayField="description" options="csh710_lease_channel_name_ds" returnField="lease_channel" valueField="lease_channel"/>
+                    <a:field name="document_type_desc" displayField="description" options="csh710_document_type_name_ds" returnField="document_type" valueField="document_type"/>
+                    <a:field name="business_type_desc" displayField="business_type_desc" options="csh710_business_type_ds" returnField="business_type" valueField="business_type"/>
+                    <a:field name="contract_status_desc" displayField="code_value_name" options="csh710_status_name_ds" returnField="contract_status" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="csh710_contract_result_ds" autoQuery="true" model="csh.CSH710.csh_con_contract_v" queryDataSet="csh710_contract_query_ds" selectable="true" selectionModel="single"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="csh710_contract_return" text="HLS.RETURN"/>
+                <a:gridButton click="csh710_contract_query" text="HLS.QUERY"/>
+                <a:gridButton click="csh710_contract_reset" text="HLS.RESET"/>
+                <a:gridButton click="csh710_deducate_jump" text="CSH710.PAYMENT_DECUCATE"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelSeparator=" " labelWidth="100" marginWidth="30" title="CON301.CONTRACT_QUERY">
+                <a:lov name="bp_code" bindTarget="csh710_contract_query_ds" prompt="HLS.TENANT_CODE"/>
+                <a:textField name="bp_name" bindTarget="csh710_contract_query_ds" prompt="HLS.TENANT_NAME"/>
+                <a:datePicker name="lease_start_date_from" bindTarget="csh710_contract_query_ds" prompt="HLS.LEASE_START_DATE_FROM"/>
+                <a:datePicker name="lease_start_date_to" bindTarget="csh710_contract_query_ds" prompt="HLS.LEASE_START_DATE_TO"/>
+                <a:lov name="project_number" bindTarget="csh710_contract_query_ds" prompt="HLS.PROJECT_NUMBER"/>
+                <a:textField name="project_name" bindTarget="csh710_contract_query_ds" prompt="HLS.PROJECT_NAME"/>
+                <a:lov name="project_employee_name" bindTarget="csh710_contract_query_ds" prompt="HLS.SALES_EMPLOYEE"/>
+                <a:comboBox name="lease_organization_name" bindTarget="csh710_contract_query_ds" prompt="HLS.LEASE_ORGANIZATION"/>
+                <a:lov name="contract_number" bindTarget="csh710_contract_query_ds" prompt="HLS.CONTRACT_NUMBER"/>
+                <a:textField name="contract_name" bindTarget="csh710_contract_query_ds" prompt="HLS.CONTRACT_NAME"/>
+                <a:comboBox name="employee_name_of_manager" bindTarget="csh710_contract_query_ds" prompt="HLS.EMPLOYEE_OF_MANAGER"/>
+                <a:comboBox name="lease_channel_desc" bindTarget="csh710_contract_query_ds" prompt="HLS.LEASE_CHANNEL_NAME"/>
+                <a:textField name="prj_search_term_1" bindTarget="csh710_contract_query_ds" prompt="CON301.CON_CONTRACT_V.PRJ_SEARCH_TERM_1"/>
+                <a:textField name="prj_search_term_2" bindTarget="csh710_contract_query_ds" prompt="CON301.CON_CONTRACT_V.PRJ_SEARCH_TERM_2"/>
+                <a:comboBox name="division_desc" bindTarget="csh710_contract_query_ds" prompt="HLS.DIVISION_NAME"/>
+                <a:textField name="con_search_term_1" bindTarget="csh710_contract_query_ds" prompt="CON301.CON_CONTRACT_V.CON_SEARCH_TERM_1"/>
+                <a:textField name="con_search_term_2" bindTarget="csh710_contract_query_ds" prompt="CON301.CON_CONTRACT_V.CON_SEARCH_TERM_2"/>
+                <a:comboBox name="document_type_desc" bindTarget="csh710_contract_query_ds" prompt="HLS.CONTRACT_TYPE"/>
+                <a:comboBox name="business_type_desc" bindTarget="csh710_contract_query_ds" prompt="HLS.BUSINESS_TYPE_DESC"/>
+            </a:form>
+            <a:grid id="con501_con_contract_grid_ds" bindTarget="csh710_contract_result_ds" marginHeight="265" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" lock="true" prompt="HLS.CONTRACT_NUMBER" renderer="csh710_render_deducate" width="120"/>
+                    <a:column name="contract_name" prompt="HLS.CONTRACT_NAME" width="200"/>
+                    <a:column name="lease_start_date" prompt="HLS.LEASE_START_DATE" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="bp_name" prompt="HLS.TENANT_NAME" width="200"/>
+                    <a:column name="project_number" prompt="HLS.PROJECT_NUMBER"/>
+                    <a:column name="project_name" prompt="HLS.PROJECT_NAME" width="200"/>
+                    <a:column name="employee_name" prompt="HLS.SALES_EMPLOYEE" width="70"/>
+                    <a:column name="employee_name_of_manager" prompt="HLS.EMPLOYEE_OF_MANAGER" width="70"/>
+                    <a:column name="lease_organization_desc" prompt="HLS.LEASE_ORGANIZATION"/>
+                    <a:column name="division_desc" prompt="HLS.DIVISION_NAME" width="70"/>
+                    <a:column name="lease_channel_desc" prompt="HLS.LEASE_CHANNEL_NAME" width="70"/>
+                    <a:column name="document_type_desc" prompt="HLS.CONTRACT_TYPE" width="90"/>
+                    <a:column name="contract_status_desc" prompt="HLS.CONTRACT_STATUS" width="60"/>
+                    <a:column name="prj_search_term_1"/>
+                    <a:column name="prj_search_term_2"/>
+                    <a:column name="con_search_term_1"/>
+                    <a:column name="con_search_term_2"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

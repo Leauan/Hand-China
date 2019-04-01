@@ -1,0 +1,870 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-11-24 下午02:31:19  
+    $Revision: 1.0  
+    $Purpose: 合同文档借阅新增
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query model="cont.CON556.get_info_lend_record" rootPath="con556_get_info"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="yonda_document_lend_record_save_link" url="${/request/@context_path}/modules/cont/CON556/yonda_document_lend_record_save.svc"/>
+        <!--  <a:link id="submit_approval_borrowing_link" model="cont.CON556.yonda_document_lend_record_hd" modelaction="execute"/> -->
+        <a:link id="document_lend_record_hd_link" model="cont.CON556.yonda_document_lend_record_hd" modelaction="update"/>
+        <a:link id="con555B_con_contract_location_id" url="${/request/@context_path}/modules/cont/CON555B/con_contract_location.screen"/>
+        <a:link id="${/parameter/@layout_code}_prj500_cdd_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="${/parameter/@layout_code}_prj500_cdd_downloadFile_id" url="${/request/@context_path}/downloadFile.screen"/>
+        <a:link id="document_lend_record_hd_execute_link" model="cont.CON556.yonda_document_lend_record_hd" modelaction="execute"/>
+        <a:link id="con_get_lend_number_link_id" model="cont.CON556.con_get_lend_number" modelaction="update"/>
+        <a:link id="yonda_document_lend_cdd_link_id" model="cont.CON556.yonda_document_lend_cdd" modelaction="execute"/>
+        <script><![CDATA[
+        function lock_screen() {
+                detail_mask = $('yonda_document_lend_record_add_win').wrap;
+                Aurora.Masker.mask(detail_mask, 'yonda_document_lend_record_add_win');
+            }
+            
+            function unlock_screen() {
+                detail_mask = $('yonda_document_lend_record_add_win').wrap;
+                Aurora.Masker.unmask(detail_mask);
+            }
+        
+            zjwfl5110_ApproveChecker_add('zjwfl5110_submit', function(type) {
+                var root_ds = $('yonda_document_lend_record_hd_create_ds');
+                if (type == 'agree') {
+                    if (root_ds.validate()) {
+                        //提交先保存
+                        //window['${/parameter/@layout_code}_SAVE_LAYOUT_DYNAMIC_CLICK']();
+                        lend_record_save();
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }else{
+                    return true;
+                }
+            });
+            
+            //"${/model/con556_get_info/record/@business_type_desc}"
+            if ('${/parameter/@save_source_type}' == 'SP') {
+            
+                // $('con_contract_ds').setQueryParameter('lend_header_id',${/parameter/@lend_header_id});
+                // $('con_contract_ds').setQueryUrl('${/request/@context_path}/autocrud/cont.CON556.yonda_document_lend_record_ln/query');
+            }
+            
+            function con_contract_query_ds_update(ds, record, name, value, oldvalue) {
+                if (name == 'contract_id') {
+            
+                    $('yonda_document_lend_record_ln_query_ds').setQueryParameter('contract_id', value);
+                    $('yonda_document_lend_record_ln_query_ds').query();
+            
+                }
+            }
+            
+            function yonda_document_lend_record_add_close() {
+                $('${/parameter/@winid}').close();
+            }
+            
+            function submit_approval_borrowing(nextStep, judge_lend) {
+                debugger;
+                lock_screen();
+                lend_record_hd_beforesubmit();
+                if ($('yonda_document_lend_record_hd_create_ds').validate()) {
+                    //Aurora.Masker.mask($('${/parameter/@winid}').wrap, '${l:HLS.EXECUTING}');
+                    var saveData = [];
+                    var record_ln_data = [];
+                    var header_record = $('yonda_document_lend_record_hd_create_ds').getCurrentRecord();
+                    if (header_record.get('lend_header_id')) {
+                        header_record.set('_status', 'update');
+                    }
+                    var params = header_record.data;
+                    var contract_records = $('con_contract_ds').getAll();
+                    if (contract_records.length > 0) {
+                        for (var i = 0;i < contract_records.length;i++) {
+            
+                            var contract_record = contract_records[i];
+                            if (contract_record.isNew) {
+                                contract_record.set('_status', 'insert');
+                            } else {
+                                contract_record.set('_status', 'update');
+                            }
+                            var contract_record_para = {};
+                            for (var name in contract_record.data) {
+                                if (!(contract_record.get(name) instanceof Object)) {
+                                    contract_record_para[name] = contract_record.get(name);
+                                }
+                            }
+                            record_ln_data.push(contract_record_para);
+                            if (Ext.isEmpty(contract_record.data['record_ln'])) {
+                                continue;
+                            }
+                            var line_record_data = contract_record.data['record_ln'].data;
+                            for (var j = 0;j < line_record_data.length;j++) {
+            
+                                var line_record = line_record_data[j];
+                                if (line_record.get('lend_flag') == 'Y') {
+                                    if (judge_lend == 'Y') {
+                                        line_record.set('lend_flag', 'Y');
+                                    } else {
+                                        line_record.set('lend_flag', 'C');
+                                    }
+                                    if (line_record.isNew) {
+                                        line_record.set('_status', 'insert');
+                                    } else {
+                                        line_record.set('_status', 'update');
+                                    }
+                                    line_record.set('contract_id', contract_record.get('contract_id'));
+                                    if (judge_lend == 'Y') {
+                                        line_record.set('judge_lend', judge_lend);
+                                    }
+            
+                                    saveData.push(line_record.data);
+                                } else if (line_record.get('lend_flag') == 'N' && line_record.get('borrowed_flag') != 'Y') {
+                                    debugger;
+                                    if (line_record.isNew) {
+                                        line_record.set('_status', 'insert');
+                                    } else {
+                                        line_record.set('_status', 'update');
+                                    }
+                                    line_record.set('lend_flag', 'N');
+                                    line_record.set('contract_id', contract_record.get('contract_id'));
+                                    saveData.push(line_record.data);
+                                }
+                            }
+                        }
+                    } else {
+                        Aurora.showMessage('提示', '请至少添加一份合同');
+                        Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+                        return;
+                    }
+            
+                    // if (saveData.length == 0) {
+                    // Aurora.showMessage('提示', '请至少选择文档一条记录');
+                    // Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+                    // return;
+                    // }
+                    params['line_records'] = record_ln_data;
+                    params['cdd_records'] = saveData;
+                    if ('${/parameter/@button_type}' == 'new') {
+                        if (header_record.isNew) {
+                            params['_status'] = 'insert';
+                        } else {
+                            params['_status'] = 'update';
+                        }
+                    } else {
+                        params['_status'] = 'update';
+                    }
+            
+            
+                    Aurora.request({
+                        url: $('yonda_document_lend_record_save_link').getUrl(),
+                        para: params,
+                        success: function(res) {
+                            // Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+                            //  $('${/parameter/@winid}').close();
+                            // var record = $('yonda_document_lend_record_hd_create_ds').getCurrentRecord();
+                            // var borrower_number = record.get('borrower_number');
+            
+                            var hd_id = res.result.lend_header_id;
+                            if (typeof(nextStep) == 'function') {
+                                nextStep(hd_id);
+                            } else {
+                                $('yonda_document_lend_record_hd_create_ds').setQueryParameter('lend_header_id', hd_id)
+                                $('yonda_document_lend_record_hd_create_ds').query();
+                                $('con_contract_ds').setQueryParameter('lend_header_id', hd_id)
+                                $('con_contract_ds').query();
+            
+                            }
+                          unlock_screen();
+                        },
+                        error: function() {
+                            // Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+                        },
+                        failure: function() {
+                            // Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+                        }
+                    });
+            
+                }
+            }
+            
+            function submit_approval_borrowing2() {
+                // var data = $('yonda_document_lend_record_hd_create_ds').getCurrentRecord();
+                // var lend_header_id = data.get('lend_header_id');
+                // Aurora.request({
+                // url: $('document_lend_record_hd_execute_link').getUrl(),
+                // para: {
+                // lend_header_id: lend_header_id
+                // },
+                // success: function() {
+                // Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+                // $('${/parameter/@winid}').close();
+                // },
+                // error: function() {
+                // Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+                // },
+                // failure: function() {
+                // Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+                // }
+                // });
+                if ($('yonda_document_lend_record_hd_create_ds').validate()) {
+                    $('yonda_document_lend_record_hd_create_ds').submit();
+                }
+            
+            }
+            
+            function lend_record_save() {
+                var data = $('yonda_document_lend_record_hd_create_ds').getCurrentRecord();
+                var datas = {
+                    'express_number_out': data.get('express_number_out'),
+                    'express_company_out': data.get('express_company_out'),
+                    'express_address_out': data.get('express_address_out'),
+                    'doc_out_time': data.get('doc_out_time'),
+                    'express_number_in': data.get('express_number_in'),
+                    'express_company_in': data.get('express_company_in'),
+                    'express_address_in': data.get('express_address_in'),
+                    'doc_in_time': data.get('doc_in_time'),
+                    'lend_header_id': data.get('lend_header_id'),
+                    'lender_name': data.get('lender_name'),
+                    'borrower_date': data.get('borrower_date'),
+                    'borrower_name': data.get('borrower_name'),
+                    'borrower_phone': data.get('borrower_phone'),
+                    'borrow_type': data.get('borrow_type'),
+                    'ref_v01': data.get('ref_v01'),
+                    'ref_v02': data.get('ref_v02'),
+                    'email': data.get('email')
+                };
+                Aurora.request({
+                    url: $('document_lend_record_hd_link').getUrl(),
+                    para: datas,
+                    success: function() {
+            
+            
+                        Aurora.SideBar.show({
+                            msg: '操作成功',
+                            duration: 2000
+                        });
+                    },
+                    failure: function() {
+            
+                       },
+                    error: function() {
+            
+                       },
+                    scope: this
+                });
+            
+            }
+            
+            // function submit_approval_borrowing() {
+            // debugger;
+            // //lend_header_id
+            // var lend_header_id = $('yonda_document_lend_record_hd_create_ds').getCurrentRecord().get('lend_header_id');
+            // Aurora.request({
+            // url: $('submit_approval_borrowing_link').getUrl(),
+            // para: {
+            // 'lend_header_id': lend_header_id
+            // },
+            // success: function() {
+            
+            // $('${/parameter/@winid}').close();
+            // Aurora.SideBar.show({
+            // msg: '操作成功',
+            // duration: 2000
+            // });
+            // },
+            // failure: function() {
+            
+            // },
+            // error: function() {
+            
+            // },
+            // scope: this
+            // });
+            // }
+            
+            
+            function document_lend_record_ln_query_ds_load(dataSet) {
+            
+                var recos = dataSet.getAll();
+                for (var i = 0;i < recos.length;i++) {
+                    if (recos[i].get('lend_flag') == 'Y') {
+                        recos[i].set('lend_flag', 'N');
+                        recos[i].getField('lend_flag').setReadOnly(true);
+                        recos[i].set('borrowed_flag', 'Y');
+                    } else if (recos[i].get('lend_flag') == 'C') {
+                        recos[i].set('lend_flag', 'Y');
+                    }
+                }
+            
+                if ('${/parameter/@save_source_type}' == 'SP') {
+                    dataSet.getField('lend_flag').setReadOnly(true);
+                    dataSet.getField('description').setReadOnly(true);
+                    dataSet.getField('return_date').setReadOnly(true);
+                    dataSet.getField('doc_type_n').setReadOnly(true);
+                }
+            }
+            //
+            
+            function lend_record_hd_add(ds, rec, index) {
+            
+            
+                // if ('${/parameter/@button_type}' == 'new') {
+                // // var submit_approval_id2 = document.getElementById('submit_approval_id2');
+                // // submit_approval_id2.style.display = 'block';
+                // var lend_record_save_button_id = document.getElementById('lend_record_save_button_id');
+                // lend_record_save_button_id.style.display = 'none';
+                // } else {
+            
+                // }
+                //if ('${/parameter/@save_source_type}' == 'WH') {
+                // var submit_approval_workflow_id = document.getElementById('submit_approval_workflow_id');
+                //submit_approval_workflow_id.style.display = 'none';
+                // var add_close_id = document.getElementById('add_close_id');
+                // add_close_id.style.display = 'none';
+            
+                // }
+            
+            
+                if ('${/parameter/@save_source_type}' == 'SP' || '${/parameter/@save_source_type}' == 'CK' || '${/parameter/@save_source_type}' == 'GHRK' || '${/parameter/@save_source_type}' == 'WH') {
+                    ds.getField('borrow_type_n').setReadOnly(true);
+                    ds.getField('borrower_name').setReadOnly(true);
+                    ds.getField('borrower_phone').setReadOnly(true);
+                    ds.getField('borrower_date').setReadOnly(true);
+                    ds.getField('ref_v02').setReadOnly(true);
+                    ds.getField('ref_v01').setReadOnly(true);
+                    ds.getField('email').setReadOnly(true);
+                    var lend_record_save_button_id = document.getElementById('lend_record_save_button_id');
+                    lend_record_save_button_id.style.display = 'block';
+            
+                    var lend_record_ln_query_grid = document.getElementById('yonda_document_lend_record_ln_query_ds_add');
+                    var lend_record_ln_grid = document.getElementById('yonda_document_lend_record_ln_grid_add');
+                    lend_record_ln_query_grid.style.display = 'none';
+                    lend_record_ln_grid.style.display = 'block';
+                    var put_storage = document.getElementById('put_storage');
+                    var submit_approval_id = document.getElementById('submit_approval_id'); //
+            
+                    var submit_approval_workflow_id = document.getElementById('submit_approval_workflow_id');
+                    var add_close_id = document.getElementById('add_close_id');
+                    put_storage.style.display = 'block';
+                    submit_approval_id.style.display = 'none';
+                    submit_approval_workflow_id.style.display = 'none';
+            
+                    add_close_id.style.display = 'none';
+                    if ('${/parameter/@save_source_type}' == 'SP') {
+                        rec.set('lender_name', ${/session/@user_id});
+                        var date = new Date();
+                        var year = date.getFullYear();
+                        var month = date.getMonth() + 1;
+                        var day = date.getDate();
+                        var dd = year + '-' + month + '-' + day;
+                        rec.set('doc_out_time', dd);
+                    }
+            
+                    if ('${/parameter/@save_source_type}' == 'CK' || '${/parameter/@save_source_type}' == 'GHRK') {
+                        ds.getField('express_number_out').setReadOnly(true);
+                        ds.getField('express_company_out').setReadOnly(true);
+                        ds.getField('express_address_out').setReadOnly(true);
+                        ds.getField('doc_out_time').setReadOnly(true);
+                        ds.getField('lender_name').setReadOnly(true);
+            
+                        var out_storage = document.getElementById('out_storage');
+                        out_storage.style.display = 'block';
+                        if ('${/parameter/@save_source_type}' == 'CK') {
+                            var date = new Date();
+                            var year = date.getFullYear();
+                            var month = date.getMonth() + 1;
+                            var day = date.getDate();
+                            var dd = year + '-' + month + '-' + day;
+                            rec.set('doc_in_time', dd);
+                        }
+                        if ('${/parameter/@save_source_type}' == 'GHRK') {
+            
+                            ds.getField('express_number_in').setReadOnly(true);
+                            ds.getField('express_company_in').setReadOnly(true);
+                            ds.getField('express_address_in').setReadOnly(true);
+                            ds.getField('doc_in_time').setReadOnly(true);
+                            var save1 = document.getElementById('save1');
+                            var save2 = document.getElementById('save2');
+                            // var archive_button_id = document.getElementById('archive_button_id');
+                            var not_archive_button_id = document.getElementById('not_archive_button_id');
+                            // save1.style.display = 'block';
+                            // save2.style.display = 'block';
+                            lend_record_save_button_id.style.display = 'none';
+                            not_archive_button_id.style.display = 'none';
+                            // archive_button_id.style.display = 'block';
+                        }
+            
+                    }
+            
+            
+                }
+            
+            
+            }
+            
+            function con_contract_ds_load(ds) {
+                if ('${/parameter/@save_source_type}' == 'SP' || '${/parameter/@save_source_type}' == 'CK' || '${/parameter/@save_source_type}' == 'GHRK') {
+                    ds.getField('contract_number').setReadOnly(true);
+                    ds.getField('contract_name').setReadOnly(true);
+                    ds.getField('bp_name').setReadOnly(true);
+                    //  ds.getField('bp_type_desc').setReadOnly(true);
+                    ds.getField('hls_lease_channel_desc').setReadOnly(true);
+                }
+            
+            }
+            
+            function document_lend_record_ln_add(ds, rec, index) {
+                if ('${/parameter/@save_source_type}' == 'SP') {
+                    ds.getField('lend_flag').setReadOnly(true);
+                    ds.getField('description').setReadOnly(true);
+                    ds.getField('return_date').setReadOnly(true);
+                    ds.getField('doc_type_n').setReadOnly(true);
+                }
+            }
+            
+            function outbound_add(ds, rec, index) {
+                if ('${/parameter/@save_source_type}' == 'SP') {
+                    //$('put_storage').style.display='block';
+                }
+            
+            }
+            
+            function con555_con_contract_save1() {
+                if ($('con_contract_ds').getCurrentRecord().get('archive_status') == '30') {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '合同归档已完成 ，不可以 再次归档!');
+                    return;
+                }
+                var contract_id = $('con_contract_ds').getCurrentRecord().get('contract_id');
+                var url = $('con555B_con_contract_location_id').getUrl();
+                var win = new Aurora.Window({
+                    id: 'con_contract_location_window',
+                    url: url,
+                    params: {
+                        doc_type: '10',
+                        contract_id: contract_id,
+                        doc_type_n: '合同类'
+                    },
+                    title: '归档入库',
+                    fullScreen: true
+                });
+                // win.on('close', function() {
+                // $('con555_detail_ds').query();
+                // });
+            
+            }
+            
+            function con555_con_contract_save2() {
+            
+                // var paras = {
+                // 'contract_id': '${/parameter/@contract_id}',
+                // status: 'collect'
+                // };
+                // Aurora.showConfirm('提示', '确认归档入库完成?', function okfun() {
+                // Aurora.request({
+                // url: $('get_contranct_link_id').getUrl(),
+                // para: paras,
+                // success: function(data) {
+                // con555_con_contract_back();
+                // },
+                // sync: true
+                // });
+                // }, function() {}, 300, 100);
+                if ($('con_contract_ds').getCurrentRecord().get('reg_status') == '30') {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '登记证归档已完成 ，不可以 再次归档!');
+                    return;
+                }
+                var contract_id = $('con_contract_ds').getCurrentRecord().get('contract_id');
+                var url = $('con555B_con_contract_location_id').getUrl();
+                var win = new Aurora.Window({
+                    id: 'con_contract_location_window',
+                    url: url,
+                    params: {
+                        doc_type: '20',
+                        contract_id: contract_id,
+                        doc_type_n: '登记证类'
+                    },
+                    title: '归档入库',
+                    fullScreen: true
+                });
+                // win.on('close', function() {
+                // $('con555_detail_ds').query();
+                // });
+            }
+            
+            function lend_record_ln_query_update(dataSet, record, name, value, oldvalue) {
+            
+                if (name == 'lend_flag' && value == 'Y') {
+                    var con_contract_record = $('con_contract_ds').getCurrentRecord();
+                    var paper_content_flag = record.get('paper_content_flag');
+                    var doc_type = record.get('doc_type');
+                    if (paper_content_flag != 'Y') {
+                        Aurora.showMessage('${l:PROMPT}', '资料未归档，不能借阅');
+                        setTimeout(function() {
+                            record.set('lend_flag', 'N');
+                        }, 500);
+                    } else {
+                        if (doc_type == '10') {
+                            var docu_numberr_archive = con_contract_record.get('docu_numberr_archive');
+                            if (Ext.isEmpty(docu_numberr_archive)) {
+                                Aurora.showMessage('${l:PROMPT}', '合同类文档未入库，不能借阅');
+                                setTimeout(function() {
+                                    record.set('lend_flag', 'N');
+                                }, 500);
+                            }
+                        } else {
+                            var docu_number_reg = con_contract_record.get('docu_number_reg');
+                            if (Ext.isEmpty(docu_number_reg)) {
+                                Aurora.showMessage('${l:PROMPT}', '登记证类文档未入库，不能借阅');
+                                setTimeout(function() {
+                                    record.set('lend_flag', 'N');
+                                }, 500);
+                            }
+                        }
+                    }
+                }
+            
+            }
+            
+            function con_contract_ds_indexchange(ds, record) {
+            
+                var contract_id = record.get('contract_id');
+                if ('${/parameter/@save_source_type}' == 'SP' || '${/parameter/@save_source_type}' == 'CK' || '${/parameter/@save_source_type}' == 'GHRK') {
+                    $('yonda_document_lend_record_ln_ds_add').setQueryParameter('contract_id', contract_id);
+                    $('yonda_document_lend_record_ln_ds_add').setQueryParameter('lend_header_id', '${/parameter/@lend_header_id}');
+                    $('yonda_document_lend_record_ln_ds_add').query();
+                }
+            }
+            
+            function uploadFile(lend_header_id, query_only) {
+                if (lend_header_id) {
+                    var url;
+                    if (query_only == 'Y') {
+                        url = $('${/parameter/@layout_code}_prj500_cdd_downloadFile_id').getUrl() + '?table_name=YONDA_DOCUMENT_LEND_RECORD_HD&header_id=' + lend_header_id;
+                    } else {
+                        url = $('${/parameter/@layout_code}_prj500_cdd_uploadFile_id').getUrl() + '?table_name=YONDA_DOCUMENT_LEND_RECORD_HD&header_id=' + lend_header_id;
+                    }
+                    var win = new Aurora.Window({
+                        url: url,
+                        title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                        id: '${/parameter/@layout_code}${/parameter/@tree_code}_ast_con_cdd_attachtment_upload_id',
+                        width: 850,
+                        height: 400
+                    });
+                    // win.on('close', function() {
+                    // $(ds_id).query();
+                    // });
+                } else {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先保存!');
+                }
+            }
+            
+            function attachment_renderer(value, record, name) {
+                var atm_num = record.get('atm_num');
+                var lend_header_id = record.get('lend_header_id');
+                var query_only;
+                if (atm_num > 0) {
+                    return '<input id="button_i" type="button" value="附件" style="border:none;color:red;cursor:pointer;"   onclick = "uploadFile(' + lend_header_id + ',' + query_only + ')"/>';
+                } else {
+                    return '<input id="button_i" type="button" value="附件" style="border:none;color:blue;cursor:pointer;"    onclick = "uploadFile(' + lend_header_id + ',' + query_only + ')"/>';
+                }
+            
+            
+            }
+            
+            function submitsuccess_lend_record_hd(ds, res) {
+                // var lend_header_id = res.get('lend_header_id');
+                // $('yonda_document_lend_record_hd_create_ds').setQueryParameter('lend_header_id', lend_header_id);
+                // $('yonda_document_lend_record_hd_create_ds').query();
+            }
+            
+            function lend_record_hd_beforesubmit() {
+                debugger;
+                var record = $('yonda_document_lend_record_hd_create_ds').getCurrentRecord();
+                var borrower_number = record.get('borrower_number');
+                if (Ext.isEmpty(borrower_number)) {
+                    Aurora.request({
+                        url: $('con_get_lend_number_link_id').getUrl(),
+                        para: {
+                            document_category: 'CONTRACT',
+                            document_type: 'LEND'
+                        },
+                        success: function(res) {
+            
+                            var document_number = res.result.document_number;
+                            record.set('borrower_number', document_number);
+                            //record.set('document_category', '${/parameter/@document_category}');
+                            // check_flag = true;
+                        },
+                        error: function() {},
+                        failure: function() {},
+                        sync: true,
+                        scope: this
+                    });
+                }
+            
+            }
+            
+            function submit_approval_workflow() {
+                //yonda_document_lend_cdd_link_id
+                submit_approval_borrowing(submit_approval_workflow_execute, 'Y');
+            
+            }
+            
+            function submit_approval_workflow_execute(lend_header_id) {
+                //var record = $('yonda_document_lend_record_hd_create_ds').getCurrentRecord();
+                //var lend_header_id = record.get('lend_header_id');
+                if (lend_header_id) {
+                    Aurora.request({
+                        url: $('yonda_document_lend_cdd_link_id').getUrl(),
+                        para: {
+                            lend_header_id: lend_header_id
+                        },
+                        success: function(res) {
+                            $('${/parameter/@winid}').close();
+                        },
+                        error: function() {},
+                        failure: function() {},
+                        sync: true,
+                        scope: this
+                    });
+                } else {
+                    Aurora.showMessage('${l:PROMPT}', '请先保存!');
+                }
+            }
+            
+            // function lend_record_hd_query(ds) {
+            // debugger;
+            // detail_mask = $('${/parameter/@winid}').wrap;
+            // Aurora.Masker.unmask(detail_mask);
+            // }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="borrow_type_ds" lookupCode="BORROW_TYPE"/>
+            <a:dataSet id="doc_require_ds" lookupCode="DOC_REQUIRE"/>
+            <a:dataSet id="yonda_document_lend_record_hd_create_ds" autoCreate="true" model="cont.CON556.yonda_document_lend_record_hd">
+                <a:fields>
+                    <a:field name="status" defaultValue="NEW"/>
+                    <a:field name="lend_header_id" defaultValue="${/model/con556_get_info/record/@lend_header_id}"/>
+                    <a:field name="borrow_status_n" defaultValue="${/model/con556_get_info/record/@borrow_status_n}" displayField="code_value_name" options="borrow_type_ds" returnField="borrow_status" valueField="code_value"/>
+                    <a:field name="borrow_status" defaultValue="${/model/con556_get_info/record/@borrow_status}"/>
+                    <a:field name="borrower_name" defaultValue="${/model/con556_get_info/record/@borrower_name}" required="true"/>
+                    <a:field name="borrower_phone" defaultValue="${/model/con556_get_info/record/@borrower_phone}" required="true"/>
+                    <a:field name="borrower_date" defaultValue="${/model/con556_get_info/record/@borrower_date}" required="true"/>
+                    <a:field name="lender_name" defaultValue="${/model/con556_get_info/record/@lender_name}" readOnly="true"/>
+                    <a:field name="lender_name_n" defaultValue="${/model/con556_get_info/record/@lender_name_n}" readOnly="true"/>
+                    <a:field name="ref_v01" defaultValue="${/model/con556_get_info/record/@ref_v01}" required="true"/>
+                    <a:field name="express_number_out" defaultValue="${/model/con556_get_info/record/@express_number_out}"/>
+                    <a:field name="express_company_out" defaultValue="${/model/con556_get_info/record/@express_company_out}"/>
+                    <a:field name="express_address_out" defaultValue="${/model/con556_get_info/record/@express_address_out}"/>
+                    <a:field name="doc_out_time" defaultValue="${/model/con556_get_info/record/@doc_out_time}" readOnly="true"/>
+                    <a:field name="express_number_in" defaultValue="${/model/con556_get_info/record/@express_number_in}"/>
+                    <a:field name="express_company_in" defaultValue="${/model/con556_get_info/record/@express_company_in}"/>
+                    <a:field name="express_address_in" defaultValue="${/model/con556_get_info/record/@express_address_in}"/>
+                    <a:field name="doc_in_time" defaultValue="${/model/con556_get_info/record/@doc_in_time}" readOnly="true"/>
+                    <a:field name="ref_v02" defaultValue="${/model/con556_get_info/record/@ref_v02}" required="true"/>
+                    <a:field name="email" defaultValue="${/model/con556_get_info/record/@email}"/>
+                    <a:field name="borrower_number" defaultValue="${/model/con556_get_info/record/@borrower_number}" readOnly="true"/>
+                    <a:field name="document_category" defaultValue="CONTRACT"/>
+                    <a:field name="document_type" defaultValue="LEND"/>
+                    <a:field name="borrow_type" defaultValue="${/model/con556_get_info/record/@borrow_type}" required="true"/>
+                    <a:field name="borrow_type_n" defaultValue="${/model/con556_get_info/record/@borrow_type_n}" displayField="code_value_name" options="borrow_type_ds" required="true" returnField="borrow_type" valueField="code_value"/>
+                    <a:field name="atm_num" defaultValue="${/model/con556_get_info/record/@atm_num}"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="lend_record_hd_add"/>
+                    <!--     <a:event name="submitsuccess" handler="submitsuccess_lend_record_hd"/> -->
+                    <!--  <a:event name="beforesubmit" handler="lend_record_hd_beforesubmit"/> -->
+                    <!--  <a:event  name="query"  handler="lend_record_hd_query" /> -->
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="con_contract_ds" autoQuery="true" queryUrl="${/request/@context_path}/autocrud/cont.CON556.con_contract_document_lend_record_ln/query?lend_header_id=${/parameter/@lend_header_id}" selectable="true" submitUrl="${/request/@context_path}/modules/cont/CON556/yonda_document_lend_record_save.svc">
+                <a:fields>
+                    <a:field name="contract_id"/>
+                    <a:field name="contract_number" lovAutoQuery="true" lovHeight="500" lovService="cont.CON556.con_contract_v_for_lov_lend" lovWidth="550">
+                        <a:mapping>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="contract_name" to="contract_name"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <!--    <a:map from="bp_type_desc" to="bp_type_desc"/> -->
+                            <a:map from="hls_lease_channel_desc" to="hls_lease_channel_desc"/>
+                            <a:map from="business_type_desc" to="business_type_desc"/>
+                            <a:map from="invoice_agent_desc" to="invoice_agent_desc"/>
+                            <a:map from="docu_number_reg" to="docu_number_reg"/>
+                            <a:map from="docu_numberr_archive" to="docu_numberr_archive"/>
+                            <a:map from="bp_class_desc" to="bp_class_desc"/>
+                            <a:map from="archive_status_n" to="archive_status_n"/>
+                            <a:map from="reg_status_n" to="reg_status_n"/>
+                            <a:map from="division_desc" to="division_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_name"/>
+                    <a:field name="bp_name"/>
+                    <!--   <a:field name="bp_type_desc"/> -->
+                    <a:field name="hls_lease_channel_desc"/>
+                    <a:field name="reg_status"/>
+                    <a:field name="archive_status"/>
+                    <a:field name="business_type_desc"/>
+                    <a:field name="invoice_agent_desc"/>
+                    <a:field name="docu_number_reg"/>
+                    <a:field name="docu_numberr_archive"/>
+                    <a:field name="bp_class_desc"/>
+                    <a:field name="archive_status_n"/>
+                    <a:field name="reg_status_n"/>
+                    <a:field name="division_desc"/>
+                    <a:field/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="con_contract_query_ds_update"/>
+                    <a:event name="load" handler="con_contract_ds_load"/>
+                    <a:event name="indexchange" handler="con_contract_ds_indexchange"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="yonda_document_lend_record_ln_query_ds" bindName="record_ln" bindTarget="con_contract_ds" fetchAll="true" model="cont.CON556.yonda_document_lend_record_query">
+                <a:fields>
+                    <!--  <a:field name="lend_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="docu_number"/>
+                    <a:field name="chest_number"/> -->
+                    <a:field name="cdd_item"/>
+                    <a:field name="templet_head_id"/>
+                    <a:field name="contract_id"/>
+                    <a:field name="lend_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="document_id"/>
+                    <a:field name="cdd_item_id"/>
+                    <a:field name="description"/>
+                    <a:field name="return_date"/>
+                    <a:field name="doc_type"/>
+                    <a:field name="doc_type_n"/>
+                    <a:field name="paper_content_flag" checkedValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="borrowed_flag" checkedValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="doc_require"/>
+                    <a:field name="doc_require_n" displayField="code_value_name" options="doc_require_ds" returnField="doc_require" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="document_lend_record_ln_query_ds_load"/>
+                    <a:event name="update" handler="lend_record_ln_query_update"/>
+                    <!--  <a:event  name="add"  handler="document_lend_record_ln_add"  /> -->
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="outbound" autoCreate="true">
+                <a:fields/>
+                <a:events>
+                    <a:event name="add" handler="outbound_add"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="yonda_document_lend_record_ln_ds_add" fetchAll="true" model="cont.CON556.yonda_document_lend_record_ln">
+                <a:fields>
+                    <a:field name="docu_number"/>
+                    <a:field name="chest_number"/>
+                    <a:field name="doc_type"/>
+                    <a:field name="contract_id"/>
+                    <a:field name="doc_type_n"/>
+                    <a:field name="contract_number"/>
+                    <a:field name="lend_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="return_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="return_date"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <!--  <a:screenTopToolbar id="archive_button_id" style="display:none;">
+                <a:gridButton click="con555_con_contract_save1" text="合同归档入库"/>
+                <a:gridButton click="con555_con_contract_save2" text="登记证归档入库"/>
+            </a:screenTopToolbar> -->
+            <a:screenTopToolbar id="not_archive_button_id" style="display:block;">
+                <a:gridButton id="add_close_id" click="yonda_document_lend_record_add_close" text="HLS.BACK"/>
+                <!--  <a:gridButton id="submit_approval_id2" click="submit_approval_borrowing2" style="display:none;" text="保存2"/> -->
+                <a:gridButton id="submit_approval_id" click="submit_approval_borrowing" text="保存"/>
+                <a:gridButton id="submit_approval_workflow_id" click="submit_approval_workflow" text="提交"/>
+                <a:gridButton id="lend_record_save_button_id" click="lend_record_save" style="display:none;" text="保存"/>
+                <a:gridButton id="save1" click="con555_con_contract_save1" style="display:none;" text="合同归档入库"/>
+                <a:gridButton id="save2" click="con555_con_contract_save2" style="display:none;" text="登记证归档入库"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="120" marginWidth="60" title="借阅人信息">
+                <a:textField name="borrower_name" bindTarget="yonda_document_lend_record_hd_create_ds" prompt="申请人"/>
+                <a:textField name="borrower_phone" bindTarget="yonda_document_lend_record_hd_create_ds" prompt="申请人联系方式"/>
+                <a:datePicker name="borrower_date" bindTarget="yonda_document_lend_record_hd_create_ds" prompt="预计归还时间"/>
+                <!--  <a:textField name="lender_name" bindTarget="yonda_document_lend_record_hd_create_ds" prompt="出借人"/> -->
+                <a:comboBox name="borrow_type_n" bindTarget="yonda_document_lend_record_hd_create_ds" prompt="调阅方式"/>
+                <a:textField name="ref_v01" bindTarget="yonda_document_lend_record_hd_create_ds" colspan="2" prompt="申请原因" width="475"/>
+                <a:textField name="ref_v02" bindTarget="yonda_document_lend_record_hd_create_ds" colspan="2" prompt="邮寄地址" width="460"/>
+                <a:textField name="email" bindTarget="yonda_document_lend_record_hd_create_ds" colspan="2" prompt="邮箱" width="475"/>
+                <a:textField name="borrower_number" bindTarget="yonda_document_lend_record_hd_create_ds" prompt="借阅编号"/>
+                <a:label bindTarget="yonda_document_lend_record_hd_create_ds" renderer="attachment_renderer" width="180"/>
+            </a:form>
+            <a:form id="put_storage" column="4" labelWidth="120" marginWidth="60" style="display:none;" title="出库信息">
+                <a:textField name="express_number_out" bindTarget="yonda_document_lend_record_hd_create_ds" prompt="快递公司"/>
+                <a:textField name="express_company_out" bindTarget="yonda_document_lend_record_hd_create_ds" prompt="快递单号"/>
+                <a:textField name="express_address_out" bindTarget="yonda_document_lend_record_hd_create_ds" colspan="2" prompt="快递地址" width="480"/>
+                <a:datePicker name="doc_out_time" bindTarget="yonda_document_lend_record_hd_create_ds" prompt="出库时间"/>
+                <a:textField name="lender_name_n" bindTarget="yonda_document_lend_record_hd_create_ds" prompt="出借人"/>
+            </a:form>
+            <a:form id="out_storage" column="4" labelWidth="120" marginWidth="60" style="display:none;" title="入库信息">
+                <a:textField name="express_number_in" bindTarget="yonda_document_lend_record_hd_create_ds" prompt="快递公司"/>
+                <a:textField name="express_company_in" bindTarget="yonda_document_lend_record_hd_create_ds" prompt="快递单号"/>
+                <a:textField name="express_address_in" bindTarget="yonda_document_lend_record_hd_create_ds" colspan="2" prompt="快递地址" width="480"/>
+                <a:datePicker name="doc_in_time" bindTarget="yonda_document_lend_record_hd_create_ds" prompt="归还时间"/>
+            </a:form>
+            <a:grid id="hui_con_contract_query_grid" bindTarget="con_contract_ds" height="150" marginWidth="60" navBar="true">
+                <a:toolBar>
+                    <a:button type="add"/>
+                    <a:button type="clear"/>
+                    <a:button type="delete"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="contract_number" editor="con_contract_query_lov" prompt="合同编号" width="160"/>
+                    <!--   <a:column name="contract_name" prompt="合同名称" width="200"/> -->
+                    <a:column name="bp_name" prompt="承租人名称" width="100"/>
+                    <a:column name="invoice_agent_desc" prompt="代理商" width="100"/>
+                    <a:column name="business_type_desc" prompt="业务类型" width="100"/>
+                    <a:column name="division_desc" prompt="产品线" width="100"/>
+                    <a:column name="bp_class_desc" prompt="客户类别" width="100"/>
+                    <!--  <a:column name="bp_type_desc" prompt="承租人类型" width="120"/> -->
+                    <a:column name="hls_lease_channel_desc" prompt="商业模式" width="100"/>
+                    <!--    <a:column name="contract_id" prompt="承租人类型" width="120"/> -->
+                    <!--   <a:column name="reg_status" prompt="文件类型" width="100"/>
+                     <a:column name="archive_status" prompt="文件类型" width="100"/> -->
+                    <a:column name="docu_numberr_archive" prompt="合同箱编号" width="120"/>
+                    <a:column name="archive_status_n" prompt="合同归档状态" width="120"/>
+                    <a:column name="reg_status_n" prompt="登记证归档状态" width="120"/>
+                    <a:column name="docu_number_reg" prompt="登记证箱编号" width="120"/>
+                </a:columns>
+                <a:editors>
+                    <a:lov id="con_contract_query_lov"/>
+                </a:editors>
+            </a:grid>
+            <div id="yonda_document_lend_record_ln_query_ds_add">
+                <a:grid bindTarget="yonda_document_lend_record_ln_query_ds" marginHeight="400" marginWidth="60" navBar="true">
+                    <a:columns>
+                        <a:column name="description" prompt="文档名称" width="400"/>
+                        <a:column name="lend_flag" editor="yonda_document_lend_record_add_cb" prompt="是否借阅" width="80"/>
+                        <a:column name="paper_content_flag" editor="yonda_document_lend_record_add_cb" prompt="是否归档" width="80"/>
+                        <a:column name="borrowed_flag" editor="yonda_document_lend_record_add_cb" prompt="已借阅" width="80"/>
+                        <!--  <a:column name="return_date" editor="yonda_document_lend_record_add_dp" prompt="归还时间" renderer="Aurora.formatDate" width="120"/> -->
+                        <a:column name="doc_type_n" prompt="文件类型" width="100"/>
+                        <a:column name="doc_require_n" editor="document_lend_record_add_cb" prompt="借阅类型" width="100"/>
+                    </a:columns>
+                    <a:editors>
+                        <a:checkBox id="yonda_document_lend_record_add_cb"/>
+                        <a:datePicker id="yonda_document_lend_record_add_dp"/>
+                        <a:comboBox id="document_lend_record_add_cb"/>
+                    </a:editors>
+                </a:grid>
+            </div>
+            <div id="yonda_document_lend_record_ln_grid_add" style="display:none;">
+                <a:grid bindTarget="yonda_document_lend_record_ln_ds_add" height="200" marginWidth="60" navBar="true">
+                    <a:columns>
+                        <a:column name="cdd_item_desc" prompt="文档名称" width="350"/>
+                        <a:column name="doc_type_n" prompt="文件类型" width="100"/>
+                        <a:column name="chest_number" prompt="箱号" width="100"/>
+                        <a:column name="docu_number" prompt="文件编号" width="100"/>
+                        <a:column name="lend_flag" prompt="是否借出" width="80"/>
+                        <a:column name="return_flag" prompt="是否归还" width="80"/>
+                    </a:columns>
+                </a:grid>
+            </div>
+        </a:screenBody>
+    </a:view>
+</a:screen>

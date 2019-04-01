@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            //importPackage(java.util.zip);
+            importPackage(java.io);
+            
+      
+             importPackage(org.apache.tools.zip);  
+            /*可以传入参数*/
+            function getdate() {
+                var now = new Date()
+                y = now.getFullYear()
+                m = now.getMonth() + 1
+                d = now.getDate()
+                m = m < 10 ? "0" + m : m
+                d = d < 10 ? "0" + d : d
+                return y + "" + m + "" + d
+            }
+            
+            function writeFile(zos, fn, fp) {
+                var ze = new ZipEntry(fn);
+                zos.setEncoding("UTF-8");//如果是org.apache.tools.zip需要追加字符集
+                zos.putNextEntry(ze);
+                var fis = new FileInputStream(fp);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    zos.write(b, 0, len);
+                }
+                fis.close();
+            }
+            
+            $ctx["__request_type__"] = 'file'; //to indicate this request is not a JSON_REQUEST
+            var resp = $ctx['_instance.javax.servlet.http.HttpServletResponse'];
+            resp.setHeader("Pragma", "No-cache");
+            resp.setHeader("Cache-Control", "no-cache, must-revalidate");
+            var date = new Date();
+            var date_str = getdate();
+            //var date_str = date.getFullYear()+''+(date.getMonth()<9:('0'+date.getMonth()+1)?(date.getMonth()+1))+''+date.getDate();
+            var doc_code = $ctx.parameter.doc_code;
+            var filename = doc_code+'-'+date_str+".zip";
+            resp.setDateHeader("Expires", 0);
+            resp.setContentType("application/x-msdownload");
+           
+          
+            try {
+                var attachment_batch_dl = $bm('prj.lease_atm_batch_dl');
+                var result = attachment_batch_dl.queryAsMap();
+                var arr = result.getChildren();
+                if($ctx.parameter.all_flag=='Y'){
+                  filename= doc_code+".zip";
+                }else{
+				filename =  arr[0].project_number+'-'+arr[0].description+ ".zip";
+                }
+				resp.setHeader("Content-disposition", "attachment; filename=" + encodeURI(filename));
+				 var zos = new ZipOutputStream(resp.getOutputStream());
+                for (var i = 0;i < arr.length;i++) {
+                    var f = arr[i];
+                    if (f.file_path) {
+                        writeFile(zos, f.file_name, f.file_path);
+                    }
+                }
+            } catch (e) {
+                var logger = $logger("server-script");
+                logger.severe(e.message)
+            }
+            zos.close();
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

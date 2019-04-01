@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-9-6 下午04:32:20  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            select a.*,
+       a.due_amount - a.received_amount unpaid_amount,
+       a.total_fine - a.received_fine unpaid_fine,
+       a.received_amount + a.received_fine total_amount
+  from (select 
+          cf.cashflow_id,
+          cf.times,
+               cf.due_date,
+               cf.last_received_date,
+               nvl(cf.due_amount, 0) due_amount,
+               nvl(cf.received_amount, 0) received_amount,
+               
+               nvl((select cf2.due_amount
+                     from con_contract_cashflow cf2
+                    where cf2.cf_item = 9
+                      and cf2.cf_type = 9
+                      and cf2.times = cf.times
+                      and cf2.contract_id=ct.contract_id),
+                   0) total_fine,
+               nvl((select sum(nvl(cf3.received_amount,0))
+                     from con_contract_cashflow cf3
+                    where cf3.cf_item = 9
+                      and cf3.cf_type = 9
+                      and cf3.times = cf.times
+                      and cf3.contract_id=ct.contract_id),
+                   0) received_fine
+        
+          from con_contract_cashflow cf, con_contract ct
+         where cf.contract_id = ct.contract_id
+           and ct.company_id = ${/session/@company_id}
+           and ct.contract_number =${@contract_number}
+           and cf.cf_item = 1
+           and cf.cf_type = 1) a
+
+           
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="cashflow_id"/>
+        <bm:field name="times"/>
+        <bm:field name="unpaid_amount"/>
+        <bm:field name="unpaid_fine"/>
+        <bm:field name="total_amount"/>
+        <bm:field name="due_date" databaseType="DATE" datatype="java.util.Date"/>
+        <bm:field name="last_received_date" databaseType="DATE" datatype="java.util.Date"/>
+        <bm:field name="due_amount"/>
+        <bm:field name="received_amount"/>
+        <bm:field name="total_fine"/>
+        <bm:field name="received_fine"/>
+    </bm:fields>
+</bm:model>

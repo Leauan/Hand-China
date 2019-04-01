@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT DISTINCT
+                    t.contract_id,
+                    t.contract_number,
+                    p.project_number,
+                    (SELECT
+                        b.bp_name
+                    FROM
+                        hls_bp_master b
+                    WHERE
+                        b.bp_id = t.bp_id_tenant
+                    ) bp_id_tenant_n
+                FROM
+                    con_contract t,
+                    con_contract_cashflow f,
+                    prj_project p,
+                    hls_cashflow_item h
+                WHERE
+                    t.contract_id     = f.contract_id AND
+                    t.project_id      = p.project_id(+) AND
+                    f.cf_item         = h.cf_item(+) AND
+                    h.CF_DIRECTION(+) = 'OUTFLOW' AND
+                    f.write_off_flag <> 'FULL' AND
+                    f.cf_status      IN ('RELEASE', 'BLOCK') AND
+                    f.cf_direction    = 'OUTFLOW' AND
+                    (
+                        NVL(f.due_amount, 0) - NVL(
+                        (SELECT
+                            SUM(l.amount_paid)
+                        FROM
+                            csh_payment_req_ln l,
+                            csh_payment_req_hd h
+                        WHERE
+                            l.ref_doc_line_id       = f.cashflow_id AND
+                            l.payment_req_id        = h.payment_req_id AND
+                            h.submitted_flag        = 'Y' AND
+                            h.approval_status       = 'APPROVED' AND
+                            NVL(h.closed_flag, 'N') = 'Y'
+                        ), 0) - NVL(
+                        (SELECT
+                            SUM(l.amount)
+                        FROM
+                            csh_payment_req_ln l,
+                            csh_payment_req_hd h
+                        WHERE
+                            l.ref_doc_line_id        = f.cashflow_id AND
+                            l.payment_req_id         = h.payment_req_id AND
+                            h.submitted_flag         = 'Y' AND
+                            h.approval_status        = 'APPROVED' AND
+                            NVL(h.closed_flag, 'N') <> 'Y'
+                        ), 0) - NVL(
+                        (SELECT
+                            SUM(l.amount)
+                        FROM
+                            csh_payment_req_ln l,
+                            csh_payment_req_hd h
+                        WHERE
+                            l.ref_doc_line_id = f.cashflow_id AND
+                            l.payment_req_id  = h.payment_req_id AND
+                            h.submitted_flag  = 'Y' AND
+                            h.approval_status = 'APPROVING'
+                        ), 0)
+                    )
+                                           > 0 AND
+                    t.data_class           = 'NORMAL' AND
+                    t.contract_status NOT IN ('CANCEL', 'PENDING') AND
+                    EXISTS
+                    (SELECT
+                        1
+                    FROM
+                        hls_bp_master hbm
+                    WHERE
+                        hbm.bp_id      = t.bp_id_tenant AND
+                        hbm.id_card_no = ${@id_card_no} AND
+                        hbm.id_type    = 'ID_CARD'
+                    )
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="contract_id"/>
+        <bm:field name="contract_number"/>
+        <bm:field name="project_number"/>
+        <bm:field name="bp_id_tenant_n"/>
+    </bm:fields>
+</bm:model>

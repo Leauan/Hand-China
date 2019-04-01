@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <!-- <a:model-update model="hls.HLS811.hls_doc_file_templet_get_atm"/> -->
+        <s:server-script import="con_print_path.js"><![CDATA[
+            importPackage(Packages.hls.plugin.docx4j);
+            importPackage(java.io);
+            
+            function copyFile(fOld, fNew) {
+                var fis = new java.io.FileInputStream(fOld);
+                var fos = new java.io.FileOutputStream(fNew);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 4);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    fos.write(b, 0, len);
+                }
+                fis.close();
+                fos.close();
+            }
+            
+            function transfer(file_path, os) {
+                println(file_path);
+                var fis = new FileInputStream(file_path);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    os.write(b, 0, len);
+                }
+                fis.close();
+            }
+            
+            function download_file(file_name, file_path) {
+                $ctx["__request_type__"] = 'file'; //to indicate this request is not a JSON_REQUEST
+                var resp = $ctx['_instance.javax.servlet.http.HttpServletResponse'];
+                resp.setHeader("Pragma", "No-cache");
+                resp.setHeader("Cache-Control", "no-cache, must-revalidate");
+                resp.setDateHeader("Expires", 0);
+                resp.setContentType("application/x-msdownload");
+            
+                resp.setHeader("Content-disposition", "attachment; filename=" + encodeURI(file_name, 'UTF-8'));
+                var os = resp.getOutputStream();
+                transfer(file_path, os);
+                os.flush();
+            }
+            
+            var attachment_batch_dl = $bm('hls.HLS811.hls_doc_file_templet_get_atm');
+            var result = attachment_batch_dl.queryAsMap({
+                document_id: $ctx.parameter.document_id,
+                document_table: $ctx.parameter.document_table,
+                batch_flag: $ctx.parameter.batch_flag,
+                content_id: $ctx.parameter.content_id
+            });
+            var from_file_data = result.getChildren();
+            for (var i = 0;i < from_file_data.length;i++) {
+                if (!$ctx.parameter.file_path) {
+                    set_parameter_file_path();
+                }
+                var to_file_path = $ctx.parameter.file_path;
+                var record_data = from_file_data[i];
+            
+                if (record_data.file_exists_flag != 'Y') {
+                    var to_file_name = record_data.to_file_name;
+                    var from_file_path = record_data.file_path;
+                    var guid_file_name_path = $bm('cont.CON500.con_contract_get_guid_file_name').queryAsMap();
+                    var guid_file_name_tables = guid_file_name_path.getChildren();
+                    to_file_path = to_file_path + guid_file_name_tables[0].guid_file_name + 'doc' + record_data.content_id;
+            
+                    copyFile(from_file_path, to_file_path);
+            
+                    $bm('hls.HLS811.hls_file_content_copy_update').update({
+                        table_name: 'HLS_DOC_FILE_CONTENT',
+                        content_id: record_data.content_id,
+                        file_name: to_file_name.toString(),
+                        file_path: to_file_path.toString(),
+                        source_type: $ctx.parameter.source_type
+                    });
+            
+                    try {
+                        var brwt = new BookmarksReplaceWithText($instance('aurora.database.service.IDatabaseServiceFactory'), $instance('uncertain.ocm.IObjectRegistry'), $ctx.getData());
+                        brwt.replaceBookmarkFromContent(to_file_path.toString(), record_data.content_id.toString(), 'COMMON');
+                    } catch (e) {
+                        raise_app_error(e);
+                    }
+                } else {
+                    if ($ctx.parameter.download_file_flag == 'Y') {
+                        //if ($ctx.parameter.document_table == 'AST_CAR_INSURANCE_RECORDS') {
+                        download_file(record_data.download_file_name, record_data.download_file_path);
+                        // }
+                    }
+                }
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

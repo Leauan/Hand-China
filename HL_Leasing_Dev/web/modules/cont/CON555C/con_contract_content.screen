@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Feng  
+    $Date: 2014-1-3 上午10:24:25  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-execute model="db.prj_cdd_item_pkg.prj_cdd_item_extra_save"/>
+        <a:model-query model="cont.CON555A.con555_get_info" rootPath="con555_get_info"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="get_contranct_link_id" model="cont.CON555A.con_contract" modelaction="update"/>
+        <a:link id="con555_cdd_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="con555_cdd_download_id" url="${/request/@context_path}/atm_download.svc"/>
+        <a:link id="con555_cdd_query_link" url="${/request/@context_path}/autocrud/cont.CON555.con_content_query_detail/query"/>
+        <a:link id="con_contract_file_link_id" model="db.con_contract_pkg.update_contract_file_date" modelaction="execute"/>
+        <!-- <link href="${/request/@context_path}/css/lightbox.css" rel="stylesheet" type="text/css"/>-->
+        <!-- <script src="${/request/@context_path}/javascripts/lightbox.js"/>-->
+		<link href="${/request/@context_path}/viewerjs/viewer.css" rel="stylesheet"/>
+        <script src="${/request/@context_path}/viewerjs/viewer.js"/>
+        <script src="${/request/@context_path}/viewerjs/viewer_tool.js"/>
+        <script><![CDATA[
+            //Ext.ux.Lightbox.register('a[ref=img]',true);
+            window['con555_cdd_editorFunction'] = function(record, name) {
+                if (record.get('sys_flag') == 'N') {
+                    return 'con555_cdd_tf_id';
+                }
+                return '';
+            };
+            
+            function con555_cdd_selectFunc(record) {
+                if (record.get('sys_flag') == 'Y') {
+                    return false;
+                }
+                return true;
+            }
+            window['con555_cdd_attachment_render'] = function(value, record, name) {
+                //debugger;
+                var check_id = record.get('check_id');
+                var file_name = record.get('file_name');
+                var record_id = record.id;
+                if (!record.isNew && check_id) {
+                    return '<a href="javascript:window[\'con555_cdd_attachtment_upload\'](\'' + record.get('check_id') + '\',\'' + file_name + '\',\'' + record_id + '\')">${l:HLS.ATTACHMENT}</a>';
+                }
+            };
+            
+            window['con555_link_render'] = function(value, record, name) {
+                //debugger;
+                if (value != null) {
+                    var link = '${/request/@context_path}/atm_download.svc?attachment_id=';
+                    var str = value.split(';;');
+                    var url = '';
+                    for (var i = 0;i < str.length;i++) {
+                        var temp = str[i].split('--');
+                        if (!Aurora.isEmpty(temp[0])) {
+                            var file_suffix = temp[0].substr(temp[0].lastIndexOf('.') + 1).toUpperCase();
+                            if (file_suffix == 'BMP' || file_suffix == 'JPG' || file_suffix == 'JPEG' || file_suffix == 'PNG' || file_suffix == 'GIF') {
+                                // url = url + '<a ref="img" href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                                    link_function = 'show_viewer_more';
+                                    url = url + '<a href="javascript:window[\'' + link_function + '\'](\'' + link + '\',\'' + temp[1] + '\',\'' + temp[0] + '\',\'' + value + '\');">' + temp[0] + '</a>' + ',';
+                            } else {
+                                url = url + '<a href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                            }
+                        }
+                    }
+                    return url;
+                }
+            };
+            
+            window['con555_cdd_attachtment_upload'] = function(check_id, file_name, record_id) {
+                //debugger;
+                var url = $('con555_cdd_uploadFile_id').getUrl() + '?table_name=PRJ_CDD_ITEM_CHECK&header_id=' + check_id;
+                var record = $('con555_detail_result_ds').getCurrentRecord();
+                var oldvalue = file_name ? file_name : null;
+                var contract_id = ${/parameter/@contract_id};
+                paras = {
+                    'contract_id': contract_id
+                };
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'con555_cdd_uploadFile_screen_id',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {
+                    //debugger;
+                    Aurora.request({
+                        url: $('con555_cdd_query_link').getUrl(),
+                        para: paras,
+                        success: function(data) {
+                            $('con555_detail_result_ds').query();
+            
+                            var newvalue = $('con555_detail_result_ds').findById(record_id).get('file_name');
+                            //con555_attach_update(oldvalue,newvalue);
+                        },
+                        sync: true
+                    });
+            
+                });
+            
+            };
+            window['con555_cdd_required_render'] = function(value, record, name) {
+                var project_required_flag = record.get('project_required_flag');
+                if (project_required_flag == 'Y') {
+                    return '<pan style="color:red">' + value + '</pan>';
+                } else {
+                    return value;
+                }
+            };
+            // window['con555_attach_add'] = function(ds) {
+            // var record = $('con555_detail_result_ds').getAt(0);
+            // var current_record = ds.getCurrentRecord();
+            // current_record.data['document_table'] = 'PRJ_CDD_ITEM_CHECK';
+            // current_record.data['cdd_list_id'] = record.get('cdd_list_id');
+            // current_record.data['document_id'] = record.get('document_id');
+            // current_record.data['note'] = record.get('note');
+            // document_category = record.get('document_category');
+            // if (document_category == 'CONTRACT') {
+            // current_record.data['contract_required_flag'] = 'N';
+            // current_record.data['contract_display_flag'] = 'Y';
+            // } else if (document_category == 'PROJECT') {
+            // current_record.data['project_required_flag'] = 'N';
+            // current_record.data['project_display_flag'] = 'Y';
+            // }
+            // };
+            // window['con555_attach_load'] = function(ds) {
+            // var records = ds.getAll();
+            // if (records.length) {
+            // for (var i = 0;i < records.length;i++) {
+            // var record = records[i];
+            // if (Ext.isEmpty(record.get('check_id'))) {
+            // record.dirty = true;
+            // }
+            // }
+            // }
+            // };
+            
+            // function con555_attach_update(ds, record, value, oldvalue, newvalue) {
+            // alert('con555_attach_update');
+            // }
+            
+            // function con555_attach_query(ds) {
+            // alert('con555_attach_refresh');
+            // }
+            
+            function con555_con_contract_back() {
+                //console.log($('con555_contract_query_ds').data[0].getMeta().getField('contract_status_desc'));
+                $('con_contract_content_window').close();
+            }
+            
+            function con555_con_contract_reset() {
+                $('con555_detail_ds').reset();
+            }
+            
+            function con555_con_contract_save() {
+                var records = $('con555_detail_result_ds').getAll();
+                var collection_data_flag_size = 0;
+                for (var i = 0;i < records.length;i++) {
+                    if (records[i].get('collection_data_flag') == 'Y') {
+                        collection_data_flag_size += 1;
+                    }
+                }
+                if (collection_data_flag_size < 1) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '没有收集资料！');
+                    return;
+                }
+            
+                var paras = {
+                    'contract_id': '${/parameter/@contract_id}',
+                    status: 'collect'
+                };
+                Aurora.showConfirm('提示', '确认收集完成?', function okfun() {
+                    con555_detail_result_save();
+                    Aurora.request({
+                        url: $('get_contranct_link_id').getUrl(),
+                        para: paras,
+                        success: function(data) {
+                            con555_con_contract_back();
+                        },
+                        sync: true
+                    });
+                }, function() {}, 300, 100);
+            
+            }
+            
+            function con555_detail_result_save() {
+                $('con555_detail_result_ds').submit();
+            }
+            
+            // Aurora.onReady(function() {
+                  // if ('${/parameter/@modify}' == 'QUERY') {
+                        // $('con555_con_contract_back_id').hide();
+                    // $('con555_con_contract_archiving_id').hide();
+                      
+                  // }
+            // }
+            function submitsuccess_detail_result(ds, res) {
+                //con555_con_contract_back();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="con555_detail_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="contract_number" defaultValue="${/model/con555_get_info/record/@contract_number}" readOnly="true"/>
+                    <a:field name="project_number" defaultValue="${/model/con555_get_info/record/@project_number}" readOnly="true"/>
+                    <a:field name="bp_name" defaultValue="${/model/con555_get_info/record/@bp_name}" readOnly="true"/>
+                    <!-- <a:field name="bp_id_tenant_desc" defaultValue="${/model/con555_get_info/record/@bp_id_tenant_desc}" readOnly="true"/> -->
+                    <a:field name="business_type_desc" defaultValue="${/model/con555_get_info/record/@business_type_desc}" readOnly="true"/>
+                    <a:field name="division_desc" defaultValue="${/model/con555_get_info/record/@division_desc}" readOnly="true"/>
+                    <a:field name="bp_class_desc" defaultValue="${/model/con555_get_info/record/@bp_class_desc}" readOnly="true"/>
+                    <a:field name="invoice_agent_desc" defaultValue="${/model/con555_get_info/record/@invoice_agent_desc}" readOnly="true"/>
+                    <a:field name="contract_id" defaultValue="${/model/con555_get_info/record/@contract_id}" readOnly="true"/>
+                    <a:field name="project_id" defaultValue="${/model/con555_get_info/record/@project_id}" readOnly="true"/>
+                    <a:field name="full_write_off_date" defaultValue="${/model/con555_get_info/record/@full_write_off_date}" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con555_detail_result_ds" autoPageSize="true" autoQuery="true" fetchAll="true" model="cont.CON555A.con_content_query_detail" pageSize="13" queryDataSet="con555_detail_ds" queryUrl="${/request/@context_path}/autocrud/cont.CON555A.con_content_query_detail/query?contract_id=${/parameter/@contract_id}" selectFunction="con555_cdd_selectFunc" selectable="true">
+                <a:fields>
+                    <a:field name="paper_required" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="not_applicable" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="paper_content_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="collection_data_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="attachment_required" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="sys_flag" defaultValue="N"/>
+                    <a:field name="document_id" defaultValue="${/parameter/@contract_id}"/>
+                    <a:field name="cdd_list_id" defaultValue="${/parameter/@cdd_list_id}"/>
+                    <a:field name="document_table" defaultValue="CON_CONTRACT"/>
+                    <a:field name="note"/>
+                    <a:field name="notes"/>
+                    <a:field name="doc_require" readOnly="true"/>
+                    <a:field name="amount"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="submitsuccess_detail_result"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="con555_con_contract_back" text="HLS.BACK"/>
+                <a:gridButton click="con555_detail_result_save" text="保存"/>
+                <a:gridButton click="con555_con_contract_save" text="收集完成"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="120" marginWidth="30" title="基础信息">
+                <a:textField name="contract_number" bindTarget="con555_detail_ds" prompt="合同编号"/>
+                <a:textField name="bp_name" bindTarget="con555_detail_ds" prompt="承租人名称"/>
+                <a:textField name="project_number" bindTarget="con555_detail_ds" prompt="申请编号"/>
+                <a:textField name="business_type_desc" bindTarget="con555_detail_ds" prompt="业务类型"/>
+                <a:textField name="division_desc" bindTarget="con555_detail_ds" prompt="产品线"/>
+                <a:textField name="bp_class_desc" bindTarget="con555_detail_ds" prompt="客户类别"/>
+                <a:textField name="invoice_agent_desc" bindTarget="con555_detail_ds" prompt="经销商"/>
+                <a:datePicker name="full_write_off_date" bindTarget="con555_detail_ds" prompt="放款日期"/>
+            </a:form>
+            <a:grid bindTarget="con555_detail_result_ds" height="400" marginWidth="20" navBar="true">
+                <a:toolBar>
+                    <a:button id="add1" type="add"/>
+                    <a:button id="save1" type="save"/>
+                    <a:button id="delete1" type="delete"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="description" editorFunction="con555_cdd_editorFunction" prompt="HLS.DOCUMENT_NAME" renderer="con555_cdd_required_render" width="250"/>
+                    <!--<a:column name="attachment_required" editor="con555_cdd_ck_id" prompt="HLS.DIGITAL_FILE" width="40"/>
+                    <a:column name="paper_required" editor="con555_cdd_ck_id" prompt="已提交" width="40"/>-->
+                    <!--    <a:column name="attachment" align="center" prompt="附件" renderer="con555_cdd_attachment_render" width="60"/> -->
+                    <a:column name="file_name" align="center" prompt="附件名" renderer="con555_link_render" width="200"/>
+                    <a:column name="collection_data_flag" align="center" editor="con555_cdd_ck_id" prompt="是否收集资料" width="100"/>
+                    <a:column name="doc_require" prompt="文件要求" width="60"/>
+                    <a:column name="amount" editor="con555_cdd_nf_id" prompt="文件数量" width="60"/>
+                    <a:column name="note" editor="con555_cdd_tf_id" prompt="备注" width="200"/>
+                    <a:column name="notes" prompt="备注(客服)" width="250"/>
+                    <!--<a:column name="creation_date" prompt="附件上传时期" renderer="Aurora.formatDate" width="150"/>-->
+                </a:columns>
+                <a:editors>
+                    <a:checkBox id="con555_cdd_ck_id"/>
+                    <!-- <a:comboBox id="doc_type_n_cb_id"/> -->
+                    <a:textField id="con555_cdd_tf_id"/>
+                    <a:numberField id="con555_cdd_nf_id"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

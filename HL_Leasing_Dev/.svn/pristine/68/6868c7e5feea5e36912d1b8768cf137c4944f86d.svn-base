@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="cont.CON500.con_contract_get_guid_file_name" rootPath="guid_file_name_path"/>
+        <a:model-query fetchAll="true" model="cont.CON500.con_doc_file_templet_get_atm" rootPath="file_templet_get_atm_path"/>
+        <s:server-script><![CDATA[
+            importPackage(Packages.hls.plugin.docx4j);
+            importPackage(java.io);
+            importPackage(Packages.hls.plugin.jacob.engine);
+            importPackage(Packages.aurora.plugin.mail);
+            importPackage(Packages.uncertain.proc);
+            importPackage(Packages.aurora.plugin.script.scriptobject);
+            importPackage(Packages.aurora.plugin.word2pdf);
+            
+            function copyFile(fOld, fNew) {
+                var fis = new java.io.FileInputStream(fOld);
+                var fos = new java.io.FileOutputStream(fNew);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 4);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    fos.write(b, 0, len);
+                }
+                fis.close();
+                fos.close();
+            }
+            var from_file_data = $ctx.get('/model/file_templet_get_atm_path').getChildren();
+            for (var i = 0;i < from_file_data.length;i++) {
+                var to_file_path = $ctx.parameter.file_path;
+                var record_data = from_file_data[i];
+            
+                if (record_data.file_exists_flag != 'Y') {
+                    var to_file_name = record_data.to_file_name + '.' + record_data.file_type_code || 'doc';
+                    var from_file_path = record_data.file_path;
+                    var guid_file_name_path = $bm('cont.CON500.con_contract_get_guid_file_name').queryAsMap();
+                    var guid_file_name_tables = guid_file_name_path.getChildren();
+                    to_file_path = to_file_path + guid_file_name_tables[0].guid_file_name + 'con' + record_data.content_id;
+            
+                    copyFile(from_file_path, to_file_path);
+            
+                    $bm('cont.CON500.con_file_content_copy_update').update({
+                        table_name: 'CON_CONTRACT_CONTENT',
+                        content_id: record_data.content_id,
+                        file_name: to_file_name.toString(),
+                        file_path: to_file_path.toString()
+                    });
+            
+                    try {
+                        var brwt = new BookmarksReplaceWithText($instance('aurora.database.service.IDatabaseServiceFactory'), $instance('uncertain.ocm.IObjectRegistry'), $ctx.getData());
+                        brwt.replaceBookmarkFromContent(to_file_path.toString(), record_data.content_id);
+                    } catch (e) {
+                        raise_app_error(e);
+                    }
+                    word_to_pdf_sign(record_data.content_id);
+                }
+            
+            }
+            // var last_check_bm = $bm('cont.CON500.con_calc_due_date_after_print');
+            // last_check_bm.update({
+            // contract_id: $ctx.parameter.contract_id
+            // });
+            
+            
+            function word_to_pdf_sign(content_id) {
+                importPackage(Packages.com.hl.signatures);
+                importPackage(Packages.java.io);
+                importPackage(Packages.java.util);
+                var attachment_update = $bm('cont.CON500.con_contract_save_pdf_atm');
+                var attachment_batch_dl = $bm('cont.CON500.con_contract_content_download');
+                var org_flag = '';
+                var qf_flag = '';
+                var result = attachment_batch_dl.queryAsMap({
+                    content_id: content_id,
+                    contract_id: $ctx.parameter.contract_id
+                });
+                var arr = result.getChildren();
+                for (var i = 0;i < arr.length;i++) {
+                    var f = arr[i];
+                    var file_name = f.file_name2;
+                    var file_path = f.file_path;
+                    if (file_name.substring(file_name.length - 4) == '.doc') {
+                        file_name = file_name.substring(0, file_name.length - 4);
+                    } else if (file_name.substring(file_name.length - 5) == '.docx') {
+                        file_name = file_name.substring(0, file_name.length - 5);
+                    }
+                    var outputfilepath = file_path + '.pdf'; // 由于wordToPdf转换后pdf文件已经带有.pdf
+                    var wordToPdf = new WordToPdf($instance('uncertain.ocm.IObjectRegistry'), "jacob-1.18-x64.dll");
+                    wordToPdf.word2pdf(file_path, outputfilepath);
+                    //  var sign_path = null;
+                    
+                    if (f.templet_code == 'HL_CON_MORTGAGE_NP' || f.templet_code == 'LETTER_LEASE_APPROVAL' || f.templet_code == 'CON_LEASE_NP' || f.templet_code == 'HL_MODEL__NONMORTGAGE_NP') {
+                        if (f.templet_code == 'HL_CON_MORTGAGE_NP') {
+                            qf_flag = 'N'; org_flag = 'Y';
+                        } else if (f.templet_code == 'LETTER_LEASE_APPROVAL') {
+                            qf_flag = 'N';  org_flag = 'N';
+                        } else if (f.templet_code == 'CON_LEASE_NP') {
+                            qf_flag = 'Y';org_flag = 'Y';
+                        } else {
+                            qf_flag = 'Y';org_flag = 'Y';
+                        }
+					println("eeeee");
+                    var status = new ContractSignatures.hl_contract_signatures(outputfilepath, null,qf_flag,org_flag);
+                        println("ssss"+status);
+                    }
+            
+                    attachment_update.update({
+                        content_id: content_id
+                    });
+                }
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: niujiaqing1265 $
+    $Date: 2010/11/18 08:21:59 $
+    $Revision: 1.13 $
+    $Purpose: 登陆界面
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure/>
+    <a:view template="default">
+        <a:link id="pageLink_loginPage_role_select" url="${/request/@context_path}/role_select.screen"/>
+        <a:link id="pageLink_expired_passwd_update" url="${/request/@context_path}/password_expired_update.screen"/>
+        <a:link id="svcLink_login" url="${/request/@context_path}/login.svc"/>
+        <script><![CDATA[
+            Aurora.Status.enable = false;
+            Aurora.SideBar.enable = false;
+            
+            function deleteJSID() {
+                var date = new Date();
+                date.setTime(date.getTime() - 10000);
+                document.cookie = "JSID=; expires=" + date.toGMTString();
+            }
+            
+            deleteJSID();
+            
+            function login() {
+                var lds = $('login_dataset');
+                var record = lds.getCurrentRecord();
+                //不允许pad
+                record.set('is_ipad','N');
+                Aurora.request({
+                    url: $('svcLink_login').getUrl(),
+                    para: record.data,
+                    success: function(res) {
+                        if (res.result['encryted_session_id'] == 'ERROR') {
+                            Aurora.showInfoMessage('${l:PROMPT}', res.result['message'], function(cmp) {
+                                cmp.close();
+                                new Aurora.Window({
+                                    url: $('pageLink_expired_passwd_update').getUrl()+'?user_name=' + $('login_dataset').getAt(0).get('user_name'),
+                                    title: ' ',
+                                    id: 'password_expired_update_screen',
+                                    width: 350,
+                                    height: 200
+                                });
+                            }, 250, 100);
+                        } else {
+                            saveUserNameLang();
+                            window.location.href = $('pageLink_loginPage_role_select').getUrl() + location.search;
+                        }
+                    },
+                    scope: this
+                });
+            }
+            
+            function saveUserNameLang() {
+                var record = $('login_dataset').getAt(0);
+                Aurora.setCookie('USERNAME', record.get('user_name'), 30);
+                Aurora.setCookie('LANG', record.get('user_language'), 30);
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="language_dataset">
+                <a:datas>
+                    <a:record name="简体中文" code="ZHS"/>
+                    <a:record name="English" code="US"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="login_dataset">
+                <a:fields>
+                    <a:field name="user_name"/>
+                    <a:field name="user_password"/>
+                    <a:field name="language" displayField="name" options="language_dataset" returnField="user_language" valueField="code"/>
+                </a:fields>
+                <a:datas>
+                    <!--<a:record code="ZHS" language="简体中文" user_name="hecadmin" user_password="hecadmin"/>-->
+                    <a:record code="ZHS" language="简体中文"/>
+                </a:datas>
+            </a:dataSet>
+        </a:dataSets>
+        <a:template package="ui.template" template="loginTemplate">
+            <a:textField name="user_name" id="user_name_tf" bindTarget="login_dataset" prompt="HAP_USERNAME" width="150">
+                <a:events>
+                    <a:event name="enterdown" handler="login"/>
+                </a:events>
+            </a:textField>
+            <a:passWord name="user_password" id="user_password_tf" bindTarget="login_dataset" prompt="HAP_PASSWORD" width="150">
+                <a:events>
+                    <a:event name="enterdown" handler="login"/>
+                </a:events>
+            </a:passWord>
+            <a:comboBox name="language" id="language_tf" bindTarget="login_dataset" prompt="HAP_LANGUAGE" width="150"/>
+        </a:template>
+        <script><![CDATA[
+        
+            Aurora.onReady(function(){
+                //Aurora.center('loginForm');
+                
+                var record =$('login_dataset').getAt(0);
+				record.set('user_name',Aurora.getCookie('USERNAME'));
+				
+				var lang = Aurora.getCookie('LANG');
+				record.set('user_language','ZHS');
+				
+				var r_langName =$('language_dataset').getAll();
+				
+				for (var i=0,j=r_langName.length;i<j;i++) 
+				{
+				    if (r_langName[i].get('code')==lang) {
+				        record.set('language',r_langName[i].get('name'));
+				        break;
+			        }
+			    }
+                
+                setTimeout(function() {
+                    $('user_name_tf').focus();
+                }, 10);
+                
+            });
+             
+        ]]></script>
+    </a:view>
+</a:screen>

@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	$author:DJ
+	$date:2013/05/06
+	$purpose:银行账户
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="currency_code"/>
+        <model-query fetchAll="true" model="csh.CSH101.csh_responsibility_centers_lov" rootPath="responsibility_centers"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+        	
+        	function accountScreen_close() {
+            	$('csh_bank_account').close();
+        	}
+        
+	        function accountDs_grid_query() {
+	            $('accountDs').query();
+	        }
+	    	
+	        function accountDs_grid_add() {
+	            $('accountDs_grid').showEditorByRecord($('accountDs').create());
+	        }
+	        
+	        function accountDs_grid_clear() {
+	            $('accountDs_grid').clear();
+	        }
+	        
+	        function accountDs_grid_save() {
+	            var result_ds = $('accountDs');
+	            if (result_ds.validate()) {
+	                result_ds.submit();
+	            }
+	        }
+        	
+			function onUpdate_accountDs(ds,record,name,value,oldValue){
+			    if(name=='is_company_account')
+			    {
+			        if(value=='N')
+			        {
+			            record.set('responsibility_center_name','');
+			            record.set('responsibility_center_id','');
+			            record.set('cash_account_code','');
+			            record.set('cash_account_id','');
+			        }
+			    }
+			}
+			
+			function editFunction_accountDs_grid(record,name)
+			{
+			   
+				if(record.isNew)
+				{
+				    var config={
+				    	bank_account_type_name:'accountDs_grid_editor_comb',
+				    	currency_name:'accountDs_grid_editor_comb',
+				    	bank_account_code:'accountDs_grid_editor_tf_upper',
+				    	is_company_account:'accountDs_grid_editor_check'
+				    };
+					var editor=config[name];
+				    if(!Ext.isEmpty(editor))
+				    {
+				        return editor;
+				    }
+				}
+				
+				if(name=='responsibility_center_name'||name=='cash_account_code')
+				{
+				    
+			    	if(record.get('is_company_account')=='Y')
+			    	{
+				        record.getField(name).setRequired(true);
+				        
+				        var config={
+					    	responsibility_center_name:'accountDs_grid_editor_comb',
+					    	cash_account_code:'accountDs_grid_editor_lov'
+			    		};
+				        return config[name];
+			    	}
+			    	else
+			    	{
+			    	    record.getField(name).setRequired(false);
+			        	return '';
+			    	}
+				}
+				return '';
+			}		
+		]]></script>
+        <a:dataSets>
+            <a:dataSet id="bank_account_type_ds" lookupCode="CSH101_ACCOUNT_TYPE"/>
+            <a:dataSet id="currency_code_ds">
+                <a:datas dataSource="/model/currency_code"/>
+            </a:dataSet>
+            <a:dataSet id="responsibility_centers_ds">
+                <a:datas dataSource="/model/responsibility_centers"/>
+            </a:dataSet>
+            <a:dataSet id="bankAccountHeadDs" loadData="true" model="csh.CSH101.csh_get_csh_bank">
+                <a:fields>
+                    <a:field name="bank_short_name" readOnly="true"/>
+                    <a:field name="bank_branch_name" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="accountDs" autoQuery="true" model="csh.CSH101.csh_bank_account" queryUrl="${/request/@context_path}/autocrud/csh.CSH101.csh_bank_account/query?bank_branch_id=${/parameter/@bank_branch_id}" selectable="true">
+                <a:fields>
+                    <a:field name="is_company_account" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="bank_branch_id" defaultValue="${/parameter/@bank_branch_id}"/>
+                    <a:field name="bank_account_type_name" displayField="code_value_name" options="bank_account_type_ds" required="true" returnField="bank_account_type" valueField="code_value"/>
+                    <a:field name="bank_account_code" required="true"/>
+                    <a:field name="bank_account_name" required="true"/>
+                    <a:field name="bank_account_num" required="true"/>
+                    <a:field name="currency_name" displayField="currency_name" options="currency_code_ds" required="true" returnField="currency_code" valueField="currency_code"/>
+                    <a:field name="responsibility_center_name" displayField="responsibility_center_name" options="responsibility_centers_ds" returnField="responsibility_center_id" valueField="responsibility_center_id"/>
+                    <a:field name="cash_account_code" lovGridHeight="300" lovHeight="450" lovService="gld.gld_company_accounts_vl_lov" lovWidth="500" title="CSH101.CSH_BANK_ACCOUNT.CASH_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="account_id" to="cash_account_id"/>
+                            <a:map from="account_code" to="cash_account_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="settlement_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="repayment_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="loan_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_accountDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="accountScreen_close" text="HLS.CLOSE"/>
+                <a:gridButton click="accountDs_grid_query" text="HLS.QUERY"/>
+                <a:gridButton click="accountDs_grid_add" text="HLS.NEW"/>
+                <a:gridButton click="accountDs_grid_clear" text="HLS.CLEAR"/>
+                <a:gridButton click="accountDs_grid_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:form column="2" title="HLS.BANK_INFORMATION">
+                <a:textField name="bank_short_name" bindTarget="bankAccountHeadDs"/>
+                <a:textField name="bank_branch_name" bindTarget="bankAccountHeadDs"/>
+            </a:form>
+            <a:grid id="accountDs_grid" bindTarget="accountDs" height="300" navBar="true" width="1180">
+                <a:columns>
+                    <a:column name="bank_account_type_name" editor="accountDs_grid_editor_comb" width="80"/>
+                    <a:column name="is_company_account" editorFunction="editFunction_accountDs_grid" width="70"/>
+                    <a:column name="bank_account_code" editor="accountDs_grid_editor_tf_upper" width="100"/>
+                    <a:column name="bank_account_name" editor="accountDs_grid_editor_tf" width="170"/>
+                    <a:column name="bank_account_num" editor="accountDs_grid_editor_tf" width="170"/>
+                    <a:column name="currency_name" editorFunction="editFunction_accountDs_grid" width="70"/>
+                    <a:column name="responsibility_center_name" editorFunction="editFunction_accountDs_grid" width="100"/>
+                    <a:column name="cash_account_code" editorFunction="editFunction_accountDs_grid" width="130"/>
+                    <a:column name="enabled_flag" align="center" editor="accountDs_grid_editor_check" width="60"/>
+                    <a:column name="settlement_flag" align="center" editor="accountDs_grid_editor_check" width="60"/>
+                    <a:column name="repayment_flag" align="center" editor="accountDs_grid_editor_check" width="60"/>
+                    <a:column name="loan_flag" align="center" editor="accountDs_grid_editor_check" width="60"/>
+                </a:columns>
+                <a:editors>
+                    <a:comboBox id="accountDs_grid_editor_comb"/>
+                    <a:datePicker id="accountDs_grid_editor_dp"/>
+                    <a:textField id="accountDs_grid_editor_tf"/>
+                    <a:checkBox id="accountDs_grid_editor_check"/>
+                    <a:textField id="accountDs_grid_editor_tf_upper"/>
+                    <a:lov id="accountDs_grid_editor_lov"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

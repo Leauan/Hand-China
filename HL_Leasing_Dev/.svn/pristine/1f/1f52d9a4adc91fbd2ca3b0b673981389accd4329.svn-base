@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangyu  
+    $Date: 2015-12-19 上午11:16:29  
+    $Revision: 1.0  
+    $Purpose: 资金计划平衡头表(月度)
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="prj_project_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="prj_project_modify_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_create_tree_n.screen"/>
+        <!-- <a:link id="car_modify_special_link" url="${/request/@context_path}/modules/prj/PRJ500N/prj_project_create_special.screen"/> -->
+        <a:link id="car_modify_special_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain_readonly.screen"/>
+        <a:link id="car_modify_mananger_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain_manager.screen"/>
+        <a:link id="car_modify_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain_readonly.screen"/>
+        <a:link id="con_contract_modify_link" url="${/request/@context_path}/modules/cont/CON505/con_contract_modify.screen"/>
+        <a:link id="zjwfl2032_do_handle_flag_link" model="zjwfl.ZJWFL2032.hl_prj_overrule" modelaction="batch_update"/>
+        <script><![CDATA[
+            function zjwfl2032_result_query() {
+                $('zjwfl2032_hl_prj_overrule_result_ds').query();
+            }
+            function editorFunc(record, name) {
+                if (name == 'plan_year_n') {
+                    if (record.isNew) {
+                        return 'hd_editor_lov';
+                    }
+                    return '';
+                }
+            }
+            
+            function open_project_query_win(project_id,bp_class) {
+                var param = {};
+                param['company_id'] = ${/session/@company_id};
+                param['project_id'] = project_id;
+				param['function_code'] = 'PRJ502Q';
+                param['function_usage'] = 'QUERY';
+                param['bp_class'] = bp_class;
+                param['maintain_type'] = 'QUERY';
+                param['url_title'] = '${l:HLS.PROJECT_MAITAIN}';
+                hls_doc_get_layout_code('prj_project_get_layout_code_link_id', param, 'car_modify_special_link');
+            }
+            
+            function open_contract_query_win(contract_id) {
+                debugger;
+                var param = {};
+                param['contract_id'] = contract_id;
+                param['function_code'] = 'CON301';
+                /* param['function_usage'] = 'QUERY'; */
+                param['maintain_type'] = 'UPDATE';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                hls_doc_get_layout_code('prj_project_get_layout_code_link_id', param, 'con_contract_modify_link');
+            }
+            
+            
+            function zjwfl2032_grid_render(value,record,name)
+            {
+                debugger;
+                if(name=='project_number')
+                {
+                    return '<a href="javascript:open_project_query_win(' + record.get('project_id') + ',\'' + record.get('bp_class') + '\')">' + record.get('project_number') + '</a>';
+                }
+                else if(name=='contract_number')
+                {
+                    if(!Ext.isEmpty(record.get('contract_number')))
+                    {
+                        return '<a href="javascript:open_contract_query_win(' + record.get('contract_id') + ')">' + record.get('contract_number') + '</a>';
+                    }
+                    return '';
+                }
+                return '';
+            }
+            function zjwfl2032_do_handle_flag(){
+                var ds = $('zjwfl2032_hl_prj_overrule_result_ds');
+                var records = ds.getSelected();
+                if (records.length == 0) {
+                    Aurora.showMessage('提示','请选择一条数据进行操作！');
+                    return;
+                }
+                var datas = [];
+                for (var i = 0;i < records.length;i++) {
+                    var obj = {};
+                    obj['voer_id'] = records[i].get('voer_id');
+                    obj['voer_type'] = records[i].get('voer_type');
+                    obj['_status'] = 'update';
+                    datas[i] = obj;
+                }
+                Aurora.showConfirm('是否确认', '是否已处理完成？', function() {
+	                Aurora.request({
+	                    url: $('zjwfl2032_do_handle_flag_link').getUrl(),
+	                    para: datas,
+	                    success: function(res) {
+	                        Aurora.SideBar.show({
+	                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+	                            duration: 2000
+	                        });
+	                        $('zjwfl2032_hl_prj_overrule_result_ds').query();
+	                    },
+	                    failure: function() {
+	                    },
+	                    error: function() {
+	                    },
+	                    scope: this
+	                });
+                }, function() {
+                    return;
+                }, null, null);
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=CONTRACT&amp;function_code=CON501"/>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:dataSets>
+            <a:dataSet id="handle_flag_ds" lookupCode="HANDLE_FLAG"/>
+            <a:dataSet id="zjwfl2032_hl_prj_overrule_query_ds">
+                <a:fields>
+                    <a:field name="project_number"/>
+                    <a:field name="contract_number"/>
+                    <a:field name="bp_name"/>
+                    <a:field name="handle_flag" defaultValue="N"/>
+                    <a:field name="handle_flag_desc" defaultValue="未处理" displayField="code_value_name" options="handle_flag_ds" returnField="handle_flag" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="zjwfl2032_hl_prj_overrule_result_ds" autoPageSize="true" autoQuery="true" model="zjwfl.ZJWFL2032.hl_prj_overrule" queryDataSet="zjwfl2032_hl_prj_overrule_query_ds" selectable="true"><![CDATA[
+            ]]></a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="zjwfl2032_result_query" text="HLS.QUERY"/>
+                <a:gridButton click="zjwfl2032_do_handle_flag" text="处理完成"/>
+            </a:screenTopToolbar>
+            <a:form title="查询条件" width="1170">
+                <a:hBox>
+                    <a:textField name="project_number" bindTarget="zjwfl2032_hl_prj_overrule_query_ds" prompt="申请编号"/>
+                    <a:textField name="contract_number" bindTarget="zjwfl2032_hl_prj_overrule_query_ds" prompt="合同编号"/>
+                    <a:textField name="bp_name" bindTarget="zjwfl2032_hl_prj_overrule_query_ds" prompt="承租人"/>
+                    <a:comboBox name="handle_flag_desc" bindTarget="zjwfl2032_hl_prj_overrule_query_ds" prompt="处理情况"/>
+                </a:hBox>
+            </a:form>
+            <a:grid id="zjwfl2032_hl_prj_overrulegrid_id" bindTarget="zjwfl2032_hl_prj_overrule_result_ds" marginHeight="200" marginWidth="200" navBar="true">
+                <a:columns>
+                    <a:column name="project_number" prompt="申请编号" renderer="zjwfl2032_grid_render" width="130"/>
+                    <a:column name="contract_number" prompt="合同编号" renderer="zjwfl2032_grid_render" width="120"/>
+                    <a:column name="bp_name" prompt="承租人名称" width="80"/>
+                    <a:column name="return_time" prompt="提醒时间" width="150"/>
+                    <a:column name="return_reason" prompt="提醒内容" width="550"/>
+                    <a:column name="handle_flag_desc" align="center" prompt="处理情况" width="70"/>
+                </a:columns>
+                <a:editors>
+                    <a:lov id="hd_editor_lov"/>
+                    <a:textField id="hd_editor_tf"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: WangYu  
+    $Date: 2014-4-25 上午09:30:21  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" needAccessControl="false">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            select * from (
+            select b.contract_id,
+       b.contract_number,
+       b.contract_name,
+       b.contract_status,
+       b.contract_status_n,
+       b.bp_id_tenant,
+       b.bp_id_tenant_n,
+       a.cf_item, --现金流项目
+       a.cf_item_desc,
+       a.times,
+       a.due_date, --到期日
+       b.company_id,
+       nvl(a.due_amount,0) due_amount, --到期金额
+       nvl(a.principal,0) principal, --到期本金
+       nvl(a.interest,0) interest, --到期利息
+       (nvl(a.principal,0) - nvl(a.received_principal,0)) unreceived_principal, --未收本金
+       (nvl(a.due_amount,0) - nvl(a.received_amount,0)) unreceived_amount, --未收金额    
+       (nvl(a.interest,0) - nvl(a.received_interest,0)) unreceived_interest, --未收利息
+       a.last_received_date, --最后收款日
+            nvl(a.received_amount,0) received_amount, --实收金额
+       nvl(a.received_principal,0) received_principal, --实收本金
+       nvl(a.received_interest,0) received_interest,--实收利息 
+      /*  a.overdue_status, --逾期标志  */
+      decode(a.overdue_status,'Y','是','N','否') over_status_flag_desc, --逾期标志        
+       nvl(a.OVERDUE_MAX_DAYS,0) overdue_max_days, --逾期天数
+       nvl((select t.due_amount 
+          from con_contract_cashflow t
+         where t.contract_id = a.contract_id
+           and t.times = a.times
+           and t.cf_item = 9
+           and t.cf_direction = 'INFLOW'),0) penalty,
+           b.price_list,
+           b.price_list_n,
+           b.document_type_n,
+           b.document_type,
+           a.estimated_due_amount,
+           a.estimated_net_due_amount,
+           a.estimated_vat_due_amount,
+           a.write_off_flag,
+            (select t.cell_phone from hls_bp_master t where t.bp_id=b.bp_id_tenant)cell_phone,
+           (SELECT v.code_value_name
+          FROM sys_code_values_v v
+         WHERE v.code = 'CON_WRITE_OFF_FLAG'
+           AND v.code_value =  a.write_off_flag) AS  write_off_flag_n,
+	   b.lease_channel
+  from con_contract_cashflow_all_v a, con_contract_lv b
+ where b.contract_id = a.contract_id
+   and b.data_class = 'NORMAL'   
+   and a.cf_direction !='NONCASH'
+   and  nvl(a.due_amount,0) != 0
+   and a.cf_status !='BLOCK'
+ --  and b.contract_status not in('NEW','SUBMIT')
+   order by b.contract_number,a.times) t1
+   #WHERE_CLAUSE#
+   
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="estimated_net_due_amount"/>
+        <bm:field name="estimated_vat_due_amount"/>
+        <bm:field name="estimated_due_amount"/>
+        <bm:field name="company_id"/>
+        <bm:field name="contract_number"/>
+        <bm:field name="contract_id"/>
+        <bm:field name="contract_name"/>
+        <bm:field name="contract_status_n"/>
+        <bm:field name="bp_id_tenant_n"/>
+        <bm:field name="cf_item"/>
+        <bm:field name="bp_id_tenant"/>
+        <bm:field name="cf_item_desc"/>
+        <bm:field name="times"/>
+        <bm:field name="due_amount"/>
+        <bm:field name="principal"/>
+        <bm:field name="interest"/>
+        <bm:field name="unreceived_principal"/>
+        <bm:field name="unreceived_amount"/>
+        <bm:field name="unreceived_interest"/>
+        <bm:field name="received_amount"/>
+        <bm:field name="received_principal"/>
+        <bm:field name="received_interest"/>
+        <bm:field name="over_status_flag_desc"/>
+        <bm:field name="overdue_max_days"/>
+        <bm:field name="penalty"/>
+        <bm:field name="contract_status"/>
+        <bm:field name="price_list"/>
+        <bm:field name="price_list_n"/>
+        <bm:field name="document_type_n"/>
+        <bm:field name="document_type"/>
+        <bm:field name="write_off_flag"/>
+        <bm:field name="due_date" databaseType="Date" datatype="java.util.Date"/>
+        <bm:field name="last_received_date" databaseType="Date" datatype="java.util.Date"/>
+        <bm:field name="cell_phone"/>
+        <bm:field name="write_off_flag_n"/>
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field name="contract_number_from" queryExpression="t1.contract_number &gt;= ${@contract_number_from}"/>
+        <bm:query-field name="contract_number_to" queryExpression="t1.contract_number &lt;= ${@contract_number_to}"/>
+        <bm:query-field field="bp_id_tenant_n" queryOperator="="/>
+        <bm:query-field field="cf_item" queryOperator="="/>
+        <bm:query-field field="contract_status" queryOperator="="/>
+        <bm:query-field field="over_status_flag_desc" queryOperator="="/>
+        <bm:query-field name="due_date_from" queryExpression="t1.due_date &gt;= to_date(${@due_date_from},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="due_date_to" queryExpression="t1.due_date &lt;= to_date(${@due_date_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="unreceived_amount_from" queryExpression="t1.unreceived_amount &gt;= ${@unreceived_amount_from}"/>
+        <bm:query-field name="unreceived_amount_to" queryExpression="t1.unreceived_amount &lt;= ${@unreceived_amount_to}"/>
+        <bm:query-field field="price_list" queryOperator="like"/>
+        <bm:query-field field="document_type" queryOperator="="/>
+        <bm:query-field name="company_authority" queryExpression="t1.company_id = ${@company_authority} "/>
+        <!--  <bm:query-field field="write_off_flag" queryExpression="((${@write_off_flag}=&apos;FULL&apos; and t1.write_off_flag=&apos;FULL&apos;) or (${@write_off_flag}=&apos;N&apos; and t1.write_off_flag!=&apos;FULL&apos;)) "/> -->
+        <!-- <bm:query-field field="brand_id_n" queryOperator="like"/> -->
+        <!-- <bm:query-field field="pattern" queryOperator="like"/> -->
+		<bm:query-field field="write_off_flag" queryOperator="="/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="t1.lease_channel=&apos;00&apos;"/>
+    </bm:data-filters>
+</bm:model>

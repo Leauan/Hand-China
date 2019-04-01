@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang 
+    $Date: 2015-6-10 下午04:25:59  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:service xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            importPackage(Packages.org.apache.commons.fileupload.disk);
+            importPackage(Packages.org.apache.commons.fileupload.servlet);
+            var serviceInstance = Packages.aurora.service.ServiceInstance.getInstance($ctx.getData())
+            var factory = new DiskFileItemFactory();
+            var up = new ServletFileUpload(factory);
+            var items = up.parseRequest(serviceInstance.getRequest()).toArray();
+            for (var i = 0;i < items.length;i++) {
+                var item = items[i];
+                if (item.isFormField()) {
+                    println(item.getFieldName() + "=" + item.getString());
+                } else {
+                    var file_name = $ctx.parameter.file_name;
+                    var file_path = $ctx.parameter.file_path;
+                    if ($ctx.parameter.attachment_id) {
+                        var file_bm = $bm('fnd.fnd_atm_attachment');
+                        file_bm_map = file_bm.queryAsMap({
+                            'attachment_id': $ctx.parameter.attachment_id
+                        });
+                        file_bm_childs = file_bm_map.getChildren();
+                        if (file_bm_childs.length) {
+                            file_name = file_bm_childs[0].file_name;
+                            file_path = file_bm_childs[0].file_path;
+                        }
+                    }
+                    var final_file_path;
+                    var final_file_name;
+                    if (file_path.lastIndexOf("/") > file_path.lastIndexOf('\\')) {
+                        final_file_path = file_path.substr(0, file_path.lastIndexOf("/") + 1);
+                        final_file_name = file_path.substr(file_path.lastIndexOf("/") + 1, file_path.length - 1);
+                    } else {
+                        final_file_path = file_path.substr(0, file_path.lastIndexOf("\\") + 1);
+                        final_file_name = file_path.substr(file_path.lastIndexOf("\\") + 1, file_path.length - 1);
+                    }
+                    item.write(new java.io.File(final_file_path, final_file_name));
+                }
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:service-output output="/parameter"/>
+</a:service>

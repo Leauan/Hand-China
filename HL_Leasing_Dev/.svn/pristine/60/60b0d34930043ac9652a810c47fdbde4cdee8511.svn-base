@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:ns1="aurora.application.action" xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            function recursive_dynamic_repeat(sub_child, sub_base_table, pk, q) {
+                var bind_name = q + sub_base_table.tab_code + '_' + sub_base_table.base_table.toLowerCase();
+                var sub_root = sub_child.getChild(bind_name);
+                if (sub_root && pk) {
+                    var sub_children = sub_root.getChildren();
+                    if (bind_name.indexOf('prj_cdd_item_doc_ref') == -1) {
+                        for (var m = 0;m < sub_children.length;m++) {
+                            sub_children[m][pk] = sub_child[pk];
+                        }
+                        recursive_dynamic_save(sub_root, sub_base_table.base_table, sub_base_table.root_tree_code, sub_base_table.query_only, sub_base_table.parent_table, sub_base_table.parent_base_table_pk);
+                    } else {
+                        var spec_bm = $bm('prj.PRJ500.prj_project_doc_cdd_item');
+                        for (var m = 0;m < sub_children.length;m++) {
+                            sub_children[m]['document_id'] = sub_child[pk];
+                            spec_bm[sub_children[m]['_status']](sub_children[m]);
+                        }
+                    }
+                }
+            }
+            
+            function recursive_dynamic_save(root, base_table, root_tree_code, query_only, parent_table, parent_base_table_pk) {
+                if (!root || !base_table) return;
+                var children = root.getChildren();
+                if (!children.length) return;
+                var query_base_table_bm = $bm('prj.PRJ500.prj_hls_doc_layout_tab_query');
+                var sub_tn_map = query_base_table_bm.queryAsMap({
+                    "parent_table": base_table.toUpperCase(),
+                    'layout_code': $ctx.parameter.layout_code,
+                    'root_tree_code': root_tree_code,
+                    'enabled_flag': 'Y'
+                });
+                var sub_base_tables = sub_tn_map.getChildren();
+                if (query_only == 'Y' && sub_base_tables.length == 0) {
+                    return;
+                }
+                $ctx.dynamic_base_table = base_table;
+                var bm = $bm('cont.CON500.con_contract_common');
+                var pk = $ctx.pkmap[base_table];
+                for (var i = 0;i < children.length;i++) {
+                    var _status = children[i]._status;
+                    // var status_bm=$bm('bm');
+                    // status_bm.update(children[i]);校验单据状态
+                    var parent_error_code = '';
+                    try {
+                        bm.option = {
+                            updatePassedFieldOnly: 'true'
+                        }
+                        if (parent_table && parent_base_table_pk && !children[i][parent_base_table_pk]) {
+                            parent_error_code = 'HLS_TABLE_UNIQUE.SAVE_PARENT_FIRST';
+                            raise_app_error(parent_error_code);
+                        }
+                        if (query_only != 'Y') {
+                            bm[_status](children[i]);
+                        }
+                    } catch (e) {
+                        if (parent_error_code) {
+                            raise_app_error(parent_error_code);
+                        } else {
+                            raise_app_error('HLS_TABLE_UNIQUE.' + base_table.toUpperCase());
+                        }
+                    }
+                    if (base_table == 'prj_quotation') {
+                        var quotation_check_bm = $bm('cont.CON500.con_contract_quotation_check');
+                        quotation_check_bm.update(children[i]);
+                    }
+                    if (!parent_table && children[i].getData().getParent().getName() == 'parameter') {
+                        if (!$ctx.parameter.document_id) {
+                            $ctx.parameter.document_id = children[i][pk];
+                        }
+                        if ($ctx.parameter.document_category) {
+                            children[i].document_category = $ctx.parameter.document_category;
+                        }
+                        if ($ctx.parameter.document_type) {
+                            children[i].document_type = $ctx.parameter.document_type
+                        }
+                        if ($ctx.parameter.function_code) {
+                            children[i].function_code = $ctx.parameter.function_code;
+                        }
+                        if ($ctx.parameter.function_usage) {
+                            children[i].function_usage = $ctx.parameter.function_usage;
+                        }
+                        if (_status == 'insert') {
+                            var get_num_bm = $bm('cont.CON500.con_contract_update_special_fields');
+                            children[i].document_id = children[i][pk] || null;
+                            get_num_bm.update(children[i]);
+                        }
+                    }
+                    for (var j = 0;j < sub_base_tables.length;j++) {
+                        if (sub_base_tables[j].repeat_bindname_object == 'TENANT') {
+                            for (var q = 1;q <= $ctx.parameter.number_of_tenant;q++) {
+                                recursive_dynamic_repeat(children[i], sub_base_tables[j], pk, q);
+                            }
+                        } else if (sub_base_tables[j].repeat_bindname_object == 'GUARANTOR') {
+                            for (var q = 1;q <= $ctx.parameter.number_of_guarantor;q++) {
+                                recursive_dynamic_repeat(children[i], sub_base_tables[j], pk, q);
+                            }
+                        } else if (sub_base_tables[j].repeat_bindname_object == 'ACTUAL_CONTROLLER') {
+                            for (var q = 1;q <= $ctx.parameter.number_of_actual_controller;q++) {
+                                recursive_dynamic_repeat(children[i], sub_base_tables[j], pk, q);
+                            }
+                        } else if (sub_base_tables[j].repeat_bindname_object == 'QUOTATION') {
+                            for (var q = 1;q <= $ctx.parameter.number_of_quotation;q++) {
+                                recursive_dynamic_repeat(children[i], sub_base_tables[j], pk, q);
+                            }
+                        } else {
+                            recursive_dynamic_repeat(children[i], sub_base_tables[j], pk, '');
+                        }
+                    }
+                }
+            }
+            
+            function document_check_after_save() {
+                var last_check_bm = $bm('cont.CON500.con_contract_check_after_save');
+                last_check_bm.update({
+                    document_id: $ctx.parameter.document_id,
+                    document_category: $ctx.parameter.document_category,
+                    document_type: $ctx.parameter.document_type,
+                    function_code: $ctx.parameter.function_code,
+                    function_usage: $ctx.parameter.function_usage
+                });
+            }
+            recursive_dynamic_save($ctx.parameter, $ctx.parameter.base_table, $ctx.parameter.root_tree_code, $ctx.parameter.query_only, $ctx.parameter.parent_table, $ctx.parameter.parent_base_table_pk);
+            document_check_after_save();
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:service-output output="/parameter"/>
+</a:service>

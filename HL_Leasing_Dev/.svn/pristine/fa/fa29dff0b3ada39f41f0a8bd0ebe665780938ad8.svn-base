@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <model-query autoCount="false" fetchAll="true" model="zjwfl.zj_wfl_graphics_detail_choose" rootPath="_graphics_nodes_choose"/>
+        <a:model-query defaultWhereClause="v.code=&apos;ZJ_WFL_NODE_TYPE&apos; and v.code_value=&apos;NORMAL_NODE&apos;" model="zjwfl.sys_code_default_value" rootPath="_graphics_node_type_default_value"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+            function _graphics_status_renderer(value, record, name) {
+                var table_id = record.get('table_id') || -999;
+                return (value || $('_graphics_nodes_ds').find('table_id', table_id)) ? '已选择' : '未选择';
+            }
+            
+            function _graphics_select_function(record) {
+                var table_id = record.get('table_id') || -999;
+                if (record.get('config') || $('_graphics_nodes_ds').find('table_id', table_id)) {
+                    return false;
+                }
+            }
+            
+            function _graphics_image_editor_function(record, name) {
+                if (record.get('type') == 'image') {
+                    return '_graphics_image_editor';
+                }
+                return '';
+            }
+            
+            function _graphics_add_nodes() {
+                var ds = $('_graphics_nodes_ds'),
+                    datas = $('_graphics_prepare_nodes_ds').getSelected(),
+                    x = 170,
+                    y = 10,
+                    w = 600,
+                    h = 0,
+                    configs = {
+                        rect: $('_graphics_rect_ds').getCurrentRecord(),
+                        oval: $('_graphics_oval_ds').getCurrentRecord(),
+                        diamond: $('_graphics_diamond_ds').getCurrentRecord(),
+                        image: $('_graphics_image_ds').getCurrentRecord()
+                    },
+                    el = Ext.get(Ext.DomHelper.append(Ext.getBody(), "<div style='visibility:hidden'></div>"));
+            
+                for (var i = 0,
+                    l = datas.length;i < l;i++) {
+                    var r = datas[i],
+                        title = r.get(___title_field),
+                        type = r.get('type') || 'rect',
+                        image = r.get('image'),
+                        config = _graphics_getConfig(configs[type]),
+                        width = config.width;
+                    config.moveable = true;
+                    if (title) {
+                        config.title = title;
+                        el.setStyle('font-size', config.titlesize + 'px');
+                        var v = Aurora.TextMetrics.measure(el, title).width;
+                        if (v + 10 >= width) {
+                            config.width = width = v + 10;
+                        }
+                        config.titlex = Math.round(width - v) / 2;
+                    }
+                    if (image) config.image = '${/request/@context_path}' + image;
+                    config.x = x;
+                    config.y = y;
+                    x += width + 100;
+                    if (x + width > w) {
+                        x = 10;
+                        y += config.height + 50;
+                    }
+                    ds.create({
+                        config: Ext.util.JSON.encode(config),
+                        type: type,
+                        node_type: r.get('node_type'),
+                        table_id: r.get('table_id')
+                    });
+                }
+                h = y + 150;
+                el.remove();
+                $('_graphics_choose_window').close();
+            }
+            
+            function _graphics_prepare_nodes_processfunction(datas) {
+                for (var i = 0;i < datas.length;i++) {
+                    var temp = datas[i];
+                    var node_type = temp.node_type;
+                    if (node_type == 'NORMAL_NODE') {
+                        temp.image = '/images/zjwfl/normal_node.jpg';
+                    } else if (node_type == 'SUB_PROCESS') {
+                        temp.image = '/images/zjwfl/sub_process.jpg';
+                    } else if (node_type == 'BRANCH_NODE') {
+                        temp.image = '/images/zjwfl/branch_node.jpg';
+                    } else if (node_type == 'VIRTUAL_NODE') {
+                        temp.image = '/images/zjwfl/virtual_node.jpg';
+                    }
+                }
+                return datas;
+            }
+            
+            function on_graphics_prepare_nodes_ds_update(ds, record, name, value, old_value) {
+                if (name == 'node_type') {
+                    var image = '';
+                    if (value == 'NORMAL_NODE') {
+                        image = '/images/zjwfl/normal_node.jpg';
+                    } else if (value == 'SUB_PROCESS') {
+                        image = '/images/zjwfl/sub_process.jpg';
+                    } else if (value == 'BRANCH_NODE') {
+                        image = '/images/zjwfl/branch_node.jpg';
+                    } else if (value == 'VIRTUAL_NODE') {
+                        image = '/images/zjwfl/virtual_node.jpg';
+                    }
+                    record.set('image', image);
+                }
+            }
+            
+            function on_graphics_prepare_nodes_ds_submitsuccess(ds) {
+                var nodeDs = $('nodeDs');
+                nodeDs.query(nodeDs.currentPage);
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="_graphics_prepare_nodes_ds" model="zjwfl.zj_wfl_workflow_node" processFunction="_graphics_prepare_nodes_processfunction" selectFunction="_graphics_select_function" selectable="true">
+                <a:datas dataSource="/model/_graphics_nodes_choose"/>
+                <a:fields>
+                    <a:field name="type" defaultValue="image" displayField="name" options="_graphics_type_ds" returnField="type" valueField="value"/>
+                    <a:field name="config"/>
+                    <a:field name="table_id"/>
+                    <a:field name="node_type_desc" defaultValue="${/model/_graphics_node_type_default_value/record/@code_value_name}" displayField="code_value_name" options="node_type_ds" required="true" returnField="node_type" valueField="code_value"/>
+                    <a:field name="workflow_id" defaultValue="${/parameter/@workflow_id}"/>
+                    <a:field name="image" defaultValue="/images/zjwfl/normal_node.jpg"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="on_graphics_prepare_nodes_ds_submitsuccess"/>
+                    <a:event name="update" handler="on_graphics_prepare_nodes_ds_update"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:grid id="_graphics_prepare_grid_id" bindTarget="_graphics_prepare_nodes_ds" height="325" width="700">
+                <a:toolBar>
+                    <a:button text="添加节点" type="add"/>
+                    <a:button click="_graphics_add_nodes" icon="${/request/@context_path}/images/add.gif" text="添加图形"/>
+                    <a:button type="save"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="sequence_num" align="right" editor="_graphics_sequence_num_editor" prompt="节点序号" width="60"/>
+                    <a:column name="node_desc" editor="_graphics_image_editor" prompt="节点描述" showTitle="true" width="200"/>
+                    <a:column name="node_type_desc" editor="_graphics_type_editor" prompt="节点类型" width="60"/>
+                    <a:column name="config" prompt="状态" renderer="_graphics_status_renderer" width="60"/>
+                    <a:column name="type" editor="_graphics_type_editor" prompt="图形类型" width="60"/>
+                    <a:column name="image" editorFunction="_graphics_image_editor_function" prompt="图片路径" width="200"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="_graphics_sequence_num_editor" allowDecimals="false" allowNegative="false"/>
+                    <a:comboBox id="_graphics_type_editor"/>
+                    <a:textField id="_graphics_image_editor"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

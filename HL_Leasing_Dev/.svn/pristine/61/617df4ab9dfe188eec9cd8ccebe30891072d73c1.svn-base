@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-10-18 下午5:19:56  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<ns1:model xmlns:ns1="http://www.aurora-framework.org/schema/bm" alias="t1" extend="tre.tre510.tre_funds_reservation" extendMode="reference">
+    <ns1:operations>
+        <ns1:operation name="query">
+            <ns1:query-sql><![CDATA[
+          	select p.project_number,
+			       p.project_name,
+			       p.project_status_desc,
+			       p.bp_name,
+			       p.employee_name,
+			       p.project_id,
+			       t1.reservation_id,
+			       t1.reserve_amount,
+			       t1.paid_date,
+			       t1.paid_probability,
+			       t1.status,
+			       (select c1.code_value_name
+			          from sys_code_values_v c1
+			         where c1.code = 'RESERVE_STATUS'
+			           and c1.code_value = t1.status) as status_desc,
+			       t1.description,
+			       t1.paid_date_fin,
+			       t1.confirm_status,
+			       (select c2.code_value_name
+			          from sys_code_values_v c2
+			         where c2.code = 'RESERVATION_CONFIRM_STATUS'
+			           and c2.code_value = t1.confirm_status) as confirm_status_desc,
+			       t1.description_fin,
+			       t1.creation_date as apply_date,
+			 (select a.bank_account_num from csh_bank_account_v a where a.bank_account_id=t1.rent_bank_account) rent_bank_account_code,
+             (select a.bank_account_num from csh_bank_account_v a where a.bank_account_id=t1.deposit_bank_account) deposit_bank_account_code,
+			   to_number(t1.rent_bank_account) rent_bank_account,
+               to_number(t1.deposit_bank_account) deposit_bank_account,
+			       p.company_id,
+			       p.declare_flag
+			  from prj_project_v p, tre_funds_reservation t1
+	          #WHERE_CLAUSE#
+	          order by t1.creation_date desc
+        ]]></ns1:query-sql>
+        </ns1:operation>
+        <ns1:operation name="insert">
+            <ns1:update-sql><![CDATA[
+          begin
+            null;
+          end;
+        ]]></ns1:update-sql>
+        </ns1:operation>
+        <ns1:operation name="update">
+            <ns1:update-sql><![CDATA[
+          begin
+            tre510_save_pkg.reserve_confirm(p_reservation_id  => ${@reservation_id},
+				                            p_paid_date_fin   => to_date(${@paid_date_fin},'yyyy-mm-dd'),
+				                            p_description_fin => ${@description_fin},
+				                            p_rent_bank_account=>${@rent_bank_account},
+				                            p_deposit_bank_account=>${@deposit_bank_account},
+				                            p_user_id         => ${/session/@user_id});
+          end;
+        ]]></ns1:update-sql>
+        </ns1:operation>
+    </ns1:operations>
+    <ns1:data-filters>
+        <ns1:data-filter enforceOperations="query" expression="p.project_id = t1.project_id"/>
+    </ns1:data-filters>
+</ns1:model>

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Icon  
+    $Date: 2014-11-17 下午6:52:31  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" needAccessControl="false">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:update-sql><![CDATA[
+                SELECT
+                    contract_id,
+                    contract_number,
+                    contract_name,
+                    TO_CHAR(inception_of_lease,'yyyy-mm-dd')inception_of_lease,
+                    project_number,
+                    received_times,
+                    overdue_status,
+                    overdue_amount,
+                    bp_id_tenant,
+                    bp_name,
+                    bp_code,
+                    last_calc_date,
+                    project_name,
+                    penalty_overdue_amount
+                 
+                FROM
+                    (SELECT
+                        cc.contract_id,
+                        cc.contract_number,    --合同编号
+                        cc.contract_name,      --合同名称
+                        cc.inception_of_lease, -- 起租日
+                        (SELECT
+                            pp.project_number
+                        FROM
+                            prj_project pp
+                        WHERE
+                            pp.project_id = cc.project_id
+                        ) project_number, --申请编号
+                        (SELECT
+                            COUNT(*)
+                        FROM
+                            con_contract_cashflow ccc
+                        WHERE
+                            ccc.contract_id    = cc.contract_id AND
+                            ccc.write_off_flag = 'FULL' AND
+                            ccc.cf_item        = 1
+                        ) received_times,  --已还款期数
+                        cc.overdue_status, --是否逾期
+                        NVL(
+                        (SELECT
+                            NVL(SUM(due_amount), 0) - NVL(SUM(received_amount), 0)
+                        FROM
+                            con_contract_cashflow
+                        WHERE
+                            contract_id  = cc.contract_id AND
+                            due_date    <= sysdate AND
+                            cf_item      = 1 AND
+                            cf_direction = 'INFLOW'
+                        ), 0) overdue_amount, -- 逾期金额
+                          NVL(
+                        (SELECT
+                            NVL(SUM(due_amount), 0) - NVL(SUM(received_amount), 0)
+                        FROM
+                            con_contract_cashflow
+                        WHERE
+                            contract_id  = cc.contract_id AND
+                            --due_date    <= sysdate AND
+                            cf_item      =9 AND
+                            cf_direction = 'INFLOW'
+                        ), 0) penalty_overdue_amount,--罚息总计
+                        
+                        cc.bp_id_tenant,
+                        (SELECT
+                            bp_name
+                        FROM
+                            hls_bp_master
+                        WHERE
+                            bp_id        = cc.bp_id_tenant AND
+                            enabled_flag = 'Y'
+                        ) bp_name, --承租人名称
+                        (SELECT
+                            bp_code
+                        FROM
+                            hls_bp_master
+                        WHERE
+                            bp_id        = cc.bp_id_tenant AND
+                            enabled_flag = 'Y'
+                        ) bp_code,
+                        cc.project_id,
+                        (SELECT TO_CHAR(sysdate, 'YYYY-MM-DD') FROM dual
+                        ) last_calc_date,
+                        (SELECT p.project_name FROM prj_project p WHERE p.project_id = cc.project_id
+                        ) project_name
+                    FROM
+                        con_contract cc
+                    ) t1 #WHERE_CLAUSE#
+            ]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="contract_id" queryExpression="t1.contract_id = ${@contract_id}"/>
+    </bm:query-fields>
+</bm:model>

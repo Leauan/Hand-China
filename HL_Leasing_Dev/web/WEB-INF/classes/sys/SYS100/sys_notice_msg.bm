@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2014-1-16 下午2:42:45  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="SYS_NOTICE_MSG" needAccessControl="false">
+    <bm:fields>
+        <bm:field name="notice_msg_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="NOTICE_MSG_ID" prompt="SYS_NOTICE_MSG.NOTICE_MSG_ID"/>
+        <bm:field name="notice_user_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="NOTICE_USER_ID" prompt="SYS_NOTICE_MSG.NOTICE_USER_ID"/>
+        <bm:field name="msg_title" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="MSG_TITLE" prompt="SYS_NOTICE_MSG.MSG_TITLE"/>
+        <bm:field name="child_msg_title"/>
+        <bm:field name="msg_info" forInsert="false" forUpdate="false"/>
+        <bm:field name="notice_type" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="NOTICE_TYPE" prompt="SYS_NOTICE_MSG.NOTICE_TYPE"/>
+        <bm:field name="start_date_active" databaseType="DATE" datatype="java.util.Date" physicalName="START_DATE_ACTIVE" prompt="SYS_NOTICE_MSG.START_DATE_ACTIVE"/>
+        <bm:field name="end_date_active" databaseType="DATE" datatype="java.util.Date" physicalName="END_DATE_ACTIVE" prompt="SYS_NOTICE_MSG.END_DATE_ACTIVE"/>
+        <bm:field name="source_type" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="SOURCE_TYPE" prompt="SYS_NOTICE_MSG.SOURCE_TYPE"/>
+        <bm:field name="source_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="SOURCE_ID" prompt="SYS_NOTICE_MSG.SOURCE_ID"/>
+        <bm:field name="creation_date"/>
+        <bm:field name="msg_body"/>
+        <bm:field name="status"/>
+        <bm:field name="priority"/>
+        <bm:field name="expand_flag"/>
+        <bm:field name="notice_url" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="NOTICE_URL" prompt="SYS_NOTICE_MSG.NOTICE_URL"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+    			  select t.*
+    from ((select  null         msg_title,
+			       t1.msg_title child_msg_title,
+			       null         notice_user_id,
+			       null         notice_msg_id,
+			       null         msg_info,
+			       null         notice_type,
+			       null         start_date_active,
+			       null         end_date_active,
+			       null         enabled_flag,
+			       null         source_type,
+			       null         source_id,
+			       null         msg_body,
+			       null         creation_date,
+			       null         status,
+			       null         priority,
+			       'Y' expand_flag,
+			       null notice_url
+				  from sys_notice_msg_v t1
+				WHERE t1.enabled_flag='Y' and (t1.notice_user_id = ${/session/@user_id} or t1.notice_user_id is null) and t1.status='OPEN'
+				 group by msg_title)
+          union all
+          
+          (select t1.msg_title,
+                 null child_msg_title,
+                 t1.notice_user_id,
+                 t1.notice_msg_id,
+                 
+                 t1.msg_title || '    ' ||
+                 to_char(t1.start_date_active, 'yyyy-mm-dd hh24:mi:ss') as msg_info,
+                 t1.notice_type,
+                 t1.start_date_active,
+                 t1.end_date_active,
+                 t1.enabled_flag,
+                 t1.source_type,
+                 t1.source_id,
+                 t1.msg_body,
+                 to_char(t1.creation_date, 'yyyy-mm-dd hh24:mi:ss') creation_date,
+                 t1.status,
+                 t1.priority,
+                 'N' expand_flag,
+                 t1.notice_url
+            from sys_notice_msg_v t1
+            #WHERE_CLAUSE#
+            )) t
+   start with t.msg_title is null
+  connect by t.msg_title = prior t.child_msg_title
+order by t.creation_date desc
+    		]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:parameters>
+                <bm:parameter name="notice_msg_id" dataType="java.lang.Long" input="true" output="false"/>
+            </bm:parameters>
+            <bm:update-sql><![CDATA[
+    		begin
+    			  update sys_notice_msg m 
+    			  set m.priority=3 where m.notice_msg_id=${@notice_msg_id};
+    		end;
+    		]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="notice_message" queryExpression="(t1.msg_body like &apos;%&apos;||${@notice_message}||&apos;%&apos; or t1.msg_title like &apos;%&apos;||${@notice_message}||&apos;%&apos;  or  (to_char(t1.creation_date, &apos;yyyy-mm-dd hh24:mi:ss&apos;) like &apos;%&apos;|| ${@notice_message} || &apos;%&apos;))"/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="t1.enabled_flag=&apos;Y&apos; and (t1.notice_user_id = ${/session/@user_id} or t1.notice_user_id is null) and t1.status=&apos;OPEN&apos;"/>
+    </bm:data-filters>
+    <bm:primary-key>
+        <bm:pk-field name="notice_msg_id"/>
+    </bm:primary-key>
+</bm:model>

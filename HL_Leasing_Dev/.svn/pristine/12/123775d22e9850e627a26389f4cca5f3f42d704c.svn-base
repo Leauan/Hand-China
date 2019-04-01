@@ -1,0 +1,324 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-6-17 下午3:47:49  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure/>
+    <a:view package="aurora.ui.std" template="default">
+        <a:link id="hls_stat_class_link" url="${/request/@context_path}/modules/hls/HLS029/hls_stat_class.svc"/>
+        <a:link id="delete_hls_stat_class_link" modelaction="delete" url="${/request/@context_path}/autocrud/hls.HLS029.hls_stat_class/batch_update"/>
+        <a:link id="get_hls_stat_class_link" url="${/request/@context_path}/modules/hls/HLS029/hls_stat_class.screen"/>
+        <div/>
+        <script><![CDATA[
+            function hls029_grid_submit() {
+                var ds = $('function_tree_ds');
+                var data = {};
+                var functions = [];
+                var items = ds.getAll();
+                var count = items.length;
+                if (count == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:NO_MENU_INFO}!');
+                } else {
+            
+                    for (var i = 0,
+                        l = count;i < l;i++) {
+                        var d = items[i].data;
+                        functions[functions.length] = d;
+                    }
+                    data['functions'] = functions;
+                    Aurora.request({
+                        url: $('hls_stat_class_link').getUrl(),
+                        para: data,
+                        success: ds.onSubmitSuccess,
+                        error: ds.onSubmitError,
+                        scope: ds,
+                        failure: ds.onAjaxFailed
+                    });
+                }
+            }
+            
+            function save() {
+                var main = $('function_tree_ds');
+                main.submit();
+                if (main.validate()) {
+                    var records = main.getAll();
+                    for (var n = records.length - 1;n >= 0;n--) {
+                        records[n].getField('class_code').setReadOnly(true);
+                        records[n].getField('class_code').setRequired(false);
+                        records[n].getField('description').setRequired(false);
+                    }
+                }
+            }
+            
+            function add() {
+                
+                var dataset = $('function_tree_ds');
+                var record = dataset.getCurrentRecord(),
+                    class_id = record.get('class_id');
+                //alert(class_id);
+                if (class_id) {
+                    var record1 = new Aurora.Record({
+                        parent_class_id: class_id,
+                        enabled_flag: 'Y'
+                    });
+                    dataset.add(record1);
+                    record1.set('class_usage_desc', record.get('class_usage_desc'));
+                    record1.set('class_usage', record.get('class_usage'));
+                    record1.getField('class_usage_desc').setReadOnly(true);
+                    record1.getField('class_usage').setReadOnly(true);
+                    record1.getField('class_usage_desc').setRequired(false);
+                    record1.getField('class_usage').setRequired(false);
+                }
+            }
+            
+            function addtop() {
+                var record = $('function_tree_ds').find('top_level_flag', 'Y');
+                    record.getField('expand_flag').setReadOnly(false);
+                    
+                var dataset = $('function_tree_ds');
+                var record1 = new Aurora.Record({
+                    parent_class_id: 0,
+                    enabled_flag: 'Y',
+                    expand_flag: 'Y',
+                    top_level_flag: 'Y'
+                });
+                dataset.add(record1);
+                
+            }
+            
+            function del() {
+                var ds = $('function_tree_ds');
+                var delete_datas = [];
+                var records = [].concat(ds.getAll());
+                var tree = $('functionTreeGrid').unlockTree
+                for (var n = records.length - 1;n >= 0;n--) {
+                    var record = records[n],
+                        checked = record.get('checked');
+                    //alert(_expanded);
+                    if (checked == 'Y') {
+                        //alert(tree.getNodeById(record.id).checked);
+                        var node = tree.getNodeById(record.id);
+                        if (node && node.checked == 1) {
+            
+                            var class_id = records[n].get('class_id');
+                            //if(class_id){
+                            //alert(records[n].get('class_code'));
+                            ds.remove(records[n]);
+                            delete_datas.add({
+                                'class_id': class_id,
+                                '_status': 'delete'
+                            });
+            
+                            //}
+            
+                        }
+                    }
+                }
+                Aurora.request({
+                    url: $('delete_hls_stat_class_link').getUrl(),
+                    para: delete_datas,
+                    success: function(args) {},
+                    failure: function(response, options) {},
+                    scope: this
+                });
+            }
+            
+            function deleteNote() {
+                Aurora.showConfirm('提示', '确定删除？', function okFun() {
+                 var delete_datas = [];
+                var ds = $('function_tree_ds');
+                var records = ds.getSelected();
+                //alert(records.length);
+                for (var n = records.length - 1;n >= 0;n--) {
+                    var record = records[n],
+                        checked = record.get('checked');
+                    var class_id = records[n].get('class_id');
+                    ds.removeLocal(records[n]);
+                    delete_datas.add({
+                                'class_id': class_id,
+                                '_status': 'delete'
+                            });
+                }
+                
+                Aurora.request({
+                    url: $('delete_hls_stat_class_link').getUrl(),
+                    para: delete_datas,
+                    success: function(args) {},
+                    failure: function(response, options) {},
+                    scope: this
+                });
+                });
+            }
+            
+            function editFunction_class_code(record, name) {
+                if (record.isNew) {
+                    return 'grid_tf';
+                } else {
+                    return '';
+                }
+            }
+            
+            function add_treeNote(ds, record, index) {
+            
+                //alert(value);
+                //value = Aurora.formatDate(value);
+                //$('csh_payment_reverse_ds').getAt(0).set('reverse_date', value);
+                record.getField('class_code').setReadOnly(false);
+                if (record.get('top_level_flag') == 'Y') {
+                    record.getField('class_usage_desc').setReadOnly(false);
+                    record.getField('class_usage').setReadOnly(false);
+                }
+            
+            }
+            
+            function update_treeNote(dataSet, record, name, value, oldValue) {
+                //
+                var class_id = record.get('class_id');
+                var parent_class_id = record.get('parent_class_id');
+                var class_code = record.get('class_code');
+                var class_usage_desc = record.get('class_usage_desc');
+                var records = $('function_tree_ds').getAll();
+                
+                if (name == 'class_usage') {
+            
+                    for (var n = 0;n < records.length;n++) {
+                        if (records[n].get('parent_class_id') == class_id) {
+                            records[n].set('class_usage', value);
+                            if (value == 'LEASE_ITEM') {
+                                class_usage_desc = '租赁物'
+                            } else if (value == 'BIZ_PARTNER') {
+                                class_usage_desc = '商业伙伴'
+                            }
+                            records[n].set('class_usage_desc', class_usage_desc);
+                        }
+                    }
+            
+                }
+            
+            }
+            
+            function recursiveFun(class_id, value, class_usage_desc) {
+                var records = $('function_tree_ds').getAll();
+                for (var n = 0;n < records.length;n++) {
+                    if (records[n].get('parent_class_id') == class_id) {
+                        records[n].set('class_usage', value);
+                        records[n].set('class_usage_desc', class_usage_desc);
+                    }
+                }
+            }
+            function clearNote(){
+                var delete_datas = [];
+                var ds = $('function_tree_ds');
+                var records = ds.getSelected();
+                //alert(records.length);
+                for (var n = records.length - 1;n >= 0;n--) {
+                    var record = records[n],
+                        checked = record.get('checked');
+                    var class_id = records[n].get('class_id');
+                    ds.removeLocal(records[n]);}
+            }
+            
+            function functionTreeGrid_editor(record, name){
+                if (record.isNew) {
+                    if(name== 'class_code'){
+                    return 'grid_tf';}
+                    else if(name== 'description'){
+                       return 'grid_tf'; 
+                    }else if(name== 'class_usage_desc'){
+                       return 'comboBoxEditor'; 
+                    }else if(name== 'class_usage'){
+                       return 'grid_tf'; 
+                    }else if(name== 'enabled_flag'){
+                       return 'grid_cb'; 
+                    }else if(name== 'order_seq'){
+                       return 'grid_nf'; 
+                    }else if(name== 'expand_flag'){
+                       return 'grid_cb'; 
+                    }
+                }
+                return '';
+            }
+            function submitsuccess_treeNote(){
+                window.location.href = $('get_hls_stat_class_link').getUrl();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="class_usage_ds">
+                <a:datas>
+                    <a:record name="商业伙伴" value="BIZ_PARTNER"/>
+                    <a:record name="租赁物" value="LEASE_ITEM"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="function_tree_ds" autoCount="false" fetchAll="true" loadData="true" model="hls.HLS029.hls_stat_class" selectable="true" submitUrl="${/request/@context_path}/modules/hls/HLS029/hls_stat_class.svc">
+                <a:fields>
+                    <a:field name="class_usage" readOnly="true" required="true"/>
+                    <a:field name="class_code" readOnly="true" required="true"/>
+                    <a:field name="description" required="true"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="expand_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="class_usage_desc" displayField="name" options="class_usage_ds" readOnly="true" required="true" returnField="class_usage" valueField="value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="add_treeNote"/>
+                    <a:event name="update" handler="update_treeNote"/>
+                    <a:event name="submitsuccess" handler="submitsuccess_treeNote"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="addtop" text="添加顶层分类"/>
+                <a:gridButton click="add" text="添加下级分类"/>
+                <a:gridButton click="save" text="HLS.SAVE"/>
+                <!-- <a:gridButton click="deleteNote" text="删除"/> -->
+                <a:gridButton click="clearNote" text="HLS.CLEAR"/>
+            </a:screenTopToolbar>
+            <a:treeGrid id="functionTreeGrid" bindTarget="function_tree_ds" expandField="expand_flag" height="400" idField="class_id" marginHeight="110" marginWidth="30" parentField="parent_class_id" sequenceField="order_seq" showCheckBox="false" width="800">
+                <a:columns>
+                    <a:column name="class_code" editorFunction="functionTreeGrid_editor" prompt="分类代码" width="200"/>
+                    <a:column name="description" editorFunction="functionTreeGrid_editor" prompt="分类描述" width="250"/>
+                    <a:column name="class_usage_desc" editorFunction="functionTreeGrid_editor" prompt="用途描述" width="120"/>
+                    <a:column name="class_usage" editorFunction="functionTreeGrid_editor" prompt="用途类型" width="120"/>
+                    <a:column name="enabled_flag" editor="grid_cb" prompt="启用" width="80"/>
+                    <a:column name="order_seq" align="right" editor="grid_nf" prompt="显示顺序" width="100"/>
+                    <a:column name="expand_flag" editor="grid_cb" prompt="是否展开" width="80"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="grid_nf" allowdecimals="false"/>
+                    <a:textField id="grid_tf"/>
+                    <a:checkBox id="grid_cb"/>
+                    <a:comboBox id="comboBoxEditor"/>
+                </a:editors>
+            </a:treeGrid>
+        </a:screenBody>
+        <script><![CDATA[
+            Aurora.onReady(init);
+            
+            function init() {
+                //var a = $('csh_payment_reverse_ds').getSelected();
+                //var record = a[0];
+                //var record = $('csh_payment_reverse_ds').getAt(0);
+                //record.set('bp_name');
+                var records = $('function_tree_ds').getAll();
+                var j = 0;
+                for (var n = records.length - 1;n >= 0;n--) {
+                    if (records[n].get('top_level_flag') == 'Y') {
+                        j = j + 1;
+                        //records[n].getField('class_usage_desc').setReadOnly(false);
+                        //records[n].getField('class_usage').setReadOnly(false);
+                    }
+                }
+                if (j == 1) {
+                    var record = $('function_tree_ds').find('top_level_flag', 'Y');
+                    record.set('expand_flag', 'Y');
+                    record.getField('expand_flag').setReadOnly(true);
+                }
+            
+            
+            }
+        ]]></script>
+    </a:view>
+</a:screen>

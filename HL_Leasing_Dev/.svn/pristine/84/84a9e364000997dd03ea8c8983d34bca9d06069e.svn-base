@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootPath="default_value"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="csh_transaction_receipt_reverse_link" model="csh.CSH510.csh_transaction_reverse" modelaction="batch_update"/>
+        <a:link id="get_period_name_id" model="csh.CSH511.csh_transaction_get_period_name" modelaction="query"/>
+        <script><![CDATA[
+            function csh511_receipt_reverse_return() {
+                $('${/parameter/@winId}').close();
+            }
+            
+            function csh511_receipt_reverse_detail() {
+                if ($('csh_transaction_reverse_ds').validate()) {
+                    var head_record = $('csh_transaction_reverse_ds').getAt(0);
+                    var winId = '${/parameter/@winId}';
+                    var parent_winId = '${/parameter/@parent_winId}';
+                    Aurora.Masker.mask($(winId).wrap, '${l:HLS.REVERSE_ING}');
+                    var saveData = [];
+                    head_record.set('_status', 'update');
+                    saveData.push(head_record.data);
+                    Aurora.request({
+                        url: $('csh_transaction_receipt_reverse_link').getUrl(),
+                        para: saveData,
+                        success: function(res) {
+                            Aurora.SideBar.show({
+                                msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                duration: 2000
+                            });
+                            $('csh_transaction_receipt_maintain_query_ds').query();
+                            Aurora.Masker.unmask($(winId).wrap);
+                            $(parent_winId).close();
+                            csh511_receipt_reverse_return();
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask($(winId).wrap);
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask($(winId).wrap);
+                        },
+                        scope: this
+                    });
+                }
+            }
+            
+            function on_receipt_reverse_detail_update(ds, record, name, value, oldvalue) {
+                if (name == 'reversed_date') {
+                    showPeriod(record);
+                }
+            }
+            
+            function showPeriod(record) {
+                var r_date = record.get('reversed_date');
+                r_date = Aurora.formatDate(r_date);
+                Aurora.request({
+                    url: $('get_period_name_id').getUrl(),
+                    para: {
+                        p_date: r_date
+                    },
+                    success: periodname,
+                    scope: this
+                });
+            }
+            
+            function periodname(res) {
+                if (res) {
+                    var period_name = res.result.record.period_name;
+                    if (period_name) {
+                        $('csh_transaction_reverse_ds').getAt(0).set('reversed_period_name', period_name);
+                    } else {
+                        $('csh_transaction_reverse_ds').getAt(0).set('reversed_period_name', '');
+                        $('csh_transaction_reverse_ds').getAt(0).set('reversed_date', '');
+                        Aurora.showMessage('${l:PROMPT}', '${l:CSH510.REVERSE_PERIOD_NOT_OPEN}');
+                        return;
+                    }
+                }
+            }
+            
+            function on_receipt_reverse_detail_load(ds) {
+                var head_record = ds.getAt(0);
+                head_record.set('reversed_date', '${/model/default_value/record/@now_time}');
+                if (Ext.isEmpty(head_record.get('description'))) {
+                    head_record.set('description', '${l:HLS.REVERSE}');
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="csh_transaction_reverse_ds" loadData="true" model="csh.CSH511.csh_transaction">
+                <a:fields>
+                    <a:field name="transaction_id"/>
+                    <a:field name="reversed_date" required="true"/>
+                    <a:field name="reversed_period_name" prompt="HLS.ACCOUNT_PERIOD_NAME" readOnly="true" required="true"/>
+                    <a:field name="exchange_rate_type" readOnly="true"/>
+                    <a:field name="reverse_amount" readOnly="true"/>
+                    <a:field name="currency_name" readOnly="true"/>
+                    <a:field name="exchange_rate" readOnly="true"/>
+                    <a:field name="bank_slip_num"/>
+                    <a:field name="description"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_receipt_reverse_detail_update"/>
+                    <a:event name="load" handler="on_receipt_reverse_detail_load"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton id="csh511_receipt_reverse_detail_id" click="csh511_receipt_reverse_detail" text="HLS.REVERSE"/>
+                <a:gridButton click="csh511_receipt_reverse_return" text="HLS.RETURN"/>
+            </a:screenTopToolbar>
+            <a:form title="CSH510.REVERSE_RECEIPT">
+                <a:box column="3">
+                    <a:datePicker name="reversed_date" bindTarget="csh_transaction_reverse_ds"/>
+                    <a:textField name="reversed_period_name" bindTarget="csh_transaction_reverse_ds"/>
+                    <a:textField name="exchange_rate_type" bindTarget="csh_transaction_reverse_ds"/>
+                </a:box>
+                <a:box column="3">
+                    <a:numberField name="reverse_amount" allowFormat="true" bindTarget="csh_transaction_reverse_ds"/>
+                    <a:textField name="currency_name" bindTarget="csh_transaction_reverse_ds"/>
+                    <a:numberField name="exchange_rate" allowNegative="false" bindTarget="csh_transaction_reverse_ds" decimalPrecision="-1"/>
+                </a:box>
+                <a:box column="2">
+                    <a:textField name="bank_slip_num" bindTarget="csh_transaction_reverse_ds" width="150"/>
+                    <a:textField name="description" bindTarget="csh_transaction_reverse_ds" width="375"/>
+                </a:box>
+            </a:form>
+            <!-- <a:screenTopToolbar>
+                <a:gridButton id="csh511_receipt_reverse_detail_id" click="csh511_receipt_reverse_detail" text="HLS.REVERSE"/>
+                <a:gridButton click="csh511_receipt_reverse_return" text="HLS.RETURN"/>
+            </a:screenTopToolbar>
+            <a:form bindTarget="csh_transaction_receipt_maintain_query_ds" column="3" title="CSH510.CSH_RECEIPT_UPDATE">
+                <a:textField name="" bindTarget="csh_transaction_reverse_ds" prompt="合同编号" width="140"/>
+                    <a:textField name="" bindTarget="csh_transaction_reverse_ds" prompt="申请编号" width="140"/>
+                    <a:textField name="" bindTarget="csh_transaction_reverse_ds" prompt="客户名" width="140"/>
+                    <a:textField name="" bindTarget="csh_transaction_reverse_ds" prompt="车牌号" width="140"/>
+                    <a:textField name="" bindTarget="csh_transaction_reverse_ds" prompt="车架号" width="140"/>
+                    <a:textField name="" bindTarget="csh_transaction_reverse_ds" prompt="身份证" width="140"/>
+            </a:form>
+            <a:grid id="csh_transaction_receipt_maintain_grid_ds" bindTarget="csh_transaction_receipt_maintain_result_ds" navBar="true">
+                <a:columns>
+                    <a:column name="" prompt="合同编号" width="200"/>
+                    <a:column name="" align="center" prompt="申请编号" width="120"/>
+                    <a:column name="" prompt="客户名" width="160"/>
+                    <a:column name="" prompt="车牌号" width="160"/>
+                    <a:column name="" prompt="车架号" width="160"/>
+                    <a:column name="" prompt="身份证" width="160"/>
+                </a:columns>
+            </a:grid> -->
+        </a:screenBody>
+    </a:view>
+</a:screen>

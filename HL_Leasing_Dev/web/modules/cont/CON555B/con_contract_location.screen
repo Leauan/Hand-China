@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hand  
+    $Date: 2016-5-2 上午10:17:06  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <!--  <a:model-query model="cont.CON555B.con_contract_location_ln" rootPath="con555B_get_location"/> --><![CDATA[
+        
+        
+ 
+    ]]></a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_getnumber_link" model="cont.CON555B.con555_get_info" modelaction="execute"/>
+        <a:link id="con_modify_location_con_status_link" model="cont.CON555B.con_contract_location_ln" modelaction="execute"/>
+        <a:link id="hls_doc_file_print_confirm" url="${/request/@context_path}/modules/hls/HLS811/hls_doc_file_print_con_confirm.screen"/>
+        <a:link id="sys_user_link" model="cont.CON555B.sys_user" modelaction="query"/>
+        <script><![CDATA[
+            function lock_screen() {
+                detail_mask = $('con_contract_location_window').wrap;
+                Aurora.Masker.mask(detail_mask, 'con_contract_location_window');
+            }
+            
+            function unlock_screen() {
+                detail_mask = $('con_contract_location_window').wrap;
+                Aurora.Masker.unmask(detail_mask);
+            }
+            
+            function con555B_con_location_back() {
+                $('con_contract_location_window').close();
+            }
+            
+            function get_number(num) {
+                var num2;
+                if (num < 10) {
+                    num2 = '00' + num;
+            
+                } else if (num >= 10 && num < 100) {
+                    num2 = '0' + num;
+            
+                } else {
+                    num2 = num;
+                }
+                return num2;
+            }
+            var is_save_lag = 'N';
+            
+            function con555B_con_location_confirm() {
+                debugger;
+                if (is_save_lag == 'Y') {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '已保存，不可再重复保存!');
+                    return;
+                }
+            
+                var rec = $('con_contract_location_ln_result_ds').getCurrentRecord();
+                var rec_lease_term_ds = $('lease_term_ds').getCurrentRecord();
+                var years = rec.get('years');
+                var lease_term = rec_lease_term_ds.get('lease_term');
+                var doc_type = rec.get('doc_type');
+                var chest_number = rec.get('chest_number');
+                var location_id = rec.get('location_id');
+                // var doc_number = rec.get('doc_number');
+                // if (!rec.dirty) {
+                // return;
+                // }
+                if (p_location_id == location_id) {
+                    if (${/parameter/@document_status} == '40' || ${/parameter/@document_status} =='20') {
+                        Aurora.showMessage('${l:HLS.PROMPT}', '箱子未改变不能保存!');
+                    }
+                    return;
+                }
+            
+                if (Ext.isEmpty(chest_number)) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '箱号不能为空!');
+                    return;
+                }
+            
+                // if (years != lease_term && doc_type == '20') {
+                // Aurora.showMessage('${l:HLS.PROMPT}', '箱子的年份与合同年份不相等!');
+                // return;
+                // }
+                var number;
+                Aurora.request({
+                    url: $('con_contract_getnumber_link').getUrl(),
+                    para: {
+                        location_id: rec.get('location_id')
+                    },
+                    sync: true,
+                    success: function(res) {
+                        // if (rec.get('doc_type') == '10') {
+                        number = res.result.doc_number;
+                        //  } else {
+                        //      number = res.result.location_number2;
+                        // }
+            
+                    }
+                });
+                if (number > 0) {
+                    number = number + 1;
+                } else {
+                    number = 1;
+                }
+                var location_number = chest_number + '_' + get_number(number);
+                rec.set('docu_number', location_number);
+                rec.set('doc_number', number);
+            
+                var date = new Date();
+                var year = date.getFullYear();
+                var month = date.getMonth() + 1;
+                var day = date.getDate();
+                var dd = year + '-' + month + '-' + day;
+                rec.set('storage_date', dd);
+            
+                if ($('con_contract_location_ln_result_ds').validate() && $('contract_lease_item_ds').validate()) {
+                    lock_screen();
+                    $('con_contract_location_ln_result_ds').submit();
+                    $('contract_lease_item_ds').submit();
+            
+                }
+            
+                // if(${/parameter/@doc_type}=='10'){
+                // $('save1').disable();
+                // }else{
+                // $('save2').disable();
+                // }
+            }
+            
+            function location_ln_result_submitsuccess(ds, res) {
+                //con555B_con_location_back();
+                $('con_contract_location_ln_result_ds').query();
+                is_save_lag = 'Y';
+                unlock_screen();
+            }
+            
+            function location_ln_result_add(ds, res, index) {
+                var date = new Date();
+                var year = date.getFullYear();
+                var month = date.getMonth() + 1;
+                var day = date.getDate();
+                var dd = year + '-' + month + '-' + day;
+                res.set('storage_date', dd);
+                var chest_number = ds.getCurrentRecord().getField('chest_number');
+                chest_number.setLovPara('doc_type', ${/parameter/@doc_type});
+            }
+            
+            function beforesubmit_result_ds(ds) {
+                //debugger;
+                var rec = ds.getCurrentRecord();
+                Aurora.request({
+                    url: $('con_modify_location_con_status_link').getUrl(),
+                    para: {
+                        contract_id: ${/parameter/@contract_id},
+                        doc_type: '${/parameter/@doc_type}'
+                    },
+                    sync: true,
+                    success: function(res) {
+            
+                       }
+                });
+            }
+            
+            function contract_lease_item_load(ds) {
+            
+                if ('${/parameter/@doc_type}' == '10') {
+                    var contract_lease_item_id = document.getElementById('contract_lease_item_id');
+                    contract_lease_item_id.style.display = 'none';
+                    ds.getField('license_number').setRequired(false);
+                    ds.getField('item_frame_number').setRequired(false);
+                    ds.getField('color_of_apprearance').setRequired(false);
+                    ds.getField('item_engine_number').setRequired(false);
+                    ds.getField('mortgage_date').setRequired(false);
+                }
+            }
+            var p_location_id = -1;
+            
+            function result_ds_load(ds) {
+                debugger;
+                var date = new Date();
+                var year = date.getFullYear();
+                var month = date.getMonth() + 1;
+                var day = date.getDate();
+                var dd = year + '-' + month + '-' + day;
+            
+            
+                var recs = ds.getAll();
+                if (recs.length == 0) {
+                    ds.create([], 0);
+                    var chest_number = ds.getCurrentRecord().getField('chest_number');
+                    var lease_term = $('lease_term_ds').getCurrentRecord().get('lease_term');
+                    chest_number.setLovPara('doc_type', ${/parameter/@doc_type});
+                    chest_number.setLovPara('years', lease_term);
+                    recs[0].set('storage_date', dd);
+            
+                } else {
+                    var chest_number = ds.getCurrentRecord().getField('chest_number');
+                    var lease_term = $('lease_term_ds').getCurrentRecord().get('lease_term');
+                    chest_number.setLovPara('doc_type', ${/parameter/@doc_type});
+                    chest_number.setLovPara('years', lease_term);
+                    p_location_id = ds.getCurrentRecord().get('location_id');
+                }
+                Aurora.request({
+                    url: $('sys_user_link').getUrl(),
+                    para: {
+                        user_id: ${/session/@user_id}
+                    },
+                    sync: true,
+                    success: function(data) {
+                        if (data.result.record && !data.result.record.length) {
+                            var datas = ds.getAll();
+                            datas[0].set('created_by_n', data.result.record.user_name);
+                        }
+                    }
+                });
+            
+            }
+            
+            function contract_print() {
+                debugger;
+                var record = $('con_contract_location_ln_result_ds').getCurrentRecord();
+                var document_id = record.get('con_contract_location_ln');
+                if (Ext.isEmpty(document_id)) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '未保存，不能打印登记证标签！');
+                    return;
+                }
+                new Aurora.Window({
+                    id: '${/parameter/@layout_code}_con_contract_content_confirm_win_id',
+                    params: {
+                        document_id: document_id,
+                        document_table: 'CON_CONTRACT_LOCATION_LN'
+                    },
+                    url: $('hls_doc_file_print_confirm').getUrl(),
+                    title: '合同文本生成',
+                    width: 1300,
+                    height: 550
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="sys_user_ds" autoQuery="true" model="cont.CON555B.sys_user" queryUrl="${/request/@context_path}/autocrud/cont.CON555B.sys_user/query?user_id=${/session/@user_id}"/>
+            <a:dataSet id="chest_number_ds" autoQuery="true" model="cont.CON555B.con_contract_location" queryUrl="${/request/@context_path}/autocrud/cont.CON555B.con_contract_location/query?doc_type=${/parameter/@doc_type}"/>
+            <a:dataSet id="doc_type_ds2" lookupCode="DOC_TYPE"/>
+            <a:dataSet id="con_contract_location_ln_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="doc_type" defaultValue="${/parameter/@doc_type}"/>
+                    <a:field name="contract_id" defaultValue="${/parameter/@contract_id}"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con_contract_location_ln_result_ds" autoQuery="true" model="cont.CON555B.con_contract_location_ln" queryDataSet="con_contract_location_ln_query_ds">
+                <a:fields>
+                    <a:field name="location_con_status" defaultValue="normal"/>
+                    <a:field name="con_contract_location_ln"/>
+                    <a:field name="location_id"/>
+                    <a:field name="years"/>
+                    <a:field name="storage"/>
+                    <!--  <a:field name="chest_number" required="true"/> -->
+                    <!--                     <a:field name="chest_number_n" displayField="chest_number" options="chest_number_ds" required="true" returnField="chest_number" valueField="chest_number"/>
+ -->
+                    <a:field name="chest_number" lovHeight="500" lovService="cont.CON555B.con_contract_location" lovWidth="600" required="true">
+                        <a:mapping>
+                            <a:map from="location_id" to="location_id"/>
+                            <a:map from="chest_number" to="chest_number"/>
+                            <a:map from="storage" to="storage"/>
+                            <a:map from="years" to="years"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="chest_floors"/>
+                    <a:field name="docu_number" readOnly="true"/>
+                    <a:field name="docu_amount"/>
+                    <a:field name="note"/>
+                    <a:field name="doc_type" defaultValue="${/parameter/@doc_type}" readOnly="true"/>
+                    <a:field name="doc_type_n" defaultValue="${/parameter/@doc_type_n}" displayField="code_value_name" options="doc_type_ds2" readOnly="true" returnField="doc_type" valueField="code_value"/>
+                    <a:field name="storage_date" readOnly="true"/>
+                    <a:field name="contract_id" defaultValue="${/parameter/@contract_id}"/>
+                    <a:field name="created_by" defaultValue="${/session/@user_id}"/>
+                    <a:field name="created_by_n" readOnly="true"/>
+                    <a:field name="doc_number"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="location_ln_result_submitsuccess"/>
+                    <!--    <a:event name="add" handler="location_ln_result_add"/> -->
+                    <a:event name="beforesubmit" handler="beforesubmit_result_ds"/>
+                    <a:event name="load" handler="result_ds_load"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="contract_lease_item_ds" autoQuery="true" model="cont.CON555B.con_contract_lease_item" queryUrl="${/request/@context_path}/autocrud/cont.CON555B.con_contract_lease_item/query?contract_id=${/parameter/@contract_id}">
+                <a:fields>
+                    <a:field name="license_number" required="true"/>
+                    <a:field name="item_frame_number" required="true"/>
+                    <a:field name="color_of_apprearance" required="true"/>
+                    <a:field name="item_engine_number" required="true"/>
+                    <a:field name="mortgage_date" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="contract_lease_item_load"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="lease_term_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="lease_term" defaultValue="${/parameter/@lease_term}" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="con555B_con_location_back" text="HLS.BACK"/>
+                <a:gridButton click="con555B_con_location_confirm" text="确认"/>
+                <a:gridButton click="contract_print" text="登记证标签打印"/>
+            </a:screenTopToolbar>
+            <a:form column="4" title="归档入库">
+                <a:lov name="chest_number" bindTarget="con_contract_location_ln_result_ds" prompt="箱号"/>
+                <a:textField name="docu_number" bindTarget="con_contract_location_ln_result_ds" prompt="档案编号"/>
+                <a:comboBox name="doc_type_n" bindTarget="con_contract_location_ln_result_ds" prompt="文件类型"/>
+                <a:datePicker name="storage_date" bindTarget="con_contract_location_ln_result_ds" prompt="入库日期"/>
+                <a:textField name="lease_term" bindTarget="lease_term_ds" prompt="年份"/>
+                <a:textField name="created_by_n" bindTarget="con_contract_location_ln_result_ds" prompt="归档人员"/>
+            </a:form>
+            <div id="contract_lease_item_id">
+                <a:form column="4" title="归档入库">
+                    <a:textField name="license_number" bindTarget="contract_lease_item_ds" prompt="车牌"/>
+                    <a:textField name="item_frame_number" bindTarget="contract_lease_item_ds" prompt="车架号"/>
+                    <a:textField name="color_of_apprearance" bindTarget="contract_lease_item_ds" prompt="颜色"/>
+                    <a:textField name="item_engine_number" bindTarget="contract_lease_item_ds" prompt="发动机号"/>
+                    <a:datePicker name="mortgage_date" bindTarget="contract_lease_item_ds" prompt="抵押日期"/>
+                </a:form>
+            </div>
+        </a:screenBody>
+    </a:view>
+</a:screen>

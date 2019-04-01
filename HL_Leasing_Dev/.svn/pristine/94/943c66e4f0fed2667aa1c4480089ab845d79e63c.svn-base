@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hyb  
+    $Date: 2012-10-11 下午4:21:04  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" needAccessControl="false">
+    <bm:fields>
+        <!--        <bm:field name="company_id"/> -->
+        <bm:field name="account_code"/>
+        <bm:field name="account_desc"/>
+        <bm:field name="entered_period_to_date_amt"/>
+        <bm:field name="functional_period_to_date"/>
+        <bm:field name="functional_period_net_dr_amt"/>
+        <bm:field name="entered_period_net_dr_amt"/>
+        <bm:field name="functional_period_net_cr_amt"/>
+        <bm:field name="entered_period_net_cr_amt"/>
+        <bm:field name="entered_project_to_date_amt"/>
+        <bm:field name="functional_project_to_date"/>
+        <bm:field name="period_name"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+ select  ga.account_code,
+      GA.DESCRIPTION as account_desc,
+                 
+       nvl((select nvl(b.entered_project_to_date_amt,0)-nvl(b.entered_period_to_date_amt,0) from gld_balances b where b.account_id=a.account_id 
+       and b.period_name = a.period_name
+       and a.currency_code=b.currency_code 
+       and b.company_id=a.company_id),0)  entered_period_to_date_amt, --原币期初余额
+     
+       (select nvl(b.entered_period_net_dr_amt,0) from gld_balances b where b.account_id=a.account_id 
+       and b.period_name = a.period_name
+       and b.company_id=a.company_id 
+       and a.currency_code=b.currency_code) entered_period_net_dr_amt,  --原币借方期间发生额
+       
+        (select nvl(b.entered_period_net_cr_amt,0) from gld_balances b where b.account_id=a.account_id 
+       and b.period_name = a.period_name
+       and b.company_id=a.company_id 
+       and a.currency_code=b.currency_code) entered_period_net_cr_amt,  --原币贷方期间发生额
+       
+       nvl((select b.entered_project_to_date_amt from gld_balances b where b.account_id=a.account_id
+       and b.period_name = a.period_name
+       and a.currency_code=b.currency_code
+       and b.company_id=a.company_id),0) entered_project_to_date_amt,  --原币期末余额
+            
+        nvl((select b.functional_period_to_date from gld_balances b where b.account_id=a.account_id 
+       and b.period_name = a.period_name
+       and a.currency_code=b.currency_code 
+       and b.company_id=a.company_id),0)  functional_period_to_date, --本位币期初余额    
+       
+       (select nvl(b.functional_period_net_dr,0) from gld_balances b where b.account_id=a.account_id 
+       and b.period_name = a.period_name
+       and b.company_id=a.company_id 
+       and a.currency_code=b.currency_code) functional_period_net_dr_amt,  --本位币借方期间发生额
+       
+        (select nvl(b.functional_period_net_cr,0) from gld_balances b where b.account_id=a.account_id 
+       and b.period_name = a.period_name
+       and b.company_id=a.company_id 
+       and a.currency_code=b.currency_code) functional_period_net_cr_amt,  --本位币贷方期间发生额
+       
+       nvl((select b.functional_project_to_date from gld_balances b where b.account_id=a.account_id
+       and b.period_name = a.period_name
+       and a.currency_code=b.currency_code
+       and b.company_id=a.company_id),0) functional_project_to_date,  --本位币期末余额
+       a.period_name
+       
+  from gld_balances a,gld_accounts_vl ga
+  where a.currency_code=${@currency_code} and 
+  ga.ACCOUNT_ID=a.account_id
+  and ga.account_code between nvl(${@account_code_from},ga.account_code) and nvl(${@account_code_to},ga.account_code)
+   and a.company_id=${/session/@company_id}
+  and a.period_name between ${@period_name_from} and ${@period_name_to}
+ order by account_code
+ #ORDER_BY_CLAUSE#
+         ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="currency_code" queryOperator="like"/>
+        <!--         <bm:query-field name="account_code_from" queryExpression="(account_code &gt;=${@account_code_from})"/>
+        <bm:query-field name="account_code_to" queryExpression="(account_code &lt;=${@account_code_to})"/> -->
+        <bm:query-field name="company_id" queryOperator="like"/>
+        <!--         <bm:query-field name="account_level_from" queryExpression="(account_level &gt;=${@account_level_from})"/>
+        <bm:query-field name="account_level_to" queryExpression="(account_level &lt;=${@account_level_to})"/> -->
+    </bm:query-fields>
+</bm:model>

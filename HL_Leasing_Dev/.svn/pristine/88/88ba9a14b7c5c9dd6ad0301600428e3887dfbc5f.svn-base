@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[SELECT * FROM (
+            						SELECT v.contract_number,
+            							   v.contract_id,
+									       v.project_number,
+									       v.invoice_agent_desc,
+									       v.bp_name,
+									       to_char(v.inception_of_lease,'yyyy-mm-dd') inception_of_lease,
+									       v.dd_bank_account_name dd_bp_name,
+									       v.contract_status,
+									       v.direct_debit_bank_id_n,
+									       v.dd_bank_account_name,
+									       v.dd_bank_branch_name,
+									       v.dd_bank_account_num,
+									       v.dd_remark,
+									       (SELECT m.cell_phone
+									          FROM hls_bp_master m
+									         WHERE m.bp_id = v.bp_id_tenant) cell_phone,
+									       v.withhold_way,
+									       (SELECT v.code_value_name
+									          FROM sys_code_values_vl v,sys_codes c
+									         WHERE v.code_value = v.withhold_way
+									         AND v.code_id = c.code_id
+         									 AND c.code='WITHHOLD_WAYS') withhold_way_name,
+									       NVL((SELECT d.send_spd_auth
+									          FROM rd_ebank_spd_ddaccount_vl d
+									         WHERE d.contract_id = v.contract_id),'NONE') send_spd_auth,
+									       NVL((SELECT d.send_spd_auth_name
+									             FROM rd_ebank_spd_ddaccount_vl d
+									            WHERE d.contract_id = v.contract_id),
+									           '未发起') send_spd_auth_name,
+									      (SELECT u.user_name || u.description
+									          FROM rd_ebank_spd_ddaccount d,sys_user u
+									         WHERE d.send_spd_auther = u.user_id
+									         and d.contract_id = v.contract_id) send_spd_auther,
+									       (SELECT u.user_name || u.description
+									          FROM rd_ebank_spd_ddaccount d,sys_user u
+									         WHERE d.change_spd_auther = u.user_id
+									         and d.contract_id = v.contract_id) change_spd_auther,
+									       (SELECT d.spd_auth_status
+									          FROM rd_ebank_spd_ddaccount_vl d
+									         WHERE d.contract_id = v.contract_id) spd_auth_status,
+									       (SELECT d.spd_auth_status_name
+									          FROM rd_ebank_spd_ddaccount_vl d
+									         WHERE d.contract_id = v.contract_id) spd_auth_status_name,
+									       to_char((SELECT d.send_spd_auth_date
+									          FROM rd_ebank_spd_ddaccount d
+									         WHERE d.contract_id = v.contract_id),'yyyy-mm-dd  hh24:mi:ss') send_spd_auth_date,
+									         to_char((SELECT d.change_spd_auth_date
+									          FROM rd_ebank_spd_ddaccount d
+									         WHERE d.contract_id = v.contract_id),'yyyy-mm-dd  hh24:mi:ss') change_spd_auth_date，
+									      to_char( (SELECT d.spd_auth_date
+									          FROM rd_ebank_spd_ddaccount d
+									         WHERE d.contract_id = v.contract_id),'yyyy-mm-dd  hh24:mi:ss') spd_auth_date,
+									       (SELECT d.spd_auth_feedback
+									          FROM rd_ebank_spd_ddaccount d
+									         WHERE d.contract_id = v.contract_id) spd_auth_feedback,
+									       (SELECT d.remark
+									          FROM rd_ebank_spd_ddaccount d
+									         WHERE d.contract_id = v.contract_id) remark,
+									         (SELECT m.id_card_no FROM hls_bp_master m WHERE m.bp_id = v.bp_id_tenant AND m.id_type='ID_CARD') id_card_no
+									  FROM con_contract_v v
+									 WHERE v.contract_status IN ('INCEPT', 'SIGN')
+									 --AND v.withhold_way = 'SPD'
+									 )t
+									 #WHERE_CLAUSE#
+			]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="contract_number" queryExpression="t.contract_number like &apos;%&apos;||${@contract_number}||&apos;%&apos;"/>
+        <bm:query-field name="project_number" queryExpression="t.project_number like &apos;%&apos;||${@project_number}||&apos;%&apos;"/>
+        <bm:query-field name="invoice_agent_desc" queryExpression="t.invoice_agent_desc like &apos;%&apos;||${@invoice_agent_desc}||&apos;%&apos;"/>
+        <bm:query-field name="bp_name" queryExpression="t.bp_name like &apos;%&apos;||${@bp_name}||&apos;%&apos;"/>
+        <bm:query-field name="id_card_no" queryExpression="t.id_card_no like &apos;%&apos;||${@id_card_no}||&apos;%&apos;"/>
+        <bm:query-field name="send_spd_auther" queryExpression="t.send_spd_auther like &apos;%&apos;||${@send_spd_auther}||&apos;%&apos;"/>
+        <bm:query-field name="change_spd_auther" queryExpression="t.change_spd_auther like &apos;%&apos;||${@change_spd_auther}||&apos;%&apos;"/>
+        <bm:query-field name="send_spd_auth" queryExpression="t.send_spd_auth =${@send_spd_auth}"/>
+        <bm:query-field name="spd_auth_status" queryExpression="t.spd_auth_status = ${@spd_auth_status}"/>
+        <bm:query-field name="withhold_way" queryExpression="t.withhold_way = ${@withhold_way}"/>
+        <bm:query-field name="send_spd_auth_date_from" queryExpression="to_date(t.send_spd_auth_date, &apos;yyyy-mm-dd hh24-mi-ss&apos;) &gt;= to_date(${@send_spd_auth_date_from}, &apos;yyyy-mm-dd hh24-mi-ss&apos;)"/>
+        <bm:query-field name="send_spd_auth_date_to" queryExpression="to_date(t.send_spd_auth_date, &apos;yyyy-mm-dd hh24-mi-ss&apos;) &lt;= to_date(${@send_spd_auth_date_to}, &apos;yyyy-mm-dd hh24:mi:ss&apos;)"/>
+        <bm:query-field name="spd_auth_date_from" queryExpression="to_date(t.spd_auth_date, &apos;yyyy-mm-dd hh24-mi-ss&apos;) &gt;= to_date(${@spd_auth_date_from}, &apos;yyyy-mm-dd hh24-mi-ss&apos;)"/>
+        <bm:query-field name="spd_auth_date_to" queryExpression="to_date(t.spd_auth_date, &apos;yyyy-mm-dd hh24-mi-ss&apos;) &lt;= to_date(${@spd_auth_date_to}, &apos;yyyy-mm-dd hh24:mi:ss&apos;)"/>
+        <bm:query-field name="change_spd_auth_date_from" queryExpression="to_date(t.change_spd_auth_date, &apos;yyyy-mm-dd hh24-mi-ss&apos;) &gt;= to_date(${@change_spd_auth_date_from}, &apos;yyyy-mm-dd hh24-mi-ss&apos;)"/>
+        <bm:query-field name="change_spd_auth_date_to" queryExpression="to_date(t.change_spd_auth_date, &apos;yyyy-mm-dd hh24-mi-ss&apos;) &lt;= to_date(${@change_spd_auth_date_to}, &apos;yyyy-mm-dd hh24:mi:ss&apos;)"/>
+    </bm:query-fields>
+</bm:model>

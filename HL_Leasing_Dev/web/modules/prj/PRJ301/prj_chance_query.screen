@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-7-5 下午01:15:52  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootPath="default_value_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="pageLink_chanceMaintain_chanceUpdate" url="${/request/@context_path}/modules/cont/CON500/con_contract_update.screen"/>
+        <a:link id="sys_service_welcome_link" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <script><![CDATA[
+            
+            function chanceMaintainScreen_quit() {
+                location.href = $('sys_service_welcome_link').getUrl();
+            }
+            
+            function chanceMaintainDs_grid_query() {
+                $('chanceMaintainDs').query();
+            }
+            
+            function chanceMaintainDs_grid_refresh() {
+                var ds = $('chanceMaintainDs');
+                ds.query(ds.currentPage);
+            }
+            
+            function chanceMaintainDs_grid_clear() {
+                $('chanceMaintainDs_grid').clear();
+            }
+            
+            function chanceMaintainDs_grid_update(id, chance_id, status) {
+                var maintain_type;
+                if (status == 'CLOSED' || status == 'CREATED') {
+                    maintain_type = 'READONLY';
+                } else {
+                    maintain_type = 'UPDATE';
+                }
+                var current_record = $('chanceMaintainDs').findById(id);
+                var param = current_record.data;
+                param['function_code'] = 'PRJ301';
+                param['document_id'] = chance_id;
+                param['function_usage'] = 'QUERY';
+                param['maintain_type'] = maintain_type;
+                param['url_title'] = '${l:PRJ301.PRJ_CHANCE_QUERY}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'pageLink_chanceMaintain_chanceUpdate', 'chanceMaintainDs');
+            }
+            
+            function render_chanceMaintainDs_grid(value, record, name) {
+                if (name == 'chance_number') {
+                    return '<a href="javascript:chanceMaintainDs_grid_update(' + record.id + ',' + record.get('chance_id') + ',\'' + record.get('status') + '\');">' + value + '</a>';
+                } else if (name == 'creation_date') {
+                    if (!Ext.isEmpty(value)) {
+                        return value.parseDate('yyyy-mm-dd').format('yyyy-mm-dd');
+                    }
+                    return '';
+                }
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=CHANCE&amp;function_code=PRJ301"/>
+        <a:dataSets>
+            <a:dataSet id="chanceMaintain_organizationDs" loadData="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="chanceMaintain_channelDs" loadData="true" model="basic.hls_lease_channel_for_lov"/>
+            <a:dataSet id="chanceMaintain_divisionDs" loadData="true" model="basic.hls_division_for_lov"/>
+            <a:dataSet id="chanceMaintain_statusDs" lookupCode="PRJ400_CHANCE_STATUS"/>
+            <a:dataSet id="chanceMaintain_paraDs" autoCreate="true" model="prj.PRJ401.prj_chance">
+                <a:fields>
+                    <a:field name="chance_status_n" displayField="code_value_name" options="chanceMaintain_statusDs" returnField="chance_status" valueField="code_value"/>
+                    <a:field name="lease_organization_n" displayField="description" options="chanceMaintain_organizationDs" returnField="lease_organization" valueField="lease_organization"/>
+                    <a:field name="lease_channel_n" displayField="description" options="chanceMaintain_channelDs" returnField="lease_channel" valueField="lease_channel"/>
+                    <a:field name="division_n" displayField="description" options="chanceMaintain_divisionDs" returnField="division" valueField="division"/>
+                    <a:field name="chance_number"/>
+                    <a:field name="employee_id"/>
+                    <a:field name="employee_id_n" lovGridHeight="300" lovHeight="450" lovService="basic.hls_salesman_v_for_lov" lovWidth="500" title="PRJ501.PRJ_PROJECT.EMPLOYEE_NAME">
+                        <a:mapping>
+                            <a:map from="employee_id" to="employee_id"/>
+                            <a:map from="name" to="employee_id_n"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="chanceMaintainDs" autoPageSize="true" autoQuery="true" model="prj.PRJ401.prj_chance_v" queryDataSet="chanceMaintain_paraDs" selectable="true" selectionModel="single">
+                <a:events>
+                    <a:event name="query" handler="aut_authority_list_validate_query"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="chanceMaintainScreen_quit" text="HLS.EXIT"/>
+                <a:gridButton click="chanceMaintainDs_grid_query" text="HLS.QUERY"/>
+                <a:gridButton click="chanceMaintainDs_grid_clear" text="HLS.CLEAR"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="120" marginWidth="30" title="HLS.QUERY_TITLE">
+                <a:textField name="chance_number" bindTarget="chanceMaintain_paraDs" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.CHANCE_NUMBER"/>
+                <a:lov name="employee_id_n" bindTarget="chanceMaintain_paraDs" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.EMPLOYEE_ID_N"/>
+                <a:textField name="bp_name" bindTarget="chanceMaintain_paraDs" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.BP_NAME"/>
+                <a:comboBox name="chance_status_n" bindTarget="chanceMaintain_paraDs" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.CHANCE_STATUS_N"/>
+                <a:comboBox name="lease_organization_n" bindTarget="chanceMaintain_paraDs" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.LEASE_ORGANIZATION_N"/>
+                <a:comboBox name="lease_channel_n" bindTarget="chanceMaintain_paraDs" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.LEASE_CHANNEL_N"/>
+                <a:comboBox name="division_n" bindTarget="chanceMaintain_paraDs" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.DIVISION_N"/>
+                <a:textField name="lease_item_short_name" bindTarget="chanceMaintain_paraDs" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.LEASE_ITEM_SHORT_NAME"/>
+                <a:datePicker name="creation_date_from" bindTarget="chanceMaintain_paraDs" prompt="PRJ401.QUERY_FIELD.CREATION_DATE_FROM"/>
+                <a:datePicker name="creation_date_to" bindTarget="chanceMaintain_paraDs" prompt="PRJ401.QUERY_FIELD.CREATION_DATE_TO"/>
+            </a:form>
+            <a:grid id="chanceMaintainDs_grid" bindTarget="chanceMaintainDs" marginHeight="250" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="chance_number" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.CHANCE_NUMBER" renderer="render_chanceMaintainDs_grid" width="120"/>
+                    <a:column name="employee_id_n" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.EMPLOYEE_ID_N" width="80"/>
+                    <!-- <a:column name="lease_organization_n" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.LEASE_ORGANIZATION_N" width="80"/> -->
+                    <a:column name="lease_channel_n" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.LEASE_CHANNEL_N" width="80"/>
+                    <a:column name="division_n" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.DIVISION_N" width="80"/>
+                    <a:column name="bp_name" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.BP_NAME" width="250"/>
+                    <a:column name="lease_item_short_name" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.LEASE_ITEM_SHORT_NAME" width="200"/>
+                    <a:column name="finance_amount" align="right" prompt="HLS.FINANCE_AMOUNT" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="creation_date" prompt="HLS.CREATION_DATE" renderer="render_chanceMaintainDs_grid" width="80"/>
+                    <a:column name="chance_status_n" prompt="PRJ401.PRJ_CHANCE_UPDATE_ENTRANCE.CHANCE_STATUS_N" width="80"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

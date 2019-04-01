@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang 
+    $Date: 2015年12月3日 下午4:10:23  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="enabled_flag=&apos;Y&apos;" fetchAll="true" model="basic.hls_document_type_v" rootPath="document_type"/>
+        <a:model-query defaultWhereClause="enabled_flag=&apos;Y&apos;" fetchAll="true" model="hls.HLS002.hls_document_category" rootPath="document_category"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_extension_detail_link_id" url="${/request/@context_path}/modules/cont/CON704/con_extension_detail.screen"/>
+        <a:link id="con_contract_extension_create_change_req_link_id" model="cont.CON704.con_contract_extension_create_change_req" modelaction="update"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <script><![CDATA[
+            function contractQueryScreen_forward() {
+                history.go(1);
+            }
+            
+            function contractQueryScreen_back() {
+                history.go(-1);
+            }
+            
+            function contractQueryScreen_query() {
+                $('contractQueryScreen_mainDs').query();
+            }
+            
+            function contractQueryScreen_refresh() {
+                var ds = $('contractQueryScreen_mainDs');
+                ds.query(ds.currentPage);
+            }
+            
+            function lock_extension_window() {
+                Aurora.Masker.mask(document.documentElement, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_extension_window() {
+                Aurora.Masker.unmask(document.documentElement);
+            }
+            
+            function contractQueryScreen_add() {
+                var result_records = $('contractQueryScreen_mainDs').getSelected();
+                if (result_records.length != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '请选择一条记录！');
+                    return;
+                }
+                var result_record = result_records[0];
+                var contract_id = result_record.get('contract_id');
+                var contract_number = result_record.get('contract_number');
+                var query_record = $('contractQueryScreen_paraDs').getCurrentRecord();
+                var simulation_flag = query_record.get('simulation_flag');
+            
+                function open_detail_extension_window() {
+                    lock_extension_window();
+                    Aurora.request({
+                        url: $('con_contract_extension_create_change_req_link_id').getUrl(),
+                        para: {
+                            contract_id: contract_id,
+                            simulation_flag: simulation_flag
+                        },
+                        success: function(res) {
+                            unlock_extension_window();
+                            var change_req_id = res.result.change_req_id;
+                            if (change_req_id) {
+                                var param = {};
+                                param['function_code'] = 'CON704D';
+                                param['change_req_id'] = change_req_id;
+                                param['function_usage'] = 'UPDATE';
+                                param['contract_id'] = change_req_id;
+                                param['url_title'] = '展期明细';
+                                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_extension_detail_link_id', 'contractQueryScreen_mainDs');
+                            } else {
+                                Aurora.showMessage('${l:PROMPT}', '计算失败！');
+                            }
+            
+                        },
+                        failure: function() {
+                            unlock_extension_window();
+                        },
+                        error: function() {
+                            unlock_extension_window();
+                        },
+                        scope: this
+                    });
+            
+                }
+                if (simulation_flag == 'Y') {
+                    open_detail_extension_window();
+                } else {
+                    Aurora.showConfirm('${l:PROMPT}', '合同编号：' + contract_number + ',是否确认对此合同进行展期？', function() {
+                        open_detail_extension_window();
+                    }, function() {
+                        unlock_extension_window();
+                    });
+                }
+            }
+            
+            function on_con_extension_change_req_number_renderer(value, record, name) {
+                if (name == 'change_req_number') {
+                    return '<a href="javascript:winopen_change_req_extension(\'' + record.get('change_req_id') + '\')">' + value || 'undefined' + '</a>';
+                }
+            }
+            
+            function winopen_change_req_extension(change_req_id) {
+                var param = {};
+                param['function_code'] = 'CON704D';
+                param['change_req_id'] = change_req_id;
+                param['function_usage'] = 'UPDATE';
+                param['contract_id'] = change_req_id;
+                param['url_title'] = '展期明细';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_extension_detail_link_id', 'contractQueryScreen_mainDs');
+            }
+            
+            
+            function onUpdate_extension_load(ds) {
+                $('con_change_req_extension_list_ds').query($('con_change_req_extension_list_ds').currentPage);
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:dataSets>
+            <a:dataSet id="bpClassDs" lookupCode="YES_NO"/>
+            <a:dataSet id="document_type_ds">
+                <a:datas dataSource="/model/document_type"/>
+            </a:dataSet>
+            <a:dataSet id="document_category_ds">
+                <a:datas dataSource="/model/document_category"/>
+            </a:dataSet>
+            <a:dataSet id="contractQueryScreen_paraDs" autoCreate="true">
+                <a:fields>
+                    <a:field name="overdue_status_desc" displayField="code_value_name" options="bpClassDs" returnField="overdue_status" valueField="code_value"/>
+                    <a:field name="document_type_desc" displayField="document_type_desc" options="document_type_ds" returnField="document_type" valueField="document_type"/>
+                    <a:field name="document_category_desc" displayField="description" options="document_category_ds" returnField="document_category" valueField="document_category"/>
+                    <a:field name="employee_id"/>
+                    <a:field name="employee_code" lovGridHeight="300" lovHeight="450" lovService="basic.hls_salesman_assign_v_for_lov" lovWidth="500" title="PRJ501.PRJ_contract.EMPLOYEE_NAME">
+                        <a:mapping>
+                            <a:map from="employee_id" to="employee_id"/>
+                            <a:map from="employee_name" to="employee_name"/>
+                            <a:map from="employee_code" to="employee_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_code" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="user_desc" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="basic.sys_user_for_lov" lovWidth="500" prompt="AUT_TRX_USER_AUTHORIZE.USER_ID" title="员工选择">
+                        <a:mapping>
+                            <a:map from="description" to="user_desc"/>
+                            <a:map from="user_id" to="user_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="simulation_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="contractQueryScreen_mainDs" autoCount="true" autoPageSize="true" autoQuery="true" model="cont.CON704.con_extension_query" queryDataSet="contractQueryScreen_paraDs" selectable="true" selectionModel="single">
+                <a:events>
+                    <a:event name="load" handler="onUpdate_extension_load"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="con_change_req_extension_list_ds" autoCount="true" autoPageSize="true" model="cont.CON704.con_contract_change_extension_req_lv" queryDataSet="contractQueryScreen_paraDs" selectable="true" selectionModel="single"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="contractQueryScreen_back" text="HLS.BACK"/>
+                <a:gridButton click="contractQueryScreen_forward" text="HLS.FORWARD"/>
+                <a:gridButton text="HLS.EXIT"/>
+                <a:gridButton click="contractQueryScreen_add" text="HLS.CREATE"/>
+                <a:gridButton click="contractQueryScreen_query" text="HLS.QUERY"/>
+            </a:screenTopToolbar>
+            <a:queryForm id="condition_queryForm" bindTarget="contractQueryScreen_paraDs" createSearchButton="false" resultTarget="contractQueryScreen_mainDs">
+                <a:formToolBar labelWidth="100">
+                    <a:textField name="contract_number" bindTarget="contractQueryScreen_paraDs" prompt="合同编码"/>
+                    <a:textField name="contract_name" bindTarget="contractQueryScreen_paraDs" prompt="合同名称"/>
+                    <a:checkBox name="simulation_flag" bindTarget="contractQueryScreen_paraDs" prompt="试算标志"/>
+                </a:formToolBar>
+                <a:formBody column="4" labelWidth="100">
+                    <a:datePicker name="date_from" bindTarget="contractQueryScreen_paraDs" prompt="起租日期从"/>
+                    <a:datePicker name="date_to" bindTarget="contractQueryScreen_paraDs" prompt="起租日期到"/>
+                    <a:lov name="bp_code" bindTarget="contractQueryScreen_paraDs" prompt="承租人代码"/>
+                    <a:textField name="bp_name" bindTarget="contractQueryScreen_paraDs" prompt="承租人名称"/>
+                </a:formBody>
+            </a:queryForm>
+            <a:tabPanel marginHeight="200" marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="待创建合同清单" width="130">
+                        <a:grid id="contractQueryScreen_mainDs_grid" bindTarget="contractQueryScreen_mainDs" marginHeight="230" marginWidth="35" navBar="true">
+                            <a:columns>
+                                <a:column name="document_type_desc" prompt="合同类型" width="150"/>
+                                <a:column name="document_category_desc" prompt="合同类别" width="150"/>
+                                <a:column name="bp_name" prompt="承租人名称" width="250"/>
+                                <a:column name="contract_number" prompt="合同编号" width="250"/>
+                                <a:column name="contract_name" prompt="合同名称" width="250"/>
+                                <a:column name="inception_of_lease" prompt="起租日期"/>
+                                <a:column name="status_desc" prompt="合同状态"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab prompt="待提交变更申请" width="120">
+                        <a:grid id="con_change_req_extension_list_grid_id" bindTarget="con_change_req_extension_list_ds" marginHeight="230" marginWidth="35" navBar="true">
+                            <a:columns>
+                                <a:column name="change_req_number" prompt="变更编号" renderer="on_con_extension_change_req_number_renderer" width="150"/>
+                                <a:column name="req_status_n" prompt="变更状态" width="150"/>
+                                <a:column name="contract_number" prompt="合同编号" width="150"/>
+                                <a:column name="bp_id_tenant_n" prompt="承租人名称" width="250"/>
+                                <a:column name="contract_name" prompt="合同名称" width="250"/>
+                                <a:column name="req_date" prompt="申请日期" renderer="Aurora.formatDate" width="150"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wubin
+    $Date: 2011-8-9 01:59:07  
+    $Revision: 1.0  
+    $Purpose: SAP接口交互监控
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:view>
+        <a:link id="request_resend_link" model="db.hls_ws_utl_dbws.request_resend" modelaction="execute"/>
+        <a:link id="hls_ws_requests_detail_link" url="${/request/@context_path}/modules/hls_ws/hls_ws_requests_detail.screen"/>
+        <script><![CDATA[
+            function doQuery() {
+                $('hls_ws_requests_result_ds').query();
+            }
+            
+            function resetDs() {
+                $('hls_ws_requests_query_ds').reset();
+            }
+            
+            function viewRequestInfo(value, record, name) {
+                var request_id = record.get('request_id');
+                return '<a href="javascript:viewRequestDetail(' + request_id + ',0)">请求明细</a>';
+            }
+            
+            function viewResponseInfo(value, record, name) {
+                var request_id = record.get('request_id');
+                var resend_flag = record.get('resend_flag');
+                //if (resend_flag == 1) {
+                    return '<a href="javascript:viewRequestDetail(' + request_id + ',1)">返回明细</a>';
+                /* } else {
+                    return '';
+                } */
+            }
+            
+            function viewRequestDetail(request_id, type) {
+                new Aurora.Window({
+                    id: 'hls_ws_requests_detail_window',
+                    url: /*hls_ws_requests_detail.screen*/$('hls_ws_requests_detail_link').getUrl()+'?request_id=' + request_id + '&type=' + type,
+                    title: '',
+                    height: 560,
+                    width: 550
+                });
+            }
+            
+            function resend(value, record, name) {
+                if (value == 0) {
+                    var request_id = record.get('request_id');
+                    return '<a href="javascript:resend_control(' + request_id + ')">重新发送</a>';
+                } else {
+                    return '';
+                }
+            }
+            
+            function resend_control(request_id) {
+                Aurora.request({
+                    url: /*1111111111111111111111111/autocrud/db.hls_ws_utl_dbws_pkg.request_resend/execute*/$('request_resend_link').getUrl(),
+                    para: {
+                        request_id: request_id
+                    },
+                    success: function(args) {
+                        var p_result = args.result.p_result;
+                        var p_error_msg = args.result.p_error_msg;
+                        if (p_result == "S") {
+                        	Aurora.showMessage('提示','提交成功！');
+                            doQuery();
+                            return true;
+                        } else {
+                            Aurora.showMessage('错误',p_error_msg);
+                            return false;
+                        }
+                    },
+                    scope: this
+                });
+            }]]></script>
+        <a:dataSets>
+            <a:dataSet id="hls_ws_sap_request_status_list" lookupCode="HLS_WS_REQUEST_STATUS_CODE"/>
+            <a:dataSet id="hls_ws_sap_return_status_list" lookupCode="HLS_WS_SAP_RETURN_STATUS"/>
+            <a:dataSet id="hls_ws_requests_query_ds" model="hls_ws.HLS_WS3020.hls_ws_requests_for_maintain">
+                <a:fields>
+                    <a:field name="status_code_display" displayField="code_value_name" options="hls_ws_sap_request_status_list" returnField="status_code" valueField="code_value"/>
+                    <a:field name="return_status_display" displayField="code_value_name" options="hls_ws_sap_return_status_list" returnField="return_status" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="hls_ws_requests_result_ds" autoCount="true" autoQuery="false" fetchAll="false" model="hls_ws.HLS_WS3020.hls_ws_requests_for_maintain" pageSize="50" queryDataSet="hls_ws_requests_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="request_id" required="true"/>
+                    <a:field name="status_code_display" displayField="code_value_name" options="hls_ws_sap_request_status_list" returnField="status_code" valueField="code_value"/>
+                    <a:field name="return_status_display" displayField="code_value_name" options="hls_ws_sap_return_status_list" returnField="return_status" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form column="2" labelWidth="100" title="HAP_QUERY_TITLE" width="600">
+                <a:textField name="request_id" bindTarget="hls_ws_requests_query_ds">
+                    <a:events>
+                        <a:event name="enterdown" handler="doQuery"/>
+                    </a:events>
+                </a:textField>
+                <a:textField name="function_name" bindTarget="hls_ws_requests_query_ds">
+                    <a:events>
+                        <a:event name="enterdown" handler="doQuery"/>
+                    </a:events>
+                </a:textField>
+                <a:datePicker name="request_date_start" bindTarget="hls_ws_requests_query_ds" prompt="HLS_WS_REQUESTS.REQUEST_DATE_START">
+                    <a:events>
+                        <a:event name="enterdown" handler="doQuery"/>
+                    </a:events>
+                </a:datePicker>
+                <a:datePicker name="request_date_end" bindTarget="hls_ws_requests_query_ds" prompt="HLS_WS_REQUESTS.REQUEST_DATE_END">
+                    <a:events>
+                        <a:event name="enterdown" handler="doQuery"/>
+                    </a:events>
+                </a:datePicker>
+                <a:comboBox name="status_code_display" bindTarget="hls_ws_requests_query_ds" prompt="HLS_WS_REQUESTS.STATUS_CODE">
+                    <a:events>
+                        <a:event name="enterdown" handler="doQuery"/>
+                    </a:events>
+                </a:comboBox>
+                <a:comboBox name="return_status_display" bindTarget="hls_ws_requests_query_ds" prompt="HLS_WS_REQUESTS.RETURN_STATUS">
+                    <a:events>
+                        <a:event name="enterdown" handler="doQuery"/>
+                    </a:events>
+                </a:comboBox>
+            </a:form>
+            <a:hBox>
+                <a:button click="doQuery" text="HAP_QUERY"/>
+                <a:button click="resetDs" text="HAP_RESET"/>
+            </a:hBox>
+            <a:grid id="sys_ws_requests_grid" bindTarget="hls_ws_requests_result_ds" height="375" marginHeight="180" marginWidth="40" navBar="true" width="800">
+                <a:columns>
+                    <a:column name="request_id" width="60"/>
+                    <a:column name="request_date" align="center" renderer="Aurora.formatDate" width="60"/>
+                    <a:column name="request_wsdl_url"/>
+                    <a:column name="function_name"/>
+                    <a:column name="status_code_display" align="center" prompt="HLS_WS_REQUESTS.STATUS_CODE" width="60"/>
+                    <a:column name="status_date" align="center" renderer="Aurora.formatDate" width="70"/>
+                    <a:column name="return_status_display" align="center" prompt="HLS_WS_REQUESTS.RETURN_STATUS" width="60"/>
+                    <a:column name="responsed_date" align="center" renderer="Aurora.formatDate" width="70"/>
+                    <a:column name="request_xml" align="center" renderer="viewRequestInfo" width="60"/>
+                    <a:column name="response_xml" align="center" renderer="viewResponseInfo" width="60"/>
+                    <a:column name="resend_flag" align="center" renderer="resend" width="60"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

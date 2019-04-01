@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-9-24 下午3:37:18  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                	rownum line_number,
+                    item_desc,
+                    first_year_amount,
+                    first_year_amount,
+                    second_year_amount,
+                    third_year_amount,
+                    first_year_forecast_amount,
+                    second_year_forecast_amount,
+                    third_year_forecast_amount
+                FROM
+                    (SELECT
+                    	
+                        t3.item_desc,
+                        t1.fin_statement_item,
+                        TO_CHAR(t1.first_year_amount,'FM99,999,999,990.00') first_year_amount,
+                        TO_CHAR(t1.second_year_amount,'FM99,999,999,990.00') second_year_amount,
+                        TO_CHAR(t1.third_year_amount,'FM99,999,999,990.00') third_year_amount,
+                        TO_CHAR(t2.first_year_forecast_amount,'FM99,999,999,990.00') first_year_forecast_amount,
+                        TO_CHAR(t2.second_year_forecast_amount,'FM99,999,999,990.00') second_year_forecast_amount,
+                        TO_CHAR(t2.third_year_forecast_amount,'FM99,999,999,990.00') third_year_forecast_amount
+                    FROM
+                        (SELECT
+                            t3.fin_statement_item,
+                            t1.first_year_amount,
+                            t2.second_year_amount,
+                            t3.third_year_amount
+                        FROM
+                            (SELECT
+                                fin_statement_item,
+                                amount AS first_year_amount
+                            FROM
+                                rsc_fin_statement_prj_lns
+                            WHERE
+                                fin_statement_id   = ${@first_fin_statement_id} AND
+                                fin_statement_type = 'CASHFLOW_FORECAST'
+                            ) t1,
+                            (SELECT
+                                fin_statement_item,
+                                amount AS second_year_amount
+                            FROM
+                                rsc_fin_statement_prj_lns
+                            WHERE
+                                fin_statement_id   = ${@second_fin_statement_id} AND
+                                fin_statement_type = 'CASHFLOW_FORECAST'
+                            ) t2,
+                            (SELECT
+                                fin_statement_item,
+                                amount AS third_year_amount
+                            FROM
+                                rsc_fin_statement_prj_lns
+                            WHERE
+                                fin_statement_id   = ${@third_fin_statement_id} AND
+                                fin_statement_type = 'CASHFLOW_FORECAST'
+                            ) t3
+                        WHERE
+                            t2.fin_statement_item(+) = t3.fin_statement_item AND
+                            t1.fin_statement_item(+) = t3.fin_statement_item
+                        ) t1,
+                        (SELECT
+                            line_number,
+                            fin_statement_item,
+                            item_type,
+                            MAX(DECODE(rvl, 1, amount)) AS third_year_forecast_amount,
+                            MAX(DECODE(rvl, 1, fin_statement_id)) third_fin_statement_id,
+                            MAX(DECODE(rvl, 2, amount)) AS second_year_forecast_amount,
+                            MAX(DECODE(rvl, 2, fin_statement_id)) second_fin_statement_id,
+                            MAX(DECODE(rvl, 3, amount)) AS first_year_forecast_amount,
+                            MAX(DECODE(rvl, 3, fin_statement_id)) first_fin_statement_id
+                        FROM
+                            (SELECT
+                                fin_statement_id,
+                                fin_statement_item,
+                                line_number,
+                                amount,
+                                proportion,
+                                fiscal_year,
+                                fiscal_month,
+                                fin_statement_type,
+                                item_type,
+                                rank() over(partition BY fin_statement_item order by fiscal_year DESC) AS rvl
+                            FROM
+                                rsc_fin_statement_prj_lns_v
+                            WHERE
+                                fin_statement_templet_id = ${@fin_statement_templet_id} AND
+                                bp_id                    = ${@bp_id} AND
+                                fiscal_month             = 12 AND
+                                fin_statement_type       = 'CASHFLOW_FORECAST' AND
+                                forecast_flag            = 'Y'
+                            ) v2
+                        GROUP BY
+                            fin_statement_item,
+                            line_number,
+                            item_type
+                        ) t2,
+                        rsc_fin_statement_tmplt_lns t3
+                    WHERE
+                        t3.fin_statement_item       = t2.fin_statement_item(+) AND
+                        t1.fin_statement_item(+)    = t3.fin_statement_item AND
+                        t3.fin_statement_type       = 'CASHFLOW_FORECAST' AND
+                        t3.is_show                  = 'Y' AND
+                        t3.fin_statement_templet_id = ${@fin_statement_templet_id}
+                    ORDER BY
+                        t3.line_number
+                    )
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

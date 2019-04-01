@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    cc.bp_id_tenant_n name,
+                    t.item_frame_number standno,
+                    DECODE(hbm.bp_class, 'ORG', hbm.phone_extra, hbm.phone) usertel,
+                    '0' noticeuser,
+                    DECODE(hbm.gender, 'MALE', '1', 'FEMALE', '2') usersex,
+                    '10380' companyid,
+                    t.license_number idnum,
+                    t.item_engine_number engine,
+                    t.displacement,
+                    acg.contactor stroelinkman,
+                    acg.phone stroetel,
+                    TO_CHAR(acg.install_date, 'yyyy-mm-dd') fixtime,
+                    NULL instruction,
+                    cc.lease_term
+                    ||'年 '
+                    ||
+                    (SELECT
+                        hb.province_id_n
+                    FROM
+                        hls_bp_master_lv hb,
+                        con_contract_bp cb
+                    WHERE
+                        hb.bp_id        = cb.bp_id AND
+                        cb.bp_category  = 'AGENT' AND
+                        cb.enabled_flag = 'Y' AND
+                        cb.contract_id  = cc.contract_id
+                    )
+                    ||' '
+                    || t.model_id_n
+                    || t.series_id_n
+                    ||' '
+                    ||(
+                        CASE
+                            WHEN NVL(cc.finance_amount,0) - NVL(t.GPS_AMOUNT,0)>=70000
+                            THEN '有线+无线'
+                            ELSE '有线'
+                        END) remark,
+                    '10001' operator,
+                    (SELECT
+                        (SELECT
+                            fp.description
+                        FROM
+                            fnd_province fp
+                        WHERE
+                            fp.province_id = cbp.liv_province
+                        )
+                        ||
+                        (SELECT fc.description FROM fnd_city fc WHERE fc.city_id = cbp.liv_city
+                        )
+                        || cbp.living_address
+                    FROM
+                        con_contract_bp cbp
+                    WHERE
+                        cbp.contract_id  = cc.contract_id AND
+                        cbp.bp_id        = cc.bp_id_tenant AND
+                        cbp.bp_category  = 'TENANT' AND
+                        cbp.enabled_flag = 'Y' AND
+                        rownum           = 1
+                    ) homeaddress,
+                    (SELECT
+                        (SELECT
+                            fp.description
+                        FROM
+                            fnd_province fp
+                        WHERE
+                            fp.province_id = cbp.work_province
+                        )
+                        ||
+                        (SELECT fc.description FROM fnd_city fc WHERE fc.city_id = cbp.work_city
+                        )
+                        || cbp.work_unit_address
+                    FROM
+                        con_contract_bp cbp
+                    WHERE
+                        cbp.contract_id  = cc.contract_id AND
+                        cbp.bp_id        = cc.bp_id_tenant AND
+                        cbp.bp_category  = 'TENANT' AND
+                        cbp.enabled_flag = 'Y' AND
+                        rownum           = 1
+                    ) workaddress,
+                    (SELECT
+                        (SELECT
+                            fp.description
+                        FROM
+                            fnd_province fp
+                        WHERE
+                            fp.province_id = cbp.add_province
+                        )
+                        ||
+                        (SELECT fc.description FROM fnd_city fc WHERE fc.city_id = cbp.add_city
+                        )
+                        || cbp.address_on_resident_booklit
+                    FROM
+                        con_contract_bp cbp
+                    WHERE
+                        cbp.contract_id  = cc.contract_id AND
+                        cbp.bp_id        = cc.bp_id_tenant AND
+                        cbp.bp_category  = 'TENANT' AND
+                        cbp.enabled_flag = 'Y' AND
+                        rownum           = 1
+                    ) originaddress,
+                    cc.bp_id_tenant_n groupName,
+                    cc.bp_id_tenant_n groupVal,
+                    NULL groupEmail,
+                    NULL managerPhone,
+                    NULL managerName,
+                    -- (
+                    -- CASE
+                    -- WHEN NVL(cc.finance_amount,0) - NVL(t.GPS_AMOUNT,0)>=70000
+                    -- THEN '2'
+                    -- ELSE '1'
+                    -- END) deviceNumber,
+                    '1' deviceNumber,
+                    TO_CHAR(sysdate,'yyyymmddhh24miss') TIMESTAMP,
+                    sys_login_pkg.md5(sys_login_pkg.md5(${@token_key})
+                    ||TO_CHAR(sysdate,'yyyymmddhh24miss')) SIGN,
+                    acg.sn
+                FROM
+                    con_contract_lv cc,
+                    con_contract_lease_item_lv t,
+                    hls_bp_master hbm,
+                    ast_car_gps acg
+                WHERE
+                    cc.contract_id  = t.contract_id AND
+                    cc.bp_id_tenant = hbm.bp_id AND
+                    cc.contract_id  = acg.contract_id AND
+                    cc.contract_id  =${@contract_id}
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

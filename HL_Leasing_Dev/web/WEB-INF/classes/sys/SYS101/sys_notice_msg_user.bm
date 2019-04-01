@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hp  
+    $Date: 2014-1-22 下午03:00:38  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+              SELECT t.*
+  FROM (select 'COMPANY' as tree_type,
+               '1' as tree_level,
+               null user_id,
+               c.company_code user_name,
+               c.company_full_name description,
+               -1 * c.company_id as unit_id,
+               null as parent_unit_id,
+               c.company_short_name as unit_name,
+               c.company_code as unit_code,
+               null as position_code,
+               rpad(c.company_code,10,'0')||rpad('0',10,'0') as seq
+               
+          from fnd_companies_vl c
+         where c.enabled_flag = 'Y'
+        UNION ALL
+        
+        SELECT 'UNIT' as tree_type,
+               '2' as tree_level,
+               NULL user_id,
+               NULL user_name,
+               NULL description,
+               u.unit_id,
+               -1 * u.company_id as parent_unit_id,
+               u.unit_name,
+               u.unit_code,
+               null,
+               rpad(u.unit_code,10,'0')||rpad('0',10,'0') as seq
+          FROM exp_org_unit_v u
+         WHERE u.enabled_flag = 'Y'
+        UNION ALL
+        SELECT 'USER' as tree_type,
+               '3' as tree_level,
+               a.user_id,
+               a.user_name,
+               a.description,
+               null unit_id,
+               d.unit_id parent_unit_id,
+               null unit_name,
+               d.unit_code,
+               c.position_code,
+               rpad(d.unit_code,10,'0')||rpad(c.position_code,10,'0')||a.user_name as seq
+          FROM sys_user             a,
+               exp_employee_assigns b,
+               exp_org_position     c,
+               exp_org_unit_v       d
+         WHERE a.employee_id = b.employee_id(+)
+           AND b.position_id = c.position_id(+)
+           AND c.unit_id = d.unit_id(+)
+           AND b.enabled_flag(+) = 'Y'
+           AND c.enabled_flag(+) = 'Y'
+           AND d.enabled_flag(+) = 'Y') t
+ START WITH  parent_unit_id is null
+CONNECT BY t.parent_unit_id = prior t.unit_id
+ ORDER BY t.seq
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Foreinyel  
+    $Date: 2014-4-28 上午11:04:51  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:view>
+        <a:link id="con763_save_colpay_appl_link" model="db.con_contract_colpay_appl_pkg.save_colpay_appl" modelaction="update"/>
+        <a:link id="con763_save_colpay_submit_link" model="db.con_contract_colpay_appl_pkg.colpay_appl_submit" modelaction="update"/>
+        <a:link id="contract_cdd_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="contract_cdd_downloadFile_id" url="${/request/@context_path}/downloadFile.screen"/>
+        <script><![CDATA[
+            function exitScreen() {
+                //debugger;
+                $('${/parameter/@winid}').close();
+            }
+            
+            function newRecord() {
+                var basic_ds = $('contract_basic_ds');
+                var basic_rec = basic_ds.getCurrentRecord();
+                basic_rec.set('col_pay_date', null);
+                basic_rec.set('fee_type_desc', null);
+                basic_rec.set('fee_type', null);
+                basic_rec.set('col_pay_amount', null);
+                basic_rec.set('col_pay_note', null);
+                basic_rec.set('colpay_id', null);
+                $('contract_attachments_btn_id').disable();
+            }
+            
+            function saveData() {
+                var contract_basic_ds = $('contract_basic_ds');
+                if (contract_basic_ds.validate()) {
+                    var record = contract_basic_ds.getCurrentRecord();
+                    Aurora.request({
+                        url: $('con763_save_colpay_appl_link').getUrl(),
+                        para: {
+                            contract_id: '${/parameter/@contract_id}',
+                            colpay_date: record.get('col_pay_date'),
+                            fee_type: record.get('fee_type'),
+                            amount: record.get('col_pay_amount'),
+                            note: record.get('col_pay_note'),
+                            colpay_id: record.get('colpay_id')
+                        },
+                        scope: this,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '操作成功',
+                                duration: 2000
+                            });
+                            $('contract_colpay_record_ds').query();
+                            record.set('fee_type_desc', null);
+                            record.set('fee_type', null);
+                            record.set('col_pay_amount', null);
+                            record.set('col_pay_note', null);
+                            record.set('col_pay_date', null);
+                            record.set('colpay_id', null);
+                            //$('contract_attachments_btn_id').enable();
+                        }
+                    });
+                }
+            }
+            
+            function submitData() {
+                //debugger;
+                var colpay_record = $('contract_colpay_record_ds').getSelected();
+                var length = colpay_record.length;
+                if (length == 1) {
+                    Aurora.request({
+                        url: $('con763_save_colpay_submit_link').getUrl(),
+                        para: {
+                            colpay_id: colpay_record[0].get('colpay_id')
+                        },
+                        scope: this,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '操作成功',
+                                duration: 2000
+                            });
+                            $('contract_colpay_record_ds').query();
+                            record.set('fee_type_desc', null);
+                            record.set('fee_type', null);
+                            record.set('col_pay_amount', null);
+                            record.set('col_pay_note', null);
+                            record.set('col_pay_date', null);
+                            record.set('colpay_id', null);
+                        }
+                    });
+                }
+            }
+            
+            function attachments() {
+                var colpay_record = $('contract_colpay_record_ds').getSelected();
+                var colpay_status = colpay_record[0].get('colpay_status');
+                var colpay_id = colpay_record[0].get('colpay_id');
+                if (colpay_id) {
+                    attachment_detail(colpay_id, colpay_status);
+                }
+            }
+            
+            function attachment_detail(colpay_id, status) {
+                //debugger;
+                var url;
+                if (status == 'NEW') {
+                    url = $('contract_cdd_uploadFile_id').getUrl() + '?table_name=CON_CONTRACT_COLPAY_REQ&header_id=' + colpay_id;
+                } else {
+                    url = $('contract_cdd_downloadFile_id').getUrl() + '?table_name=CON_CONTRACT_COLPAY_REQ&header_id=' + colpay_id;
+                }
+                new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: '$contract_cdd_uploadFile_screen_id',
+                    width: 850,
+                    height: 400
+                });
+            }
+            
+            function colpay_select_function(record) {
+                var colpay_status = record.get('colpay_status');
+                if (colpay_status == 'NEW') {
+                    return true;
+                }
+                return false;
+            }
+            
+            function colpay_records_select_handler(ds, rec) {
+                var colpay_status = rec.get('colpay_status');
+                if (colpay_status == 'NEW') {
+                    var basic_ds = $('contract_basic_ds');
+                    var basic_rec = basic_ds.getCurrentRecord();
+                    basic_rec.set('col_pay_date', rec.get('colpay_date'));
+                    basic_rec.set('fee_type_desc', rec.get('fee_type_desc'));
+                    basic_rec.set('fee_type', rec.get('fee_type'));
+                    basic_rec.set('col_pay_amount', rec.get('amount'));
+                    basic_rec.set('col_pay_note', rec.get('note'));
+                    basic_rec.set('colpay_id', rec.get('colpay_id'));
+                    $('contract_attachments_btn_id').enable();
+                } else {
+                    var basic_ds = $('contract_basic_ds');
+                    var basic_rec = basic_ds.getCurrentRecord();
+                    basic_rec.set('col_pay_date', null);
+                    basic_rec.set('fee_type_desc', null);
+                    basic_rec.set('fee_type', null);
+                    basic_rec.set('col_pay_amount', null);
+                    basic_rec.set('col_pay_note', null);
+                    basic_rec.set('colpay_id', null);
+                    $('contract_attachments_btn_id').enable();
+                }
+            }
+            function attachemnts_renderer(value,record,name){
+                var colpay_id = record.get('colpay_id');
+                var status = record.get('colpay_status');
+                if(!record.isNew && colpay_id){
+                    return '<a href="javascript:attachment_detail(\''+colpay_id+'\',\''+status+'\');">附件</a>';
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="fee_type_ds" autoQuery="true" queryUrl="${/request/@context_path}/autocrud/hls.HLS005.hls_cashflow_item_v_lov/query?cf_type=7&amp;cf_direction=INFLOW"/>
+            <a:dataSet id="contract_basic_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="contrat_number" defaultValue="${/parameter/@contract_number}" readOnly="true"/>
+                    <a:field name="contract_name" defaultValue="${/parameter/@contract_name}" readOnly="true"/>
+                    <a:field name="customer_manager" defaultValue="${/parameter/@customer_manager}" readOnly="true"/>
+                    <a:field name="lease_org_n" defaultValue="${/parameter/@lease_org_n}" readOnly="true"/>
+                    <a:field name="document_type_n" defaultValue="${/parameter/@document_type_n}" readOnly="true"/>
+                    <a:field name="contract_status_n" defaultValue="${/parameter/@contract_status_n}" readOnly="true"/>
+                    <a:field name="col_pay_date" required="true"/>
+                    <a:field name="fee_type_desc" displayField="cf_item_desc" options="fee_type_ds" required="true" returnField="fee_type" valueField="cf_item"/>
+                    <a:field name="fee_type"/>
+                    <a:field name="col_pay_amount" required="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="contract_colpay_record_ds" autoQuery="true" model="cont.CON763.con_contract_colpay_record" pageSize="7" queryUrl="${/request/@context_path}/autocrud/cont.CON763.con_contract_colpay_record/query?contract_id=${/parameter/@contract_id}" selectFunction="colpay_select_function" selectable="true" selectionModel="single">
+                <a:events>
+                    <a:event name="select" handler="colpay_records_select_handler"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="exitScreen" text="退出"/>
+                <a:gridButton click="newRecord" text="新增"/>
+                <a:gridButton click="saveData" text="保存"/>
+                <a:gridButton click="submitData" text="提交"/>
+                <a:gridButton id="contract_attachments_btn_id" click="attachments" text="附件"/>
+            </a:screenTopToolbar>
+            <a:form title="合同信息">
+                <a:hBox>
+                    <a:textField name="contrat_number" bindTarget="contract_basic_ds" prompt="合同编号" width="383"/>
+                    <a:textField name="contract_name" bindTarget="contract_basic_ds" prompt="合同名称" width="383"/>
+                </a:hBox>
+                <a:hBox>
+                    <a:textField name="customer_manager" bindTarget="contract_basic_ds" prompt="客户经理"/>
+                    <a:textField name="lease_org_n" bindTarget="contract_basic_ds" prompt="事业部"/>
+                    <a:textField name="document_type_n" bindTarget="contract_basic_ds" prompt="合同类型"/>
+                    <a:textField name="contract_status_n" bindTarget="contract_basic_ds" prompt="合同状态"/>
+                </a:hBox>
+                <a:hBox>
+                    <a:datePicker name="col_pay_date" bindTarget="contract_basic_ds" prompt="收付日期"/>
+                    <a:comboBox name="fee_type_desc" bindTarget="contract_basic_ds" prompt="费用类型"/>
+                    <a:numberField name="col_pay_amount" bindTarget="contract_basic_ds" prompt="收付金额"/>
+                </a:hBox>
+                <a:hBox>
+                    <a:textArea name="col_pay_note" bindTarget="contract_basic_ds" prompt="备注" width="846"/>
+                </a:hBox>
+            </a:form>
+            <a:form title="历史记录">
+                <a:grid bindTarget="contract_colpay_record_ds" height="200" width="932">
+                    <a:columns>
+                        <a:column name="rownums" align="center" prompt="序号" width="50"/>
+                        <a:column name="colpay_number" align="center" prompt="申请编号" width="100"/>
+                        <a:column name="colpay_date" prompt="收付日期" width="130"/>
+                        <a:column name="fee_type_desc" align="center" prompt="费用类型" width="140"/>
+                        <a:column name="amount" align="right" prompt="收付金额" renderer="Aurora.formatMoney" width="100"/>
+                        <a:column name="colpay_status_n" prompt="申请状态" width="100"/>
+                        <a:column name="note" prompt="备注" width="170"/>
+                        <a:column name="attachments" align="center" prompt="附件" renderer="attachemnts_renderer" width="100"/>
+                    </a:columns>
+                    <a:events><![CDATA[
+                    ]]></a:events>
+                </a:grid>
+            </a:form>
+        </a:screenBody>
+        <script><![CDATA[
+			Aurora.onReady(function(){
+			    //debugger;
+			    $('contract_attachments_btn_id').disable();
+			});
+		]]></script>
+    </a:view>
+</a:screen>

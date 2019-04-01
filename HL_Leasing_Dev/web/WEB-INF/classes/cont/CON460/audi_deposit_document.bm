@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei  
+    $Date: 2015-2-6 上午10:08:06  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+       select t1.* from     
+       (SELECT t.contract_id,
+       (SELECT A.BP_NAME FROM HLS_BP_MASTER A 
+       WHERE A.BP_ID=T.BP_ID_TENANT) TENANT_NAME,
+       t.bp_id_tenant,
+       t.contract_number,
+       de.item_frame_number item_frame_number_1,
+       'SYLC' partner_code,
+       (SELECT b.bp_code
+          FROM con_contract_bp a,
+               hls_bp_master   b
+         WHERE a.contract_id = t.contract_id
+               AND a.bp_category = 'AGENT'
+               AND b.bp_id = a.bp_id) agent_code,
+       (SELECT b.bp_name
+          FROM con_contract_bp a,
+               hls_bp_master   b
+         WHERE a.contract_id = t.contract_id
+               AND a.bp_category = 'AGENT'
+               AND b.bp_id = a.bp_id) agent_name,
+       '01' brand_code,
+       'T' special_flag,
+       'S05' special_approved_flag,
+       prj.creation_date prj_creation_date,
+		t.creation_date con_creation_date,
+       '' reject_date,
+       '' cancel_date,
+       (SELECT ca.full_write_off_date
+          FROM con_contract_cashflow ca
+         WHERE ca.contract_id = t.contract_id
+               AND ca.cf_item = 109
+               AND ca.cf_type = 109
+               AND ca.write_off_flag = 'FULL') payment_completed_date,
+       decode(t.lease_term,
+              1,
+              '0',
+              2,
+              '0.065000',
+              3,
+              '0.090000') customer_rate,
+       decode(nvl(t.lease_charge_ratio,
+                  0),
+              0,
+              '0',
+              to_char(nvl(t.lease_charge_ratio,
+                          0),
+                      '0.999999')) lease_charge_ratio,
+       decode(nvl(t.lease_charge,
+                  0),
+              0,
+              '0',
+              to_char(nvl(t.lease_charge,
+                          0),
+                      '99999999999.999999')) lease_charge,
+       to_char(t.hd_user_col_n07,
+               '0.999999') return_value_ratio,
+       to_char(t.hd_user_col_n02,
+               '99999999.99') return_value,
+       to_char(t.other_fee,
+               '99999999.99') other_fee,
+       to_char(t.finance_amount,
+               '99999999.99') finance_amount,
+       decode(nvl(t.down_payment_ratio,
+                  0),
+              0,
+              '0',
+              to_char(nvl(t.down_payment_ratio,
+                          0),
+                      '0.9999')) down_payment_ratio,
+       decode(nvl(t.down_payment,
+                  0),
+              0,
+              '0',
+              to_char(nvl(t.down_payment,
+                          0),
+                      '999999999.99')) down_payment,
+       decode(nvl(t.deposit_ratio,
+                  0),
+              0,
+              '0',
+              to_char(nvl(t.deposit_ratio,
+                          0),
+                      '0.9999')) deposit_ratio,
+       decode(nvl(t.deposit,
+                  0),
+              0,
+              '0',
+              to_char(nvl(t.deposit,
+                          0),
+                      '999999999.99')) deposit,
+       '0' end_value_ratio,
+       '1' end_value,
+       t.lease_times,
+       (SELECT a.code_value_name
+          FROM sys_code_values_v a
+         WHERE a.code = 'HLS500_ANNUAL_PAY_TIMES'
+               AND a.code_value = t.annual_pay_times) annual_pay_times_n,
+       (SELECT COUNT(1)
+          FROM con_contract_cashflow ca
+         WHERE ca.cf_item = 1
+               AND ca.cf_type = 1
+               AND times <> 0
+               AND ca.write_off_flag = 'FULL'
+               AND ca.contract_id = t.contract_id) paid_times,
+       '期先付' rentail_pay_type,
+       to_char(t.pmt_first,
+               '99999999.99') pmt_first,
+       to_char(t.total_rental,
+               '99999999.99') total_rental,
+       decode(t.business_type,
+              'LEASE',
+              '正租业务',
+              '售后回租业务') business_type,
+       decode(t.hd_user_col_v01,
+              '10',
+              '否',
+              '是') out_finance,
+       t.lease_term,
+       decode(nvl(t.insurance_fee,
+                  0),
+              0,
+              '0.00',
+              to_char(nvl(t.insurance_fee,
+                          0),
+                      '99999999.99')) insurance_fee,
+       decode(nvl(t.other_fee3,
+                  0),
+              0,
+              '0.00',
+              to_char(nvl(t.other_fee3,
+                          0),
+                      '99999999.99')) other_fee3,
+       decode(nvl(t.hd_user_col_n05,
+                  0),
+              0,
+              '0.00',
+              to_char(nvl(t.hd_user_col_n05,
+                          0),
+                      '99999999.99')) license_value,
+       '0.00' fee_1,
+       '0.00' fee_2,
+       '0.00' fee_3,
+       '0.00' fee_4,
+       '0.00' fee_5,
+       to_char(t.contract_amount,
+               '999999999.99') contract_amount,
+       '期末退还客户' deposit_return_type,
+       '客户留购' residual_type,
+       (SELECT A.INVOICE_DATE FROM 
+           acp_invoice_hd a,
+               acp_invoice_ln b
+         WHERE a.invoice_hd_id = b.invoice_header_id
+               AND b.cf_type = 109
+               and b.cf_item=109
+               and a.reversed_flag='N'
+               AND a.contract_id = t.contract_id) invoice_date,
+       (SELECT decode(bp.bp_class,
+                      'ORG',
+                      '机构',
+                      'NP',
+                      '个人')
+          FROM hls_bp_master bp
+         WHERE bp.bp_id = t.bp_id_tenant) bp_category,
+       (SELECT v.code_value_name
+          FROM hls_bp_master     bp,
+               sys_code_values_v v
+         WHERE bp.bp_id = t.bp_id_tenant
+               AND bp.bp_class = 'ORG'
+               AND v.code = 'PRJ_BP_PROPERTY'
+               AND v.code_value = bp.bp_property) bp_property,
+       de.item_frame_number item_frame_number_2,
+       t.price_list
+  FROM prj_project              prj,
+       con_contract             t,
+       con_contract_lease_item  it,
+       con_contract_item_detail de
+ WHERE t.data_class = 'NORMAL'
+       AND prj.project_id = t.project_id
+       AND t.contract_id = it.contract_id
+       AND it.contract_lease_item_id = de.contract_lease_item_id
+       AND t.contract_status IN ('INCEPT')
+       AND t.hd_user_col_n02 is not null
+       )t1 #WHERE_CLAUSE#
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="bp_id" queryExpression="t1.bp_id_tenant = ${@bp_id}"/>
+        <bm:query-field name="price_list" queryExpression="t1.price_list = ${@price_list}"/>
+        <bm:query-field name="agent_name" queryExpression="t1.agent_name like ${@agent_name}"/>
+        <bm:query-field name="contract_number" queryExpression="t1.contract_number like ${@contract_number}"/>
+        <bm:query-field name="item_frame_number" queryExpression="t1.item_frame_number_2 like ${@item_frame_number}"/>
+        <bm:query-field name="prj_creation_date_from" queryExpression="t1.prj_creation_date &gt;=trunc( to_date(${@prj_creation_date_from},&apos;yyyy-mm-dd&apos;))"/>
+        <bm:query-field name="prj_creation_date_to" queryExpression="t1.prj_creation_date &lt;= to_date(${@prj_creation_date_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="payment_completed_date_from" queryExpression="t1.payment_completed_date &gt;=trunc(to_date(${@payment_completed_date_from},&apos;yyyy-mm-dd&apos;))"/>
+        <bm:query-field name="payment_completed_date_to" queryExpression="t1.payment_completed_date &lt;=to_date( ${@payment_completed_date_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="invoice_date_from" queryExpression="t1.invoice_date &gt;=trunc(to_date(${@invoice_date_from},&apos;yyyy-mm-dd&apos;))"/>
+        <bm:query-field name="invoice_date_to" queryExpression="t1.invoice_date &lt;=to_date( ${@invoice_date_to},&apos;yyyy-mm-dd&apos;)"/>
+    </bm:query-fields>
+</bm:model>

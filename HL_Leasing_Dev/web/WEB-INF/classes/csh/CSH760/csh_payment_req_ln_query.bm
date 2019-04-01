@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-5-24 下午03:50:31  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:f="aurora.database.features" xmlns:bm="http://www.aurora-framework.org/schema/bm" alias="t1" baseTable="CSH_PAYMENT_REQ_LN" needAccessControl="false">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    v.contract_id,
+                    v.cashflow_id,
+                    v.cashflow_id ref_doc_line_id,
+                    v.contract_id ref_doc_id,
+                    v.document_category ref_doc_category,
+                    v.contract_number,
+                    v.contract_name,
+                    v.project_name ,
+                    v.project_number ,
+                    v.tenant_bp_id,
+                    v.bp_tenant_name,
+                    v.cf_description,
+                    v.due_amount,
+                    v.currency_code,
+                    v.currency_name,
+                    v.due_date,
+                    v.residual_amount,
+                    v.bp_id,
+                    v.bp_code bp_id_n,
+                    V.BP_ID_AGENT_N,
+                    v.bp_name,
+                    v.bp_code,
+                    v.applied_pay_amount,
+                    v.bp_category_desc,
+                    v.search_term_1,
+                    v.bp_bank_account_id_n,
+                    v.bp_bank_account_id,
+                    v.BP_BANK_ACCOUNT_NUM,
+                    V.bank_full_name,
+                    v.irr,
+                    v.price,
+                    v.son_code,
+                    v.model_code,
+                    v.item_frame_number item_frame_number_1,
+                    v.finance_amount,
+                    v.finance_amount amount,
+                    v.project_id,
+                    v.down_amount,
+                    v.down_amount down_payment,
+                    v.INVOICE_AGENT_ID_N,
+                   nvl((select nvl(ccc.received_amount,0) from con_contract_cashflow ccc where ccc.contract_id=v.contract_id and ccc.cf_item=303),0)received_down_amount,
+                   nvl((select nvl(due_amount,0)-nvl(ccc.received_amount,0) from con_contract_cashflow ccc where ccc.contract_id=v.contract_id and ccc.cf_item=303),0)unreceived_down_amount,
+                   v.RESIDUAL_PREFERENTIAL_LIMIT,
+                   v.APPROVING_AMount
+                FROM
+                    (SELECT
+                        t.contract_id,
+                        f.cashflow_id,
+                        t.contract_number,
+                        t.contract_name,
+                        t.document_category,
+                        t.search_term_1,
+                        p.project_name,
+                        p.project_id,
+                        p.project_number,
+                        t.bp_id_tenant tenant_bp_id,
+                        h.description cf_description,
+                        f.due_amount,
+                        t.currency currency_code,
+                        (SELECT
+                            t.bank_account_id
+                        FROM
+                            hls_bp_master_bank_account_v t
+                        WHERE
+                            t.bp_id       =(select hm.bp_id from hls_bp_master hm where hm.bp_code='P00000112' and hm.bp_category='VENDER') AND
+                            t.enabled_flag='Y' AND
+                            rownum        =1
+                        ) bp_bank_account_id,
+                        (SELECT
+                            t.bank_account_name
+                        FROM
+                            hls_bp_master_bank_account_v t
+                        WHERE
+                            t.bp_id       =(select hm.bp_id from hls_bp_master hm where hm.bp_code='P00000112' and hm.bp_category='VENDER') AND
+                            t.enabled_flag='Y' AND
+                            rownum        =1
+                        ) bp_bank_account_id_n,
+                        (SELECT
+                            t.BANK_ACCOUNT_NUM
+                        FROM
+                            hls_bp_master_bank_account_v t
+                        WHERE
+                            t.bp_id       =(select hm.bp_id from hls_bp_master hm where hm.bp_code='P00000112' and hm.bp_category='VENDER') AND
+                            t.enabled_flag='Y' AND
+                            rownum        =1
+                        ) BP_BANK_ACCOUNT_NUM,
+                        (SELECT
+                            t.bank_branch_name
+                        FROM
+                            hls_bp_master_bank_account_v t
+                        WHERE
+                            t.bp_id       =(select hm.bp_id from hls_bp_master hm where hm.bp_code='P00000112' and hm.bp_category='VENDER') AND
+                            t.enabled_flag='Y' AND
+                            rownum        =1
+                        ) bank_full_name,
+                        (SELECT
+                            gc.currency_name
+                        FROM
+                            gld_currency_v gc
+                        WHERE
+                            gc.currency_code = t.currency
+                        ) currency_name,
+                        TO_CHAR(f.due_date,'yyyy-mm-dd') due_date,
+                        NVL(f.due_amount,0)-NVL(f.received_amount,0) residual_amount,
+                       (select hm.bp_id from hls_bp_master hm where hm.bp_code='P00000112' and hm.bp_category='VENDER') bp_id,
+                       (select hm.bp_name from hls_bp_master hm where hm.bp_code='P00000112' and hm.bp_category='VENDER') bp_name,
+                        (SELECT b.bp_name FROM hls_bp_master b WHERE b.bp_id =ci.bp_id
+                        ) BP_ID_AGENT_N,
+                        (SELECT hbm.bp_name FROM hls_bp_master hbm WHERE hbm.bp_id =ci.bp_id
+                        ) bp_tenant_name,
+                        (select hm.bp_code from hls_bp_master hm where hm.bp_code='P00000112' and hm.bp_category='VENDER') bp_code,
+                        (SELECT
+                            b.bp_category_name
+                        FROM
+                            hls_bp_master_v b
+                        WHERE
+                            b.bp_id =(select hm.bp_id from hls_bp_master hm where hm.bp_code='P00000112' and hm.bp_category='VENDER')
+                        ) bp_category_desc,
+                        ( NVL(
+                        (SELECT
+                            SUM(l.amount_paid)
+                        FROM
+                            csh_payment_req_ln l,
+                            csh_payment_req_hd h
+                        WHERE
+                            l.ref_doc_line_id       = f.cashflow_id AND
+                            l.payment_req_id        = h.payment_req_id AND
+                            h.submitted_flag        = 'Y' AND
+                            h.approval_status       = 'APPROVED' AND
+                            NVL(h.closed_flag, 'N') = 'Y'
+                        ), 0) + NVL(
+                        (SELECT
+                            SUM(l.amount)
+                        FROM
+                            csh_payment_req_ln l,
+                            csh_payment_req_hd h
+                        WHERE
+                            l.ref_doc_line_id        = f.cashflow_id AND
+                            l.payment_req_id         = h.payment_req_id AND
+                            h.submitted_flag         = 'Y' AND
+                            h.approval_status        = 'APPROVED' AND
+                            NVL(h.closed_flag, 'N') <> 'Y'
+                        ), 0) + NVL(
+                        (SELECT
+                            SUM(l.amount)
+                        FROM
+                            csh_payment_req_ln l,
+                            csh_payment_req_hd h
+                        WHERE
+                            l.ref_doc_line_id = f.cashflow_id AND
+                            l.payment_req_id  = h.payment_req_id AND
+                            h.submitted_flag  = 'Y' AND
+                            h.approval_status = 'APPROVING'
+                        ), 0) ) applied_pay_amount,
+                        t.irr,
+                        (SELECT
+                            vl.price
+                        FROM
+                            hls_lease_products_vl vl
+                        WHERE
+                            vl.lease_products_code =
+                            (SELECT
+                                l.item_frame_number
+                            FROM
+                                con_contract_lease_item l
+                            WHERE
+                                l.contract_id= t.contract_id
+                            )
+                        )price,
+                        ci.son_code,
+                        ci.model_code,
+                        ci.item_frame_number,
+                        ci.finance_amount,
+                        nvl((select nvl(ccc.due_amount,0) from con_contract_cashflow ccc where ccc.contract_id=t.contract_id and ccc.cf_item=303),0)down_amount,
+                        (SELECT hm.bp_name FROM hls_bp_master hm WHERE hm.bp_id=ci.bp_id
+                        )INVOICE_AGENT_ID_N,
+
+       (SELECT hr.residual_preferential_limit
+          FROM csh_payment_req_ln cprl,
+               con_contract       cc,
+               prj_project        pp,
+               hl_rate_linkage    hr
+         WHERE cprl.payment_req_ln_type = 'DEBT'
+           AND cprl.ref_doc_category = 'CONTRACT'
+           AND cprl.ref_doc_id = cc.contract_id
+           AND cc.project_id = pp.project_id
+           AND cc.bp_id_tenant = hr.bp_id
+           AND trunc(pp.submit_date, 'fmdd') BETWEEN
+               TRUNC(hr.the_limit_is_valid_from, 'fmdd') AND
+               TRUNC(hr.the_limit_is_valid_to, 'fmdd')
+           AND hr.bp_id = t.bp_id_tenant
+           AND ROWNUM = 1) AS residual_preferential_limit,
+       (SELECT SUM(t1.amount)
+          FROM (SELECT ccdci.finance_amount * (1-nvl(hbm.down_payment_ratio,0)) AS amount,LN.payment_req_id
+                  FROM csh_payment_req_ln       LN,
+                       con_contract             cc,
+                       hls_bp_master            hbm,
+                       con_contract_df_car_info ccdci
+                 WHERE ccdci.contract_id = cc.contract_id
+                   AND LN.ref_doc_id = cc.contract_id
+                   AND cc.bp_id_tenant = hbm.bp_id
+                   AND cc.data_class='NORMAL'
+                   AND LN.use_linkage_flag='Y'
+                   AND LN.payment_req_ln_type = 'DEBT'
+                   AND cc.lease_channel='01'
+                )t1,
+                csh_payment_req_hd hs
+         WHERE t1.payment_req_id = hs.payment_req_id
+           AND hs.agent_user_id = ${/session/@user_id}
+           AND hs.approval_status = 'APPROVING') AS approving_amount
+                    FROM
+                        con_contract t,
+                        con_contract_cashflow f,
+                        prj_project p,
+                        hls_cashflow_item h,
+                        con_contract_df_car_info ci
+                    WHERE
+                        t.contract_id = f.contract_id AND
+                        t.project_id  = p.project_id(+) AND
+                        f.cf_item     =h.cf_item AND
+                        ci.contract_id=t.contract_id AND
+                        EXISTS
+                        (SELECT
+                            1
+                        FROM
+                            CSH_PAYMENT_CASHFLOW_ID_TEMP tmp
+                        WHERE
+                            tmp.session_id  =${/session/@session_id} AND
+                            tmp.cashflow_id =f.cashflow_id
+                        )
+                    ) v #WHERE_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

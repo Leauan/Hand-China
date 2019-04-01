@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ZLF  
+    $Date: 2014-11-20 下午1:45:12  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query model="csh.CSH511.csh_transaction_receipt_batch_import_batch_id" rootPath="batch_session_id"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="csh_transaction_receipt_link" url="${/request/@context_path}/modules/csh/CSH511/csh_transaction_receipt.screen"/>
+        <a:link id="batch_import_save_link" model="csh.CSH511.save_batch_data" modelaction="update"/>
+        <a:link id="batch_import_delete_link" model="csh.CSH511.save_batch_data" modelaction="delete"/>
+        <a:link id="batch_import_err_link" url="${/request/@context_path}/modules/csh/CSH511/csh_transaction_receipt_batch_import_show_error.screen"/>
+        <a:link id="csh511_batch_import_check_link" model="csh.CSH511.check_batch_data" modelaction="update"/>
+        <a:link id="csh511_batch_import_delete_link" model="csh.CSH511.check_batch_data" modelaction="delete"/>
+        <a:link id="batch_import_upload_link" url="${/request/@context_path}/modules/csh/CSH511/csh_transaction_receipt_batch_import_upload.screen"/>
+        <script><![CDATA[
+            var flag = 0;
+            function lock_detail_current_window() {
+                Aurora.Masker.mask(document.documentElement, '${l:HLS.EXECUTING}');
+            }
+
+            function unlock_detail_current_window() {
+                Aurora.Masker.unmask(document.documentElement);
+            }
+            function loadData() {
+                new Aurora.Window({
+                    id: 'batch_upload_window',
+                    url: $('batch_import_upload_link').getUrl() + '?batch_session_id=${/model/batch_session_id/record/@batch_session_id}',
+                    title: '导入实例',
+                    width: 420,
+                    height: 275
+                });
+            }
+
+            function submitData() {
+                $('submitData_btn_id').disable();
+                lock_detail_current_window();
+
+                var ds = $('batch_result_ds');
+                var records = ds.getAll();
+                if (records.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '请先导入数据！');
+                    unlock_detail_current_window();
+                    $('submitData_btn_id').enable();
+                    return;
+                }
+
+                for (var i = 0; i< records.length; i++){
+                    if (typeof(records[i].get('log_text')) != 'undefined'&& !Ext.isEmpty(records[i].get('log_text'))){
+                        flag = flag + 1;
+                    }
+                }
+
+                if (flag != 0) {
+                    Aurora.showMessage('${l:PROMPT}', '导入的数据有错误，请重新导入，谢谢！');
+                    unlock_detail_current_window();
+                    $('submitData_btn_id').enable();
+                    return;
+                } else {
+                    var url = $('csh_transaction_receipt_link').getUrl();
+                    var param = {};
+                    param['batch_session_id'] = ${/session/@session_id};
+                    Aurora.request({
+                        url: $('batch_import_save_link').getUrl(),
+                        para: param,
+                        success: function() {
+                            unlock_detail_current_window();
+                            $('batch_result_ds').query();
+                            Aurora.SideBar.show({
+                                msg: '提交操作成功',
+                                duration: 2000
+                            });
+                            $('submitData_btn_id').enable();
+                            //go_back();
+                            Aurora.go(url);
+                        },
+                        failure: function() {
+                            $('submitData_btn_id').enable();
+                            unlock_detail_current_window();
+                        },
+                        error: function() {
+                            $('submitData_btn_id').enable();
+                            unlock_detail_current_window();
+                        },
+                        scope: this
+                    });
+                }
+            }
+            function clearDuplicateData(){
+                $('clearDuplicateData_btn_id').disable();
+                lock_detail_current_window();
+
+                var ds = $('batch_result_ds');
+                var records = ds.getAll();
+                if (records.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '请先导入数据！');
+                    unlock_detail_current_window();
+                    $('clearDuplicateData_btn_id').enable();
+                    return;
+                }
+                var param = {};
+                param['batch_session_id'] = ${/session/@session_id};
+                Aurora.request({
+                    url: $('batch_import_delete_link').getUrl(),
+                    para: param,
+                    success: function() {
+                        unlock_detail_current_window();
+                        Aurora.SideBar.show({
+                            msg: '清除成功',
+                            duration: 2000
+                        });
+                        $('batch_result_ds').query();
+                        $('clearDuplicateData_btn_id').enable();
+                    },
+                    failure: function() {
+                        $('clearDuplicateData_btn_id').enable();
+                        unlock_detail_current_window();
+                    },
+                    error: function() {
+                        $('clearDuplicateData_btn_id').enable();
+                        unlock_detail_current_window();
+                    },
+                    scope: this
+                });
+            }
+
+            function clearData() {
+                $('clearData_btn_id').disable();
+                lock_detail_current_window();
+
+                var ds = $('batch_result_ds');
+                var records = ds.getAll();
+                if (records.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '请先导入数据！');
+                    unlock_detail_current_window();
+                    $('clearData_btn_id').enable();
+                    return;
+                }
+                var param = {};
+                param['batch_session_id'] = ${/session/@session_id};
+                Aurora.request({
+                    url: $('csh511_batch_import_delete_link').getUrl(),
+                    para: param,
+                    success: function() {
+                        unlock_detail_current_window();
+                        Aurora.SideBar.show({
+                            msg: '清空成功',
+                            duration: 2000
+                        });
+                        $('batch_result_ds').query();
+                        $('clearData_btn_id').enable();
+                    },
+                    failure: function() {
+                        $('clearData_btn_id').enable();
+                        unlock_detail_current_window();
+                    },
+                    error: function() {
+                        $('clearData_btn_id').enable();
+                        unlock_detail_current_window();
+                    },
+                    scope: this
+                });
+
+            }
+            function go_back() {
+                $('exit_btn_id').disable();
+                lock_detail_current_window();
+                Aurora.request({
+                    url: $('csh511_batch_import_delete_link').getUrl(),
+                    success: function() {
+                        unlock_detail_current_window();
+                        window.location.href = $('csh_transaction_receipt_link').getUrl();
+                    },
+                    failure: function() {
+                        $('exit_btn_id').enable();
+                        unlock_detail_current_window();
+                    },
+                    error: function() {
+                        $('exit_btn_id').enable();
+                        unlock_detail_current_window();
+                    },
+                    scope: this
+                });
+
+            }
+            // add by Liyuan 注释部分按钮
+            /*function checkData() {
+                var allData = $('batch_result_ds').getAll();
+                if (allData.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '请导入数据!');
+                } else {
+                    var param = {};
+                    param['batch_session_id'] = '${/model/batch_session_id/record/@batch_session_id}';
+                    Aurora.request({
+                        url: $('csh511_batch_import_check_link').getUrl(),
+                        para: param,
+                        success: function(res) {
+                            check_flag = 'Y';
+                            flag = res.result.return_id;
+                            if (res.result.return_id == 0) {
+                                Aurora.showMessage('${l:PROMPT}', '有错误,请查看错误！');
+                            } else {
+                                Aurora.SideBar.show({
+                                    msg: '核对操作成功！',
+                                    duration: 2000
+                                });
+                            }
+                        },
+                        scope: this
+                    });
+                }
+            }*/
+            /*function errorData() {
+                var allData = $('batch_result_ds').getAll();
+                if (allData.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '请导入数据!');
+                    return;
+                }
+                window.open($('batch_import_err_link').getUrl() + '?batch_session_id=${/model/batch_session_id/record/@batch_session_id}');
+                //window.open($('import_err_link').getUrl()+'?batch_id=${/model/batch_id/record/@batch_id}');
+            }*/
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="batch_result_ds" autoQuery="true" model="csh.CSH511.csh_transaction_batch_temp_logs" queryUrl="${/request/@context_path}/autocrud/csh.CSH511.csh_transaction_batch_temp_logs/query?batch_session_id=${/model/batch_session_id/record/@batch_session_id}">
+                <a:fields>
+                    <a:field name="log_text" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:toolbarButton click="loadData" text="PROMPT.LOADDATA" width="80"/>
+                <a:toolbarButton id="submitData_btn_id" click="submitData" text="PROMPT.SUBMIT" width="80"/>
+                <a:toolbarButton id="clearDuplicateData_btn_id" click="clearDuplicateData" text="清除重复" width="80"/>
+                <a:toolbarButton id="clearData_btn_id" click="clearData" text="PROMPT.CLEAR" width="80"/>
+                <a:toolbarButton id="exit_btn_id" click="go_back" text="HLS.EXIT"/>
+                <!--<a:toolbarButton click="checkData" text="PROMPT.CHECK"/>-->
+                <!--<a:toolbarButton bind="grid" text="HAP_EXPORT" type="excel" width="80"/>
+                <a:toolbarButton click="errorData" text="PROMPT.ERROR"/>-->
+            </a:screenTopToolbar>
+            <!-- 			    <a:form style="margin-left:5px;margin-top:5px;width:99%" title="导入实例">
+			        <a:hBox>
+			            <a:button click="loadData" text="PROMPT.LOADDATA"/>
+			            <a:button click="submitData" text="PROMPT.SUBMIT"/>
+			        </a:hBox>
+			    </a:form> -->
+            <a:grid id="batch_grid" bindTarget="batch_result_ds" marginHeight="150" marginWidth="10" navBar="true">
+                <a:columns>
+                    <a:column name="log_text" align="left" prompt="错误信息" width="200" editor="csh_grid_editor_id"/>
+                    <a:column name="transaction_date" align="center" prompt="收款日期" renderer="Aurora.formatDate" width="120"/>
+                    <a:column name="transaction_amount" align="right" prompt="收款金额" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="bank_serial_num" align="center" prompt="银行流水号" width="180"/>
+                    <a:column name="bp_bank_account_num" align="left" prompt="打款账号" width="180"/>
+                    <a:column name="bp_bank_account_name" align="left" prompt="打款账户名" width="150"/>
+                    <a:column name="bp_name" align="left" prompt="商业伙伴" width="150"/>
+                    <a:column name="fee_type_desc" align="center" prompt="费用类型" width="100"/>
+                    <a:column name="guangsan_flag_desc" align="center" prompt="是否广三代付" width="150"/>
+                    <a:column name="description" align="center" prompt="摘要" width="120"/>
+                    <!--默认商业模式:DF库存融资业务-->
+                    <a:column name="lease_channel_desc" align="center" prompt="商业模式" width="150"/>
+                    <!--默认收款帐号:11014803237000-->
+                    <a:column name="bank_account_num" align="center" prompt="收款账号" width="180"/>
+                </a:columns>
+                <a:editors>
+                    <a:textArea id="csh_grid_editor_id"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	$Author: ouyangzhaochang2663 $
+	$Date: 2010/11/15 07:47:58 $
+	$Revision: 1.3 $
+	$Purpose: 角色分配功能
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="sys_role_function_link_1" url="${/request/@context_path}/modules/sys/public/sys_role_function.svc"/>
+        <a:link id="sys_service_welcome_link" url="${/request/@context_path}/welcome.screen"/>
+        <script><![CDATA[
+        	
+            function sys_1003_next() {
+                history.go(1);
+            }
+            
+            function sys_1003_back() {
+                history.go(-1);
+            }
+            
+            function sys_1003_quit() {
+                location.href = $('sys_service_welcome_link').getUrl();
+            }
+            
+            function onUpdate_role_ds(ds, record, name, value, oldValue)
+            {
+                if(name=='role_id')
+                {
+                    query();
+                }
+            }
+        	
+            function query() {
+                $('function_tree_ds').query();
+            }
+            
+            function sys_1003_grid_submit() {
+                
+                var roleDs = $('role_ds');
+                if (!roleDs.validate()) {
+                    return '';
+                }
+                var role_id = roleDs.getAt(0).get('role_id');
+                var ds = $('function_tree_ds');
+                
+                var records=ds.getAll();
+                var array=[];
+                var n=0;
+                for (var i=0,j=records.length;i<j;i++)
+                {
+                    var record=records[i];
+                    if(record.get('checked')=='Y')
+                    {
+                        array[n]={
+	                        role_id:role_id,
+	                        function_id:record.get('function_id'),
+	                        sequence:record.get('sequence'),
+	                        expanded:record.get('expanded'),
+	                        checked:record.get('checked')
+	                    };
+	                    n++;
+                    }
+                }
+                var data={};
+                data['functions']=array;
+                data['role_id']=role_id;
+                
+                Aurora.request({
+                    url: $('sys_role_function_link_1').getUrl(),
+                    para: data,
+                    success: function (res) {
+                        Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 2000
+                        });
+                    },
+                    scope: this
+                });
+            }
+            
+            function expandEditorFunction(record, name) {
+                if (record.get('function_type') == 'G') {
+                    return 'grid_cb';
+                } else {
+                    return '';
+                }
+            }
+            
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="role_ds" autoCreate="true" model="sys.sys_role">
+                <a:fields>
+                    <a:field name="role_name" lovGridHeight="300" lovHeight="460" lovService="sys.sys_role" lovWidth="500" required="true" title="SYS_ROLE.ROLE_NAME">
+                        <a:mapping>
+                            <a:map from="role_id" to="role_id"/>
+                            <a:map from="role_name" to="role_name"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_role_ds"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="function_tree_ds" autoCount="false" fetchAll="true" model="sys.sys_role_function_view" pageSize="15" queryDataSet="role_ds">
+                <a:fields>
+                    <a:field name="function_code" readOnly="true"/>
+                    <a:field name="function_name" readOnly="true"/>
+                    <a:field name="expanded" checkedValue="Y" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="sys_1003_back" text="HLS.BACK"/>
+                <a:gridButton click="sys_1003_next" text="HLS.FORWARD"/>
+                <a:gridButton click="sys_1003_quit" text="HLS.EXIT"/>
+                <a:gridButton click="query" text="HLS.QUERY"/>
+                <a:gridButton click="sys_1003_grid_submit" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:form title="HAP_QUERY_TITLE">
+                <a:lov name="role_name" bindTarget="role_ds"/>
+            </a:form>
+            <a:treeGrid id="functionTreeGrid" bindTarget="function_tree_ds" expandField="_expanded" idField="function_id" marginHeight="180" marginWidth="30" parentField="parent_function_id" sequenceField="sequence" showCheckBox="true">
+                <a:columns>
+                    <a:column name="function_name" width="300"/>
+                    <a:column name="function_code" width="150"/>
+                    <a:column name="expanded" editorFunction="expandEditorFunction" width="100"/>
+                    <a:column name="sequence" align="right" editor="grid_nf" width="100"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="grid_nf" allowDecimals="false"/>
+                    <a:checkBox id="grid_cb"/>
+                </a:editors>
+            </a:treeGrid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

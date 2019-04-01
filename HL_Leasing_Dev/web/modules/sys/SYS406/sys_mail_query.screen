@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	&author:DJ
+	$date:2013/11/12
+	$purpose:短信发送
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure><![CDATA[
+    ]]></a:init-procedure>
+    <a:view>
+        <a:link id="bmLink_re_submit_mail" model="sys.SYS405.sys_mail_list" modelaction="update"/>
+        <a:link id="pageLink_view_body" url="${/request/@context_path}/modules/sys/SYS406/sys_mail_body.screen"/>
+        <a:link id="downloadFile_link" url="${/request/@context_path}/downloadFile.screen"/>
+        <script><![CDATA[
+            function reSubmitmail(mailing_list_id) {
+                Aurora.request({
+                    url: $('bmLink_re_submit_mail').getUrl(),
+                    para: {
+                        'mailing_list_id': mailing_list_id
+                    },
+                    success: function(res) {
+                        $('mailQueryDs').query();
+                        Aurora.SideBar.show({
+                            msg: '提交成功',
+                            duration: 2000
+                        });
+            
+                    },
+                    failure: function() {},
+                    error: function() {},
+                    scope: this
+                });
+            }
+            
+            function winOpen_mail_body(mailing_list_id, source_type) {
+                new Aurora.Window({
+                    id: 'sys_mail_body',
+                    url: $('pageLink_view_body').getUrl(),
+                    params: {
+                        mailing_list_id: mailing_list_id,
+                        source_type: source_type
+                    },
+                    title: '邮件正文',
+                    height: 520,
+                    width: 960
+                });
+            }
+            
+            function render_mailQueryDs_grid(value, record, name) {
+                if (name == 're_submit') {
+                    if (record.get('sent_flag') == 'N' && record.get('error_times') > 0) {
+                        return '<a href="javascript:reSubmitmail(' + record.get('mailing_list_id') + ')">重发</a>';
+                    }
+                    return '';
+                } else if (name == 'mail_body') {
+                    return '<a href="javascript:winOpen_mail_body(' + record.get('mailing_list_id') + ',\'WAIT\')">邮件正文</a>';
+                }
+                return '';
+            }
+            
+            function render_mailHistoryQueryDs_grid(value, record, name) {
+                if (name == 'mail_body') {
+                    return '<a href="javascript:winOpen_mail_body(' + record.get('mailing_list_id') + ',\'HISTORY\')">邮件正文</a>';
+                }
+                return '';
+            }
+            
+            function mailQueryPage_refresh() {
+                $('mailQueryDs').query();
+                $('mailHistoryQueryDs').query();
+            }
+            
+            function openDownloadFile(record_id) {
+                var record = $('mailQueryDs').findById(record_id);
+                url = $('downloadFile_link').getUrl() + '?table_name=ZJ_SYS_MAILING_LIST&useSubFolder=Y&header_id=' + record.get('mailing_list_id');
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '附件查看',
+                    id: 'downloadFile_win',
+                    width: 850,
+                    height: 400
+                });
+            }
+            
+            function openDownloadFile_hd(record_id) {
+                var record = $('mailHistoryQueryDs').findById(record_id);
+                url = $('downloadFile_link').getUrl() + '?table_name=ZJ_SYS_MAILING_LIST&useSubFolder=Y&header_id=' + record.get('mailing_list_id');
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '附件查看',
+                    id: 'downloadFile_win',
+                    width: 850,
+                    height: 400
+                });
+            }
+            
+            function attach_file_renderer(value, record, name) {
+                return '<a href="javascript:openDownloadFile(' + record.id + ')">附件</a>';
+            }
+            
+            function attach_file_renderer_hd(value, record, name) {
+                return '<a href="javascript:openDownloadFile_hd(' + record.id + ')">附件</a>';
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="mailQueryDs" autoPageSize="true" autoQuery="true" model="sys.SYS406.zj_sys_mailing_list">
+                <a:fields>
+                    <a:field name="text" required="true" validator="validate_mailCreateDs"/>
+                    <a:field name="all_phone_number" required="true" validator="validate_mailCreateDs"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="mailHistoryQueryDs" autoPageSize="true" autoQuery="true" model="sys.SYS406.zj_sys_mailing_list_ht">
+                <a:fields><![CDATA[
+                ]]></a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="mailQueryPage_refresh" text="HLS.REFRESH"/>
+            </a:screenTopToolbar>
+            <a:tabPanel marginHeight="100" marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="待发送" width="100">
+                        <a:grid id="mailQueryDs_grid" bindTarget="mailQueryDs" marginHeight="130" marginWidth="60" navBar="true">
+                            <a:columns>
+                                <a:column name="creation_date_str" prompt="提交日期" width="130"/>
+                                <a:column name="mail_to" autoAdjust="false" prompt="收件人" showTitle="true" width="200"/>
+                                <a:column name="mail_cc" autoAdjust="false" prompt="抄送" showTitle="true" width="200"/>
+                                <a:column name="subject" autoAdjust="false" prompt="主题" showTitle="true" width="300"/>
+                                <a:column name="note" autoAdjust="false" editor="mailQueryDs_textArea_id" prompt="错误信息" showTitle="true" width="245"/>
+                                <a:column name="re_submit" align="center" prompt="重发" renderer="render_mailQueryDs_grid"/>
+                                <a:column name="mail_body" align="center" prompt="邮件正文" renderer="render_mailQueryDs_grid" width="80"/>
+                                <a:column name="attach_file" align="center" prompt="附件查看" renderer="attach_file_renderer" width="50"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:textArea id="mailQueryDs_textArea_id"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab prompt="已发送" width="100">
+                        <a:grid id="mailHistoryQueryDs_grid" bindTarget="mailHistoryQueryDs" marginHeight="130" marginWidth="60" navBar="true">
+                            <a:columns>
+                                <a:column name="creation_date_str" prompt="提交日期" width="130"/>
+                                <a:column name="sent_date_str" prompt="发送日期" width="130"/>
+                                <a:column name="mail_to" autoAdjust="false" prompt="收件人" showTitle="true" width="250"/>
+                                <a:column name="mail_cc" autoAdjust="false" prompt="抄送" showTitle="true" width="250"/>
+                                <a:column name="subject" autoAdjust="false" prompt="主题" showTitle="true" width="300"/>
+                                <a:column name="mail_body" align="center" prompt="邮件正文" renderer="render_mailHistoryQueryDs_grid" width="80"/>
+                                <a:column name="attach_file" align="center" prompt="附件查看" renderer="attach_file_renderer_hd" width="50"/>
+                            </a:columns>
+                            <a:editors/>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

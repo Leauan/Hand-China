@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-8-7 下午05:18:52  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="usage_type=&apos;SIGNAL_LAMP&apos; and enabled_flag=&apos;Y&apos;" fetchAll="true" model="rsc.RSC200.rsc_five_class_target_lamp" rootPath="/model/target_lamp"/>
+        <a:model-query fetchAll="true" model="rsc.RSC200.rsc_fc_target_signal_lamp" rootPath="target_signal_lamp_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="rsc_five_class_rule_link" url="${/request/@context_path}/modules/rsc/RSC200/rsc_five_class_rule_detail.screen"/>
+        <a:link id="rsc_fc_target_signal_lamp_rule_link" url="${/request/@context_path}/modules/rsc/RSC200/rsc_fc_target_signal_lamp_rule.svc"/>
+        <a:link id="rsc_fc_target_signal_lamp_link_id" model="rsc.RSC200.rsc_fc_target_signal_lamp" modelaction="query"/>
+        <style><![CDATA[
+        	.item-table#rsc_signal_lamp_table_id tbody td{
+        	    padding:23px 5px 23px 5px
+        	}
+        ]]></style>
+        <script><![CDATA[
+			function rsc_200_quit()
+			{
+			    $('rsc_fc_target_signal_lamp').close();
+			}
+			function rsc200LightRule(value,record,name)
+			{
+			    var five_class_plan='${/parameter/@plan_code}';
+			    var usage_type='${/parameter/@usage_type}';
+			    var lamp_color=record.get('lamp_color');
+			    return '<a href="javascript:rsc200OpenRulePage(\'' + five_class_plan + '\',\'' + lamp_color + '\',\''+name+'\',\''+usage_type+'\')">${l:RSC_FIVE_CLASS_TARGET_VALUE.RULE_DETAIL}</a>';
+			}
+			
+			function rsc200OpenRulePage(five_class_plan,lamp_color,five_class_target,usage_type)
+			{
+			    Aurora.Masker.mask($('rsc_fc_target_signal_lamp').wrap,'${l:HLS.EXECUTING}');
+			    Aurora.request({
+			        url:$('rsc_fc_target_signal_lamp_link_id').getUrl(),
+			        para:{
+			           lamp_color: lamp_color,
+                       five_class_target:five_class_target
+			        },
+			        success:function(res){
+			            if(res.result.record){
+			                Aurora.Masker.unmask($('rsc_fc_target_signal_lamp').wrap);
+			                open_window(lamp_color,five_class_target,res.result.record.five_class_rule_id);
+			            }else{
+			              
+			                Aurora.request({
+			                    url:$('rsc_fc_target_signal_lamp_rule_link').getUrl(),
+			                    para:{
+			                        lamp_color: lamp_color,
+                       				five_class_target:five_class_target,
+                      			    usage_type:usage_type
+			                    },
+			                    success:function(res){
+			                        Aurora.Masker.unmask($('rsc_fc_target_signal_lamp').wrap);
+			                        open_window(lamp_color,five_class_target,res.result.five_class_rule_id);
+			                    },
+			                    error:function(){
+						            Aurora.Masker.unmask($('rsc_fc_target_signal_lamp').wrap);
+						        },
+						        failure:function(){
+						            Aurora.Masker.unmask($('rsc_fc_target_signal_lamp').wrap);
+						        },
+			                    scope:this
+			                });
+			            }
+			        },
+			        error:function(){
+			            Aurora.Masker.unmask($('rsc_fc_target_signal_lamp').wrap);
+			        },
+			        failure:function(){
+			            Aurora.Masker.unmask($('rsc_fc_target_signal_lamp').wrap);
+			        },
+			        scope:this
+			    });
+			}
+			function open_window(lamp_color,five_class_target,five_class_rule_id){
+			    new Aurora.Window({
+                    id: 'rsc_five_class_rule_window',
+                    url: $('rsc_five_class_rule_link').getUrl(),
+                    params:{
+                       lamp_color: lamp_color,
+                       five_class_target:five_class_target,
+                       five_class_rule_id:five_class_rule_id
+                    },
+                    title: '${l:RSC_FIVE_CLASS_PLANS.SET_RULE}',
+                    height: 555,
+                    width: 890
+                });
+			}
+			
+			function see_description_lamp_detail(value,record,name){
+		   		return "<div style='color:#055A78;text-indent:0;'>"+value+"</div>";
+			}
+		]]></script>
+        <a:dataSets>
+            <a:dataSet id="rsc_fc_target_signal_lamp_ds" loadData="true" model="rsc.RSC200.rsc_fc_target_signal_lamp"/>
+            <a:dataSet id="rsc_signal_lamp_ds" loadData="true" model="rsc.RSC200.rsc_five_class_signal_lamp" pageSize="15">
+                <a:fields>
+                    <a:field name="lamp_color"/>
+                    <a:field name="description"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="rsc_200_quit" text="HLS.EXIT"/>
+            </a:screenTopToolbar>
+            <a:table id="rsc_signal_lamp_table_id" bindTarget="rsc_signal_lamp_ds" height="450" marginWidth="30" width="360">
+                <a:columns>
+                    <a:column name="description" align="center" prompt=" " renderer="see_description_lamp_detail" width="20"/>
+                    <a:placeHolder id="target_lamp"/>
+                </a:columns>
+            </a:table>
+        </a:screenBody>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="target_lamp">
+            <p:loop source="/model/target_lamp">
+                <c:process-config>
+                    <a:column name="${@five_class_target}" align="center" prompt="${@name}" renderer="rsc200LightRule" width="100"/>
+                </c:process-config>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

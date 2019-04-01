@@ -1,0 +1,423 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-1-15 下午04:04:07  
+    $Revision: 1.0  
+    $Purpose: 合同账户定义
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:view>
+        <a:link id="hls_bp_master_bank_account_link" model="basic.hls_bp_master_bank_account_v_for_lov" modelaction="query"/>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <script><![CDATA[
+            function con601_query() {
+                var query_ds = $('con_contract_bank_account_define_query_ds');
+                var result_ds = $('con_contract_bank_account_define_result_ds');
+                if (!query_ds.validate()) {
+                    return;
+                }
+                var record = query_ds.getCurrentRecord();
+                var contract_id = record.get('contract_id');
+                var cf_item = record.get('cf_item');
+                result_ds.query();
+            }
+            
+            function con601_save() {
+                if (!$('con_contract_bank_account_define_result_ds').validate()) {
+                    return;
+                }
+            
+                Aurora.showConfirm('${l:HLS.PROMPT}', '${l:SYS_WHETHER_SAVE}', function() {
+                    $('con_contract_bank_account_define_result_ds').submit();
+                }, function() {
+                    return;
+                });
+            }
+            
+            function cf_direction_render(value, record, name) {
+                if (value == 'INFLOW') {
+                    return '<img src="${/request/@context_path}/images/inflow.png" style="margin-top:4px">';
+                } else if (value == 'OUTFLOW') {
+                    return '<img src="${/request/@context_path}/images/outflow.png" style="margin-top:4px">';
+                }
+            }
+            
+            function con601_assign() {
+                var ds = $('con_contract_bank_account_define_result_ds');
+                var query_record = $('con_contract_bank_account_define_query_ds').getCurrentRecord();
+                var bank_account_num_1 = query_record.get('bank_account_num_1');
+                var bank_account_num_2 = query_record.get('bank_account_num_2');
+                var bank_account_num_3 = query_record.get('bank_account_num_3');
+            
+                if (!bank_account_validate(bank_account_num_1, bank_account_num_2, bank_account_num_3)) {
+                    Aurora.showMessage('提示', '收款账号不能重复!');
+                    return;
+                }
+            
+                if (!rate_validate()) {
+                    Aurora.showMessage('提示', '账户比例之和不等于100%，请重新设置!');
+                    return;
+                }
+            
+            
+                var tt_bank_account_id_1 = query_record.get('tt_bank_account_id_1');
+                var tt_bank_account_id_2 = query_record.get('tt_bank_account_id_2');
+                var tt_bank_account_id_3 = query_record.get('tt_bank_account_id_3');
+                var bp_master_bank_account_num = query_record.get('bp_master_bank_account_num');
+                var bp_master_bank_account_id = query_record.get('bp_master_bank_account_id');
+            
+                var rate_1 = query_record.get('ratio_1');
+                var rate_2 = query_record.get('ratio_2');
+                var rate_3 = query_record.get('ratio_3');
+            
+                var amount;
+            
+                var records = ds.getAll();
+                var record_length = records.length;
+                for (var i = 0;i < record_length;i++) {
+                    //核销状态为full的不分配
+                    if (records[i].get('write_off_flag') != 'FULL') {
+                        //流入现金流
+                        if (records[i].get('cf_direction') == 'INFLOW') {
+                            if (bank_account_num_1) {
+                                records[i].set('tt_bank_account_num_1', bank_account_num_1);
+                                records[i].set('tt_bank_account_id_1', tt_bank_account_id_1);
+                                records[i].set('tt_account_1_amt', parseFloat(mul(records[i].get('due_amount'), rate_1)).toFixed(2));
+                            } else {
+                                records[i].set('tt_bank_account_num_1', '');
+                                records[i].set('tt_bank_account_id_1', '');
+                                records[i].set('tt_account_1_amt', '');
+                            }
+                            if (bank_account_num_2) {
+                                records[i].set('tt_bank_account_num_2', bank_account_num_2);
+                                records[i].set('tt_bank_account_id_2', tt_bank_account_id_2);
+                                records[i].set('tt_account_2_amt', parseFloat(mul(records[i].get('due_amount'), rate_2)).toFixed(2));
+                            } else {
+                                records[i].set('tt_bank_account_num_2', '');
+                                records[i].set('tt_bank_account_id_2', '');
+                                records[i].set('tt_account_2_amt', '');
+                            }
+                            if (bank_account_num_3) {
+                                records[i].set('tt_bank_account_num_3', bank_account_num_3);
+                                records[i].set('tt_bank_account_id_3', tt_bank_account_id_3);
+                                records[i].set('tt_account_3_amt', parseFloat(mul(records[i].get('due_amount'), rate_3)).toFixed(2));
+                            } else {
+                                records[i].set('tt_bank_account_num_3', '');
+                                records[i].set('tt_bank_account_id_3', '');
+                                records[i].set('tt_account_3_amt', '');
+                            }
+                            //校验并重新分配金额，达到金额和相等
+                            amount_assign_validate(records[i]);
+            
+                        }
+                        //流出现金流
+                        else if (records[i].get('cf_direction') == 'OUTFLOW') {
+                            if (bp_master_bank_account_num) {
+                                records[i].set('tt_bank_account_num_1', bp_master_bank_account_num);
+                                records[i].set('tt_bank_account_id_1', bp_master_bank_account_id);
+                                records[i].set('tt_account_1_amt', records[i].get('due_amount'));
+                            } else {
+                                records[i].set('tt_bank_account_num_1', '');
+                                records[i].set('tt_bank_account_id_1', '');
+                                records[i].set('tt_account_1_amt', '');
+                            }
+                        }
+                    }
+                }
+            }
+            
+            
+            //分配完毕之后，处理3个账户对应的金额和不等于预订金额问题
+            
+            
+            function amount_assign_validate(record) {
+                var due_amount = record.get('due_amount');
+                var tt_account_1_amt = record.get('tt_account_1_amt');
+                var tt_account_2_amt = record.get('tt_account_2_amt');
+                var tt_account_3_amt = record.get('tt_account_3_amt');
+                if (tt_account_1_amt && tt_account_2_amt && tt_account_3_amt) {
+                    record.set('tt_account_3_amt', minus(minus(due_amount, tt_account_1_amt), tt_account_2_amt));
+                } else if (tt_account_1_amt && tt_account_2_amt) {
+                    record.set('tt_account_2_amt', minus(due_amount, tt_account_1_amt));
+                } else if (tt_account_3_amt && tt_account_2_amt) {
+                    record.set('tt_account_3_amt', minus(due_amount, tt_account_2_amt));
+                } else if (tt_account_3_amt && tt_account_1_amt) {
+                    record.set('tt_account_3_amt', minus(due_amount, tt_account_1_amt));
+                }
+            }
+            
+            
+            
+            function con_contract_bank_account_define_result_update(ds, record, name, value, oldvalue) {
+                var bp_id;
+                if (name == 'bp_id') {
+                    bp_id = record.get('bp_id');
+                    record.getField('bp_master_bank_account_num').setLovPara('bp_id', bp_id);
+                    //如果只存在一个供应商账号，自动填充供应商账号。
+                    init_hls_bp_master_bank_account(bp_id);
+                }
+            }
+            
+            //自动填充供应商的银行帐号
+            
+            function init_hls_bp_master_bank_account(bp_id) {
+                var bank_record;
+                var query_record = $('con_contract_bank_account_define_query_ds').getCurrentRecord();
+                Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+                Aurora.request({
+                    url: $('hls_bp_master_bank_account_link').getUrl(),
+                    para: {
+                        'bp_id': bp_id
+                    },
+                    success: function(data) {
+                        Aurora.Masker.unmask(Ext.getBody());
+                        if (data.result.record) {
+                            //如果不存在length说明结果集只有1行
+                            if (!data.result.record.length) {
+                                bank_record = data.result.record;
+                                query_record.set('bp_master_bank_account_num', bank_record['bank_account_num']);
+                                query_record.set('bp_master_bank_account_id', bank_record['bank_account_id']);
+            
+            
+                            } else {
+                                query_record.set('bp_master_bank_account_num', '');
+                                query_record.set('bp_master_bank_account_id', '');
+                            }
+                        } else {
+                            query_record.set('bp_master_bank_account_num', '');
+                            query_record.set('bp_master_bank_account_id', '');
+                        }
+                    },
+                    failure: function() {
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    error: function() {
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    scope: this
+                });
+            }
+            
+            function grid_cellclick(grid, row, name, record) {
+                var bp_id = $('con_contract_bank_account_define_query_ds').getCurrentRecord().get('bp_id');
+                if (name == 'tt_bank_account_num_1' || name == 'tt_bank_account_num_2' || name == 'tt_bank_account_num_3') {
+                    if (record.get('cf_direction') == 'OUTFLOW') {
+                        record.getField(name).setLovPara('bp_id', bp_id);
+                        record.getField(name).setLovService('basic.hls_bp_master_bank_account_v_for_lov');
+                    }
+                }
+            }
+            
+            //验证账号比例是否和为100%
+            
+            function rate_validate() {
+                var rate_record = $('con_contract_bank_account_define_query_ds').getCurrentRecord();
+                var bank_account_num_1 = rate_record.get('bank_account_num_1');
+                var bank_account_num_2 = rate_record.get('bank_account_num_2');
+                var bank_account_num_3 = rate_record.get('bank_account_num_3');
+            
+                var rate1 = 0;
+                var rate2 = 0;
+                var rate3 = 0;
+                if (bank_account_num_1) {
+                    if (rate_record.get('ratio_1')) {
+                        rate1 = rate_record.get('ratio_1');
+                    }
+                }
+                if (bank_account_num_2) {
+                    if (rate_record.get('ratio_2')) {
+                        rate2 = rate_record.get('ratio_2');
+                    }
+                }
+                if (bank_account_num_3) {
+                    if (rate_record.get('ratio_3')) {
+                        rate3 = rate_record.get('ratio_3');
+                    }
+                }
+                var rate_sum = plus(rate1, rate2);
+                rate_sum = plus(rate_sum, rate3);
+            
+                if (!bank_account_num_1 && !bank_account_num_2 && !bank_account_num_3) {
+                    return true;
+                }
+            
+                if (rate_sum == 1) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            
+            //校验收款账号是否重复
+            
+            
+            function bank_account_validate(bank_account_num_1, bank_account_num_2, bank_account_num_3) {
+                if (bank_account_num_1 && bank_account_num_2) {
+                    if (bank_account_num_1 == bank_account_num_2) {
+                        return false;
+                    }
+                }
+                if (bank_account_num_2 && bank_account_num_3) {
+                    if (bank_account_num_2 == bank_account_num_3) {
+                        return false;
+                    }
+                }
+                if (bank_account_num_1 && bank_account_num_3) {
+                    if (bank_account_num_1 == bank_account_num_3) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            //有金额，银行账号必输
+            
+            function account_amount_renderer(value, record, name) {
+                if (name == 'tt_account_1_amt') {
+                    if (value) {
+                        record.getField('tt_bank_account_num_1').setRequired(true);
+                        return Aurora.formatMoney(value);
+                    } else {
+                        record.getField('tt_bank_account_num_1').setRequired(false);
+                    }
+                } else if (name == 'tt_account_2_amt') {
+                    if (value) {
+                        record.getField('tt_bank_account_num_2').setRequired(true);
+                        return Aurora.formatMoney(value);
+                    } else {
+                        record.getField('tt_bank_account_num_2').setRequired(false);
+                    }
+                } else if (name == 'tt_account_3_amt') {
+                    if (value) {
+                        record.getField('tt_bank_account_num_3').setRequired(true);
+                        return Aurora.formatMoney(value);
+                    } else {
+                        record.getField('tt_bank_account_num_3').setRequired(false);
+                    }
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="con_contract_bank_account_define_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="bp_id"/>
+                    <a:field name="contract_number" lovGridHeight="350" lovHeight="550" lovService="basic.con_contract_for_lov" lovWidth="650" required="true">
+                        <a:mapping>
+                            <a:map from="bp_id_tenant" to="bp_id"/>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="contract_name" to="contract_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="cf_item"/>
+                    <a:field name="cf_item_desc" lovGridHeight="350" lovHeight="500" lovUrl="${/request/@context_path}/modules/cont/CON601/con_contract_bank_account_cf_lov.screen" lovWidth="450" required="true">
+                        <a:mapping>
+                            <a:map from="cf_item" to="cf_item"/>
+                            <a:map from="cf_item_desc" to="cf_item_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_account_num_1" lovGridHeight="350" lovHeight="530" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="550">
+                        <a:mapping>
+                            <a:map from="bank_account_num" to="bank_account_num_1"/>
+                            <a:map from="bank_account_id" to="tt_bank_account_id_1"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_account_num_2" lovGridHeight="350" lovHeight="530" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="550">
+                        <a:mapping>
+                            <a:map from="bank_account_num" to="bank_account_num_2"/>
+                            <a:map from="bank_account_id" to="tt_bank_account_id_2"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_account_num_3" lovGridHeight="350" lovHeight="530" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="550">
+                        <a:mapping>
+                            <a:map from="bank_account_num" to="bank_account_num_3"/>
+                            <a:map from="bank_account_id" to="tt_bank_account_id_3"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_master_bank_account_num" lovGridHeight="350" lovHeight="530" lovService="basic.hls_bp_master_bank_account_v_for_lov" lovWidth="550">
+                        <a:mapping>
+                            <a:map from="bank_account_num" to="bp_master_bank_account_num"/>
+                            <a:map from="bank_account_id" to="bp_master_bank_account_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="ratio_1"/>
+                    <a:field name="ratio_2"/>
+                    <a:field name="ratio_3"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="con_contract_bank_account_define_result_update"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="con_contract_bank_account_define_result_ds" fetchAll="true" model="cont.CON601.con_contract_bank_account_cf_query" queryDataSet="con_contract_bank_account_define_query_ds" queryUrl="${/request/@context_path}/autocrud/cont.CON601.con_contract_bank_account_cf_query/query" submitUrl="${/request/@context_path}/modules/cont/CON601/con_contract_bank_account_save.svc">
+                <a:fields>
+                    <a:field name="tt_bank_account_num_1" lovGridHeight="350" lovHeight="530" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="550">
+                        <a:mapping>
+                            <a:map from="bank_account_num" to="tt_bank_account_num_1"/>
+                            <a:map from="bank_account_id" to="tt_bank_account_id_1"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="tt_bank_account_num_2" lovGridHeight="350" lovHeight="530" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="550">
+                        <a:mapping>
+                            <a:map from="bank_account_num" to="tt_bank_account_num_2"/>
+                            <a:map from="bank_account_id" to="tt_bank_account_id_2"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="tt_bank_account_num_3" lovGridHeight="350" lovHeight="530" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="550">
+                        <a:mapping>
+                            <a:map from="bank_account_num" to="tt_bank_account_num_3"/>
+                            <a:map from="bank_account_id" to="tt_bank_account_id_3"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="tt_account_1_amt"/>
+                    <a:field name="tt_account_2_amt"/>
+                    <a:field name="tt_account_3_amt"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="con601_query" text="HLS.QUERY"/>
+                <a:gridButton click="con601_assign" text="CON601.ASSIGN"/>
+                <a:gridButton click="con601_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:form column="2" title=" ">
+                <a:fieldSet column="2" labelWidth="100" title="HLS.QUERY_TITLE">
+                    <a:lov name="contract_number" bindTarget="con_contract_bank_account_define_query_ds" prompt="HLS.CONTRACT_NUMBER" width="150"/>
+                    <a:lov name="cf_item_desc" bindTarget="con_contract_bank_account_define_query_ds" prompt="HLS.CF_ITEM_DESC" width="150"/>
+                    <a:textField name="contract_name" bindTarget="con_contract_bank_account_define_query_ds" colspan="2" prompt="HLS.CONTRACT_NAME" readOnly="true" width="408"/>
+                    <a:lov name="bp_master_bank_account_num" bindTarget="con_contract_bank_account_define_query_ds" colspan="2" prompt="CON601.BP_MASTER_BANK_ACCOUNT_NUM" width="408"/>
+                </a:fieldSet>
+                <a:fieldSet column="2" labelWidth="80" title="CSH511.BANK_ACCOUNT_CODE">
+                    <a:lov name="bank_account_num_1" bindTarget="con_contract_bank_account_define_query_ds" prompt="CON601.TT_BANK_ACCOUNT_NUM_1"/>
+                    <a:percentField name="ratio_1" allowNegative="false" bindTarget="con_contract_bank_account_define_query_ds" prompt="CON601.RATIO"/>
+                    <a:lov name="bank_account_num_2" bindTarget="con_contract_bank_account_define_query_ds" prompt="CON601.TT_BANK_ACCOUNT_NUM_2"/>
+                    <a:percentField name="ratio_2" allowNegative="false" bindTarget="con_contract_bank_account_define_query_ds" prompt="CON601.RATIO"/>
+                    <a:lov name="bank_account_num_3" bindTarget="con_contract_bank_account_define_query_ds" prompt="CON601.TT_BANK_ACCOUNT_NUM_3"/>
+                    <a:percentField name="ratio_3" allowNegative="false" bindTarget="con_contract_bank_account_define_query_ds" prompt="CON601.RATIO"/>
+                </a:fieldSet>
+            </a:form>
+            <a:grid bindTarget="con_contract_bank_account_define_result_ds" marginHeight="240" marginWidth="30">
+                <a:columns>
+                    <a:column name="cf_direction" align="center" prompt="CON601.CF_DIRECTION" renderer="cf_direction_render" width="50"/>
+                    <a:column name="times" prompt="HLS.TIMES" width="50"/>
+                    <a:column name="cf_item_name" prompt="HLS.CF_ITEM_DESC" width="100"/>
+                    <a:column name="due_date" prompt="CON901.DUE_DATE" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="due_amount" align="right" prompt="CON601.DUE_AMOUNT" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="tt_bank_account_num_1" editor="grid_lov" prompt="CON601.TT_BANK_ACCOUNT_NUM_1" width="180"/>
+                    <a:column name="tt_account_1_amt" align="right" editor="gird_nf" prompt="CON601.TT_ACCOUNT_1_AMT" renderer="account_amount_renderer" width="100"/>
+                    <a:column name="tt_bank_account_num_2" editor="grid_lov" prompt="CON601.TT_BANK_ACCOUNT_NUM_2" width="180"/>
+                    <a:column name="tt_account_2_amt" align="right" editor="gird_nf" prompt="CON601.TT_ACCOUNT_2_AMT" renderer="account_amount_renderer" width="100"/>
+                    <a:column name="tt_bank_account_num_3" editor="grid_lov" prompt="CON601.TT_BANK_ACCOUNT_NUM_3" width="180"/>
+                    <a:column name="tt_account_3_amt" align="right" editor="gird_nf" prompt="CON601.TT_ACCOUNT_3_AMT" renderer="account_amount_renderer" width="100"/>
+                </a:columns>
+                <a:editors>
+                    <a:lov id="grid_lov"/>
+                    <a:numberField id="gird_nf" allowNegative="false"/>
+                </a:editors>
+                <a:events>
+                    <a:event name="cellclick" handler="grid_cellclick"/>
+                </a:events>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

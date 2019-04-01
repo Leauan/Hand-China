@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Icon  
+    $Date: 2014-10-16 下午7:38:14  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure><![CDATA[
+	]]></a:init-procedure>
+    <a:view>
+        <a:link id="pageLink_welcome" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="con_contract_print_incept_info_id" url="${/request/@context_path}/modules/cont/CON510/con_contract_print_incept.screen"/>
+        <a:link id="con_contract_dowload_uploadfile" url="${/request/@context_path}/modules/cont/CON580/con_other_content_print.svc"/>
+        <!--  获取合同打印路径的js -->
+        <script src="${/request/@context_path}/modules/cont/CON504/javascripts/contract_print_path.js"/>
+        <script><![CDATA[
+            function exit_to_welcome() {
+                location.href = $('pageLink_welcome').getUrl();
+            }
+            
+            function con580_con_contract_reset() {
+                $('dispatch_info_query_ds').reset();
+            }
+            
+            function con580_con_contract_query() {
+                $('dispatch_info_result_ds').query();
+            }
+            
+            // function con580_dispatch_finish() {
+            // var records=$('dispatch_info_result_ds').getSelected();
+            // if(records.length<1) {
+            // Aurora.showMessage('${l:PROMPT}', '请至少选择一条记录');
+            // return;
+            // }
+            // for(var i=0;i<records.length;i++) {
+            // if(records[i].get('can_dispatch_flag')=='N') {
+            // Aurora.showMessage('${l:PROMPT}', '状态必须为可发车！');
+            // return;
+            // }
+            // }
+            // }
+            
+            function dateValidator(record, name, value) {
+                //debugger;
+                if (name == 'lease_date_from' || name == 'lease_date_to') {
+                    var start_date = record.get('lease_date_from');
+                    var end_date = record.get('lease_date_to');
+                    if (!Aurora.isEmpty(end_date)) {
+                        if (end_date < start_date) {
+                            return '起始日期不能大于终止日期';
+                        }
+                    }
+                    return true;
+                }
+            }
+            
+            function onUpdate(ds, record, name, value, oldvalue) {
+                if (name == 'lease_date_from' || name == 'lease_date_to') {
+                    record.validate((name == 'lease_date_from') ? 'lease_date_to' : 'lease_date_from');
+                }
+            }
+            
+            function con580_send_car_notice_print() {
+                var records = $('dispatch_info_result_ds').getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '请选择一条记录');
+                    return;
+                } else {
+                    record = records[0];
+                    if (record.get('can_dispatch_flag') != 'Y') {
+                        Aurora.showMessage('${l:PROMPT}', '当前合同不可发车');
+                        return;
+                    } else {
+                        //生成合同文本到服务器
+                        Aurora.showConfirm('提示', '确定打印选中项？', function() {
+                            Aurora.Masker.mask(Ext.getBody(), '正在提交');
+                            var record = $('dispatch_info_result_ds').getSelected()[0];
+                            var contract_id = record.get('contract_id');
+                            var templt_name = 'yonda_send_car_notice.xml';
+                            var pdf_key_path = get_pdf_key_path();
+                            var spv_company_code = record.get('spv_company_code');
+                            var doc_name = get_doc_path()+'OTHER_CONTRACT_CONTENT/';
+                            var content_number = '发车通知书';
+                            //不用于合同文本打印功能的文本
+                            var other_contract_content_flag='Y';
+                            var table_name='AST_CAR_DISPATCH_V';
+                            var table_pk_id=record.get('contract_id');
+                            //不用于合同文本打印功能的文本
+                            var link = $('con_contract_print_incept_info_id').getUrl();
+                            var url = link + '?templt_name=' + templt_name + '&contract_id=' + contract_id + '&pdf_key_path='  + pdf_key_path + '&spv_company_code=' + spv_company_code + '&content_number=' + content_number + '&doc_name=' + doc_name+ '&other_contract_content_flag=' + other_contract_content_flag+'&table_name=' + table_name+'&table_pk_id=' + table_pk_id;
+                            var form = document.createElement("form");
+                            form.target = "word_export_window";
+                            form.method = "post";
+                            form.action = url;
+                            var iframe = Ext.get('word_export_window') || new Ext.Template('<iframe id ="word_export_window" name="word_export_window" style="position:absolute;left:-10000px;top:-10000px;width:1px;height:1px;display:none"></iframe>').insertFirst(document.body, {}, true);
+                            document.body.appendChild(form);
+                            form.submit();
+                            Ext.fly(form).remove();
+                            var doc_code = '合同文本附件';
+                             setTimeout( function() {
+                            var url_l = $('con_contract_dowload_uploadfile').getUrl() + '?table_name=AST_CAR_DISPATCH_V'+ '&table_pk_value=' +  contract_id + '&doc_code=' + encodeURI(doc_code) + '&type=SIN';
+                            window.open(href = url_l, target = "_self");
+                            Aurora.Masker.unmask(Ext.getBody());
+                            }, 2000);
+                           
+                        });
+                    }
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="flag_ds">
+                <a:datas>
+                    <a:record name="是" code="Y"/>
+                    <a:record name="否" code="N"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="license_type_ds" loadData="true" model="cont.CON580.con_license_type"/>
+            <a:dataSet id="dispatch_info_query_ds">
+                <a:fields>
+                    <a:field name="bp_id_tenant"/>
+                    <a:field name="bp_code" autoComplete="true" lovGridHeight="350" lovHeight="500" lovLabelWidth="100" lovService="cont.CON580.hls_bp_master_v?bp_category=TENANT" lovWidth="550" title="承租人">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id_tenant"/>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_name" to="bp_id_tenant_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_id_tenant_n"/>
+                    <a:field name="contract_id"/>
+                    <a:field name="contract_number" autoComplete="true" autoCompleteField="contract_number" lovGridHeight="300" lovHeight="450" lovService="cont.CON580.con_contract_for_lov" lovWidth="500" title="HLS.CONTRACT_NUMBER">
+                        <a:mapping>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="contract_name" to="contract_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_name"/>
+                    <a:field name="lease_date_from" validator="dateValidator"/>
+                    <a:field name="lease_date_to" validator="dateValidator"/>
+                    <a:field name="gps_flag" readOnly="true"/>
+                    <a:field name="insurance_flag" readOnly="true"/>
+                    <a:field name="license_flag" readOnly="true"/>
+                    <a:field name="mortgage_flag" readOnly="true"/>
+                    <a:field name="license_type"/>
+                    <a:field name="can_dispatch_flag" readOnly="true"/>
+                    <a:field name="gps_flag_des" displayField="name" options="flag_ds" returnField="gps_flag" valueField="code"/>
+                    <a:field name="mortgage_flag_des" displayField="name" options="flag_ds" returnField="mortgage_flag" valueField="code"/>
+                    <a:field name="insurance_flag_des" displayField="name" options="flag_ds" returnField="insurance_flag" valueField="code"/>
+                    <a:field name="license_flag_des" displayField="name" options="flag_ds" returnField="license_flag" valueField="code"/>
+                    <a:field name="license_type_des" displayField="code_value_name" options="license_type_ds" returnField="license_type" valueField="code_value"/>
+                    <a:field name="can_dispatch_flag_des" displayField="name" options="flag_ds" returnField="can_dispatch_flag" valueField="code"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="dispatch_info_result_ds" autoPageSize="true" autoQuery="true" model="cont.CON580.ast_car_dispatch_v" queryDataSet="dispatch_info_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="gps_flag" checkedValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="insurance_flag" checkedValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="license_flag" checkedValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="mortgage_flag" checkedValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="can_dispatch_flag" checkedValue="Y" readOnly="true" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="exit_to_welcome" text="返回"/>
+                <a:gridButton click="con580_con_contract_reset" text="重置"/>
+                <a:gridButton click="con580_con_contract_query" text="HLS.QUERY"/>
+                <!--                 <a:gridButton click="con580_dispatch_finish" text="完成提车"/> -->
+                <a:gridButton click="con580_send_car_notice_print" text="发车通知书打印"/>
+            </a:screenTopToolbar>
+            <a:form column="1" title="合同查询">
+                <a:hBox>
+                    <a:lov name="bp_code" bindTarget="dispatch_info_query_ds" prompt="承租人"/>
+                    <a:textField name="bp_id_tenant_n" bindTarget="dispatch_info_query_ds" prompt="承租人名称"/>
+                    <a:datePicker name="lease_date_from" bindTarget="dispatch_info_query_ds" prompt="起租日从"/>
+                    <a:datePicker name="lease_date_to" bindTarget="dispatch_info_query_ds" prompt="起租日到"/>
+                </a:hBox>
+                <a:hBox>
+                    <a:lov name="contract_number" bindTarget="dispatch_info_query_ds" prompt="合同编号"/>
+                    <a:textField name="contract_name" bindTarget="dispatch_info_query_ds" prompt="合同名称"/>
+                    <a:comboBox name="gps_flag_des" bindTarget="dispatch_info_query_ds" prompt="GPS安装"/>
+                    <a:comboBox name="mortgage_flag_des" bindTarget="dispatch_info_query_ds" prompt="抵押办理"/>
+                </a:hBox>
+                <a:hBox>
+                    <a:comboBox name="insurance_flag_des" bindTarget="dispatch_info_query_ds" prompt="保险办理"/>
+                    <a:comboBox name="license_type_des" bindTarget="dispatch_info_query_ds" prompt="牌照类型"/>
+                    <a:comboBox name="license_flag_des" bindTarget="dispatch_info_query_ds" prompt="是否上牌"/>
+                    <a:comboBox name="can_dispatch_flag_des" bindTarget="dispatch_info_query_ds" prompt="是否可发车"/>
+                </a:hBox>
+            </a:form>
+            <a:grid id="dispatch_info_result_grid" bindTarget="dispatch_info_result_ds" marginHeight="230" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" prompt="合同编号" width="180"/>
+                    <a:column name="contract_name" prompt="合同名称" width="150"/>
+                    <a:column name="bp_id_tenant_n" prompt="承租人名称" width="120"/>
+                    <a:column name="license_type_n" align="center" prompt="牌照类型" width="150"/>
+                    <a:column name="lease_start_date" prompt="起租日" renderer="Aurora.formatDate" width="100"/>
+                    <a:column name="gps_flag" align="center" prompt="是否安装GPS" width="120"/>
+                    <a:column name="insurance_flag" align="center" prompt="是否办理保险" width="120"/>
+                    <a:column name="license_flag" align="center" prompt="是否上牌" width="120"/>
+                    <!-- <a:column name="mortgage_flag" align="center" prompt="是否办理抵押" width="120"/> -->
+                    <a:column name="can_dispatch_flag" align="center" prompt="是否可发车" width="100"/>
+                </a:columns>
+                <a:editors>
+                    <a:checkBox id="edit_cb"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

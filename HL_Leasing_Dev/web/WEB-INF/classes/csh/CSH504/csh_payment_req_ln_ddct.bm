@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    a.contract_id,
+                    a.cashflow_id,
+                    b.description AS cf_item_name,
+                    a.due_date,
+                    a.times,
+                    'CONTRACT' ref_doc_category,
+                    NVL(a.payment_deduction_amount,a.due_amount) - NVL(a.received_amount, 0) -
+                    (SELECT
+                        NVL(SUM(ld.amount), 0)
+                    FROM
+                        csh_payment_req_ln_ddct ld,
+                        csh_payment_req_ln cprl
+                    WHERE
+                        ld.ref_doc_line_id    = a.cashflow_id AND
+                        ld.payment_req_ln_id  = cprl.payment_req_ln_id AND
+                        cprl.payment_req_id   = ${@payment_req_id} AND
+                        ld.payment_req_ln_id != ${@payment_req_ln_id}
+                    ) AS un_due_amount,
+                    a.principal - NVL(a.received_principal, 0) -
+                    (SELECT
+                        NVL(SUM(ld.principal), 0)
+                    FROM
+                        csh_payment_req_ln_ddct ld,
+                        csh_payment_req_ln cprl
+                    WHERE
+                        ld.ref_doc_line_id    = a.cashflow_id AND
+                        ld.payment_req_ln_id  = cprl.payment_req_ln_id AND
+                        cprl.payment_req_id   = ${@payment_req_id} AND
+                        ld.payment_req_ln_id != ${@payment_req_ln_id}
+                    ) AS un_principal,
+                    a.interest - NVL(a.received_interest, 0) -
+                    (SELECT
+                        NVL(SUM(ld.interest), 0)
+                    FROM
+                        csh_payment_req_ln_ddct ld,
+                        csh_payment_req_ln cprl
+                    WHERE
+                        ld.ref_doc_line_id    = a.cashflow_id AND
+                        ld.payment_req_ln_id  = cprl.payment_req_ln_id AND
+                        cprl.payment_req_id   = ${@payment_req_id} AND
+                        ld.payment_req_ln_id != ${@payment_req_ln_id}
+                    ) AS un_interest,
+                    ddct.payment_req_ln_ddct_id,
+                    NVL(ddct.payment_req_ln_id,${@payment_req_ln_id}) payment_req_ln_id,
+                    --ddct.ref_doc_category,
+                    ddct.ref_doc_id,
+                    ddct.ref_doc_line_id,
+                    ddct.amount,
+                    ddct.principal,
+                    ddct.interest,
+                    NVL(ddct.deduction_flag,'N') deduction_flag,
+                    nvl2(ddct.payment_req_ln_ddct_id,'Y','N') select_flag
+                FROM
+                    con_contract_cashflow a,
+                    CON_CONTRACT cc,
+                    hls_cashflow_item b,
+                    (SELECT
+                        *
+                    FROM
+                        csh_payment_req_ln_ddct ld
+                    WHERE
+                        ld.payment_req_ln_id = ${@payment_req_ln_id}
+                    ) ddct
+                WHERE
+                    a.contract_id = ${@contract_id} AND
+                    a.contract_id = cc.contract_id AND
+                    (
+                        (
+                            a.times = 0 AND
+                            EXISTS
+                            (SELECT
+                                1
+                            FROM
+                                csh_payment_req_ln cprl,
+                                con_contract_cashflow cfl
+                            WHERE
+                                cprl.payment_req_ln_id = ${@payment_req_ln_id} AND
+                                cprl.ref_doc_category  = 'CONTRACT' AND
+                                cprl.ref_doc_line_id   = cfl.cashflow_id AND
+                                cfl.times              = 0
+                            )
+                        )
+                    )
+                    AND
+                    a.cf_direction   = 'INFLOW' AND
+                    a.cf_status      = 'RELEASE' AND
+                    a.due_amount     > NVL(a.received_amount, 0) AND
+                    a.cf_item        = b.cf_item AND
+                    a.cashflow_id    = ddct.ref_doc_line_id(+) AND
+                    a.write_off_flag!='FULL' AND
+                    (
+                        a.cf_item IN ('2','3','51','912') OR
+                        (
+                            cc.pay_type = 1 AND
+                            a.cf_item   ='1'
+                        )
+                    )
+                ORDER BY
+                    a.cf_item
+            ]]></bm:query-sql>
+            <bm:parameters>
+                <bm:parameter name="payment_req_ln_id"/>
+                <bm:parameter name="contract_id"/>
+            </bm:parameters>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+                DECLARE
+                    v_exists NUMBER;
+                BEGIN
+                    IF ${@payment_req_ln_ddct_id} IS NULL AND nvl(${@select_flag},'N') ='Y' THEN --如果之前不存在，现在被选择，则进行插入
+                        INSERT
+                        INTO
+                            CSH_PAYMENT_REQ_LN_DDCT
+                            (
+                                PAYMENT_REQ_LN_DDCT_ID,
+                                PAYMENT_REQ_LN_ID,
+                                REF_DOC_CATEGORY,
+                                REF_DOC_ID,
+                                REF_DOC_LINE_ID,
+                                AMOUNT,
+                                PRINCIPAL,
+                                INTEREST,
+                                DEDUCTION_FLAG,
+                                CREATED_BY,
+                                CREATION_DATE,
+                                LAST_UPDATED_BY,
+                                LAST_UPDATE_DATE
+                            )
+                            VALUES
+                            (
+                                CSH_PAYMENT_REQ_LN_DDCT_S.NEXTVAL,
+                                ${@payment_req_ln_id},
+                                ${@ref_doc_category},
+                                ${@contract_id},
+                                ${@cashflow_id},
+                                ${@amount},
+                                ${@principal},
+                                ${@interest},
+                                ${@deduction_flag},
+                                ${/session/@user_id},
+                                sysdate,
+                                ${/session/@user_id},
+                                sysdate
+                            )
+                            RETURNING PAYMENT_REQ_LN_DDCT_ID
+                        INTO
+                            ${@payment_req_ln_ddct_id};
+                        BEGIN
+                            if ${@un_due_amount}<>${@amount} then
+	                            sys_raise_app_error_pkg.raise_sys_others_error(p_message => '不允许部分抵扣', p_created_by => ${/session/@user_id}, p_package_name => 'csh_payment_req_pkg', p_procedure_function_name => 'csh_payment_req');
+	                            raise_application_error(sys_raise_app_error_pkg.c_error_number, sys_raise_app_error_pkg.g_err_line_id);
+                        	end if;
+                        END;
+                        
+                    elsif ${@payment_req_ln_ddct_id} IS NOT NULL AND nvl(${@select_flag},'Y') ='N' THEN --如果之前已存在，被取消选择，则进行删除
+                        DELETE
+                        FROM
+                            CSH_PAYMENT_REQ_LN_DDCT t1
+                        WHERE
+                            t1.PAYMENT_REQ_LN_DDCT_ID = ${@payment_req_ln_ddct_id};
+                    elsif ${@payment_req_ln_ddct_id} IS NOT NULL AND NVL(${@select_flag},'N') ='Y' THEN --如果存在，且还是被选择，则更新
+                        UPDATE
+                            CSH_PAYMENT_REQ_LN_DDCT t1
+                        SET
+                            t1.PAYMENT_REQ_LN_ID=${@payment_req_ln_id},
+                            t1.REF_DOC_CATEGORY =${@ref_doc_category},
+                            t1.REF_DOC_ID       =${@contract_id},
+                            t1.REF_DOC_LINE_ID  =${@cashflow_id},
+                            t1.AMOUNT           =${@amount},
+                            t1.PRINCIPAL        =${@principal},
+                            t1.INTEREST         =${@interest},
+                            t1.DEDUCTION_FLAG   =${@deduction_flag},
+                            t1.LAST_UPDATED_BY  =${/session/@user_id},
+                            t1.LAST_UPDATE_DATE =sysdate
+                        WHERE
+                            t1.PAYMENT_REQ_LN_DDCT_ID = ${@payment_req_ln_ddct_id};
+                    END IF;
+                END;
+            ]]></bm:update-sql>
+            <bm:parameters>
+                <bm:parameter name="payment_req_ln_ddct_id" output="true"/>
+            </bm:parameters>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

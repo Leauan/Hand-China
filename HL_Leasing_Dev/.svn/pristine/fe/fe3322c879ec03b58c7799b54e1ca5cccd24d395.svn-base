@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2014-5-19 下午01:09:48  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" dynamiccreateenabled="true" trace="true">
+    <a:view>
+        <a:link id="csh_req_ddct_link" url="${/request/@context_path}/modules/csh/CSH504/csh_payment_req_ln_ddct.screen"/>
+        <a:link id="get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="con_contract_readonly_link" url="${/request/@context_path}/modules/cont/CON300N/con_contract_readonly.screen"/>
+        <a:link id="con_bcml_wfl_link" url="${/request/@context_path}/modules/cont/CON547/con_bcml_wfl_dynamic.screen"/>
+        <script><![CDATA[
+            //锁屏
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window'] = function() {
+                var detail_mask;
+                if ('${/parameter/@winid}') {
+                    if (parent.$A.CmpManager.get('${/parameter/@winid}')) {
+                        detail_mask = parent.$('${/parameter/@winid}').wrap;
+                        parent.Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                    } else {
+                        detail_mask = $('${/parameter/@winid}').wrap;
+                        Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                    }
+                } else {
+                    detail_mask = Ext.getBody();
+                    Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                }
+            };
+            //解屏
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window'] = function() {
+                var detail_mask;
+                if ('${/parameter/@winid}') {
+                    if (parent.$A.CmpManager.get('${/parameter/@winid}')) {
+                        detail_mask = parent.$('${/parameter/@winid}').wrap;
+                        parent.Aurora.Masker.unmask(detail_mask);
+                    } else {
+                        detail_mask = $('${/parameter/@winid}').wrap;
+                        Aurora.Masker.unmask(detail_mask);
+                    }
+                } else {
+                    detail_mask = Ext.getBody();
+                    Aurora.Masker.unmask(detail_mask);
+                }
+                if (Ext.get(document.documentElement)) {
+                    $A.Masker.unmask(Ext.get(document.documentElement));
+                }
+            };
+            //图片渲染
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_dynamic_pic_renderer'] = function(record, name, bp_seq) {
+                var result = name.match(/(.*)_pic$/);
+                if (result) {
+                    var pic_value = record.get(result[1]);
+                    if (pic_value == 'OUTFLOW') {
+                        return '<img src="${/request/@context_path}/images/outflow.png" style="margin-top:4px"/>';
+                    } else if (pic_value == 'INFLOW') {
+                        return '<img src="${/request/@context_path}/images/inflow.png" style="margin-top:4px"/>';
+                    } else if (pic_value == 'NONCASH') {
+                        return '<img src="${/request/@context_path}/images/noncash.png" style="margin-top:4px"/>';
+                    } else if (pic_value == 'CASH') {
+                        return '<img src="${/request/@context_path}/images/cash.png" style="margin-top:4px"/>';
+                    }
+                }
+            };
+            
+            function csh504_ddct_link(record_id, name) {
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][record_id + '---' + name];
+                var payment_req_ln_id = record.get('payment_req_ln_id'),
+                    apply_amount = record.get('amount'),
+                    contract_number = record.get('contract_number'),
+                    ref_doc_id = record.get('ref_doc_id');
+                var win = new Aurora.Window({
+                    id: 'csh_req_ddct_link_winid',
+                    url: $('csh_req_ddct_link').getUrl(),
+                    params: {
+                        apply_amount: apply_amount,
+                        payment_req_id: '${/parameter/@payment_req_id}',
+                        payment_req_ln_id: payment_req_ln_id,
+                        contract_number: contract_number,
+                        contract_id: ref_doc_id,
+                        winid: 'csh_req_ddct_link_winid',
+                        function_usage: '${/parameter/@function_usage}'
+                    },
+                    title: '抵扣',
+                    width: 1000,
+                    height: 500
+                });
+                win.on('close', function() {
+                    var lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                    $(lnds_id).query($(lnds_id).currentPage);
+                });
+            }
+            
+            function open_con_contract_readonly_win(record_id, ds_id) {debugger;
+                //创建明细页面根据条件表TBL_LA11字段 function_code、bp_class匹配布局代码layout_code BCML_CONTRACT_NP_MAINTAIN、BCML_CONTRACT_ORG_MAINTAIN
+                var record = $(ds_id).findById(record_id);
+                var param = record.data;
+                var lease_channel = record.get('lease_channel');
+                if(lease_channel == '02'){ //厂商易进合同明细页面
+	                param.function_code = 'CON300ND';
+	                param.document_category = 'CONTRACT';
+	                param.function_usage = 'READONLY';
+	                param.url_title = '合同查询';
+	                param.winid = 'con_contract_readonly_win_id';
+	                //param.layout_debugger_flag = 'Y';
+	                
+	                hls_doc_get_layout_code('get_layout_code_link_id', param, 'con_contract_readonly_link', ds_id);
+                } else{//其他进合同签约审批页面
+                    if('${/parameter/@function_code}' == 'CSH501DR'){ //入口功能号为CSH501DR对应合同链接明细为WFL_CON547D，有保存按钮
+                    	param.function_code = 'WFL_CON547D';
+                    } else{
+                    	param.function_code = 'WFL_CON547E';
+                    }
+	                param.cond_para1 = 'PARA2';
+	                param.document_category = 'CONTRACT';
+	                param.function_usage = 'READONLY';
+	                param.url_title = '合同签约';
+	                param.winid = 'con_bcml_sign_win_id';
+	                //param.layout_debugger_flag = 'Y';
+	                
+	                hls_doc_get_layout_code('get_layout_code_link_id', param, 'con_bcml_wfl_link', ds_id);
+                }
+            }
+            
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_hls_link_render_record'] = {};
+            //超链接渲染
+           window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record, bp_seq) {
+                var link_function = '';
+                window['${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                if (name == 'ddct_link') {
+                    link_function = 'csh504_ddct_link';
+                    if (record.get('payment_req_ln_id') && record.get('cf_item') == '0') {
+                        return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+                    } else {
+                        return '';
+                    }
+                } else if (name == 'contract_number' && value) {debugger;
+                    return '<a href="javascript:open_con_contract_readonly_win(\'' + record.id + '\',\'' + record.ds.id + '\')">' + value + '</a>';
+                }
+            };
+            //按钮渲染
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_dynamic_button_renderer'] = function(value, record, name, config_record, bp_seq) {
+                var link_function = '';
+                if (name == 'quote') {
+                    link_function = '';
+                }
+                if (Ext.isIE || Ext.isIE9 || Ext.isIE10) {
+                    return '<button style="font-size:11px;height:22px;width:70%;text-align:center;padding:0 4px 4px 0" onclick="window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');"><div style="height: 18px; line-height: 16px; text-decoration: none;">' + config_record.get('prompt') + '</div></button>';
+                } else {
+                    return '<button style="font-size:11px;height:22px;width:70%;text-align:center;" onclick="window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</button>';
+                }
+            };
+            //新增和加载时调用(form)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_form_add_and_load'] = function(ds, record, config_records, bp_seq) {
+            
+               };
+            
+            //保存前调用
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_before_submit'] = function(ds, record) {
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var check_flag = true;
+                return check_flag;
+            };
+            
+            //保存submitsuccess调用
+            window['${/parameter/@layout_code}_on_layout_dynamic_submitsuccess'] = function(ds, record, res, bp_seq) {
+                window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+            };
+            //保存失败调用
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_submitfailed'] = function(ds) {
+                window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+            };
+            
+            //新增时调用(grid,table,gridBox)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_add'] = function(ds, record, config_records, bp_seq) {
+            
+               };
+            //加载时调用(grid,table,gridBox)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_load'] = function(ds, record, config_records, bp_seq) {
+            
+               };
+            //查询时调用(grid,table,gridBox)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_query'] = function(ds, qpara, bp_seq) {
+            
+               };
+            //查询时调用(form,fieldboxcolumn)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_form_query'] = function(ds, qpara, bp_seq) {
+            
+               };
+            //新增时调用(attach)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_attach_add'] = function(ds, record, config_records, bp_seq) {
+            
+               };
+            //加载时调用(attach)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_attach_load'] = function(ds, record, config_records, bp_seq) {
+            
+               };
+            //更新时调用
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+            
+               };
+            
+            //选择事件(grid,attach,gridbox,table)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_select'] = function(ds, record, bp_seq) {
+            
+               };
+            
+            //取消选择事件(grid,attach,gridbox,table)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_unselect'] = function(ds, record, bp_seq) {
+            
+               };
+               
+            //移除事件(grid,attach,gridbox,table)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_remove'] = function(ds, record, bp_seq) {
+            
+               };
+            
+            function sumFunction(datas, name) {
+                var sum = 0;
+                for (var i = 0;i < datas.length;i++) {
+                    var r = datas[i];
+                    var d = r.get(name);
+                    var n = parseFloat(d);
+                    if (!isNaN(n)) {
+                        sum = plus(sum, n);
+                    }
+                }
+                var total = (typeof(sum) == 'undefined' ? '' : parseFloat(sum));
+                return '<font>' + Aurora.formatNumber(total) + '</font>';
+            }
+            
+            //false为忽略校验，true为不忽略校验
+            window['${/parameter/@layout_code}_not_ignore_required_flag'] = true;
+            //忽略保存校验方法
+            window['${/parameter/@layout_code}_ignore_required_before_save'] = function() {
+                window['${/parameter/@layout_code}_not_ignore_required_flag'] = true;
+            };
+            
+            //requiredfunction
+            window['${/parameter/@layout_code}_not_ignore_required'] = function() {
+                return window['${/parameter/@layout_code}_not_ignore_required_flag'];
+            };
+            
+            Aurora.onReady(function() {
+                var input = document.createElement('input');
+                document.body.appendChild(input);
+                Ext.fly(input).moveTo(-10000, -10000);
+                input.focus();
+                setTimeout(function() {
+                    Ext.fly(input).remove();
+                }, 1000);
+            });
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

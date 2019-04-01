@@ -1,0 +1,405 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Feng  
+    $Date: 2014-1-3 上午11:36:15  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (  SELECT
+                        (SELECT
+                            p.document_table
+                        FROM
+                            prj_cdd_item_doc_ref p
+                        WHERE
+                            p.check_id        = pcc.check_id AND
+                            p.document_id     = t.contract_id AND
+                            p.document_table IN ('CON_CONTRACT_CREDIT','CON_CONTRACT') AND
+                            ROWNUM            =1
+                        ) document_table,
+                        t.contract_id document_id,
+                        t.document_category,
+                        pci.cdd_item_id,
+                        pci.cdd_list_id,
+                        pci.cdd_item,
+                        pci.description,
+                        pci.enabled_flag,
+                        pci.note,
+                        pci.notes,
+                        NVL(pci.sys_flag, 'N') sys_flag,
+                        pcc.paper_required,
+                        pcc.attachment_required,
+                        pci.paper_content_flag,
+                        pci.collection_data_flag,
+                        pcc.not_applicable,
+                        pcc.check_id,
+                        pci.order_seq,
+                        pci.sign_required_flag,
+                        hls_sys_upload_pkg.get_atm_file_href(p_table_pk_value => pcc.check_id,p_source_type => 'PRJ_CDD_ITEM_CHECK',p_user_id => ${/session/@user_id}) AS file_name,
+                        --(SELECT
+                        --    MAX(fm.creation_date)
+                        --FROM
+                        --    fnd_atm_attachment_multi fm
+                        --WHERE
+                        --    fm.table_name     = 'PRJ_CDD_ITEM_CHECK' AND
+                        --    fm.table_pk_value = pcc.check_id
+                        --) creation_date,
+                        nvl2(pci.DOC_REQUIRE,pci.DOC_REQUIRE,pcit.DOC_REQUIRE) DOC_REQUIRE_N,
+                        
+                        nvl2(pci.DOC_REQUIRE,( SELECT
+                            v.code_value_name AS value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code      = 'DOC_REQUIRE' AND
+                            v.code_value=pci.DOC_REQUIRE),(
+                        SELECT
+                            v.code_value_name AS value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code      = 'DOC_REQUIRE' AND
+                            v.code_value=pcit.DOC_REQUIRE
+                        )) doc_require,
+                        (SELECT
+                            v.code_value_name AS value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code      = 'DOC_TYPE' AND
+                            v.code_value=NVL(pci.DOC_TYPE,pcit.DOC_TYPE)
+                        ) DOC_TYPE_N,
+                        NVL(pci.AMOUNT, pcit.AMOUNT) AS AMOUNT,
+                        NVL(pci.DOC_TYPE,pcit.DOC_TYPE) AS DOC_TYPE
+                    FROM
+                        prj_cdd_item pci,
+                        prj_cdd_item_check pcc,
+                        con_contract t,
+                        prj_cdd_item_templet pcit,
+                        prj_cdd_item_templet_hd pt
+                    WHERE
+                        pt.templet_code = (
+                            CASE
+                                WHEN t.DIVISION='00'
+                                THEN 'HY_CDD_NP_00'
+                                WHEN t.DIVISION='01'
+                                THEN 'HY_CDD_NP_01'
+                                ELSE 'HY_CDD_NP_00'
+                            END ) AND
+                        pcit.templet_head_id =pt.templet_head_id(+) AND
+                        pci.cdd_item        =pcit.cdd_item(+) AND
+                        pci.cdd_item_id(+)      = pcc.cdd_item_id AND
+                        t.cdd_list_id        = pci.cdd_list_id AND
+                        -- pci.cdd_list_id      = t.cdd_list_id AND
+                        pci.enabled_flag     = 'Y' AND
+                        (
+                            pci.cdd_item_id IN
+                            (SELECT
+                                t1.cdd_item_id
+                            FROM
+                                prj_cdd_item_list_grp_tab T1,
+                                PRJ_CDD_ITEM_TAB_GROUP T2
+                            WHERE
+                                t1.cdd_list_id = t.cdd_list_id AND
+                                (
+                                    T2.TAB_GROUP_ID IN
+                                    (SELECT
+                                        T3.TAB_GROUP_ID
+                                    FROM
+                                        PRJ_CDD_ITEM_TAB_GROUP T4,
+                                        PRJ_CDD_ITEM_TAB_SUB_GROUP T3
+                                    WHERE
+                                        T4.TAB_GROUP_ID=T3.PARENT_TAB_GROUP_ID AND
+                                        T4.TAB_GROUP   ='DATA_ARCHIVING'
+                                    UNION
+                                    SELECT
+                                        T4.TAB_GROUP_ID
+                                    FROM
+                                        PRJ_CDD_ITEM_TAB_GROUP T4
+                                    WHERE
+                                        T4.TAB_GROUP='DATA_ARCHIVING'
+                                    )
+                                )
+                                AND
+                                t2.tab_group_id = t1.tab_group_id
+                            ) OR
+                            NVL(pci.sys_flag, 'N')='N'
+                        )
+                        AND
+                        t.contract_id = ${/parameter/@contract_id}
+                        UNION ALL
+                    SELECT
+                        (SELECT
+                            p.document_table
+                        FROM
+                            prj_cdd_item_doc_ref p
+                        WHERE
+                            p.check_id        = pcc.check_id AND
+                            p.document_id     = t.contract_id AND
+                            p.document_table IN ('CON_CONTRACT_CREDIT','CON_CONTRACT') AND
+                            ROWNUM            =1
+                        ) document_table,
+                        t.contract_id document_id,
+                        t.document_category,
+                        pci.cdd_item_id,
+                        pci.cdd_list_id,
+                        pci.cdd_item,
+                        pci.description,
+                        pci.enabled_flag,
+                        pci.note,
+                        pci.notes,
+                        NVL(pci.sys_flag, 'N') sys_flag,
+                        pcc.paper_required,
+                        pcc.attachment_required,
+                        pci.paper_content_flag,
+                        pci.collection_data_flag,
+                        pcc.not_applicable,
+                        pcc.check_id,
+                        pci.order_seq,
+                        pci.sign_required_flag,
+                        hls_sys_upload_pkg.get_atm_file_href(p_table_pk_value => pcc.check_id,p_source_type => 'PRJ_CDD_ITEM_CHECK',p_user_id => ${/session/@user_id}) AS file_name,
+                        --(SELECT
+                        --    MAX(fm.creation_date)
+                        --FROM
+                        --    fnd_atm_attachment_multi fm
+                        --WHERE
+                        --    fm.table_name     = 'PRJ_CDD_ITEM_CHECK' AND
+                        --    fm.table_pk_value = pcc.check_id
+                        --) creation_date,
+                        -- pcit.DOC_REQUIRE,
+                        pci.doc_require doc_require_n,
+                        (
+                        SELECT
+                            v.code_value_name AS value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code      = 'DOC_REQUIRE' AND
+                            v.code_value=pci.doc_require
+                        ) doc_require,
+                        
+                        null DOC_TYPE_N,
+                        pci.AMOUNT AS AMOUNT,
+                         pci.DOC_TYPE AS DOC_TYPE
+                    FROM
+                        prj_cdd_item pci,
+                        prj_cdd_item_check pcc,
+                        con_contract t
+                        -- prj_cdd_item_templet pcit,
+                        -- prj_cdd_item_templet_hd pt
+                    WHERE
+                       --not exists(select 1 from prj_cdd_item_templet pcit
+                    --where pci.cdd_item        =pcit.cdd_item) and
+                        -- pt.templet_code = (
+                            -- CASE
+                                -- WHEN t.DIVISION='00'
+                                -- THEN 'HY_CDD_NP_00'
+                                -- WHEN t.DIVISION='01'
+                                -- THEN 'HY_CDD_NP_01'
+                                -- ELSE 'HY_CDD_NP_00'
+                            -- END ) AND
+                        -- pcit.templet_head_id =pt.templet_head_id(+) AND
+                        -- pci.cdd_item        =pcit.cdd_item(+) AND
+                        pci.cdd_item_id(+)      = pcc.cdd_item_id AND
+                        t.cdd_list_id        = pci.cdd_list_id AND
+                        -- pci.cdd_list_id      = t.cdd_list_id AND
+                        pci.enabled_flag     = 'Y' AND
+                        (
+                            pci.cdd_item_id IN
+                            (SELECT
+                                t1.cdd_item_id
+                            FROM
+                                prj_cdd_item_list_grp_tab T1,
+                                PRJ_CDD_ITEM_TAB_GROUP T2
+                            WHERE
+                                t1.cdd_list_id = t.cdd_list_id AND
+                                (
+                                    T2.TAB_GROUP_ID IN
+                                    (SELECT
+                                        T3.TAB_GROUP_ID
+                                    FROM
+                                        PRJ_CDD_ITEM_TAB_GROUP T4,
+                                        PRJ_CDD_ITEM_TAB_SUB_GROUP T3
+                                    WHERE
+                                        T4.TAB_GROUP_ID=T3.PARENT_TAB_GROUP_ID AND
+                                        T4.TAB_GROUP   ='DATA_ARCHIVING'
+                                    UNION
+                                    SELECT
+                                        T4.TAB_GROUP_ID
+                                    FROM
+                                        PRJ_CDD_ITEM_TAB_GROUP T4
+                                    WHERE
+                                        T4.TAB_GROUP='DATA_ARCHIVING'
+                                    )
+                                )
+                                AND
+                                t2.tab_group_id = t1.tab_group_id
+                            ) OR
+                            NVL(pci.sys_flag, 'N')='N'
+                        )
+                        AND
+                        t.contract_id = ${/parameter/@contract_id}
+                    ) t1
+                ORDER BY
+                    doc_type,
+                    order_seq
+            ]]></bm:query-sql>
+            <bm:parameters>
+                <bm:parameter inputPath="/parameter/@contract_id"/>
+            </bm:parameters>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+            	BEGIN
+            	      prj_cdd_item_pkg.prj_cdd_item_doc_ref_save(p_document_table => ${@document_table},
+                                             p_document_id => ${@document_id},
+                                             p_attachment_tab_group_id => ${@attachment_tab_group_id},
+                                             p_cdd_list_id => ${@cdd_list_id},
+                                             p_cdd_item => ${@cdd_item},
+                                             p_description => ${@description},
+                                             p_line_type => 'FILE',
+                                             p_order_seq => ${@order_seq},
+                                             p_show_seq => ${@show_seq},
+                                             p_enabled_flag =>'Y',
+                                             p_paper_content_flag =>${@paper_content_flag},
+                                             p_collection_data_flag =>${@collection_data_flag},
+                                             p_doc_type =>${@doc_type},
+                                             p_amount =>${@amount},
+                                             p_doc_require =>${@doc_require_n},
+                                             p_chance_required_flag => ${@chance_required_flag},
+                                             p_chance_display_flag => ${@chance_display_flag},
+                                             p_project_required_flag => ${@project_required_flag},
+                                             p_project_display_flag => ${@project_display_flag},
+                                             p_contract_required_flag => ${@contract_required_flag},
+                                             p_contract_display_flag => ${@contract_display_flag},
+                                             p_sign_required_flag => ${@sign_required_flag},
+                                             p_sign_display_flag => ${@sign_display_flag},
+                                             p_incept_required_flag => ${@incept_required_flag},
+                                             p_incept_display_flag => ${@incept_display_flag},
+                                             p_lender_required_flag => ${@lender_required_flag},
+                                             p_lender_display_flag => ${@lender_display_flag},
+                                             p_chance_tab_group => ${@chance_tab_group},
+                                             p_project_tab_group => ${@project_tab_group},
+                                             p_contract_tab_group => ${@contract_tab_group},
+                                             p_sign_tab_group => ${@sign_tab_group},
+                                             p_incept_tab_group => ${@incept_tab_group},
+                                             p_lender_tab_group => ${@lender_tab_group},
+                                             p_sys_flag => ${@sys_flag},
+                                             p_note => ${@note},
+                                             p_notes => ${@notes},
+                                             p_send_flag => ${@send_flag},
+                                             p_paper_required => ${@paper_required},
+                                             p_attachment_required => ${@attachment_required},
+                                             p_not_applicable => ${@not_applicable},
+                                             p_cdd_item_id => ${@cdd_item_id},
+                                             p_check_id => ${@check_id},
+                                             p_user_id => ${/session/@user_id});
+            	END;
+        	]]></bm:update-sql>
+            <bm:parameters>
+                <bm:parameter name="cdd_item_id" input="true" inputPath="@cdd_item_id" output="true" outputPath="@cdd_item_id"/>
+                <bm:parameter name="check_id" input="true" inputPath="@check_id" output="true" outputPath="@check_id"/>
+            </bm:parameters>
+        </bm:operation>
+        <bm:operation name="insert">
+            <bm:update-sql><![CDATA[
+            	BEGIN   
+            	    prj_cdd_item_pkg.prj_cdd_item_doc_ref_save(p_document_table => ${@document_table},
+                                             p_document_id => ${@document_id},
+                                             p_attachment_tab_group_id => ${@attachment_tab_group_id},
+                                             p_cdd_list_id => ${@cdd_list_id},
+                                             p_cdd_item => ${@cdd_item},
+                                             p_description => ${@description},
+                                             p_line_type => 'FILE',
+                                             p_order_seq => ${@order_seq},
+                                             p_show_seq => ${@show_seq},
+                                             p_enabled_flag =>'Y',
+                                             p_collection_data_flag =>${@collection_data_flag},
+                                             p_doc_type =>${@doc_type},
+                                             p_amount =>${@amount},
+                                             p_doc_require =>${@doc_require_n},
+                                             p_chance_required_flag => ${@chance_required_flag},
+                                             p_chance_display_flag => ${@chance_display_flag},
+                                             p_project_required_flag => ${@project_required_flag},
+                                             p_project_display_flag => ${@project_display_flag},
+                                             p_contract_required_flag => ${@contract_required_flag},
+                                             p_contract_display_flag => ${@contract_display_flag},
+                                             p_sign_required_flag => ${@sign_required_flag},
+                                             p_sign_display_flag => ${@sign_display_flag},
+                                             p_incept_required_flag => ${@incept_required_flag},
+                                             p_incept_display_flag => ${@incept_display_flag},
+                                             p_lender_required_flag => ${@lender_required_flag},
+                                             p_lender_display_flag => ${@lender_display_flag},
+                                             p_chance_tab_group => ${@chance_tab_group},
+                                             p_project_tab_group => ${@project_tab_group},
+                                             p_contract_tab_group => ${@contract_tab_group},
+                                             p_sign_tab_group => ${@sign_tab_group},
+                                             p_incept_tab_group => ${@incept_tab_group},
+                                             p_lender_tab_group => ${@lender_tab_group},
+                                             p_sys_flag => ${@sys_flag},
+                                             p_note => ${@note},
+                                             p_notes => ${@notes},
+                                             p_send_flag => ${@send_flag},
+                                             p_paper_required => ${@paper_required},
+                                             p_attachment_required => ${@attachment_required},
+                                             p_not_applicable => ${@not_applicable},
+                                             p_cdd_item_id => ${@cdd_item_id},
+                                             p_check_id => ${@check_id},
+                                             p_user_id => ${/session/@user_id});
+            	END;
+        	]]></bm:update-sql>
+            <bm:parameters>
+                <bm:parameter name="cdd_item_id" input="true" inputPath="@cdd_item_id" output="true" outputPath="@cdd_item_id"/>
+                <bm:parameter name="check_id" input="true" inputPath="@check_id" output="true" outputPath="@check_id"/>
+            </bm:parameters>
+        </bm:operation>
+        <bm:operation name="delete">
+            <bm:update-sql><![CDATA[
+            	BEGIN
+            	    prj_cdd_item_pkg.prj_cdd_item_doc_ref_delete(p_document_table =>${@document_table},
+                                        p_document_id    =>${@document_id},
+                                        p_cdd_item_id    =>${@cdd_item_id},
+                                        p_check_id       =>${@check_id},
+                                        p_user_id        =>${/session/@user_id});
+            	END;
+        	]]></bm:update-sql>
+            <bm:parameters>
+                <bm:parameter name="cdd_item_id" input="true" inputPath="@cdd_item_id" output="true" outputPath="@cdd_item_id"/>
+                <bm:parameter name="check_id" input="true" inputPath="@check_id" output="true" outputPath="@check_id"/>
+            </bm:parameters>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="document_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="DOCUMENT_ID"/>
+        <bm:field name="document_category" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DOCUMENT_CATEGORY"/>
+        <bm:field name="document_table" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DOCUMENT_TABLE"/>
+        <bm:field name="cdd_item_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CDD_ITEM_ID"/>
+        <bm:field name="cdd_list_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CDD_LIST_ID"/>
+        <bm:field name="cdd_item" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CDD_ITEM"/>
+        <bm:field name="description" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DESCRIPTION"/>
+        <bm:field name="enabled_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="ENABLED_FLAG"/>
+        <bm:field name="note" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="NOTE"/>
+        <bm:field name="notes" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="NOTES"/>
+        <bm:field name="paper_required" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PAPER_REQUIRED"/>
+        <bm:field name="attachment_required" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="ATTACHMENT_REQUIRED"/>
+        <bm:field name="not_applicable" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="NOT_APPLICABLE"/>
+        <bm:field name="check_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CHECK_ID"/>
+        <bm:field name="sys_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="SYS_FLAG"/>
+        <bm:field name="file_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="FILE_NAME"/>
+        <!--<bm:field name="creation_date" databaseType="DATE" datatype="java.util.Date" physicalName="CREATION_DATE"/>-->
+        <bm:field name="sign_required_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="SIGN_REQUIRED_FLAG"/>
+        <bm:field name="paper_content_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PAPER_CONTENT_FLAG"/>
+        <bm:field name="collection_data_flag" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="doc_require" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="doc_require_n" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="amount" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="doc_type" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="doc_type_n" databaseType="VARCHAR2" datatype="java.lang.String"/>
+    </bm:fields>
+</bm:model>

@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Hongquan.Dai  代宏全
+    $Date: 2018-4-16 上午10:39:50  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="credit_query_detail_id" url="${/request/@context_path}/modules/cre/CRE000/credit_query_detail.screen"/>
+        <a:link id="test1_svc_link" url="${/request/@context_path}/modules/cre/CRE000/test1.svc"/>
+        <a:link id="get_bp_name_id_number_phone_link_id" model="db.credit_query_pkg.get_bp_name_id_number_phone" modelaction="execute"/>
+        <script><![CDATA[
+            //征信查询按钮
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                 window['${/parameter/@layout_code}_lock_layout_dynamic_window']();		
+ 
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                //分别得到多头借贷查询信息ds和个人反欺诈查询信息ds做查询刷新
+                var multi_headed_ds_id = '${/parameter/@layout_code}_' + 'G_GRID_MULTI_HEADED_LENDING_credit_query_request_ds';
+                var anti_fraud_ds_id = '${/parameter/@layout_code}_' + 'G_GRID_ANTI_FRAUD_credit_query_request_ds';
+                var records = $(ds_id).getCurrentRecord();
+                //如果没有记录则缺少查询条件
+                    if (records.length == 0) {
+                        Aurora.showMessage('${l:PROMPT}', '缺少承租人。');
+                        return;
+                    }
+               //姓名、手机号、身份证均为查询必要条件
+                    if (!(records.get('be_queried_bp_id') && records.get('id_number') && records.get('be_queried_phone'))) {
+                        Aurora.showMessage('${l:PROMPT}', '查询条件不足，请补全!');
+                        return;
+                    }
+                    var datas = [];
+                    for (var i = 0;i < records.length;i++) {
+                        var data = records[i].data;
+                        datas.push(data);
+                    }
+                    var queryParams = new Object();
+                    queryParams['details'] = datas;
+                    queryParams['project_id'] = '${/parameter/@project_id}';
+                    queryParams['bp_name'] = records.get('be_queried_bp_id_n');
+                    queryParams['bp_name'] = records.get('be_queried_bp_id_n');
+                    queryParams['query_reason'] = records.get('query_reason');
+                    queryParams['query_category'] = records.get('query_category');
+               //锁页面
+                  
+               //调征信查询svc    
+                    Aurora.request({
+                        url: $('test1_svc_link').getUrl(),
+                        para: queryParams,
+                        success: function(res) {
+                            
+                            //刷新页面
+                            $(multi_headed_ds_id).query();
+                            $(anti_fraud_ds_id).query();
+                            //解锁页面
+                         window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                         
+                         
+                        },
+                        failure: function() {
+                         window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        error: function() {
+                         window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        scope: this
+                    });
+               }; 
+            //超链接
+            
+            
+            function multi_headed_lending_report(id, name, query_only) {
+            var ds_id = '${/parameter/@layout_code}${/parameter/@tree_code}_'+'G_GRID_MULTI_HEADED_LENDING_credit_query_request_ds';
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][id + '---' + name];
+                var param = {};
+                param['company_id'] = ${/session/@company_id};
+                param['batch_id'] = record.get('batch_id');
+                param['function_code'] = 'CRE120';
+                param['function_usage'] = 'QUERY';    
+                param['url_title'] = '多头借贷个人信用报告';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'credit_query_detail_id', ds_id,'${/parameter/@layout_code}');
+               }
+            
+            function attachment(id, name, query_only) {
+            
+               }
+            
+            function anti_fraud_report(id, name, query_only) {
+            var ds_id = '${/parameter/@layout_code}${/parameter/@tree_code}_'+'G_GRID_ANTI_FRAUD_credit_query_request_ds';
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][id + '---' + name];
+                var param = {};
+                param['company_id'] = ${/session/@company_id};
+                param['batch_id'] = record.get('batch_id');
+                param['function_code'] = 'CRE110';
+                param['function_usage'] = 'QUERY';    
+                param['url_title'] = '个人反欺诈分析报告';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'credit_query_detail_id', ds_id,'${/parameter/@layout_code}');
+               }
+            
+            function anti_fraud_attachment(id, name, query_only) {
+            
+               }
+            
+            //超链接渲染
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                var link_function = '';
+                window['${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                if (name == 'multi_headed_lending_report' && !record.isnew) {
+                    link_function = 'multi_headed_lending_report';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + '多头借贷报告' + '</a>';
+                } else if (name == 'attachment' && !record.isnew) {
+                    // link_function = 'attachment';
+                    // return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + value + '</a>';
+                    if (value != null) {
+                        var link = '${/request/@context_path}/atm_download.svc?attachment_id=';
+                        var str = value.split(';;');
+                        var url = '';
+                        for (var i = 0;i < str.length;i++) {
+                            var temp = str[i].split('--');
+                            if (!Aurora.isEmpty(temp[0])) {
+                                url = url + '<a href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                            }
+                        }
+                        return url;
+            
+                    }
+                } else if (name == 'anti_fraud_report' && !record.isnew) {
+                    link_function = 'anti_fraud_report';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + '个人反欺诈报告' + '</a>';
+                } else if (name == 'anti_fraud_attachment' && !record.isnew) {
+                    if (value != null) {
+                         link = '${/request/@context_path}/atm_download.svc?attachment_id=';
+                         str = value.split(';;');
+                         url = '';
+                        for ( i = 0;i < str.length;i++) {
+                             temp = str[i].split('--');
+                            if (!Aurora.isEmpty(temp[0])) {
+                                url = url + '<a href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                            }
+                        }
+                        return url;
+            
+                    }
+                }
+            };
+            
+            
+             //更新时调用
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {                 
+                 if(name == 'query_category') {
+                     window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                     Aurora.request({
+                    url: $('get_bp_name_id_number_phone_link_id').getUrl(),
+                    para: {
+                        project_id: ${/parameter/@project_id},
+                        query_category: record.get('query_category')
+                    },
+                    success: function(res) {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        record.set('be_queried_bp_id_n',res.result.bp_name);
+                        record.set('id_number',res.result.id_number);
+                        record.set('be_queried_phone',res.result.cell_phone);                                                 
+                    },
+                    error: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    failure: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    sync: true,
+                    scope: this
+                });
+                 }
+               };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

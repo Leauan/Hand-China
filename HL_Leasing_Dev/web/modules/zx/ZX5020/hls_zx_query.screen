@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: xuls  
+    $Date: 2016-11-24 上午9:18:19  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="cont.CON620.get_sysdate" rootPath="/model/datesource"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="car_modify_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain_readonly.screen"/>
+        <a:link id="prj_project_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="zx_query_download_link" url="${/request/@context_path}/modules/zx/ZX5020/zx_query_batch_dl.svc"/>
+        <a:link id="zx_query_post_link" url="${/request/@context_path}/modules/zx/ZX5020/zx_query_insert_tmp.svc"/>
+        <a:link id="zx_query_excel_link" url="${/request/@context_path}/modules/zx/ZX5020/zx_query_excel_sheets.svc"/>
+        <script><![CDATA[
+        	window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+            
+                if (name == 'project_number' && value) {
+                    return '<a href="javascript:open_project_modify_win(\'' + record.id + '\',\'' + record.ds.id + '\')">' + value + '</a>';
+                }
+                return value;
+            };
+            
+            function open_project_modify_win(record_id, ds_id) {
+                debugger;
+                var record = $(ds_id).findById(record_id);
+                        maintain_type = 'QUERY';
+                        param = record.data;
+                        param['document_id'] = record.get('project_id');
+                        param['function_code'] = 'PRJ502D';
+                        param['function_usage'] = 'MODIFY';
+                        param['maintain_type'] = maintain_type;
+                        param['url_title'] = '${l:HLS.PROJECT_MAITAIN}';
+                        hls_doc_get_layout_code('prj_project_get_layout_code_link_id', param, 'car_modify_link', ds_id);
+
+            }
+        
+			window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+				var ds = $('PROJECT_CREDIT_ENTRANCE_G_PROJECT_RESULT_prj_project_ds');
+                var records = ds.getSelected();
+                if (records.length == 0) {
+                    Aurora.showMessage('提示', '请选择要导出的数据');
+                    return;
+                }
+                var param = {};
+                var saveData = [];
+                var detail_mask = Ext.getBody();
+                Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                for (var i = 0;i < records.length;i++) {
+                    saveData.push({
+                        'project_id': records[i].get('project_id'),
+                        '_status': 'insert'
+                    });
+                }
+                param['details'] = saveData;
+                Aurora.request({
+                    url: $('zx_query_post_link').getUrl(),
+                    para: param,
+                    success: function() {
+                        Aurora.Masker.unmask(detail_mask);
+                        window.open($('zx_query_excel_link').getUrl());
+                        var doc_code = '合同明细附件';
+                		var url_l = $('zx_query_download_link').getUrl() + '?session_id=${/session/@session_id}&doc_code=' + encodeURI(doc_code) + '&type=ZIP';
+                		window.open(href = url_l, target = "_self");
+                        ds.query();
+                    },
+                    failure: function() {
+                        Aurora.Masker.unmask(detail_mask);
+                    },
+                    error: function() {
+                        Aurora.Masker.unmask(detail_mask);
+                    },
+                    scope: this
+                });
+            };
+            
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+				var ds = $('PROJECT_CREDIT_ENTRANCE_G_PROJECT_RESULT_prj_project_ds');
+                var records = ds.getSelected();
+				for(i=0;i<records.length;i++){
+				    records[i].set('export_flag','Y');
+				    records[i].set('export_date','${/model/datesource/record/@sys_date}');
+				}
+				window['${/parameter/@layout_code}_SAVE_LAYOUT_DYNAMIC_CLICK']();
+            };
+            
+            //保存submitsuccess调用
+            window['${/parameter/@layout_code}_on_layout_dynamic_submitsuccess'] = function(ds, record, res, bp_seq) {
+                window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+				window['${/parameter/@layout_code}_QUERY_LAYOUT_DYNAMIC_CLICK']();
+            };
+]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

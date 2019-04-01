@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-2-5 上午10:07:29  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure outputPath="/parameter">
+        <a:model-query model="rsc.RSC302.rsc_get_fnd_interface_header_id" rootPath="header"/>
+        <a:import-excel header_id="${/model/header/record/@header_id}" separator="," status_field="/parameter/@ImportSuccess" template_code="FIN_STATEMENT_IMPORT" user_id="${/session/@user_id}"/>
+        <a:model-query defaultWhereClause="header_id=${/model/header/record/@header_id} and TEMPLATE_CODE = &apos;FIN_STATEMENT_IMPORT&apos;" model="rsc.RSC302.rsc_fin_statement_import_get_status" rootPath="status"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="rsc_fin_statement_tmplt_ipt_id" url="${/request/@context_path}/modules/rsc/RSC302/rsc_fin_statement_tmplt_ipt.svc"/>
+        <a:link id="rsc_fin_all_query_id" url="${/request/@context_path}/modules/rsc/RSC302/rsc_fin_statement_tmplt_all_query.screen"/>
+        <script><![CDATA[
+            function loadComplete() {
+                if ('${/model/status/record/@status}' == 'NEW') {
+                    var param = {};
+                    var errorData = "";
+                    var importFlag = true;
+                    param['session_id'] = '${/parameter/@session_id}';
+                    param['header_id'] = '${/model/header/record/@header_id}';
+                    if (importFlag) {
+                        Aurora.request({
+                            url: $('rsc_fin_statement_tmplt_ipt_id').getUrl(),
+                            para: param,
+                            success: function() {
+                                $('temp_interface_balance_sheet_ds').setQueryParameter('session_id', '${/parameter/@session_id}');
+                                $('temp_interface_balance_sheet_ds').setQueryParameter('fin_statement_type', 'BALANCE_SHEET');
+                                $('temp_interface_balance_sheet_ds').query();
+                                $('temp_interface_income_statement_ds').setQueryParameter('session_id', '${/parameter/@session_id}');
+                                $('temp_interface_income_statement_ds').setQueryParameter('fin_statement_type', 'INCOME_STATEMENT');
+                                $('temp_interface_income_statement_ds').query();
+                                $('temp_interface_cashflow_statement_ds').setQueryParameter('session_id', '${/parameter/@session_id}');
+                                $('temp_interface_cashflow_statement_ds').setQueryParameter('fin_statement_type', 'CASHFLOW_STATEMENT');
+                                $('temp_interface_cashflow_statement_ds').query();
+                                $('temp_interface_supplementary_ds').setQueryParameter('session_id', '${/parameter/@session_id}');
+                                $('temp_interface_supplementary_ds').setQueryParameter('fin_statement_type', 'SUPPLEMENTARY');
+                                $('temp_interface_supplementary_ds').query();
+                                $('temp_interface_cashflow_forecast_ds').setQueryParameter('session_id', '${/parameter/@session_id}');
+                                $('temp_interface_cashflow_forecast_ds').setQueryParameter('fin_statement_type', 'CASHFLOW_FORECAST');
+                                $('temp_interface_cashflow_forecast_ds').query();
+                            },
+                            scope: this
+                        });
+                    } else {
+                        errorData = errorData.substr(0, errorData.length - 1);
+                        Aurora.showMessage('${l:PROMPT}', '${l:VERIFY_INFORMATION}');
+                    }
+                }
+            }
+            
+            function saveBtn() {
+                $('saveBtn_id').disable();
+                Aurora.Masker.mask(Ext.getBody(), '${l:BEING_IMPLEMENTED}');
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/rsc.RSC302.rsc_fin_statement_tmplt_ipt_data_load/update',
+                    para: {
+                        _status: 'update',
+                        session_id: '${/parameter/@session_id}',
+                        fin_statement_templet_code: '${/parameter/@fin_statement_templet_code}',
+                        fin_statement_templet_name: '${/parameter/@fin_statement_templet_name}'
+                    },
+                    success: function() {
+                        Aurora.SideBar.show({
+                            msg: '${l:IMPORT_WAS_SUCCESSFUL}',
+                            duration: 2000
+                        });
+                        window.location = $('rsc_fin_all_query_id').getUrl();
+                    },
+                    error: function() {
+                        //$('temp_interface_ds').setQueryParameter('session_id', '${/parameter/@session_id}');
+                        //$('temp_interface_ds').query();
+                        $('saveBtn_id').enable();
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    failure: function() {
+                        //$('temp_interface_ds').setQueryParameter('session_id', '${/parameter/@session_id}');
+                        //$('temp_interface_ds').query();
+                        $('saveBtn_id').enable();
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    scope: this
+                });
+            }
+            
+            function backBtn() {
+                window.location = $('rsc_fin_all_query_id').getUrl();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="temp_interface_balance_sheet_ds" autoPageSize="true" autoQuery="false" model="rsc.RSC302.rsc_fin_statement_tmplt_tmp" queryUrl="${/request/@context_path}/autocrud/rsc.RSC302.rsc_fin_statement_tmplt_tmp/query?session_id=${/parameter/@session_id}&amp;fin_statement_type=BALANCE_SHEET"/>
+            <a:dataSet id="temp_interface_income_statement_ds" autoPageSize="true" autoQuery="false" model="rsc.RSC302.rsc_fin_statement_tmplt_tmp" queryUrl="${/request/@context_path}/autocrud/rsc.RSC302.rsc_fin_statement_tmplt_tmp/query?session_id=${/parameter/@session_id}&amp;fin_statement_type=INCOME_STATEMENT"/>
+            <a:dataSet id="temp_interface_cashflow_statement_ds" autoPageSize="true" autoQuery="false" model="rsc.RSC302.rsc_fin_statement_tmplt_tmp" queryUrl="${/request/@context_path}/autocrud/rsc.RSC302.rsc_fin_statement_tmplt_tmp/query?session_id=${/parameter/@session_id}&amp;fin_statement_type=CASHFLOW_STATEMENT"/>
+            <a:dataSet id="temp_interface_supplementary_ds" autoPageSize="true" autoQuery="false" model="rsc.RSC302.rsc_fin_statement_tmplt_tmp" queryUrl="${/request/@context_path}/autocrud/rsc.RSC302.rsc_fin_statement_tmplt_tmp/query?session_id=${/parameter/@session_id}&amp;fin_statement_type=SUPPLEMENTARY"/>
+            <a:dataSet id="temp_interface_cashflow_forecast_ds" autoPageSize="true" autoQuery="false" model="rsc.RSC302.rsc_fin_statement_tmplt_tmp" queryUrl="${/request/@context_path}/autocrud/rsc.RSC302.rsc_fin_statement_tmplt_tmp/query?session_id=${/parameter/@session_id}&amp;fin_statement_type=CASHFLOW_FORECAST"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form id="success_form" height="400" title="THE_IMPORTED_DATA" width="980">
+                <a:tabPanel marginHeight="150" marginWidth="30">
+                    <a:tabs>
+                        <a:tab prompt="RSC_FIN_STATEMENT_TMPLT_HDS.BALANCE_SHEET" width="110">
+                            <a:grid bindTarget="temp_interface_balance_sheet_ds" height="400" navBar="true" width="980">
+                                <a:toolBar>
+                                    <a:button type="excel"/>
+                                </a:toolBar>
+                                <a:columns>
+                                    <!-- <a:column name="fin_statement_templet_code" align="center" prompt="FIN_STATEMENT_TMPLT_CODE"/>
+                        <a:column name="fin_statement_templet_name" align="center" prompt="FIN_STATEMENT_TMPLT_NAME"/>
+                        <a:column name="company_code" align="center" prompt="COMPANY_CODE"/>
+                        <a:column name="company_name" align="center" prompt="COMPANY_NAME"/>
+                        
+                        <a:column name="amount_upper_limit" align="center" prompt="AMOUNT_UPPER_LIMIT"/> -->
+                                    <!-- <a:column name="fin_statement_type" align="center"/> -->
+                                    <a:column name="line_number" align="center" prompt="LINE_NUMBER"/>
+                                    <!--  <a:column name="is_asset" align="center" prompt="IS_ASSET"/> -->
+                                    <a:column name="item_desc" align="left" prompt="RSC_FIN_STATEMENT_TMPLT_LNS.FIN_STATEMENT_ITEM" width="200"/>
+                                    <a:column name="account_type"/>
+                                    <a:column name="plus_minus" align="center" prompt="PLUS_MINUS"/>
+                                    <a:column name="item_type" prompt="RSC_FIN_STATEMENT_TMPLT_LNS.FIN_STATEMENT_TYPE"/>
+                                    <!-- <a:column name="fin_statement_type_name" align="center"/> -->
+                                    <a:column name="subtotal_priority" align="center" prompt="SUBTOTAL_PRIORITY"/>
+                                    <a:column name="is_annualized"/>
+                                    <!-- <a:column name="layout_number" align="center" prompt="LAYOUT_NUMBER"/>
+                        <a:column name="amount_lower_limit" align="center" prompt="AMOUNT_LOWER_LIMIT"/> -->
+                                    <!-- <a:column name="item_type" align="center" prompt="FIN_STATEMENT_TYPES"/>
+                        
+                        -->
+                                </a:columns>
+                            </a:grid>
+                        </a:tab>
+                        <a:tab prompt="RSC_FIN_STATEMENT_TMPLT_HDS.PROFIT_STATEMENT" width="110">
+                            <a:grid bindTarget="temp_interface_income_statement_ds" height="400" navBar="true" width="980">
+                                <a:toolBar>
+                                    <a:button type="excel"/>
+                                </a:toolBar>
+                                <a:columns>
+                                    <!-- <a:column name="fin_statement_type" align="center"/> -->
+                                    <a:column name="line_number" align="center" prompt="LINE_NUMBER"/>
+                                    <a:column name="item_desc" align="left" prompt="RSC_FIN_STATEMENT_TMPLT_LNS.FIN_STATEMENT_ITEM" width="200"/>
+                                    <a:column name="plus_minus" align="center" prompt="PLUS_MINUS"/>
+                                    <a:column name="item_type" prompt="RSC_FIN_STATEMENT_TMPLT_LNS.FIN_STATEMENT_TYPE"/>
+                                    <a:column name="subtotal_priority" align="center" prompt="SUBTOTAL_PRIORITY"/>
+                                    <a:column name="is_annualized"/>
+                                </a:columns>
+                            </a:grid>
+                        </a:tab>
+                        <a:tab prompt="RSC_FIN_STATEMENT_TMPLT_HDS.CASH_FLOW_STATEMENT" width="110">
+                            <a:grid bindTarget="temp_interface_cashflow_statement_ds" height="400" navBar="true" width="980">
+                                <a:toolBar>
+                                    <a:button type="excel"/>
+                                </a:toolBar>
+                                <a:columns>
+                                    <!-- <a:column name="fin_statement_type" align="center"/> -->
+                                    <a:column name="line_number" align="center" prompt="LINE_NUMBER"/>
+                                    <a:column name="item_desc" align="left" prompt="RSC_FIN_STATEMENT_TMPLT_LNS.FIN_STATEMENT_ITEM" width="200"/>
+                                    <a:column name="plus_minus" align="center" prompt="PLUS_MINUS"/>
+                                    <a:column name="item_type" prompt="RSC_FIN_STATEMENT_TMPLT_LNS.FIN_STATEMENT_TYPE"/>
+                                    <a:column name="subtotal_priority" align="center" prompt="SUBTOTAL_PRIORITY"/>
+                                    <a:column name="is_annualized"/>
+                                </a:columns>
+                            </a:grid>
+                        </a:tab>
+                        <a:tab prompt="RSC_FIN_STATEMENT_TMPLT_HDS.SUPPLEMENTARY" width="110">
+                            <a:grid bindTarget="temp_interface_supplementary_ds" height="400" navBar="true" width="980">
+                                <a:toolBar>
+                                    <a:button type="excel"/>
+                                </a:toolBar>
+                                <a:columns>
+                                    <!-- <a:column name="fin_statement_type" align="center"/> -->
+                                    <a:column name="line_number" align="center" prompt="LINE_NUMBER"/>
+                                    <a:column name="item_desc" align="left" prompt="RSC_FIN_STATEMENT_TMPLT_LNS.FIN_STATEMENT_ITEM" width="200"/>
+                                    <a:column name="plus_minus" align="center" prompt="PLUS_MINUS"/>
+                                    <a:column name="item_type" prompt="RSC_FIN_STATEMENT_TMPLT_LNS.FIN_STATEMENT_TYPE"/>
+                                    <a:column name="subtotal_priority" align="center" prompt="SUBTOTAL_PRIORITY"/>
+                                    <a:column name="is_annualized"/>
+                                </a:columns>
+                            </a:grid>
+                        </a:tab>
+                        <a:tab prompt="RSC_FIN_STATEMENT_TMPLT_HDS.CASHFLOW_FORECAST" width="110">
+                            <a:grid bindTarget="temp_interface_cashflow_forecast_ds" height="400" navBar="true" width="980">
+                                <a:toolBar>
+                                    <a:button type="excel"/>
+                                </a:toolBar>
+                                <a:columns>
+                                    <!-- <a:column name="fin_statement_type" align="center"/> -->
+                                    <a:column name="line_number" align="center" prompt="LINE_NUMBER"/>
+                                    <a:column name="item_desc" align="left" prompt="RSC_FIN_STATEMENT_TMPLT_LNS.FIN_STATEMENT_ITEM" width="200"/>
+                                    <a:column name="plus_minus" align="center" prompt="PLUS_MINUS"/>
+                                    <a:column name="item_type" prompt="RSC_FIN_STATEMENT_TMPLT_LNS.FIN_STATEMENT_TYPE"/>
+                                    <a:column name="subtotal_priority" align="center" prompt="SUBTOTAL_PRIORITY"/>
+                                    <a:column name="is_show"/>
+                                    <a:column name="is_input"/>
+                                </a:columns>
+                            </a:grid>
+                        </a:tab>
+                    </a:tabs>
+                </a:tabPanel>
+                <a:screenTopToolbar>
+                    <a:gridButton id="saveBtn_id" click="saveBtn" text="DETERMINING_IMPORT"/>
+                    <a:gridButton click="backBtn" text="HAP_BACK"/>
+                </a:screenTopToolbar>
+            </a:form>
+        </a:screenBody>
+        <script><![CDATA[
+	  		loadComplete();
+	  	]]></script>
+    </a:view>
+</a:screen>

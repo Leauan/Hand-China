@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Icon  
+    $Date: 2014-11-18 上午11:17:48  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" needAccessControl="false">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:update-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        cf.contract_id,
+                        cf.penalty_process_status,
+                        cf.cf_item,
+                        (SELECT
+                            cf1.due_amount
+                        FROM
+                            con_contract_cashflow cf1
+                        WHERE
+                            cf1.contract_id = cf.contract_id AND
+                            cf1.cf_item     = 1 AND
+                            cf1.times       = cf.times AND
+                            cf1.cf_status  IN ('BLOCK', 'RELEASE')
+                        ) rental_amount,
+                        (SELECT
+                            c.contract_number
+                        FROM
+                            con_contract c
+                        WHERE
+                            c.contract_id = cf.contract_id
+                        ) contract_number,
+                        (SELECT
+                            c.contract_name
+                        FROM
+                            con_contract c
+                        WHERE
+                            c.contract_id = cf.contract_id
+                        ) contract_name,
+                        cf.cashflow_id,
+                        (SELECT
+                            i.description
+                        FROM
+                            hls_cashflow_item i
+                        WHERE
+                            i.cf_item =
+                            (SELECT
+                                cf1.cf_item
+                            FROM
+                                con_contract_cashflow cf1
+                            WHERE
+                                cf1.contract_id = cf.contract_id AND
+                                cf.times        = cf1.times AND
+                                cf1.cf_item     = 1
+                            )
+                        ) cf_item_desc1,
+                         (SELECT
+                        i.description
+                    FROM
+                        hls_cashflow_item i
+                    WHERE
+                        i.cf_item = cf.cf_item
+                        
+                    ) cf_item_desc,
+                        cf.times,
+                        cf.due_date,
+                        (SELECT
+                            cc.overdue_max_days
+                        FROM
+                            con_contract_cashflow cc
+                        WHERE
+                            cc.contract_id = cf.contract_id AND
+                            cc.times       = cf.times AND
+                            cc.cf_item     = 1
+                        ) overdue_max_days,
+                        cf.cf_status,
+                        cf.write_off_flag,
+                        cf.due_amount,
+                        cf.received_amount,
+                        NVL(cf.due_amount,0)-NVL(cf.received_amount,0) unreceived_amount,
+                        ccr.due_amount change_penalty_amount,
+                        ccr.change_req_id,
+                        ccr.derate_amount
+                    FROM
+                        con_contract_cashflow cf,
+                        con_contract_change_req_cf ccr
+                    WHERE
+                        cf.cashflow_id=ccr.cashflow_id
+                    ) t1 #WHERE_CLAUSE#
+            ]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+            	begin
+            		con_penalty_change_req_pkg.create_change_req_line(p_change_req_id=>${@change_req_id},
+            														  p_change_penalty =>${@change_penalty_amount},
+            														  p_cashflow_id  =>${@cashflow_id},
+            														  p_company_id     =>${/session/@company_id},
+            														  p_user_id        =>${/session/@user_id},
+            														  p_derate_amount=>${@derate_amount} );
+            	end;
+            ]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="contract_id"/>
+        <bm:field name="contract_number"/>
+        <bm:field name="contract_name"/>
+        <bm:field name="cashflow_id"/>
+        <bm:field name="cf_item_desc"/>
+        <bm:field name="times"/>
+        <bm:field name="rental_amount"/>
+        <bm:field name="due_date" databaseType="DATE" datatype="java.util.Date"/>
+        <bm:field name="overdue_max_days"/>
+        <bm:field name="cf_status"/>
+        <bm:field name="write_off_flag"/>
+        <bm:field name="due_amount"/>
+        <bm:field name="received_amount"/>
+        <bm:field name="unreceived_amount"/>
+        <bm:field name="change_penalty_amount"/>
+        <bm:field name="change_req_id"/>
+        <bm:field name="derate_amount"/>
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field field="change_req_id" queryOperator="="/>
+    </bm:query-fields>
+</bm:model>

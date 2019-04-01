@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:fields>
+        <bm:field name="list_count" databaseType="NUMBER" datatype="java.lang.Long"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            	SELECT
+                    count(*) list_count
+                FROM
+                    (SELECT
+                        *
+                    FROM
+                        (SELECT
+                            NULL instance_id,
+                            NULL approve_count,
+                            NULL submitted_by,
+                            NULL submitted_by_name,
+                            NULL node_id,
+                            NULL node_desc,
+                            NULL hierarchy_record_id,
+                            NULL seq_number,
+                            NULL sequence_num,
+                            NULL user_id,
+                            NULL date_limit,
+                            NULL record_id,
+                            NULL commision_by,
+                            NULL commision_desc,
+                            NULL last_notify_date,
+                            NULL workflow_id,
+                            NULL workflow_code,
+                            NULL workflow_desc,
+                            NULL serial_number,
+                            t1.workflow_desc child_workflow_desc,
+                            NULL workflow_info,
+                            NULL document_info,
+                            NULL isreturn,
+                            NULL creation_date_format,
+                            NULL urgent_type,
+                            NULL position_code,
+                            NULL node_sequence_num,
+                            NULL record_type,
+                            NULL finance_amount,     --申请融资总额
+                            NULL down_payment_ratio, --首付款比例
+                            NULL price_list_n,       --产品方案
+                            NULL division,
+                            'Y' expand_flag,
+                             NULL color_flag,
+                             null return_flag,
+                             null credit_flag
+                        FROM
+                            zj_wfl_instance_node_rcpt_v t1,
+                            zj_wfl_workflow zww,
+                            zj_wfl_workflow_type zwwt
+                        WHERE
+                            t1.user_id            = ${/session/@user_id} AND
+                            zww.workflow_id       = t1.workflow_id AND
+                            zwwt.workflow_type_id = zww.workflow_type_id AND
+                            zww.workflow_code IN ('CON_REDEMPTION_CERTIFICATE_WFL','WFL_PRJ_DEF','DF_CSH_PAYMENT','HLS_LINKAGE_BP_WFL','HL_ACR_WFL')
+                        GROUP BY
+                            t1.workflow_desc,
+                            zwwt.workflow_type_code
+                        UNION ALL
+                        SELECT
+                            t1.instance_id,
+                            t1.approve_count,
+                            t1.submitted_by,
+                            t1.submitted_by_name,
+                            t1.node_id,
+                            t1.node_desc,
+                            t1.hierarchy_record_id,
+                            t1.seq_number,
+                            t1.sequence_num,
+                            t1.user_id,
+                            t1.date_limit,
+                            t1.record_id,
+                            t1.commision_by,
+                            t1.commision_desc,
+                            t1.last_notify_date,
+                            t1.workflow_id,
+                            t1.workflow_code,
+                            t1.workflow_desc,
+                            t1.serial_number,
+                            NULL child_workflow_desc,
+                            t1.workflow_desc
+                            || '-'||t1.node_desc workflow_info,
+                            t1.document_info,
+                            0 isreturn,
+                            TO_CHAR(t1.creation_date, 'yyyy-mm-dd hh24:mi:ss') AS creation_date_format,
+                            t1.urgent_type,
+                            null position_code,
+                            null node_sequence_num,
+                            t1.record_type,
+                            null finance_amount, --申请融资总额
+                            null down_payment_ratio, --首付款比例
+                            null price_list_n, --产品方案
+                            null division,
+                            'Y' expand_flag,
+                            'N' color_flag,
+                            t1.return_flag,
+                            (SELECT pc.credit_flag
+                            FROM
+                                prj_project pp,prj_project_credit pc
+                            WHERE
+                                pp.wfl_instance_id = t1.instance_id
+                                and pp.project_id = pc.project_id) credit_flag --征信标志
+                        FROM
+                            zj_wfl_instance_node_rcpt_v t1   #WHERE_CLAUSE#
+                        ) t
+                    ORDER BY
+						serial_number,
+						sequence_num,
+						node_desc,
+						creation_date_format
+                    )v
+                    where v.node_id is not null
+		    ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="t1.user_id = ${/session/@user_id}"/>
+        <!-- <bm:data-filter enforceOperations="query" expression="NOT EXISTS( select 1 from dual where  t1.node_type =&apos;END_NODE&apos; and (trunc(SYSDATE) - trunc(t1.creation_date)) &gt;= 3)"/> -->
+        <bm:data-filter  enforceOperations="query" expression="t1.workflow_code IN ('CON_REDEMPTION_CERTIFICATE_WFL','WFL_PRJ_DEF','DF_CSH_PAYMENT','HLS_LINKAGE_BP_WFL','HL_ACR_WFL')"/>
+    </bm:data-filters>
+    <bm:query-fields>
+        <bm:query-field name="any_info" queryExpression="(t1.workflow_desc like  &apos;%&apos;|| ${@any_info} || &apos;%&apos; or t1.node_desc like  &apos;%&apos;|| ${@any_info} || &apos;%&apos; or t1.document_info like  &apos;%&apos;|| ${@any_info} || &apos;%&apos; or to_char(t1.creation_date, &apos;yyyy-mm-dd hh24:mi:ss&apos;) like &apos;%&apos;|| ${@any_info} || &apos;%&apos; or t1.submitted_by_name like &apos;%&apos;|| ${@any_info} || &apos;%&apos; )"/>
+        <bm:query-field name="workflow_info" queryExpression="(t1.workflow_desc like  &apos;%&apos;|| ${@workflow_info} || &apos;%&apos; or t1.node_desc like  &apos;%&apos;|| ${@workflow_info} || &apos;%&apos;)"/>
+        <bm:query-field name="document_info" queryExpression="t1.document_info like  &apos;%&apos;|| ${@document_info} || &apos;%&apos;"/>
+    </bm:query-fields>
+</bm:model>

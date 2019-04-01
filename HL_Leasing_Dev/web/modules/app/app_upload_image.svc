@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang 
+    $Date: 2015-6-10 下午04:25:59  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:service xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <s:server-script import="app/app.js;app/app_login_check.js"><![CDATA[
+            importPackage(Packages.aurora.plugin.util);
+            importPackage(java.io);
+            
+            function set_picture(picture_list) {
+                var check_id = picture_list.check_id,
+                    user_id = picture_list.user_id,
+                    from_file_name = picture_list.file_name,
+                    from_file_size = picture_list.file_size,
+                    picture = picture_list.picture;
+                var guid_file_name_path = $bm('cont.CON500.con_contract_get_guid_file_name').queryAsMap();
+                var guid_file_name_tables = guid_file_name_path.getChildren();
+                var file_name = guid_file_name_tables[0].guid_file_name + 'cddcheck' + check_id;
+                var file_path = app_config.app_upload_path;
+                var final_path = file_path + file_name;
+                $bm('app.app_upload_fnd_atm').update({
+                    table_name: 'PRJ_CDD_ITEM_CHECK',
+                    check_id: check_id,
+                    file_name: from_file_name.toString(),
+                    file_path: final_path.toString(),
+                    file_size: from_file_size.toString(),
+                    user_id: user_id
+                });
+                var final_picture_array = picture.split(',');
+                var dataBase64String = final_picture_array[1];
+                var base64 = new Packages.aurora.plugin.util.Base64(0, null, true);
+                var dataBytes = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 20);
+                dataBytes = base64.decodeBase64(dataBase64String);
+                try {
+                    var fis = new ByteArrayInputStream(dataBytes);
+                    var fos = new java.io.FileOutputStream(final_path.toString());
+                    var len = -1;
+                    var buffer = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 20);
+                    while ((len = fis.read(buffer)) != -1) {
+                        fos.write(buffer, 0, len);
+                    }
+                    fis.close();
+                    fos.close();
+                    $ctx.parameter.return_status = 'S';
+                    $ctx.parameter.return_message = '上传成功';
+                } catch (e) {
+                    if (fis != null) {
+                        fis.close();
+                    }
+                    if (fos != null) {
+                        fos.close();
+                    }
+                    $ctx.success = "true";
+                    $ctx.parameter.return_status = 'E';
+                    $ctx.parameter.return_message = String(e);
+                }
+            }
+            
+            if ($ctx.parameter.return_status != 'E' && $ctx.parameter.return_status != 'TIMEOUT') {
+                var pictureArray = $ctx.parameter.getChild('picturelist').getChildren();
+                for (var i = 0;i < pictureArray.length;i++) {
+                    var picture_list = pictureArray[i];
+                    set_picture(picture_list);
+                }
+            
+                var result = {
+                    return_status: $ctx.parameter.return_status,
+                    message: $ctx.parameter.return_message
+                };
+            
+                $ctx.parameter.json = JSON.stringify(result);
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:service-output output="/parameter/@json"/>
+</a:service>

@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang 
+    $Date: 2015-6-16 下午03:59:51  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            var para = $ctx.current_parameter || $ctx.parameter;
+            var sql_content;
+            var query_validation_sql_bm = $bm('hls.HLS811.doc_file_templet_para_sql');
+            var config_map = query_validation_sql_bm.queryAsMap(para);
+            var config_map_detail = config_map.getChildren();
+            if (config_map_detail.length != 0) {
+                sql_content = config_map_detail[0].sql_content;
+                para.sql_content = sql_content;
+            }
+            sql_content = sql_content.replace(/\{\$([^{}$]*)\$\}/g, function(a, b) {
+                return "'" + (para[b.toLowerCase()] || '') + "'";
+            });
+            sql_content = sql_content.replace(/\$\{\/session\/@([^\}]*)\}/g, function(a, b) {
+                return "'" + $ctx.session[b] + "'";
+            })
+            var dsf = $instance('aurora.database.service.IDatabaseServiceFactory');
+            var conn = dsf.getDataSource().getConnection();
+            var stmt = conn.createStatement();
+            var rs = stmt.executeQuery(sql_content);
+            var rsmd = rs.getMetaData();
+            var count = rsmd.getColumnCount();
+            var temp_num = 0;
+            var table_list_config_bm = $bm('hls.HLS811.hls_doc_file_para_table_init');
+            for (var i = 1;i <= count;i++) {
+                var fname = rsmd.getColumnName(i);
+                var dbtype = rsmd.getColumnTypeName(i);
+                if (fname) {
+                    table_list_config_bm.update({
+                        templet_para_id: para.templet_para_id,
+                        column_name: fname,
+                        column_num: i
+                    });
+                }
+            }
+            
+            stmt.close();
+            conn.close();
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="this_hls_doc_file_para_table_list_link" url="${/request/@context_path}/modules/hls/HLS811/hls_doc_file_para_table_list.screen"/>
+        <script><![CDATA[
+            function tabColumnSave() {
+                var ds = $('hls_doc_file_para_table_ds');
+                if (ds.validate()) {
+                    ds.submit();
+                }
+            }
+            
+            function lock_table_column_win() {
+                Aurora.Masker.mask($('hls_doc_file_para_table_list_winid').wrap, '正在执行。。。');
+            }
+            
+            function unlock_table_column_win() {
+                Aurora.Masker.unmask($('hls_doc_file_para_table_list_winid').wrap);
+            }
+            
+            function tabColumnReload() {
+                lock_table_column_win();
+                var ds = $('hls_doc_file_para_table_ds');
+                ds.selectAll();
+                var records = ds.getSelected();
+                if (records.length != 0) {
+                    ds.remove(records);
+            
+                    var para = {
+                        'bookmark': '${/parameter/@bookmark}',
+                        'templet_para_id': '${/parameter/@templet_para_id}',
+                        'bookmark_description': '${/parameter/@bookmark_description}'
+                    };
+            
+                    tableListReloadInterval = setInterval(function() {
+                        if (!records.length) {
+                            clearInterval(tableListReloadInterval);
+                            $('hls_doc_file_para_table_list_winid').load($('this_hls_doc_file_para_table_list_link').getUrl(), para);
+                            unlock_table_column_win();
+                        }
+                    }, 1000);
+                }
+            }
+            
+            function tabColumnDelete() {
+                var ds = $('hls_doc_file_para_table_ds');
+                var records = ds.getSelected();
+                if (records.length != 0) {
+                    Aurora.showConfirm('${l:HLS.PROMPT}', '${l:HLS030.CONFIRM_DELETE}', function() {
+                        ds.remove(records);
+                    });
+                }
+            }
+            
+            function tabColumnClose() {
+                $('hls_doc_file_para_table_list_winid').close();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="alignment_ds" lookupCode="HLS050_ALIGNMENT"/>
+            <a:dataSet id="hls_doc_file_para_table_init_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="bookmark" defaultValue="${/parameter/@bookmark}"/>
+                    <a:field name="bookmark_description" defaultValue="${/parameter/@bookmark_description}"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="hls_doc_file_para_table_ds" autoQuery="true" fetchAll="true" model="hls.HLS811.hls_doc_file_para_table" queryUrl="${/request/@context_path}/autocrud/hls.HLS811.hls_doc_file_para_table/query?templet_para_id=${/parameter/@templet_para_id}" selectable="true">
+                <a:fields>
+                    <a:field name="enabled_flag" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="alignment_dis" displayField="code_value_name" options="alignment_ds" returnField="alignment" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="tabColumnClose" text="HLS.CLOSE"/>
+                <a:gridButton click="tabColumnSave" text="HLS.SAVE"/>
+                <a:gridButton click="tabColumnDelete" text="删除"/>
+                <a:gridButton click="tabColumnReload" text="重新加载"/>
+            </a:screenTopToolbar>
+            <a:form column="2" width="660">
+                <a:textField name="bookmark" bindTarget="hls_doc_file_para_table_init_ds" prompt="书签代码" readOnly="true"/>
+                <a:textField name="bookmark_description" bindTarget="hls_doc_file_para_table_init_ds" prompt="书签描述" readOnly="true"/>
+            </a:form>
+            <a:grid id="hls_doc_file_para_table_grid_id" bindTarget="hls_doc_file_para_table_ds" height="220" width="800">
+                <a:columns>
+                    <a:column name="column_name" prompt="字段名" width="200"/>
+                    <a:column name="column_desc" editor="text_editor" prompt="描述" width="240"/>
+                    <a:column name="column_num" editor="number_editor" prompt="列数" width="50"/>
+                    <a:column name="column_width" prompt="列宽" width="50"/>
+                    <a:column name="alignment_dis" editor="alignment_editor" prompt="对齐方式" width="60"/>
+                    <a:column name="enabled_flag" editor="checkBox_editor" prompt="启用" width="50"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="number_editor" allowDecimals="false"/>
+                    <a:textField id="text_editor"/>
+                    <a:checkBox id="checkBox_editor"/>
+                    <a:comboBox id="alignment_editor"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-4-10 下午01:22:30  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootPath="default_value_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="hls_bp_master_dynamic_update_link_id" url="${/request/@context_path}/modules/hls/HLS213/hls_bp_master_dynamic_update.screen"/>
+        <a:link id="hls_bp_master_get_layout_code_link_id" model="hls.HLS213.hls_bp_master_get_layout_code" modelaction="update"/>
+        <a:link id="hls_bp_master_check_before_create_link_id" model="hls.HLS213.hls_bp_master_check_before_create" modelaction="update"/>
+        <script><![CDATA[
+            function hls_hls213_create() {
+                lock_bp_entrance_window();
+                if ($('hls_bp_master_define_head_ds').validate()) {
+                    var head_record = $('hls_bp_master_define_head_ds').getAt(0);
+                    head_record.set('function_code', 'HLS213');
+                    head_record.set('function_usage', 'CREATE');
+                    head_record.set('master_type', 'BP_MASTER');
+                    head_record.set('default_value_dsid', 'hls_bp_master_define_head_ds');
+                    head_record.data['url_title'] = '${l:HLS_BP_MASTER_CRAETE}';
+                    var param = head_record.data;
+                    Aurora.request({
+                        url: $('hls_bp_master_check_before_create_link_id').getUrl(),
+                        para: param,
+                        success: function(res) {
+                            unlock_bp_entrance_window();
+                            hls_doc_get_layout_code('hls_bp_master_get_layout_code_link_id', param, 'hls_bp_master_dynamic_update_link_id');
+                        },
+                        error: function(res) {
+                            unlock_bp_entrance_window();
+                        },
+                        failure: function(res) {
+                            unlock_bp_entrance_window();
+                        },
+                        scope: this
+                    });
+                } else {
+                    unlock_bp_entrance_window();
+                }
+            }
+            
+            function lock_bp_entrance_window() {
+                Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_bp_entrance_window() {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            
+            function hls213_head_update(ds, record, name, value, old_value) {
+                if (name == 'auto_coding') {
+                    if (value == 'N') {
+                        record.getField('bp_code').setReadOnly(false);
+                        record.getField('bp_code').setRequired(true);
+                    }
+                    if (value == 'Y') {
+                        record.set('bp_code', '');
+                        record.getField('bp_code').setReadOnly(true);
+                        record.getField('bp_code').setRequired(false);
+                    }
+                }
+            }
+            
+        ]]></script>
+        <a:screen-include screen="modules/hls/HLS213/hls_bp_master_get_layout_code.screen"/>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=BP&amp;function_code=HLS213"/>
+        <a:dataSets>
+            <a:dataSet id="hls211_bp_class_ds" lookupCode="HLS211_BP_CLASS"/>
+            <a:dataSet id="hls_bp_master_define_head_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="chance_number" autoComplete="true" lovGridHeight="300" lovHeight="500" lovLabelWidth="120" lovService="hls.HLS213.hls_bp_master_select_chance_for_lov" lovWidth="550" prompt="HLS.LEASE_CHANCE_CODE" title="HLS.LEASE_CHANCE_CODE">
+                        <a:mapping>
+                            <a:map from="chance_id" to="chance_id"/>
+                            <a:map from="chance_id" to="document_id"/>
+                            <a:map from="chance_number" to="chance_number"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="document_category" to="document_category"/>
+                            <a:map from="document_type" to="document_type"/>
+                            <a:map from="industry" to="industry"/>
+                            <a:map from="industry_n" to="industry_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="document_id"/>
+                    <a:field name="document_type"/>
+                    <a:field name="industry"/>
+                    <a:field name="industry_n"/>
+                    <a:field name="document_category"/>
+                    <a:field name="bp_name" prompt="HLS.BP_NAME" required="true"/>
+                    <a:field name="bp_type_n" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_type_v_for_lov?enabled_flag=Y" lovWidth="500" prompt="HLS_BP_TYPE.BP_TYPE" required="true" title="HLS_BP_TYPE.BP_TYPE">
+                        <a:mapping>
+                            <a:map from="description" to="bp_type_n"/>
+                            <a:map from="bp_type" to="bp_type"/>
+                            <a:map from="bp_category_desc" to="bp_category_n"/>
+                            <a:map from="bp_category" to="bp_category"/>
+                            <a:map from="auto_coding" to="auto_coding"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_type"/>
+                    <a:field name="bp_category_n" prompt="HLS_BP_TYPE.BP_CATEGORY_DESC" readOnly="true"/>
+                    <a:field name="bp_category"/>
+                    <a:field name="auto_coding"/>
+                    <a:field name="bp_code" prompt="HLS.BP_CODE" readOnly="true"/>
+                    <a:field name="bp_class_n" displayField="code_value_name" options="hls211_bp_class_ds" prompt="HLS.BP_CLASS" required="true" returnField="bp_class" valueField="code_value"/>
+                    <a:field name="bp_class"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="hls213_head_update"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form labelWidth="120" title="HLS_BP_MASTER_CRAETE" width="400">
+                <a:lov name="chance_number" bindTarget="hls_bp_master_define_head_ds">
+                    <a:events>
+                        <a:event name="focus" handler="function(object){on_std_focus(object,&apos;CHANCE&apos;)}"/>
+                    </a:events>
+                </a:lov>
+                <a:textField name="bp_name" bindTarget="hls_bp_master_define_head_ds"/>
+                <a:lov name="bp_type_n" bindTarget="hls_bp_master_define_head_ds"/>
+                <a:textField name="bp_category_n" bindTarget="hls_bp_master_define_head_ds"/>
+                <a:textField name="bp_code" bindTarget="hls_bp_master_define_head_ds"/>
+                <a:comboBox name="bp_class_n" bindTarget="hls_bp_master_define_head_ds"/>
+            </a:form>
+            <a:screenTopToolbar>
+                <a:gridButton id="hls_hls213_create_id" click="hls_hls213_create" text="HLS.CREATE"/>
+            </a:screenTopToolbar>
+        </a:screenBody>
+    </a:view>
+</a:screen>

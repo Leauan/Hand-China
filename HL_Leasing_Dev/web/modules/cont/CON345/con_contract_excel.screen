@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: admin  
+    $Date: 2018-12-12 上午9:59:48  
+    $Revision: 1.0  
+    $Purpose: 合同应收明细
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="con345_calculation_id" model="cont.CON345.con_contract_excel_v" modelaction="update"/>
+        <script><![CDATA[
+            function query_con_contract_result_ds() {
+                $('con_contract_result_ds').query();
+            }
+            
+            function csh510_receipt_reset() {
+                $('con_contract_query_ds').reset();
+            }
+            
+            function csh510_receipt_back() {
+                history.go(-1);
+            }
+            
+            function csh510_receipt_forward() {
+                history.go(1);
+            }
+            
+            function amtSumInfo(data, name) {
+                if (name == 'loan_prj_name') {
+                    return '<font color=red>' + '合计:' + '</font>';
+                } else {
+                    return colum_caculateTotal(data, name);
+                }
+            }
+            
+            function colum_caculateTotal(data, name) {
+                var total = 0;
+                var length = data.length;
+                var value = 0;
+                for (var i = 0;i < length;i++) {
+            
+                    if (Ext.isEmpty(data[i].get(name))) {
+                        value = 0;
+                    } else {
+                        value = data[i].get(name);
+                    }
+                    total = plus(total, value);
+                }
+                return '<font color=red>' + Aurora.formatMoney(total) + '</font>';
+            
+            }
+            
+            function open_excel() {
+                Aurora.showConfirm('导出', '导出的数据稍微有点慢,请耐心等候', function() {
+                    $("grid_id")._export();
+                });
+            
+            }
+            //计算按钮（用于计算上下段）
+            
+            function con345_calculation() {
+            
+                var ds_recode = $('con_contract_query_ds').getAt(0);
+                var bp_id = ds_recode.get('bp_id_agent_level1');
+                var success_count = 0;
+                if (bp_id == null) {
+                    Aurora.showMessage('提示', '请选择要计算的经销店！');
+                } else {
+                    Aurora.showMessage('提示', '温馨提示,每次计算并不是计算所有,而是200个合同');
+                    Aurora.Masker.mask(Ext.getBody(), '计算中,请稍等'); //锁屏
+                    Aurora.request({
+                        url: $('con345_calculation_id').getUrl(),
+                        para: {
+                            bp_id_agent_level1: bp_id,
+                            success_num: success_count
+                        },
+                        success: function(res) {
+                            success_count = res.result.success_num;
+                            if (success_count == 0) {
+                                Aurora.showMessage('提示', '数据已是最新数据');
+                                Aurora.Masker.unmask(Ext.getBody()); //解锁                            
+                            } else {
+                                Aurora.showMessage('提示', success_count + '条数据已经更新,重新查询下即可');
+                                Aurora.Masker.unmask(Ext.getBody()); //解锁
+                            }
+                        },
+                        failure: function() {
+                            Aurora.Masker.unFmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.showMessage('提示', '出现错误,请联系管理员！');
+                            Aurora.Masker.unmask(Ext.getBody()); //解锁
+                        },
+                        scope: this
+                    });
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <!-- 查询的ds -->
+            <a:dataSet id="con_contract_query_ds">
+                <a:fields>
+                    <a:field name="contract_number"/>
+                    <a:field name="master_bp_code"/>
+                    <!-- 合同承租人-->
+                    <a:field name="contract_number_n" lovHeight="500" lovService="cont.CON345.con_contract_for_lov" lovWidth="600" title="合同信息">
+                        <a:mapping>
+                            <a:map from="contract_id" to="contract_id"/>
+                            <a:map from="contract_number" to="contract_number_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <!-- 经销商-->
+                    <a:field name="master_bp_name" lovHeight="500" lovService="cont.CON345.hls_bp_master_agent_lov" lovWidth="600" required="true" title="经销店">
+                        <a:mapping>
+                            <a:map from="bp_code" to="master_bp_code"/>
+                            <a:map from="bp_name" to="master_bp_name"/>
+                            <a:map from="bp_id" to="bp_id_agent_level1"/>
+                        </a:mapping>
+                    </a:field>
+                    <!-- 承租人 -->
+                    <a:field name="bp_tenant_n" lovHeight="500" lovService="cont.CON345.hls_bp_master_v_all_lov" lovWidth="600" title="承租人">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id_tenant"/>
+                            <a:map from="bp_name" to="bp_tenant_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <!-- 产品 -->
+                    <a:field name="product_name_write_n" lovGridHeight="350" lovHeight="500" lovService="cont.CON345.hls_product_plan_definition" lovWidth="500" title="产品">
+                        <a:mapping>
+                            <a:map from="product_plan_id" to="product_plan_id"/>
+                            <a:map from="product_name_write" to="product_name_write_n"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con_contract_result_ds" fetchAll="false" model="cont.CON345.con_contract_excel_v" pageSize="60" queryDataSet="con_contract_query_ds"/>
+        </a:dataSets>
+        <a:screenTopToolbar>
+            <a:screenTitle/>
+            <a:gridButton click="csh510_receipt_back" text="HLS.BACK"/>
+            <a:gridButton click="csh510_receipt_forward" text="HLS.FORWARD"/>
+            <a:gridButton click="query_con_contract_result_ds" text="HLS.QUERY"/>
+            <a:gridButton click="csh510_receipt_reset" text="HLS.RESET"/>
+            <a:gridButton click="con345_calculation" text="计算"/>
+        </a:screenTopToolbar>
+        <a:screenBody>
+            <a:form column="4" labelWidth="100" marginWidth="50" title="查询条件">
+                <a:lov name="contract_number_n" bindTarget="con_contract_query_ds" prompt="合同编号"/>
+                <a:lov name="master_bp_name" id="master_bp_name" bindTarget="con_contract_query_ds" prompt="经销店编号"/>
+                <a:lov name="bp_tenant_n" bindTarget="con_contract_query_ds" prompt="承租人"/>
+                <a:lov name="product_name_write_n" bindTarget="con_contract_query_ds" prompt="产品名称"/>
+                <a:datePicker name="inception_of_lease_from" bindTarget="con_contract_query_ds" prompt="起租日期从"/>
+                <a:datePicker name="inception_of_lease_to" bindTarget="con_contract_query_ds" prompt="起租日期到"/>
+                <a:datePicker name="due_date_from" bindTarget="con_contract_query_ds" prompt="预定收款日从"/>
+                <a:datePicker name="due_date_to" bindTarget="con_contract_query_ds" prompt="预定收款日到"/>
+            </a:form>
+            <a:grid id="grid_id" bindTarget="con_contract_result_ds" height="350" marginHeight="180" marginWidth="50" navBar="true">
+                <a:toolBar>
+                    <a:button click="open_excel" icon="${/request/@context_path}/images/excel_16.png" iconAlign="left" text="全量导出"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="contract_number" prompt="合同编号" sortable="true"/>
+                    <a:column name="project_number" prompt="申请编号"/>
+                    <a:column name="master_bp_name" prompt="经销店"/>
+                    <a:column name="contract_bp_name" prompt="承租人"/>
+                    <a:column name="code_value_name" prompt="支付方式"/>
+                    <a:column name="ebank_name" prompt="客户扣款银行"/>
+                    <a:column name="bank_account_num" prompt="客户扣款账号"/>
+                    <a:column name="bank_account_name" prompt="客户扣款帐户名"/>
+                    <a:column name="product_name_write" prompt="产品名称"/>
+                    <a:column name="description" prompt="车型"/>
+                    <a:column name="signing_date" prompt="签约日期 "/>
+                    <a:column name="inception_of_lease" prompt="起租日期"/>
+                    <a:column name="times" prompt="期数" sortable="true"/>
+                    <a:column name="cf_item_n" prompt="现金流项目"/>
+                    <a:column name="due_date" prompt="预定收款日" renderer="Aurora.formatDate"/>
+                    <a:column name="due_amount" footerRenderer="amtSumInfo" prompt="预定收款金额" renderer="Aurora.formatMoney"/>
+                    <a:column name="vat_due_amount" footerRenderer="amtSumInfo" prompt="租金增值税"/>
+                    <a:column name="net_principal" footerRenderer="amtSumInfo" prompt="本金"/>
+                    <a:column name="vat_principal" footerRenderer="amtSumInfo" prompt="本金增值税"/>
+                    <a:column prompt="利息合计（税前）">
+                        <a:column name="interest" footerRenderer="amtSumInfo" prompt="合计" renderer="Aurora.formatMoney"/>
+                        <a:column name="segment_interest" footerRenderer="amtSumInfo" prompt="上段" renderer="Aurora.formatMoney"/>
+                        <a:column name="lower_interest" footerRenderer="amtSumInfo" prompt="下段" renderer="Aurora.formatMoney"/>
+                    </a:column>
+                    <a:column prompt="利息合计(税后)">
+                        <a:column name="net_interest" footerRenderer="amtSumInfo" prompt="合计" renderer="Aurora.formatMoney"/>
+                        <a:column name="net_segment_interest" footerRenderer="amtSumInfo" prompt="上段" renderer="Aurora.formatMoney"/>
+                        <a:column name="net_lower_interest" footerRenderer="amtSumInfo" prompt="下段" renderer="Aurora.formatMoney"/>
+                    </a:column>
+                    <a:column prompt="利息增值税">
+                        <a:column name="vat_interest" footerRenderer="amtSumInfo" prompt="合计" renderer="Aurora.formatMoney"/>
+                        <a:column name="vat_segment_interest" footerRenderer="amtSumInfo" prompt="上段" renderer="Aurora.formatMoney"/>
+                        <a:column name="vat_lower_interest" footerRenderer="amtSumInfo" prompt="下段" renderer="Aurora.formatMoney"/>
+                    </a:column>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

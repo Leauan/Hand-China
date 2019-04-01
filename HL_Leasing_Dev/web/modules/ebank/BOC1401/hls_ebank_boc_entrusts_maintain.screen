@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Foreinyel  
+    $Date: 2014-7-18 下午1:17:09  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:view>
+        <script><![CDATA[
+            function query_btn() {
+                $('hls_ebank_boc_entrust_ds').query();
+            }
+            
+            function reset_btn() {
+                $('query_ds').reset();
+            }
+            
+            function export_btn() {
+                var data = $('hls_ebank_boc_entrust_ds').getJsonData(true);
+                var rec2 = $('query_ds').getCurrentRecord();
+                if (data.length == 0) {
+                    Aurora.showMessage('提示', '至少选择一行');
+                    return;
+                }
+                Aurora.showConfirm('提示', '确认导出吗？', function() {
+                    Aurora.request({
+                        url: '${/request/@context_path}/modules/ebank/BOC1401/hls_ebank_boc_export_data.svc',
+                        para: data,
+                        scope: this,
+                        success: function(res) {
+                            var batch_id = '${/session/@session_id}';
+                            var filename = res.result.filename;
+                            var bank_type = rec2.get('bank_type');
+                            var sql;
+                            if (bank_type == 'PSBC'){
+                                sql = "select t.serial_no,t.contract_number,t.bank_account,t.bank_account_name,id_card_no,contact_phone from hls_ebank_boc_entrusts_tmp t where t.batch_id=" + batch_id;
+                            }else{
+                                sql = "select t.serial_no,t.contract_number,t.bank_account,t.bank_account_name,id_card_no from hls_ebank_boc_entrusts_tmp t where t.batch_id=" + batch_id;
+                            }
+                            var url = 'hls_ebank_boc_export_txt.svc?fileName=' + filename + '&separator=|&sql=' + sql;
+                            window.open(url);
+                        }
+                    });
+                });
+            }
+            function export_file() {
+                var data = $('hls_ebank_boc_entrust_ds').getJsonData(true);
+                if (data.length == 0) {
+                    Aurora.showMessage('提示', '至少选择一行');
+                    return;
+                }
+                Aurora.showConfirm('提示', '确认导出吗？', function() {
+                    Aurora.request({
+                        url: '${/request/@context_path}/modules/ebank/BOC1401/hls_ebank_psbc_file_in.svc',
+                        para: data,
+                        scope: this,
+                        success: function(res) {
+                            var batch_id = '${/session/@session_id}';
+                            var filename = res.result.filename;
+                            var url = 'hls_ebank_psbc_atm_batch_dl.svc';
+                            window.open(url);
+                        }
+                    });
+                });
+            }
+            
+            
+            function expot_btn() {
+                debugger;
+                var ds = $('hls_ebank_boc_entrust_ds');
+                ds.query();
+                var rec = ds.getAll();
+                if (rec.length == 0) {
+                    Aurora.showMessage('提示', '不能导出空数据');
+                    return;
+                }
+                var rec2 = $('query_ds').getCurrentRecord();
+                var contract_number = rec2.get('contract_number');
+                if (typeof(contract_number) == 'undefined') {
+                    contract_number = '';
+                }
+                var customer_name = rec2.get('customer_name');
+                if (typeof(customer_name) == 'undefined') {
+                    customer_name = '';
+                }
+                var export_flag = rec2.get('export_flag');
+                if (typeof(export_flag) == 'undefined') {
+                    export_flag = '';
+                }
+                Aurora.showConfirm('提示', '确认导出吗？', function() {
+                    Aurora.request({
+                        url: '${/request/@context_path}/autocrud/db.hls_ebank_boc_pub_pkg.get_entrustfilename/execute',
+                        para: {
+                            contract_number: contract_number,
+                            customer_name: customer_name
+                        },
+                        scope: this,
+                        success: function(res) {
+                            var filename = res.result.filename;
+                            var bank_type = recs.get('bank_type');
+                            var sql;
+                            if (bank_type == 'PSBC'){
+                                sql = "select t.serial_no,t.contract_number,t.bank_account,t.bank_account_name,id_card_no,t.contact_phone from hls_ebank_boc_entrusts t where t.contract_number=nvl('" + contract_number + "',t.contract_number) and t.bank_account_name = nvl('" + customer_name + "',t.bank_account_name) and t.export_flag = nvl('" + export_flag + "',t.export_flag)";
+                            }else{
+                                sql = "select t.serial_no,t.contract_number,t.bank_account,t.bank_account_name,id_card_no from hls_ebank_boc_entrusts t where t.contract_number=nvl('" + contract_number + "',t.contract_number) and t.bank_account_name = nvl('" + customer_name + "',t.bank_account_name) and t.export_flag = nvl('" + export_flag + "',t.export_flag)";
+                            }
+                            
+                            var url = 'hls_ebank_boc_export_txt.svc?fileName=' + filename + '&separator=|&sql=' + sql;
+                            window.open(url);
+                        },
+                        failure: function() {},
+                        error: function() {}
+                    });
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="export_flag_ds" lookupCode="HLS_EBANK_BOC_EMPORT_FLAG"/>
+            <a:dataSet id="query_ds">
+                <a:fields>
+                    <a:field name="export_flag_disp" displayField="code_value_name" options="export_flag_ds" returnField="export_flag" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="hls_ebank_boc_entrust_ds" model="ebank.BOC1401.hls_ebank_boc_entrusts_maintain" queryDataSet="query_ds" selectable="true"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form column="2" labelWidth="120" title="查询条件">
+                <a:textField name="contract_number" bindTarget="query_ds" prompt="合同编号"/>
+                <a:textField name="customer_name" bindTarget="query_ds" prompt="客户名称"/>
+                <a:comboBox name="export_flag_disp" bindTarget="query_ds" prompt="导出标志"/>
+                <a:textField name="bank_type" bindTarget="query_ds" prompt="银行类型"/>
+            </a:form>
+            <a:hBox>
+                <a:button click="query_btn" text="查询"/>
+                <a:button click="reset_btn" text="重置"/>
+                <a:button click="export_btn" text="导出"/>
+                <a:button click="export_file" text="代扣文件导出"/>
+            </a:hBox>
+            <a:grid bindTarget="hls_ebank_boc_entrust_ds" height="300" navBar="true" width="900">
+                <a:columns>
+                    <a:column name="serial_no" prompt="流水号" sortable="true" width="120"/>
+                    <a:column name="contract_number" prompt="合同编号" width="130"/>
+                    <a:column name="bank_account" prompt="扣款账户" width="200"/>
+                    <a:column name="bank_account_name" prompt="账户名称" width="100"/>
+                    <a:column name="id_card_no" prompt="身份证号" width="150"/>
+                    <a:column name="export_flag" prompt="导出标志" width="60"/>
+                    <a:column name="bank_type" prompt="银行类型"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

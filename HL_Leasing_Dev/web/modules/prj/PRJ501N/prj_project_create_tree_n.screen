@@ -1,0 +1,472 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-6-24 下午03:23:39  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <!-- <s:server-script import="aut_authority_validate.js"/> -->
+        <a:model-query fetchAll="true" model="prj.PRJ500.hls_doc_layout_tree_query" rootPath="prj_layout_tree_path"/>
+        <a:model-query defaultWhereClause="t1.enabled_flag=&apos;Y&apos; and t1.parent_tree_code is null" fetchAll="true" model="hls.HLS030.hls_doc_layout_tree" rootPath="prj_layout_tree_accordion_path"/>
+        <a:model-query defaultWhereClause="t1.parent_table is null and t1.tab_type!=&apos;TAB&apos; and t1.enabled_flag=&apos;Y&apos; and t1.base_table=&apos;PRJ_PROJECT&apos; and rownum=1" fetchAll="true" model="prj.PRJ500.prj_hls_doc_layout_tab_query" rootPath="prj_base_table_path"/>
+        <a:model-query fetchAll="true" model="cont.CON500.hls_doc_layout_button" rootPath="layout_main_button_path"/>
+        <a:model-query model="prj.PRJ501.get_prj_win_param" rootPath="prj_win_params"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="prj_project_create_their_statement_link_id" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_create_their_statement_n.screen"/>
+        <a:link id="prj_project_update_declare_flag_link_id" model="prj.PRJ500.prj_project_update_declare_flag" modelaction="update"/>
+        <a:link id="prj_project_application_link_id" url="${/request/@context_path}/modules/prj/PRJ501/print_project_application.screen"/>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <script><![CDATA[
+            var tree_code_list = [],
+                currentStep = 0,
+                isLoaded = true,
+                contentWindow = document.getElementById('mainFrame2_id').contentWindow,
+                tree_loading_flag = false,
+                first_loading_flag = true;
+            
+            function prj500_project_save(nextStep) {
+                var root_ds = contentWindow.$('${/parameter/@layout_code}_virtual_ds');
+                if (root_ds.validate()) {
+                    lock_tree_window();
+                    root_ds.setSubmitParameter('layout_code', '${/parameter/@layout_code}');
+                    root_ds.submit();
+                }
+                root_ds.on('submitsuccess', function(ds, res) {
+                    for (var id in contentWindow.$A.CmpManager.cache) {
+                        if (contentWindow.$A.CmpManager.cache[id] instanceof contentWindow.$A.DataSet) {
+                            if (res.result.document_id) {
+                                contentWindow.$(id).setSubmitParameter('document_id', res.result.document_id);
+                            }
+                            if (id.match(/prj_project_lease_item_ds$/) || id.match(/prj_project_mortgage_ds$/)) {
+                                contentWindow.$(id).query();
+                            }
+                        }
+                    }
+                    unlock_tree_window();
+                    if (typeof(nextStep) == 'function') {
+                        nextStep();
+                    }
+                });
+            }
+            
+            function prj500_project_exit() {
+                $('${/parameter/@winid}').close();
+            }
+            
+            function prj500_project_save_exit() {
+                prj500_project_save(prj500_project_exit);
+            }
+            
+            function lock_tree_window() {
+                Aurora.Masker.mask($('${/parameter/@winid}').wrap, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_tree_window() {
+                Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+            }
+            var ajax_flag = 'N';
+            
+            function prj500_project_submit() {
+                lock_tree_window();
+                var confirm_win = Aurora.showConfirm('${HLS.PROMPT}', '${l:HLS.ARE_YOU_SURE_TO_SUBMIT}', function() {
+                    ajax_flag = 'Y';
+                    Aurora.request({
+                        url: '${/request/@context_path}/autocrud/prj.PRJ500.prj_project_submit/update',
+                        para: {
+                            project_id: '${/parameter/@project_id}'
+                        },
+                        success: function(res) {
+                            unlock_tree_window();
+                            parent.Aurora.SideBar.enable = true;
+                            parent.Aurora.SideBar.show({
+                                msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                duration: 2000
+                            });
+                            $('${/parameter/@winid}').close();
+                        },
+                        failure: function() {
+                            unlock_tree_window();
+                        },
+                        error: function() {
+                            unlock_tree_window();
+                        },
+                        scope: this
+                    });
+                }, function() {
+                    unlock_tree_window();
+                });
+                confirm_win.on('close', function() {
+                    if (ajax_flag == 'N') {
+                        unlock_tree_window();
+                    }
+                });
+            }
+            
+            function prj500_project_user_button_1() {
+                if ('${/parameter/@function_code}' == 'PRJ501') {
+                    location.href = $('prj_project_application_link_id').getUrl() + "?project_id=${/parameter/@project_id}";
+                    $('USER_BUTTON1').disable();
+                    $('USER_BUTTON1').setText('正在下载...');
+                }
+            }
+            
+            function prj500_define_button(btn) {
+                var root_ds = contentWindow.$('${/parameter/@layout_code}_virtual_ds');
+                contentWindow.prj_define_button(btn, root_ds);
+            }
+            
+            function bind(para) {
+                var params = para.split('?');
+                var data = [];
+                data[0] = params[0];
+                for (var i = 1;i < params.length;i++) {
+                    data.push(arguments[i] || '?');
+                    data.push(params[i]);
+                }
+                return data.join('');
+            }
+            
+            function linkrenderer(text, record, node) {
+                return bind("<span style='cursor:pointer'>?</span>", text);
+            }
+            
+            function on_tree_click(tree, record) {
+                if (first_loading_flag) {
+                    tree_loading_flag = false;
+                }
+                if (tree_loading_flag) {
+                    Aurora.showMessage('${HLS.PROMPT}', '${l:PRJ501.TREE_CODE_LOADING}');
+                    return false;
+                }
+                tree_loading_flag = true;
+                var code = record.get('tree_code');
+                if (isLoaded) {
+                    jump2(code);
+                }
+            }
+            
+            function jump2(id, parentId) {
+                mainIFrame2.open_tree_code_child(id, parentId);
+            }
+            
+            function jump(id, acc, index) {
+                if (mainIFrame2.open_tree_code) {
+                    mainIFrame2.open_tree_code(id, acc, index);
+                } else {
+                    Ext.get('mainFrame2_id').on('load', function() {
+                        if (mainIFrame2) {
+                            mainIFrame2.open_tree_code(id, acc, index);
+                            page_init = true;
+                        }
+                    });
+                }
+            }
+            
+            function on_accordion_beforeselect(acc, index) {
+                var code = acc.bodys.item(index).child('div[_data]').getAttribute('_data');
+                if (isLoaded) {
+                    if (mainIFrame2.page && mainIFrame2.page[code] && mainIFrame2.page[code].isLoaded) {
+                        jump(code);
+                    } else {
+                        isLoaded = false;
+                        jump(code, acc, index);
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
+            
+            function prj_statement_confirm() {
+                // $('statement_info_btn').disable();
+                // var btn_value = $('label_ds').getAt(0).get('label1');
+                // if (btn_value == 'Y') {
+                    // if ('${/parameter/@function_usage}' != 'CREATE') {
+                        // Aurora.request({
+                            // url: $('prj_project_update_declare_flag_link_id').getUrl(),
+                            // para: {
+                                // project_id: '${/parameter/@project_id}',
+                                // declare_flag: 'Y'
+                            // },
+                            // success: function() {
+                                // $('statement_info_btn').enable();
+                                // Ext.get('statement_info').remove();
+                            // },
+                            // error: function() {
+                                // $('statement_info_btn').enable();
+                            // },
+                            // failure: function() {
+                                // $('statement_info_btn').enable();
+                            // },
+                            // scope: this
+                        // });
+                    // } else {
+                        // $('statement_info_btn').enable();
+                        // Ext.get('statement_info').remove();
+                    // }
+                // }
+            }
+            
+            function prj_statement_update(ds, record, name, value, oldvalue) {
+                // var btn = $('statement_info_btn');
+                // if (name == 'label1') {
+                    // if (times == 0) {
+                        // if (value == 'Y') {
+                            // btn.setText('${l:HLS.CONFIRM}');
+                            // btn.enable();
+                        // } else {
+                            // btn.setText('${l:HLS.CONFIRM_SELECT}');
+                            // btn.disable();
+                        // }
+                    // }
+                // }
+            }
+            
+            function open_render_window(id, params, url, url_title) {
+                new Aurora.Window({
+                    id: id,
+                    params: params,
+                    url: url,
+                    title: url_title,
+                    fullScreen: true,
+                    draggable: true
+                });
+            }
+        ]]></script>
+        <style><![CDATA[
+	        	#tree_accordion_id .item-accordion-body{
+	        		overflow:hidden;
+	        	}
+	        	#tree_accordion_id .item-accordion .accordion-strip {
+	        	    overflow: hidden;
+					background-image: url("${/request/@context_path}/resource/aurora.ui.std/hls/toolbar/toolbar_bg.gif");
+					text-indent: 5px;
+					cursor: pointer;
+					height: 24px;
+					line-height: 24px;
+					border-top: 1px solid #CCCCCC;
+				}
+	    ]]></style>
+        <a:dataSets>
+            <a:placeHolder id="dynamicTreeDs_id"/>
+            <a:dataSet id="prj_layout_tree_id">
+                <a:datas dataSource="/model/prj_layout_tree_path"/>
+            </a:dataSet>
+            <a:dataSet id="prj_document_update_entrance_ds" autoCreate="true"/>
+            <a:dataSet id="prj_layout_tree_statement_id">
+                <a:datas dataSource="/model/prj_layout_tree_statement_path"/>
+            </a:dataSet>
+            <a:dataSet id="label_temp_ds" autoCreate="true"/>
+            <a:dataSet id="label_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="label1" checkedValue="Y" defaultValue="N" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="label2" defaultValue="${l:PRJ501.DUTY_STATEMENT}"/>
+                    <a:field name="label3" defaultValue="${l:PRJ501.DUTY_STATEMENT_ONE}"/>
+                    <a:field name="label4" defaultValue="${l:PRJ501.DUTY_STATEMENT_TWO}"/>
+                    <a:field name="label5" defaultValue="${l:PRJ501.DUTY_STATEMENT_THREE}"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="prj_statement_update"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <!-- <div id="statement_info" style="position:absolute;left:0;top:0;width:100%;background:#fff;z-index:999999">
+            <a:box style="border:1px solid #ccc;padding:50px 50px 2px 230px;width:100%">
+                <a:label name="label2" bindTarget="label_ds" style="font-weight:bold;text-align:center;font-size:180%" width="800"/>
+                <a:label name="label3" bindTarget="label_ds" style="font-weight:bold;margin-top:22px;font-size:140%" width="800"/>
+                <a:label name="label4" bindTarget="label_ds" style="font-weight:bold;margin-top:25px;font-size:140%" width="800"/>
+                <a:label name="label5" bindTarget="label_ds" style="font-weight:bold;margin-top:25px;font-size:140%" width="900"/>
+                <a:hBox labelSeparator="" labelWidth="0" style="margin-left:-10px;margin-top:10px">
+                    <a:checkBox name="label1" bindTarget="label_ds" prompt=" "/>
+                    <a:gridButton id="statement_info_btn" click="prj_statement_confirm" disabled="true" style="margin-top:5px" text="PRJ501.READ_THE_PERFORMANCE_STATEMENT"/>
+                </a:hBox>
+            </a:box>
+        </div> -->
+        <script><![CDATA[
+            (function() {
+                var body = '';
+                if ('${/parameter/@winid}') {
+                    body = $('${/parameter/@winid}').body;
+                } else {
+                    body = Ext.getBody();
+                }
+                if ('${/parameter/@declare_flag}' == 'Y') {
+                    //Ext.get('statement_info').remove();
+                } else {
+                    // Ext.fly('statement_info').setHeight(body.setStyle({
+                        // display: ''
+                    // }).getHeight()).setWidth(body.getWidth());
+                    body.setStyle({
+                        display: 'none'
+                    });
+                }
+            })();
+        ]]></script>
+        <a:screenTopToolbar>
+            <a:placeHolder id="prj_dynamicButton_id"/>
+        </a:screenTopToolbar>
+        <TABLE align="center" cellpadding="0" cellspacing="0" width="100%">
+            <TR>
+                <TD style="vertical-align:top" width="200">
+                    <a:accordionPanel id="tree_accordion_id" showIcon="false" width="200">
+                        <a:accordions>
+                            <a:placeHolder id="dynamicAccordion_id"/>
+                        </a:accordions>
+                        <a:events>
+                            <a:event name="beforeselect" handler="on_accordion_beforeselect"/>
+                        </a:events>
+                    </a:accordionPanel>
+                </TD>
+                <TD style="vertical-align:top">
+                    <iframe name="mainIFrame2" id="mainFrame2_id" frameborder="0" height="100%" scrolling="no" style="border:none;padding:0px;margin:0px;" width="100%"/>
+                    <script><![CDATA[
+                    var vw,vh;
+                    function initSize() {
+		                var topBarHeight = 71;
+		                var treeWidth = 210;
+		                var screenWidth = Aurora.getViewportWidth();
+		                var screenHeight = Aurora.getViewportHeight();
+		                var bottomHeight = screenHeight - topBarHeight;
+		                var bottomWidth = screenWidth - treeWidth;
+		                Ext.get('mainFrame2_id').setHeight(bottomHeight);
+		                Ext.get('mainFrame2_id').setWidth(bottomWidth);
+		                if(Ext.isIE||Ext.isIE9){
+		                    vh= bottomHeight;
+		                	vw= bottomWidth - 10;
+		                }else{
+		                    vh= bottomHeight-15;
+		                    vw= bottomWidth - 25;
+		                }
+		            }
+		            initSize();
+		            $A.Masker.mask(Ext.get('mainFrame2_id'),'${l:HLS.LOADING}');
+		            var record;
+		            if(!'${/parameter/@project_id}'){
+	            		record = $('prj_document_create_entrance_ds').getAt(0);
+		            }else{
+		                record=$('prj_document_update_entrance_ds').getAt(0);
+		            }
+		            record.set('layout_code','${/parameter/@layout_code}');
+		            record.set('document_category','${/model/prj_win_params/record/@document_category}');
+		            record.set('document_type','${/model/prj_win_params/record/@document_type}');
+		            record.set('document_id','${/parameter/@project_id}');
+		            record.set('project_id','${/parameter/@project_id}');
+	            	record.set('winid','${/parameter/@winid}');
+	            	record.set('calc_type','${/parameter/@calc_type}');
+	            	record.set('number_of_tenant','${/model/prj_win_params/record/@number_of_tenant}');
+	            	record.set('number_of_guarantor','${/model/prj_win_params/record/@number_of_guarantor}');
+	            	record.set('number_of_actual_controller','${/model/prj_win_params/record/@number_of_actual_controller}');
+	            	record.set('number_of_quotation','${/model/prj_win_params/record/@number_of_quotation}');
+	            	record.set('function_usage','${/parameter/@function_usage}');
+	            	record.set('function_code','${/parameter/@function_code}');
+	            	record.set('cdd_list_id','${/model/prj_win_params/record/@cdd_list_id}');
+	            	record.set('maintain_type','${/parameter/@maintain_type}');
+	            	record.set('default_value_dsid','${/parameter/@default_value_dsid}');
+	            	record.set('declare_flag','Y');
+	            	record.set('_vh',vh);
+	            	record.set('_vw',vw);
+	            	$A.post($('prj_project_create_their_statement_link_id').getUrl(),record.getObject(),'mainIFrame2');
+	        	]]></script>
+                </TD>
+                <TD width="25"/>
+            </TR>
+        </TABLE>
+        <script language="javascript"><![CDATA[
+            Ext.lib.Event.on(window, "resize",initSize);
+            if('${/parameter/@declare_flag}'!='Y'){
+	        	var times = 5,
+	        	// btn = $('statement_info_btn'),
+	        	label_record=$('label_ds').getAt(0);
+	        	btnInterval = setInterval(function(){
+	        		if(--times){
+	        			// btn.setText('${l:PRJ501.READ_THE_PERFORMANCE_STATEMENT_LEFT}'+times+'${l:PRJ501.SECOND_RIGHT}');
+	        		}else{
+	        			clearInterval(btnInterval);
+	        			btnInterval=null;
+	        			// btn.setText('${l:HLS.PLEASE_CONFIRM_SELECT}');
+	        			label_record.getField('label1').setReadOnly(false);
+	        		}
+	        	},1000);
+	        	$('${/parameter/@winid}').on('close',function(){
+	        	    if(btnInterval){
+	        	        clearInterval(btnInterval);
+	        	        Ext.lib.Event.un(window, "resize",initSize);
+	        	    }
+	        	});
+            }
+        ]]></script>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="prj_dynamicButton_id">
+            <p:loop source="/model/layout_main_button_path">
+                <p:switch test="@button_code">
+                    <p:case value="SAVE">
+                        <c:process-config>
+                            <a:gridButton click="prj500_project_save" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="EXIT">
+                        <c:process-config>
+                            <a:gridButton click="prj500_project_exit" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="SAVE_EXIT">
+                        <c:process-config>
+                            <a:gridButton click="prj500_project_save_exit" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="SUBMIT_APPROVAL">
+                        <c:process-config>
+                            <a:gridButton click="prj500_project_submit" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="USER_BUTTON1">
+                        <c:process-config>
+                            <a:gridButton id="USER_BUTTON1" click="prj500_project_user_button_1" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="*">
+                        <c:process-config>
+                            <a:gridButton id="prj500_${@button_code}" click="prj500_define_button" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicTreeDs_id">
+            <p:loop source="/model/prj_layout_tree_accordion_path">
+                <p:switch test="@tree_code">
+                    <p:case value="*">
+                        <c:process-config>
+                            <a:dataSet id="${@layout_code}_${@tree_code}_tree_ds" autoQuery="true" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/prj.PRJ500.hls_doc_layout_accordion_tree/query?layout_code=${/parameter/@layout_code}&amp;parent_tree_code=${@tree_code}"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicAccordion_id">
+            <p:loop source="/model/prj_layout_tree_accordion_path">
+                <p:switch test="@tree_code">
+                    <p:case value="*">
+                        <c:process-config>
+                            <a:accordion prompt="${@tree_desc}" selected="${@expand_boolean_flag}">
+                                <script><![CDATA[
+                            		tree_code_list.push('${@tree_code}');
+                            	]]></script>
+                                <div _data="${@tree_code}" style="display:none"/>
+                                <a:tree bindTarget="${@layout_code}_${@tree_code}_tree_ds" displayField="tree_desc" expandField="expand_flag" idField="tree_code" parentField="parent_tree_code" renderer="linkrenderer" sequenceField="tree_seq" showCheckBox="false" style="margin:8px 0" width="200">
+                                    <a:events>
+                                        <a:event name="click" handler="on_tree_click"/>
+                                    </a:events>
+                                </a:tree>
+                            </a:accordion>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

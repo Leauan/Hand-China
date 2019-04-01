@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Administrator  
+    $Date: 2019-1-23 下午6:47:01  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" alias="t1" baseTable="HL_PRJ_OVERRULE">
+    <bm:fields>
+        <bm:field name="voer_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="VOER_ID" prompt="HL_PRJ_OVERRULE.VOER_ID"/>
+        <bm:field name="return_time" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="RETURN_TIME" prompt="HL_PRJ_OVERRULE.RETURN_TIME"/>
+        <bm:field name="return_reason" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="RETURN_REASON" prompt="HL_PRJ_OVERRULE.RETURN_REASON"/>
+        <bm:field name="project_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="PROJECT_ID" prompt="HL_PRJ_OVERRULE.PROJECT_ID"/>
+        <bm:field name="project_number"/>
+        <bm:field name="contract_id"/>
+        <bm:field name="contract_number"/>
+        <bm:field name="bp_class"/>
+        <bm:field name="bp_name"/>
+        <bm:field name="handle_flag"/>
+        <bm:field name="handle_flag_desc"/>
+        <bm:field name="voer_type"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            select * from (
+	            select o.voer_id,
+				       substr(o.return_time,1,19) return_time,
+				       o.return_reason,
+				       p.project_id,
+				       p.project_number,
+				       (select contract_id from con_contract 
+               		   		where project_id = p.project_id 
+               		   		and data_class = 'NORMAL') contract_id,
+               		   (select contract_number from con_contract 
+               		   		where project_id = p.project_id 
+               		   		and data_class = 'NORMAL') contract_number,
+				       m.bp_name,
+		               b.bp_class,
+		               nvl(o.handle_flag,'N') handle_flag,
+		               (select v.code_value_name 
+	                    from sys_code_values_v v
+	                   where v.code_value = nvl(o.handle_flag,'N')
+	                    and v.code = 'HANDLE_FLAG') handle_flag_desc,
+	                    'PROJECT' voer_type
+				from hl_prj_overrule o,prj_project p,hls_bp_master m,prj_project_bp b
+				where o.project_id = p.project_id
+				and p.project_id = b.project_id
+				and m.bp_id = b.bp_id
+				and b.bp_category = 'TENANT'
+				and p.created_by = ${/session/@user_id}
+			UNION ALL
+				select co.voer_id,
+		               substr(co.return_time,1,19) return_time,
+		               co.return_reason,
+		               (select project_id from prj_project p 
+                          where project_id = c.project_id) contract_id,
+                       (select p.project_number from prj_project p  
+                          where project_id = c.project_id ) project_number,
+		               c.contract_id,
+		               c.contract_number,
+		               m.bp_name,
+		               m.bp_class,
+	                   nvl(co.handle_flag,'N') handle_flag,
+	                   (select v.code_value_name 
+	                      from sys_code_values_v v
+                       where v.code_value = nvl(co.handle_flag,'N')
+	                     and v.code = 'HANDLE_FLAG') handle_flag_desc,
+	                    'CONTRACT' voer_type
+		        from hl_prj_overrule_con co,con_contract c,hls_bp_master m
+		        where co.contract_id = c.contract_id
+		        and c.bp_id_agent_level1 = m.bp_id
+		        and c.bp_id_agent_level1 = ${/session/@agent_id}
+			) t1 #WHERE_CLAUSE#	 order by return_time desc
+			]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+        		begin
+        			prj_project_workflow_pkg.update_prj_overrule_handle(p_voer_id   => ${@voer_id},
+        														p_voer_type     => ${@voer_type},
+        														p_user_id    => ${/session/@p_user_id});
+        		end;
+        	]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="project_number" queryExpression="t1.project_number like &apos;%&apos;||${@project_number}||&apos;%&apos;"/>
+        <bm:query-field name="contract_number" queryExpression="t1.contract_number like &apos;%&apos;||${@contract_number}||&apos;%&apos;"/>
+        <bm:query-field name="bp_name" queryExpression="t1.bp_name like &apos;%&apos;||${@bp_name}||&apos;%&apos;"/>
+        <bm:query-field name="handle_flag" queryExpression="t1.handle_flag = ${@handle_flag}"/>
+    </bm:query-fields>
+</bm:model>

@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangyu  
+    $Date: 2019-3-5 上午9:59:57  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" needAccessControl="false">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                	mailing_list_id,
+                    mail_to,
+                    mail_cc,
+                    subject,
+                    body,
+                    content_type
+                FROM
+                    zj_sys_mailing_list
+                WHERE
+                    sent_flag    = 'N' AND
+                    error_times <= 3 AND
+                    (
+                        sysdate - creation_date
+                    )
+                    < 3
+            ]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+                DECLARE
+                    v_mailing_list_id  NUMBER;
+                    v_notify_record_id NUMBER;
+                    v_mail_to          VARCHAR2(4000);
+                    v_mail_cc          VARCHAR2(4000);
+                    v_subject          VARCHAR2(2000);
+                    v_attch_file_name  VARCHAR2(2000);
+                    v_created_by       NUMBER;
+                    v_creation_date DATE;
+                    v_last_updated_by NUMBER;
+                    v_last_update_date DATE;
+                    v_body CLOB;
+                BEGIN
+                    UPDATE
+                        zj_sys_notify_record r
+                    SET
+                        r.status           = 'SENT',
+                        r.send_time        = sysdate,
+                        r.last_update_date = sysdate
+                    WHERE
+                        r.record_id =
+                        (SELECT
+                            l.notify_record_id
+                        FROM
+                            zj_sys_mailing_list l
+                        WHERE
+                            l.mailing_list_id = ${@mailing_list_id}
+                        );
+                    SELECT
+                        t.mailing_list_id,
+                        t.notify_record_id,
+                        t.mail_to,
+                        t.mail_cc,
+                        t.subject,
+                        t.created_by,
+                        t.creation_date,
+                        t.last_updated_by,
+                        t.last_update_date,
+                        t.body,
+                        t.attch_file_name
+                    INTO
+                        v_mailing_list_id,
+                        v_notify_record_id,
+                        v_mail_to,
+                        v_mail_cc,
+                        v_subject,
+                        v_created_by,
+                        v_creation_date,
+                        v_last_updated_by,
+                        v_last_update_date,
+                        v_body,
+                        v_attch_file_name
+                    FROM
+                        zj_sys_mailing_list t
+                    WHERE
+                        t.mailing_list_id = ${@mailing_list_id};
+                    INSERT
+                    INTO
+                        zj_sys_mailing_list_ht
+                        (
+                            mailing_list_id,
+                            notify_record_id,
+                            mail_to,
+                            mail_cc,
+                            subject,
+                            Body,
+                            note,
+                            sent_flag,
+                            sent_date,
+                            attch_file_name,
+                            created_by,
+                            creation_date,
+                            last_updated_by,
+                            last_update_date
+                        )
+                        VALUES
+                        (
+                            v_mailing_list_id,
+                            v_notify_record_id,
+                            v_mail_to,
+                            v_mail_cc,
+                            v_subject,
+                            v_body,
+                            '',
+                            'Y',
+                            Sysdate,
+                            v_attch_file_name,
+                            v_created_by,
+                            v_creation_date,
+                            v_last_updated_by,
+                            v_last_update_date
+                        );
+                    DELETE FROM zj_sys_mailing_list WHERE mailing_list_id = ${@mailing_list_id};
+                END;
+            ]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="execute">
+            <bm:update-sql><![CDATA[
+            	BEGIN
+            	    UPDATE
+            	        zj_sys_mailing_list
+            	    SET
+            	        note             = '发送失败',
+            	        error_times      = error_times + 1,
+            	        last_update_date = sysdate
+            	    WHERE
+            	        mailing_list_id = ${@mailing_list_id};
+            	    UPDATE
+            	        zj_sys_notify_record r
+            	    SET
+            	        r.status           = 'ERROR',
+            	        r.last_update_date = sysdate
+            	    WHERE
+            	        r.record_id =
+            	        (SELECT
+            	            l.notify_record_id
+            	        FROM
+            	            zj_sys_mailing_list l
+            	        WHERE
+            	            l.mailing_list_id = ${@mailing_list_id}
+            	        );
+            	END;
+        	]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="mail_to"/>
+        <bm:field name="mail_cc"/>
+        <bm:field name="subject"/>
+        <bm:field name="body"/>
+        <bm:field name="content_type"/>
+    </bm:fields>
+</bm:model>

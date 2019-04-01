@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: xuls  
+    $Date: 2015-2-3 下午3:18:43  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="csh711_write_off_detail_link" url="${/request/@context_path}/modules/csh/CSH301/csh_transaction_receipt_write_off_detail_query.screen"/>
+        <a:link id="csh711_reverse_link" model="csh.CSH711.reverse_csh_transaction" modelaction="batch_update"/>
+        <script><![CDATA[
+	
+    function csh711_openWindow_writeoff(url) {
+        new Aurora.Window({
+            id: 'csh_write_off_reverse_detail_link_winid',
+            params: {
+                winId: 'csh_write_off_reverse_detail_link_winid'
+            },
+            url: url,
+            title: '${l:CSH301.CSH_WRITE_OFF_DETAIL}',
+            fullScreen: true
+        });
+    }
+    
+    window['${/parameter/@bp_seq}${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record, bp_seq) {
+        if (name == 'deduction_amount') {
+            var url;
+            url = $('csh711_write_off_detail_link').getUrl() + '?transaction_id=' + record.get('transaction_id') + '&transaction_type=' + record.get('transaction_type');
+            return '<a href="javascript:csh711_openWindow_writeoff(\'' + url + '\');">' + Aurora.formatMoney(value) + '</a>';
+        }
+    };
+    window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+        var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_transaction');
+        var csh_ds = $(ds_id);
+        var records = csh_ds.getSelected();
+        if (records.length != 1) {
+            Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+            return;
+        }
+        if (csh_ds.validate()){
+	        Aurora.showConfirm('${l:PROMPT}', '是否反冲?', function() {
+	            var reverse_data = [];
+	            for (var i = 0;i < records.length;i++) {
+	                records[i].set('_status', 'update');
+	                reverse_data.push(records[i].data);
+	            }
+	            Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+	            Aurora.request({
+	                url: $('csh711_reverse_link').getUrl(),
+	                para: reverse_data,
+	                success: function() {
+	                    Aurora.Masker.unmask(Ext.getBody());
+	                    csh_ds.query();
+	                },
+	                failure: function() {
+	                    Aurora.Masker.unmask(Ext.getBody());
+	                },
+	                error: function() {
+	                    Aurora.Masker.unmask(Ext.getBody());
+	                },
+	                scope: this
+	            });
+	        }, function() {
+	            return;
+	        }, null, null);
+    	}
+    
+    
+    
+    };
+]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <model-query fetchAll="true" model="zjwfl.zj_wfl_graphics" rootPath="graphics_record"/>
+        <model-query fetchAll="true" model="zjwfl.zj_wfl_graphics_detail_view" rootPath="graphics_detail_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="pageLink_sub_view" url="${/request/@context_path}/modules/zjwfl/zj_wfl_graphics_sub.screen"/>
+        <a:link id="bmLink_getGraphic" model="zjwfl.zj_wfl_graphics" modelaction="query"/>
+        <script><![CDATA[
+        	
+        	function get_fillColor(action_type)
+            {
+                var actionType_colorConfig = {
+                	'1':'#FFFF00',
+                	'10':'#66ff66',
+                	'100':'#66ff66',
+                	'-1':'#FF0000',
+                	'-10':'#FF0000',
+                	'-100':'#FF0000'
+                };
+                
+                return {
+                    fillcolor: actionType_colorConfig[action_type]
+                };
+                
+            }
+        	
+        	function winOpen_graphics_sub(workflow_id,width,height)
+        	{
+        	    new Aurora.Window({
+                    id: 'zj_wfl_graphics_sub',
+                    url: $('pageLink_sub_view').getUrl(),
+                    params: {
+                        workflow_id: workflow_id,
+                        instance_id: '${/parameter/@instance_id}'
+                    },
+                    title: '链接流程图',
+                    height: height + 30,
+                    width: width + 30
+                });
+        	}
+        	
+        
+            function onClick_graphicDetailDs(e, el, ds, record) {
+                if(record){
+	                var workflow_id = record.get('link_workflow_id');
+	                if (Ext.isEmpty(workflow_id))
+	                {
+	                    return;
+	                }
+	                else
+	                {
+	                    Aurora.request({
+			                url: $('bmLink_getGraphic').getUrl(),
+			                para: {
+			                	workflow_id:workflow_id
+			                },
+			                success: function(res) {
+			                    var obj = res.result.record;
+			                    winOpen_graphics_sub(workflow_id,obj['width'],obj['height']);
+			                },
+			                failure: function() {
+			                },
+			                error: function() {
+			                },
+			                scope: this
+			            });
+	                }
+                }
+                
+            }
+            
+            
+            function nodeRenderer(record, type, config) {
+                
+                var arrive_date = record.get('arrive_date');
+                var dispose_date = record.get('dispose_date');
+                var dispose_user = record.get('dispose_user');
+                var action_type = String(record.get('action_type'));
+                
+                
+                if(Ext.isEmpty(action_type))
+                {
+                    arrive_date = '未到达';
+                    dispose_user = '未审批';
+                    dispose_date = '未审批';
+                }
+                else
+                {
+                    if(action_type=='1')
+                    {
+	                    dispose_date = '处理中';
+                    }
+                }
+                
+                if(Ext.isEmpty(dispose_user))
+                {
+                    dispose_user='';
+                }
+                if(Ext.isEmpty(dispose_date))
+                {
+                    dispose_date='';
+                }
+                if(Ext.isEmpty(arrive_date))
+                {
+                    arrive_date='未到达';
+                }
+                
+                if (type == 'rect' || type == 'diamond') {
+                    config.info = '到达时间：' + arrive_date + '\n处理时间：' + dispose_date+'\n处理人：'+dispose_user;
+                    return get_fillColor(action_type);
+                }
+                
+                if(type=='oval')
+                {
+                    if (record.get('table_id') == -1 || record.get('table_id') == 0) {
+                        
+                    }
+                    else
+                    {
+                        config.info = '到达时间：' + arrive_date + '\n结束时间：' + dispose_date;
+                    	return get_fillColor(action_type);
+                    }
+                }
+                else if (type == 'zLine')
+                {
+                    
+                }
+            }
+            
+            function graphicPage_close() {
+                $('zj_wfl_graphics').close();
+            }
+            
+            ]]></script>
+        <a:dataSets>
+            <a:dataSet id="graphicDetailDs">
+                <a:datas dataSource="/model/graphics_detail_list"/>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:button click="graphicPage_close" text="返回"/>
+            <a:graphic bindTarget="graphicDetailDs" height="${/model/graphics_record/record/@height}" renderer="nodeRenderer" style="border:1px solid #ccc;" width="${/model/graphics_record/record/@width}">
+                <a:events>
+                    <a:event name="click" handler="onClick_graphicDetailDs"/>
+                </a:events>
+            </a:graphic>
+        </a:screenBody>
+    </a:view>
+</a:screen>

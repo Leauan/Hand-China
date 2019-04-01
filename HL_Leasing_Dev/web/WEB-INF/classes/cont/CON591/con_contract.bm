@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qianming  
+    $Date: 2014-7-25 下午2:18:46  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:s="aurora.plugin.script" xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="CON_CONTRACT">
+    <bm:fields>
+        <bm:field name="contract_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CONTRACT_ID" prompt="CON_CONTRACT.CONTRACT_ID"/>
+        <bm:field name="data_class" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DATA_CLASS" prompt="CON_CONTRACT.DATA_CLASS"/>
+        <bm:field name="contract_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONTRACT_NUMBER" prompt="CON_CONTRACT.CONTRACT_NUMBER"/>
+        <bm:field name="contract_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONTRACT_NAME" prompt="CON_CONTRACT.CONTRACT_NAME"/>
+        <bm:field name="project_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="PROJECT_ID" prompt="CON_CONTRACT.PROJECT_ID"/>
+        <bm:field name="company_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="COMPANY_ID" prompt="CON_CONTRACT.COMPANY_ID"/>
+        <bm:field name="lease_channel" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="LEASE_CHANNEL" prompt="CON_CONTRACT.LEASE_CHANNEL"/>
+        <bm:field name="bp_id_tenant" databaseType="NUMBER" datatype="java.lang.Long" physicalName="BP_ID_TENANT" prompt="CON_CONTRACT.BP_ID_TENANT"/>
+        <bm:field name="bp_id_tenant_n" expression="(select bp_name from hls_bp_master where bp_id = t1.bp_id_tenant)" forInsert="false" forUpdate="false"/>
+        <bm:field name="contract_status" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONTRACT_STATUS" prompt="CON_CONTRACT.CONTRACT_STATUS"/>
+        <bm:field name="ebank_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="EBANK_ID" prompt="CON_CONTRACT.EBANK_ID"/>
+        <bm:field name="ebank_id_n" expression="(select bank_short_name from csh_tenant_bank where bank_id = t1.ebank_id)" forInsert="false" forUpdate="false"/>
+        <bm:field name="ebank_id_c" expression="(select bank_code from csh_tenant_bank where bank_id = t1.ebank_id)" forInsert="false" forUpdate="false"/>
+        <bm:field name="ebank_type" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="EBANK_TYPE" prompt="CON_CONTRACT.EBANK_TYPE"/>
+        <bm:field name="ebank_account_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="EBANK_ACCOUNT_NAME" prompt="CON_CONTRACT.EBANK_ACCOUNT_NAME"/>
+        <bm:field name="ebank_account_num" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="ebank_account_num" prompt="CON_CONTRACT.EBANK_ACCOUNT_NUM"/>
+        <bm:field name="id_card_no" expression="(select  upper(replace(replace(l.id_card_no,&apos; &apos;,&apos;&apos;),&apos;-&apos;,&apos;&apos;)) from hls_bp_master l where l.bp_id = t1.bp_id_tenant)" forInsert="false" forUpdate="false"/>
+        <bm:field name="cell_phone" expression="((select substr(replace(replace(l.cell_phone,&apos; &apos;,&apos;&apos;),&apos;-&apos;,&apos;&apos;),0,11)from hls_bp_master l  where l.bp_id = t1.bp_id_tenant))" forInsert="false" forUpdate="false"/>
+        <!-- <bm:field name="ebank_protocol_status" databaseType="VARCHAR2" datatype="java.lang.String" lookupCode="CON591_EBANK_PROTOCOL_STATUS"  lookupField="ebank_protocol_status_n" physicalName="EBANK_PROTOCOL_STATUS"/> -->
+        <bm:field name="ebank_protocol_status" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="EBANK_PROTOCOL_STATUS"/>
+        <bm:field name="ebank_protocol_status_n" expression="(select  sv.code_value_name from sys_codes s,sys_code_values_vl sv where s.code_id = sv.code_id and sv.code_value = t1.ebank_protocol_status and s.code =&apos;CON591_EBANK_PROTOCOL_STATUS&apos;)" forInsert="false" forUpdate="false"/>
+        <bm:field name="protocol_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PROTOCOL_NUMBER"/>
+        <bm:field name="ebank_account_prop" databaseType="VARCHAR2" datatype="java.lang.String"/>
+    </bm:fields>
+    <bm:primary-key>
+        <bm:pk-field name="contract_id"/>
+    </bm:primary-key>
+    <bm:features>
+        <f:standard-who/>
+        <s:bm-script><![CDATA[
+            var cx = Packages.aurora.javascript.Context.getCurrentContext();
+            Packages.aurora.plugin.script.engine.ScriptImportor.defineExternScript(cx, this, $ctx.getData(), "aut_authority_bm_validate.js");
+        ]]></s:bm-script>
+    </bm:features>
+    <bm:operations>
+        <bm:operation name="execute">
+            <bm:update-sql><![CDATA[
+        		BEGIN
+        		    UPDATE
+        		        con_contract t1
+        		    SET
+        		        t1.ebank_protocol_status = NULL,
+        		        t1.protocol_number       = NULL
+        		    WHERE
+        		        t1.contract_id = ${@contract_id};
+        		END;
+    		]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="contract_id" queryExpression="t1.contract_id in ${:@contract_id}"/>
+        <bm:query-field field="bp_id_tenant" queryOperator="="/>
+        <bm:query-field field="ebank_protocol_status" queryOperator="="/>
+        <bm:query-field field="ebank_id" queryOperator="="/>
+        <bm:query-field field="protocol_number" queryOperator="="/>
+        <bm:query-field name="flag" queryExpression="exists (select 1 from dual where (t1.ebank_account_name is not null and t1.ebank_account_num is not null and t1.ebank_type is not null and t1.ebank_id is not null and ${@flag} = &apos;Y&apos;) or ${@flag} = &apos;N&apos;)"/>
+        <bm:query-field field="contract_number" queryExpression="t1.contract_number like &apos;%&apos;||${@contract_number}||&apos;%&apos;"/>
+        <bm:query-field field="contract_name" queryExpression="t1.contract_name like &apos;%&apos;||${@contract_name}||&apos;%&apos;"/>
+        <bm:query-field field="ebank_account_num" queryExpression="t1.ebank_account_num like &apos;%&apos;||${@ebank_account_num}||&apos;%&apos;"/>
+        <bm:query-field name="status" queryExpression="(t1.ebank_protocol_status in (&apos;0&apos;,&apos;3&apos;,&apos;4&apos;,&apos;5&apos;) or t1.ebank_protocol_status is null)"/>
+        <bm:query-field name="pki_status" queryExpression="(t1.ebank_protocol_status not in (&apos;2&apos;,&apos;4&apos;))"/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="t1.contract_status IN (&apos;SIGN&apos;,&apos;INCEPT&apos;)"/>
+        <bm:data-filter enforceOperations="query" expression="t1.data_class = &apos;NORMAL&apos; and t1.lease_channel != &apos;70&apos;"/>
+        <bm:data-filter enforceOperations="query" expression="exists (select 1 from hls_bp_master where bp_id = t1.bp_id_tenant)"/>
+    </bm:data-filters>
+</bm:model>

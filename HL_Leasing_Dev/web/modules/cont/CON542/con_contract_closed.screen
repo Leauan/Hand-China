@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: LR  
+    $Date: 2013-8-13 上午10:30:25  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.document_category=&apos;CONTRACT&apos;" fetchAll="true" model="basic.hls_document_type_for_lov" rootPath="CON542_document_type_path"/>
+        <a:model-query fetchAll="true" model="cont.CON301.con_contract_business_type_list" rootPath="CON542_business_type_list"/>
+        <a:model-query defaultWhereClause="(exists(select 1 from hls_lease_org_assign ha where ha.unit_id=t1.unit_id))" fetchAll="true" model="basic.exp_org_unit_manager_lov" rootPath="CON542_exp_org_unit_manager_path"/>
+    </a:init-procedure>
+    <a:view>
+        <!-- <a:link id="con_contract_closed_submit_link_id" model="cont.CON542.con_contract_cancel" modelaction="batch_update"/> -->
+        <a:link id="con_contract_closed_link" model="cont.CON542.con_contract_closed" modelaction="batch_update"/>
+        <script><![CDATA[
+            function CON542_con_contract_query() {
+                $('CON542_contract_result_ds').query();
+            }
+            
+            function CON542_con_contract_reset() {
+                $('CON542_contract_query_ds').reset();
+            }
+            
+            // function CON542_con_contract_submit() {
+                // var records = $('CON542_contract_result_ds').getSelected();
+                // var cancelData = [];
+                // records[0].set('_status', 'update');
+                // var records_reason = $('contract_cancel_ds').getAt(0);
+                // if (Aurora.isEmpty(records_reason.get('cancel_reason'))) {
+                    // Aurora.showMessage('提示', '请维护合同取消原因！');
+                    // return;
+                // }
+                // records[0].set('cancel_reason', records_reason.get('cancel_reason'));
+                // cancelData.push(records[0].data);
+                // Aurora.showConfirm('${l:PROMPT}', '您确认要提交合同取消申请?', function() {
+                    // Aurora.request({
+                        // url: $('con_contract_closed_submit_link_id').getUrl(),
+                        // para: cancelData,
+                        // success: function() {
+                            // Aurora.SideBar.show({
+                                // msg: '提交成功',
+                                // duration: 2000
+                            // });
+                            // $('CON542_contract_result_ds').query();
+                        // },
+                        // scope: this
+                    // });
+                // }, function() {
+                    // return;
+                // }, null, null);
+            // }
+            
+            function summaryRenderer(datas, name) {
+                var sum = 0;
+                var sum2 = 0;
+                for (var i = 0;i < datas.length;i++) {
+                    record = datas[i];
+                    if (name == "lease_item_amount") {
+                        var t_1 = record.get("lease_item_amount");
+                        var t_2 = parseFloat(t_1);
+                        if (!isNaN(t_2)) {
+                            sum += t_2;
+                        }
+                    }
+                    if (name == "down_payment") {
+                        var d_1 = record.get("down_payment");
+                        var d_2 = parseFloat(d_1);
+                        if (!isNaN(d_2)) {
+                            sum2 += d_2;
+                        }
+                    }
+                }
+                if (name == "bp_vender") {
+                    return '<div align="right">合计:</div>';
+                }
+                if (name == "lease_item_amount") {
+                    return '<font color="red">' + Aurora.formatNumber(sum, 2) + '</font>';
+                }
+                if (name == "down_payment") {
+                    return '<font color="red">' + Aurora.formatNumber(sum2, 2) + '</font>';
+                }
+            }
+            
+            
+            function CON542_con_contract_closed() {
+                var records = $('CON542_contract_result_ds').getSelected();
+                var cancelData = [];
+                records[0].set('_status', 'update');
+                var records_reason = $('contract_cancel_ds').getAt(0);
+                if (Aurora.isEmpty(records_reason.get('cancel_reason'))) {
+                    Aurora.showMessage('提示', '请维护合同取消原因！');
+                    return;
+                }
+                records[0].set('cancel_reason', records_reason.get('cancel_reason'));
+                cancelData.push(records[0].data);
+                Aurora.showConfirm('${l:PROMPT}', '您确认要提交合同取消申请?', function() {
+                    Aurora.request({
+                        url: $('con_contract_closed_link').getUrl(),
+                        para: cancelData,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '提交成功',
+                                duration: 2000
+                            });
+                            $('CON542_contract_result_ds').query();
+                        },
+                        scope: this
+                    });
+                }, function() {
+                    return;
+                }, null, null);
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=CONTRACT&amp;function_code=CON542"/>
+        <a:dataSets>
+            <a:dataSet id="contract_cancel_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="cancel_reason" required="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="contract_document_ds" loadData="true" model="prj.PRJ415.hls_document_type_for_lov"/>
+            <a:dataSet id="CON542_employee_name_of_manager_ds">
+                <a:datas dataSource="/model/CON542_exp_org_unit_manager_path"/>
+            </a:dataSet>
+            <a:dataSet id="CON542_unit_name_ds" loadData="true" model="basic.exp_org_unit_name_lov"/>
+            <a:dataSet id="CON542_lease_organization_name_ds" loadData="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="CON542_division_name_ds" loadData="true" model="basic.hls_division_for_lov"/>
+            <a:dataSet id="CON542_lease_channel_name_ds" loadData="true" model="basic.hls_lease_channel_for_lov"/>
+            <a:dataSet id="CON542_wfl_status_name_ds" lookupCode="CON500_WFL_STATUS"/>
+            <a:dataSet id="CON542_companies_ds" loadData="true" model="fnd.fnd_companies"/>
+            <a:dataSet id="CON542_document_type_name_ds">
+                <a:datas dataSource="/model/CON542_document_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="CON542_business_type_ds">
+                <a:datas dataSource="/model/CON542_business_type_list"/>
+            </a:dataSet>
+            <a:dataSet id="CON542_contract_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="bp_name" autoComplete="true" lovGridHeight="350" lovHeight="500" lovLabelWidth="100" lovService="cont.CON541.hls_bp_master_v_for_lov?bp_category=TENANT" lovWidth="520" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="bp_id" to="bp_id_tenant"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_id_tenant"/>
+                    <!-- <a:field name="contract_number" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="cont.CON531.con_contract_lov" lovWidth="500" title="HLS.CONTRACT_NUMBER">
+                        <a:mapping>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="contract_id" to="contract_id"/>
+                        </a:mapping>
+                    </a:field> -->
+                    <a:field name="lease_channel_desc" displayField="description" options="CON542_lease_channel_name_ds" returnField="lease_channel" valueField="lease_channel"/>
+                    <!-- <a:field name="project_number" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="prj.PRJ501.prj_project_for_lov" lovWidth="500" title="HLS.PROJECT_NUMBER">
+                        <a:mapping>
+                            <a:map from="project_number" to="project_number"/>
+                            <a:map from="project_id" to="project_id"/>
+                        </a:mapping>
+                    </a:field> -->
+                    <a:field name="contract_number" typeCase="Upper"/>
+                    <a:field name="project_number" typeCase="Upper"/>
+                    <a:field name="document_type_desc" displayField="description" options="contract_document_ds" returnField="document_type" valueField="document_type"/>
+                    <a:field name="lease_organization_name" displayField="description" options="CON542_lease_organization_name_ds" returnField="lease_organization" valueField="lease_organization"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="CON542_contract_result_ds" autoPageSize="true" autoQuery="true" model="cont.CON542.con_contract_for_query" queryDataSet="CON542_contract_query_ds" queryUrl="${/request/@context_path}/autocrud/cont.CON542.con_contract_for_query/query" selectable="true" selectionModel="single">
+                <a:events>
+                    <a:event name="query" handler="aut_authority_list_validate_query"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="CON542_con_contract_query" text="HLS.QUERY"/>
+                <a:gridButton click="CON542_con_contract_reset" text="HLS.RESET"/>
+                <!-- <a:gridButton click="CON542_con_contract_submit" text="申请提交"/> -->
+                <a:gridButton click="CON542_con_contract_closed" text="合同关闭"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="100" marginWidth="30" title="CON301.CONTRACT_QUERY">
+                <a:textField name="contract_number" bindTarget="CON542_contract_query_ds" prompt="HLS.CONTRACT_NUMBER"/>
+                <a:lov name="bp_name" bindTarget="CON542_contract_query_ds" prompt="HLS.TENANT_CODE"/>
+                <a:numberField name="lease_item_amount_from" bindTarget="CON542_contract_query_ds" prompt="租赁物总价从"/>
+                <a:numberField name="lease_item_amount_to" bindTarget="CON542_contract_query_ds" prompt="租赁物总价到"/>
+                <a:comboBox name="lease_channel_desc" bindTarget="CON542_contract_query_ds" prompt="HLS.LEASE_CHANNEL_NAME"/>
+                <a:textField name="project_number" bindTarget="CON542_contract_query_ds" prompt="申请编号"/>
+                <a:comboBox name="lease_organization_name" bindTarget="CON542_contract_query_ds" prompt="事业部"/>
+                <a:comboBox name="document_type_desc" bindTarget="CON542_contract_query_ds" prompt="HLS.CONTRACT_TYPE"/>
+            </a:form>
+            <a:form labelWidth="100" marginWidth="30" title="取消原因">
+                <a:textArea name="cancel_reason" bindTarget="contract_cancel_ds" height="60" prompt="取消原因" width="800"/>
+            </a:form>
+            <a:grid id="CON542_con_contract_grid_ds" bindTarget="CON542_contract_result_ds" marginHeight="300" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" prompt="HLS.CONTRACT_NUMBER" width="150"/>
+                    <a:column name="project_number" prompt="申请编号" width="120"/>
+                    <!--<a:column name="signing_user" prompt="签约人" width="120"/>-->
+                    <a:column name="print_date" prompt="签约时间" renderer="Aurora.formatDate" width="120"/>
+                    <a:column name="document_type_desc" prompt="HLS.CONTRACT_TYPE" width="80"/>
+                    <a:column name="bp_name" prompt="HLS.TENANT_NAME" width="200"/>
+                    <!--<a:column name="bp_vender" align="center" footerRenderer="summaryRenderer" prompt="主供应商名称" width="200"/>-->
+                    <a:column name="lease_item_amount" align="right" footerRenderer="summaryRenderer" prompt="租赁物总价" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="down_payment" align="right" footerRenderer="summaryRenderer" prompt="首付款" renderer="Aurora.formatMoney" width="120"/>
+                    <!--<a:column name="owner_user_id_n" prompt="出单人" width="80"/>-->
+                    <a:column name="lease_channel_desc" prompt="商业模式" width="70"/>
+                    <a:column name="lease_organization_desc" prompt="事业部"/>
+                    <a:column name="contract_status_desc" prompt="合同状态"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

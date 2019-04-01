@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:s="aurora.plugin.script" xmlns:msg="aurora.application.features.msg" xmlns:a="http://www.aurora-framework.org/application" xmlns:dr="aurora.plugin.excelreport" xmlns:excel="aurora.application.task.excel" xmlns:t="uncertain.composite.transform" xmlns:mail="aurora.plugin.mail" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            importPackage(java.io);
+            importPackage(Packages.hl.mail);
+            
+            try {
+                var mail_server_bm = $bm('sys.SYS405.sys_get_mail_server');
+                var mail_server_result = mail_server_bm.queryAsMap().getChildren();
+                var mb = new HlMailBean();
+                mb.setHost(mail_server_result[0].mail_smtp_host); // 设置SMTP主机(163)，若用126，则设为：smtp.126.com
+                mb.setUsername(mail_server_result[0].mail_username); // 设置发件人邮箱的用户名
+                mb.setPassword(mail_server_result[0].mail_password); // 设置发件人邮箱的密码，需将*号改成正确的密码
+                mb.setFrom(mail_server_result[0].mail_address); // 设置发件人的邮箱
+                var mail_list_bm = $bm('sys.SYS405.zj_sys_mailing_list');
+                var mail_list_result = mail_server_bm.queryAsMap().getChildren();
+                for (var i = 0;i < mail_list_result.length;i++) {
+                    mb.setTo(mail_list_result[i].mail_to); // 设置收件人的邮箱
+                    mb.setCc(mail_list_result[i].mail_cc); // 设置抄送人的邮箱
+                    mb.setSubject(mail_list_result[i].subject); // 设置邮件的主题
+                    mb.setContent(mail_list_result[i].body); // 设置邮件的正文
+                    //mb.setContent(mail_list_result[i].content_type); // 设置邮件的格式 text/html为html，text/plain为纯文本
+                    //设置附件
+                    //mb.attachFile("D:\\abc.xlsx"); // 往邮件中添加附件
+                    var sm = new HlSendMail();
+                    if (mail_list_result[i].content_type == "text/html") {
+                        sm.sendHtmlMail(mb);
+                    } else {
+                        sm.sendMail(mb);
+                    }
+                }
+            } catch (e) {
+                raise_app_error(e);
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:service-output/>
+</a:service>

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            importPackage(java.util.zip);
+            importPackage(java.io);
+            //importPackage(org.apache.tools.zip); /*可以传入参数*/
+            
+            function writeFile(zos, fn, fp) {
+                var ze = new ZipEntry(fn);
+                zos.putNextEntry(ze);
+                transfer(fp, zos);
+            }
+            
+            function transfer(file, os) {
+                var fis = new FileInputStream(file);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    os.write(b, 0, len);
+                }
+                fis.close();
+            }
+            
+            
+            function getdate() {
+                var now = new Date()
+                y = now.getFullYear()
+                m = now.getMonth() + 1
+                d = now.getDate()
+                m = m < 10 ? "0" + m : m
+                d = d < 10 ? "0" + d : d
+                return y + "" + m + "" + d
+            }
+            $ctx["__request_type__"] = 'file'; //to indicate this request is not a JSON_REQUEST
+            var resp = $ctx['_instance.javax.servlet.http.HttpServletResponse'];
+            resp.setHeader("Pragma", "No-cache");
+            resp.setHeader("Cache-Control", "no-cache, must-revalidate");
+            var date_str = getdate();
+            var doc_code = '合同文本'
+            //println(decodeURI($ctx.parameter.doc_code));
+            var path = $ctx.parameter.path;
+            var filename = doc_code + '-' + date_str + ".zip"
+            //
+            resp.setDateHeader("Expires", 0);
+            resp.setContentType("application/x-msdownload");
+            var content_id = $ctx.parameter.content_id;
+            if (content_id) {
+                try {
+                    var attachment_batch_dl = $bm('cont.CON500.con_contract_content_download');
+                    var result = attachment_batch_dl.queryAsMap({
+                        content_id: $ctx.parameter.content_id,
+                        contract_id: $ctx.parameter.contract_id,
+                    });
+                    var arr = result.getChildren();
+                    if (arr.length >= 1) {
+                        resp.setHeader("Content-disposition", "attachment; filename=" + encodeURI(arr[0].file_name));
+                        var os = resp.getOutputStream();
+                        transfer(arr[0].file_path, os);
+                        os.flush();
+                    }
+                } catch (e) {
+                    var logger = $logger("server-script");
+                    logger.severe(e.message);
+                }
+            } else {
+                var attachment_batch_dl = $bm('cont.CON500.con_contract_content_download');
+                var result = attachment_batch_dl.queryAsMap({
+                    contract_id: $ctx.parameter.contract_id
+                });
+                var arr = result.getChildren();
+                //打包下载
+                resp.setHeader("Content-disposition", "attachment; filename=" + encodeURI(filename));
+                var zos = new ZipOutputStream(resp.getOutputStream());
+                //zos.setEncoding("GBK"); //如果是org.apache.tools.zip需要追加字符集
+                for (var i = 0;i < arr.length;i++) {
+                    var f = arr[i];
+                    if (f.file_path && f.file_name) {
+                        writeFile(zos, f.file_name, f.file_path);
+                    }
+                }
+                zos.close();
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

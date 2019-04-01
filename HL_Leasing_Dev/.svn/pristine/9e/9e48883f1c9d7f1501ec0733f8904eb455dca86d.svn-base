@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-2-26 下午2:37:49  
+    $Revision: 1.0  
+    $Purpose: projectNoScreen
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query model="lch.LCH502.lch_ref_document_type" rootPath="ref_document_record"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="bmLink_chanceMaintain_createToProject" model="lch.LCH501.lch_lease_chance_create_to_project" modelaction="execute"/>
+        <a:link id="bmLink_chanceMaintain_updateProjectNumber" model="prj.PRJ501.prj_project_number" modelaction="update"/>
+        <script><![CDATA[
+        
+        function chanceCreateProject_close()
+        {
+            $('lease_chance_create_project').close();
+        }
+        
+        function unmask_chanceCreateProject()
+        {
+            if(Aurora.CmpManager.get('lease_chance_create_project'))
+            {
+                Aurora.Masker.unmask($('lease_chance_create_project').wrap);
+            }
+        }
+        
+        function mask_chanceCreateProject()
+        {
+            if(Aurora.CmpManager.get('lease_chance_create_project'))
+            {
+                Aurora.Masker.mask($('lease_chance_create_project').wrap,'${l:HLS.SAVING}');
+            }
+        }
+        
+        function chanceCreateProject_updateProjectNumber()
+        {
+            mask_chanceCreateProject();
+            var record=$('chanceCreateProjectDs').getAt(0);
+            
+            Aurora.request({
+                url: $('bmLink_chanceMaintain_updateProjectNumber').getUrl(),
+                para: {
+                	project_id:record.get('project_id'),
+                	project_no:record.get('project_no')
+                },
+                success: function(res) {
+                    var record=$('chanceCreateProjectDs').getAt(0);
+                    record.set('project_no',res['result']['project_no']);
+                    Aurora.showMessage('${l:HLS.PROMPT}','${l:PRJ501.SAVE_SUCCESS_PROJECT_CODE}'+record.get('project_no'));
+                    unmask_chanceCreateProject();
+                    chanceCreateProject_close();
+                },
+                failure: function() {
+                    unmask_chanceCreateProject();
+                },
+                error: function() {
+                    unmask_chanceCreateProject();
+                },
+                scope: this
+            });
+        }
+        
+        function chanceCreateProject_save()
+        {
+            mask_chanceCreateProject();
+            var record=$('chanceCreateProjectDs').getAt(0);
+            Aurora.request({
+                url: $('bmLink_chanceMaintain_createToProject').getUrl(),
+                para: {
+                	lease_chance_id:'${/parameter/@lease_chance_id}',
+                	project_no:record.get('project_no'),
+                	project_name:record.get('project_name'),
+                	document_type:record.get('document_type'),
+                	business_type:record.get('business_type'),
+                	document_category:record.get('document_category')
+                },
+                success: function(res) {
+                    var record=$('chanceCreateProjectDs').getAt(0);
+                    
+                    record.set('project_no',res['result']['project_no']);
+                    record.set('project_id',res['result']['project_id']);
+                    
+                    if('${/model/ref_document_record/record/@code_update_flag}'=='Y')
+		            {
+            			record.getField('project_no').setReadOnly(false);
+            			record.getField('project_no').setRequired(true);
+            			record.getField('project_name').setReadOnly(true);
+            			$('button_createProject').setVisible(false);
+            			$('button_updateProjectNumber').setVisible(true);
+            			unmask_chanceCreateProject();
+		            }
+		            else
+		            {
+		                Aurora.showMessage('${l:HLS.PROMPT}','${l:PRJ501.SAVE_SUCCESS_PROJECT_CODE}'+record.get('project_no'));
+		                unmask_chanceCreateProject();
+		                chanceCreateProject_close();
+		            }
+                },
+                failure: function() {
+                    unmask_chanceCreateProject();
+                },
+                error: function() {
+                    unmask_chanceCreateProject();
+                },
+                scope: this
+            });
+        }
+        
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="chanceCreateProjectDs" autoCreate="true" model="prj.PRJ501.prj_project">
+                <a:fields>
+                    <a:field name=""/>
+                    <a:field name="document_type" defaultValue="${/model/ref_document_record/record/@document_type}"/>
+                    <a:field name="business_type" defaultValue="${/model/ref_document_record/record/@business_type}"/>
+                    <a:field name="document_category" defaultValue="${/model/ref_document_record/record/@document_category}"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form column="2" title=" ">
+                <a:textField name="project_no" bindTarget="chanceCreateProjectDs" maxLength="30"/>
+                <a:textField name="project_name" bindTarget="chanceCreateProjectDs"/>
+            </a:form>
+            <a:hBox>
+                <a:button id="button_createProject" click="chanceCreateProject_save" text="创建项目"/>
+                <a:button click="chanceCreateProject_close" text="HLS.CLOSE"/>
+                <a:button id="button_updateProjectNumber" click="chanceCreateProject_updateProjectNumber" hidden="true" text="修改项目编号"/>
+            </a:hBox>
+            <script><![CDATA[
+	        (function ()
+	        {
+	            var record=$('chanceCreateProjectDs').getAt(0);
+	            var field=record.getField('project_no');
+	            if('${/model/ref_document_record/record/@code_auto_flag}'=='Y')
+	            {
+	                field.setReadOnly(true);
+	            }
+	            else
+	            {
+	                field.setRequired(true);
+	            }
+	        })();
+	        
+	        ]]></script>
+        </a:screenBody>
+    </a:view>
+</a:screen>

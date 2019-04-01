@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:s="aurora.plugin.script" xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            select * from (
+            ${:@validation_sql}) vv
+               #WHERE_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields><![CDATA[
+    ]]></bm:fields>
+    <bm:features>
+        <s:bm-script><![CDATA[
+            var model = $this.getObjectContext();
+            var para = $ctx.current_parameter || $ctx.parameter;
+            var validation_sql;
+            if (para.url) {
+                var url = decodeURIComponent(para.url);
+                var matches = url.match(/validation_sql=([^&]*)&?(.*$)/);
+                validation_sql = matches[1];
+                var para_list = {};
+                if (matches[2]) {
+                    var paras = matches[2].split('&');
+                    for (var i = 0;i < paras.length;i++) {
+                        var p = paras[i].split('=');
+                        para_list[p[0]] = p[1];
+                    }
+                }
+                validation_sql = validation_sql.replace(/\$\{@([^\}]*)\}/g, function(a, b) {
+                    return "'" + (para_list[b] || '') + "'";
+                });
+            } else if (para.validation_sql) {
+                validation_sql = para.validation_sql;
+                validation_sql = validation_sql.replace(/\$\{@([^\}]*)\}/g, function(a, b) {
+                    return "'" + (para[b] || '') + "'";
+                });
+            }
+            validation_sql = validation_sql.replace(/\$\{\/session\/@([^\}]*)\}/g, function(a, b) {
+                return "'" + $ctx.session[b] + "'";
+            });
+            // var dsf = $instance('aurora.database.service.IDatabaseServiceFactory');
+            // var parsedSql = new Packages.aurora.database.ParsedSql(validation_sql);
+            // var sqlServiceContext = new Packages.aurora.database.service.SqlServiceContext.createSqlServiceContext($ctx.getData());
+            // var sqlRunner = new Packages.aurora.database.SqlRunner(sqlServiceContext, parsedSql);
+            // var conn = dsf.getDataSource().getConnection();
+            // var sql = sqlRunner.generateSQL(para.getData());
+            // var ps = conn.prepareCall(sql);
+            // sqlRunner.bindParameters(ps, para.getData());
+            // var rs = ps.executeQuery();
+            // var rsmd = rs.getMetaData();
+            // var count = rsmd.getColumnCount();
+            // var queryfields = new CompositeMap(model.getChild('query-fields'));
+            var dsf = $instance('aurora.database.service.IDatabaseServiceFactory');
+            var conn = dsf.getDataSource().getConnection();
+            var stmt = conn.createStatement();
+            var rs = stmt.executeQuery(validation_sql);
+            var rsmd = rs.getMetaData();
+            var count = rsmd.getColumnCount();
+            var queryfields = new CompositeMap(model.getChild('query-fields'));
+            var temp_num = 0;
+            for (var i = 1;i <= count;i++) {
+                var fname = rsmd.getColumnName(i);
+                var dbtype = rsmd.getColumnTypeName(i)
+                var f = Packages.aurora.bm.Field.createField(fname.toLowerCase());
+                f.setPhysicalName(fname);
+                f.setDatabaseType(dbtype);
+                if (dbtype == 'NUMBER') {
+                    f.setDataType('java.lang.Double');
+                } else if (dbtype == 'VARCHAR2') {
+                    f.setDataType('java.lang.String');
+                } else if (dbtype == 'DATE') {
+                    f.setDataType('java.util.Date');
+                }
+                if ((fname != 'VALUE_CODE' || dbtype != 'NUMBER') && temp_num < 6) {
+                    f.setForDisplay(true);
+                    temp_num = temp_num + 1;
+                }
+                if (fname == 'VALUE_CODE') {
+                    if (dbtype != 'NUMBER') {
+                        f.setForQuery(true);
+                    }
+                    f.setPrompt('HLS.CODE');
+                    f.setDisplayWidth(120);
+                } else if (fname == 'VALUE_NAME') {
+                    f.setForQuery(true);
+                    f.setPrompt('HLS.DESCRIPTION');
+                    f.setDisplayWidth(250);
+                } else {
+                    f.setPrompt('HLS_LOV_PARA.' + fname);
+                    f.setDisplayWidth(120);
+                    if (fname == 'VALUE_CODE_DISPLAY') {
+                        f.setForQuery(true);
+                    }
+                }
+                $this.addField(f);
+                var qf = queryfields.createChildNS('query-field');
+                qf.field = String(fname.toLowerCase());
+                qf.queryoperator = (dbtype == 'NUMBER' ? '=' : 'like');
+            }
+            stmt.close();
+            // ps.close();
+            conn.close();
+            model = $this.getObjectContext();
+            // println(model.toXML());
+        ]]></s:bm-script>
+    </bm:features>
+    <bm:query-fields><![CDATA[
+    ]]></bm:query-fields>
+</bm:model>

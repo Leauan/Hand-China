@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure><![CDATA[
+    ]]></a:init-procedure>
+    <a:view>
+        <a:link id="${/parameter/@layout_code}${/parameter/@pre_layout}zj_wfl_approve_history_check" url="${/request/@context_path}/modules/zjwfl/zj_wfl_approve_history_check.screen"/>
+        <a:link id="pageLink_node_approve_history" url="${/request/@context_path}/modules/zjwfl/ZJWFL3040/zj_wfl_my_approved_application_history.screen"/>
+        <a:link id="pageLink_view_graphics" url="${/request/@context_path}/modules/zjwfl/zj_wfl_graphics.screen"/>
+        <a:screen-include screen="modules/zjwfl/zj_wfl_common_javascript.screen"/>
+        <script><![CDATA[
+            function query_applyDs() {
+                $('applyDs').query();
+            }
+            
+            function reset_para_applyDs() {
+                $('para_applyDs').reset();
+            }
+            
+            function winOpen_approve_history(instance_id, rcpt_record_id, approve_record_id, rcpt_record_type) {
+                var url_type;
+                if (rcpt_record_type == 'NOTICE') {
+                    url_type = 'NOTICE';
+                } else {
+                    url_type = 'DISPLAY_MY_APPROVED';
+                }
+                new Aurora.Window({
+                    id: 'node_approve_history_win',
+                    url: $('pageLink_node_approve_history').getUrl(),
+                    params: {
+                        instance_id: instance_id,
+                        rcpt_record_id: rcpt_record_id,
+                        approve_record_id: approve_record_id,
+                        url_type:url_type
+                    },
+                    title: '单据明细',
+                    fullScreen: true
+                });
+            
+            }
+            
+            function viewGraphics(instance_id, workflow_id) {
+                new Aurora.Window({
+                    id: 'zj_wfl_graphics',
+                    url: $('pageLink_view_graphics').getUrl(),
+                    params: {
+                        instance_id: instance_id,
+                        workflow_id: workflow_id
+                    },
+                    title: '流程图',
+                    fullScreen: true
+                });
+            }
+            
+            
+            function render_applyDs_grid(value, record, name) {
+                if (name == 'approve_history') {
+                    var rcpt_record_type = record.get('rcpt_record_type');
+                    return '<a href="javascript:winOpen_approve_history(' + record.get('instance_id') + ',' + record.get('rcpt_record_id') + ',' + record.get('record_id') + ',\'' + rcpt_record_type + '\');">' + '单据' + '</a>';
+                } else if (name == 'instance_status_desc') {
+                    return f_zjwfl.getStatusImg(record.get('instance_status'), value);
+                } else if (name == 'action_type_desc') {
+                    return f_zjwfl.getApproveImg(record.get('record_type'), value);
+                } else if (name == 'view_graphic') {
+                    return '<a href="javascript:viewGraphics(' + record.get('instance_id') + ',' + record.get('workflow_id') + ');">' + '流程图' + '</a>';
+                }
+                return '';
+            }
+            
+            //单据跟踪
+             function project_trace() {
+                var ds = $('applyDs');
+                var records = ds.getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('提示', '请选择一条数据！');
+                    return;
+                }
+                var instance_id = records[0].get('instance_id');
+                var win = new Aurora.Window({
+                    id: 'history_check',
+                    url: $('${/parameter/@layout_code}${/parameter/@pre_layout}zj_wfl_approve_history_check').getUrl(),
+                    params: {
+                        instance_id:instance_id
+                    },
+                    title: '单据历史查看',
+                    height: 500,
+                    width: 860,
+                    fullScreen: true
+                });
+            };
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="action_type_ds" autoCreate="true" autoQuery="true" model="zjwfl.ZJWFL3040.zj_node_action_desc"/>
+            <a:dataSet id="para_applyDs" autoCreate="true" model="zjwfl.ZJWFL3040.zj_wfl_my_approved_application">
+                <a:fields>
+                    <a:field name="node_desc"/>
+                    <a:field name="instance_workflow_code" lovGridHeight="300" lovHeight="450" lovService="zjwfl.zj_wfl_workflow_lov_company?sub_category=MAIN_PROCESS" lovWidth="480" title="工作流选择">
+                        <a:mapping>
+                            <a:map from="workflow_id" to="instance_workflow_id"/>
+                            <a:map from="workflow_code" to="instance_workflow_code"/>
+                            <a:map from="workflow_desc" to="instance_workflow_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="workflow_desc" readOnly="true"/>
+                    <a:field name="action_type_desc" displayField="node_action_desc" options="action_type_ds" returnField="action_type" valueField="action_type"/>
+                    <a:field name="action_type"/>
+                    <a:field name="approve_user_name"/>
+                    <a:field name="invoice_agent_id_n" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_agent_for_lov" lovWidth="500" title="经销商名称">
+                        <a:mapping>
+                            <a:map from="bp_id" to="invoice_agent_id"/>
+                            <a:map from="bp_name" to="invoice_agent_id_n"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="applyDs" autoPageSize="true" autoQuery="true" model="cont.CON440.zj_wfl_my_approved_application" queryDataSet="para_applyDs" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="comment_text_out" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form column="5" labelWidth="100" marginWidth="30" title="查询条件">
+                <a:textField name="project_number" bindTarget="para_applyDs" prompt="申请编号"/>
+                <a:lov name="invoice_agent_id_n" bindTarget="para_applyDs" prompt="经销商名称"/>
+                <a:textField name="bp_name" bindTarget="para_applyDs" prompt="姓名"/>
+                <a:dateTimePicker name="approve_date_from" bindTarget="para_applyDs" prompt="审批时间从"/>
+                <a:dateTimePicker name="approve_date_to" bindTarget="para_applyDs" prompt="审批时间到"/>
+                <a:textField name="approve_user_id_n" bindTarget="para_applyDs" prompt="审批人"/>
+            </a:form>
+            <a:hBox>
+                <a:button click="query_applyDs" text="HAP_QUERY"/>
+                <a:button click="reset_para_applyDs" text="HAP_RESET"/>
+                <a:button click="project_trace" text="单据追踪"/>
+            </a:hBox>
+            <a:grid id="applyDs_grid" bindTarget="applyDs" marginHeight="160" marginWidth="30" navBar="true">
+                <a:toolBar>
+                    <a:button type="excel"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="project_number" autoAdjust="false" prompt="申请编号" showTitle="true" width="130"/>
+                    <a:column name="invoice_agent_id_n" prompt="经销商名称" width="200"/>
+                    <a:column name="bp_name" prompt="姓名" width="60"/>
+                    <a:column name="action_type_desc" prompt="审批操作" renderer="render_applyDs_grid" width="70"/>
+                    <a:column name="approve_date" prompt="审批时间" width="130"/>
+                    <a:column name="approve_user_id_n" prompt="审批人" showTitle="true" width="60"/>
+                    <a:column name="comment_text_out" editor="textarea_id" prompt="处理意见" width="550"/>
+                    <!-- <a:column name="submitted_by_name" autoAdjust="false" prompt="提交人" showTitle="true" width="200"/> -->
+                    <!-- <a:column name="node_desc" autoAdjust="false" prompt="我参与节点" showTitle="true" width="140"/> -->
+                    <!-- <a:column name="current_node_desc" prompt="当前审批节点" showTitle="true" width="110"/> -->
+                    <!-- <a:column name="approve_user_name" prompt="当前审批人" showTitle="true" width="110"/> -->
+                    <!-- <a:column name="instance_status_desc" prompt="工作流状态" renderer="render_applyDs_grid" width="100"/> -->
+                    <!-- <a:column name="approve_history" align="center" prompt="单据信息" renderer="render_applyDs_grid" width="80"/> -->
+                </a:columns>
+                <a:editors>
+                    <a:textArea id="textarea_id"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

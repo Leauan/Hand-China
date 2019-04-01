@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-8-15 下午8:09:18  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" needAccessControl="false">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        (SELECT m.bp_code FROM hls_bp_master m WHERE m.bp_id = t1.bp_id_agent_level1
+                        ) agent_code,
+                        (SELECT m.bp_name FROM hls_bp_master m WHERE m.bp_id = t1.bp_id_agent_level1
+                        ) agent_name,
+                        (SELECT m.bp_code FROM hls_bp_master m WHERE m.bp_id = t1.bp_id_tenant
+                        ) tenant_code,
+                        (SELECT
+                            m.bp_name
+                        FROM
+                            hls_bp_master m
+                        WHERE
+                            m.bp_id = t1.bp_id_tenant
+                        ) tenant_name,
+                        --省份（承租人的居住地所在所在省份）
+                        (
+                        SELECT
+                            Liv_Province_n
+                        FROM
+                            prj_project_bp_tenant_lv t3
+                        WHERE
+                            t3.PROJECT_ID = t1.project_id
+                        ) liv_province,
+                        t1.contract_number contract_number,
+                        t1.contract_id contract_id,
+                        TO_CHAR(t1.inception_of_lease, 'yyyy-mm-dd') inception_of_lease,
+                        (SELECT
+                            hp.product_name_write
+                        FROM
+                            hls_product_plan_definition hp
+                        WHERE
+                            hp.product_plan_id = li.product_plan_id
+                        ) product_name_write,
+                        li.series_id series_id,
+                        (SELECT
+                            hcs.description
+                        FROM
+                            hls_car_series_vl hcs
+                        WHERE
+                            hcs.series_id = li.series_id
+                        ) series_id_n,
+                        t1.int_rate_display * 100
+                        || '%' int_rate_display,
+                        DECODE(t1.base_rate, ${@base_date}, ${@base_date}, DECODE(t1.base_rate * 100, '', '', t1.base_rate * 100
+                        || '%')) base_rate,
+                        t1.lease_times lease_times,
+                        DECODE(ROUND(li.down_payment_ratio * 100, 2), '', '', ROUND(li.down_payment_ratio * 100, 2)
+                        || '%') down_payment_ratio,
+                        t1.invoice_price invoice_price,
+                        NVL(t1.residual_value, 0) residual_value,
+                        t1.total_rental total_rental,
+                        t1.down_payment down_payment,
+                        (SELECT
+                            TO_CHAR(ccc.due_date, 'yyyy-mm-dd')
+                        FROM
+                            con_contract_cashflow ccc
+                        WHERE
+                            ccc.contract_id                  = t1.contract_id AND
+                            ccc.cf_item                      = 1 AND
+                            TO_CHAR(ccc.due_date, 'yyyy-mm') = TO_CHAR(NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate)), 'yyyy-mm')
+                        ) current_due_date,
+                        (SELECT
+                            ccc.due_amount
+                        FROM
+                            con_contract_cashflow ccc
+                        WHERE
+                            ccc.contract_id                  = t1.contract_id AND
+                            ccc.cf_item                      = 1 AND
+                            TO_CHAR(ccc.due_date, 'yyyy-mm') = TO_CHAR(NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate)), 'yyyy-mm')
+                        ) current_due_amount, --ok
+                        (SELECT
+                            NVL(SUM(cw.csh_write_off_amount), 0)
+                        FROM
+                            csh_write_off cw,
+                            con_contract_cashflow ccc
+                        WHERE
+                            cw.contract_id                   = t1.contract_id AND
+                            ccc.cashflow_id                  = cw.cashflow_id AND
+                            cw.cf_item                       = 1 AND
+                            TO_CHAR(ccc.due_date, 'yyyy-mm') = TO_CHAR(NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate)), 'yyyy-mm')
+                            and cw.creation_date<=NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate))
+                        ) current_received_amount, --当期已收款
+                        (
+                        (SELECT
+                            ccc.due_amount
+                        FROM
+                            con_contract_cashflow ccc
+                        WHERE
+                            ccc.contract_id                  = t1.contract_id AND
+                            ccc.cf_item                      = 1 AND
+                            TO_CHAR(ccc.due_date, 'yyyy-mm') = TO_CHAR(NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate)), 'yyyy-mm')
+                        ) -
+                        (SELECT
+                            NVL(SUM(cw.csh_write_off_amount), 0)
+                        FROM
+                            csh_write_off cw,
+                            con_contract_cashflow ccc
+                        WHERE
+                            cw.contract_id                   = t1.contract_id AND
+                            ccc.cashflow_id                  = cw.cashflow_id AND
+                            cw.cf_item                       = 1 AND
+                            TO_CHAR(ccc.due_date, 'yyyy-mm') = TO_CHAR(NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate)), 'yyyy-mm')
+                        	 and cw.creation_date<=NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate))
+                        )) current_unreceived_amount,
+                        (SELECT
+                            SUM(NVL(ccc.due_amount, 0))
+                        FROM
+                            con_contract_cashflow ccc
+                        WHERE
+                            ccc.contract_id = t1.contract_id AND
+                            ccc.cf_item     = 1 AND
+                            TO_CHAR(ccc.due_date, 'yyyy-mm')   >= TO_CHAR(NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate)), 'yyyy-mm')
+                        ) month_due_amount,--当月末应收款合计
+                        (SELECT
+                            SUM(NVL(ccc.principal, 0))
+                        FROM
+                            con_contract_cashflow ccc
+                        WHERE
+                            ccc.contract_id = t1.contract_id AND
+                            ccc.cf_item     = 1 AND
+                            TO_CHAR(ccc.due_date, 'yyyy-mm')   >=TO_CHAR( NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate)), 'yyyy-mm')
+                        ) month_principal_amount,
+                        (SELECT
+                            SUM(NVL(ccc.interest, 0))
+                        FROM
+                            con_contract_cashflow ccc
+                        WHERE
+                            ccc.contract_id = t1.contract_id AND
+                            ccc.cf_item     = 1 AND
+                            TO_CHAR(ccc.due_date, 'yyyy-mm')   >= TO_CHAR(NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate)), 'yyyy-mm')
+                        ) month_interest_amount,
+                        (SELECT
+                            SUM(NVL(ccc.vat_interest, 0))
+                        FROM
+                            con_contract_cashflow ccc
+                        WHERE
+                            ccc.contract_id = t1.contract_id AND
+                            ccc.cf_item     = 1 AND
+                           TO_CHAR( ccc.due_date, 'yyyy-mm')   >= TO_CHAR(NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate)), 'yyyy-mm')
+                        ) month_vat_interest_amount,
+                        (SELECT
+                            ccc.due_amount - NVL(ccc.received_amount, 0)
+                        FROM
+                            con_contract_cashflow ccc
+                        WHERE
+                            ccc.contract_id = t1.contract_id AND
+                            ccc.cf_item     = 8 AND
+                            ccc.due_date   >= NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate))
+                        ) month_residual_amount,
+                        (SELECT
+                            COUNT(*)
+                        FROM
+                            con_contract_cashflow t
+                        WHERE
+                            t.due_date  <= NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate)) - t1.GRACE_PERIOD AND
+                            t.due_amount >
+                            (SELECT
+                                NVL(SUM(c.write_off_due_amount), 0)
+                            FROM
+                                csh_write_off c
+                            WHERE
+                                c.cashflow_id     = t.cashflow_id AND
+                                c.write_off_date <= NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate))
+                            ) AND
+                            contract_id = t1.contract_id AND
+                            cf_item     = 1
+                        ) overdue_times,
+                        NVL(
+                        (SELECT
+                            MAX(TRUNC(NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate)) - t2.due_date))
+                        FROM
+                            con_contract t,
+                            con_contract_cashflow t2
+                        WHERE
+                            t.contract_id    = t2.contract_id AND
+                            t2.due_date + 10 < NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate)) AND
+                            t2.cf_item       = 1 AND
+                            t.contract_id    = t1.contract_id AND
+                            t2.due_amount    >
+                            (SELECT
+                                NVL(SUM(t3.write_off_due_amount), 0)
+                            FROM
+                                csh_write_off t3
+                            WHERE
+                                t3.cashflow_id       = t2.cashflow_id AND
+                                t3.PENALTY_CALC_DATE < NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate))
+                            )
+                        ), 0) overdue_days,
+                        NVL(
+                        (SELECT
+                            SUM(due_amount -
+                            (SELECT
+                                NVL(SUM(write_off_due_amount), 0)
+                            FROM
+                                csh_write_off
+                            WHERE
+                                cashflow_id    = t.cashflow_id AND
+                                creation_date <= NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate))
+                            ))
+                        FROM
+                            con_contract_cashflow t
+                        WHERE
+                            cf_item                     = 1 AND
+                            cf_direction                = 'INFLOW' AND
+                            due_date + t1.GRACE_PERIOD <= NVL(last_day(to_date(${@base_date}, 'yyyy-mm-dd')), last_day(sysdate)) AND
+                            contract_id                 = t1.contract_id
+                        ), 0) month_overdue_amount
+                    FROM
+                        con_contract t1,
+                        con_contract_lease_item li
+                    WHERE
+                        t1.contract_id     = li.contract_id AND
+                        t1.data_class      = 'NORMAL' AND
+                        t1.contract_status = 'INCEPT'
+                    ) v #WHERE_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="agent_code" queryExpression="v.agent_code = ${@agent_code}"/>
+        <bm:query-field name="tenant_code" queryExpression="v.tenant_code =${@tenant_code}"/>
+        <bm:query-field name="tenant_name" queryExpression="v.tenant_name like &apos;%&apos;||${@tenant_name}||&apos;%&apos;"/>
+        <bm:query-field name="contract_id" queryExpression="v.contract_id=${@contract_id}"/>
+    </bm:query-fields>
+</bm:model>

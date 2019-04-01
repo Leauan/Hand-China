@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:fields>
+        <bm:field name="instance_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="INSTANCE_ID"/>
+        <bm:field name="approve_date"/>
+        <bm:field name="action_type_desc"/>
+        <bm:field name="bp_name"/>
+        <bm:field name="invoice_agent_id"/>
+        <bm:field name="invoice_agent_id_n"/>
+        <bm:field name="project_id"/>
+        <bm:field name="project_number"/>
+        <bm:field name="approve_user_id_n"/>
+        <bm:field name="comment_text_out"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    t1.action_type,
+                    t1.instance_id,
+                    t1.node_id,
+                    TO_CHAR(t1.creation_date, 'yyyy-mm-dd hh24:mi:ss') AS approve_date,
+                    t1.node_action_desc action_type_desc,
+                    t1.comment_text_out,
+                    (SELECT u.description FROM sys_user u WHERE u.user_id = t1.created_by
+                    ) approve_user_id_n,
+                    (SELECT
+                        a.bp_name
+                    FROM
+                        prj_project_bp a
+                    WHERE
+                        a.project_id  = p.project_id AND
+                        a.bp_category = 'TENANT' AND
+                        ROWNUM        = 1
+                    ) bp_name,
+                    (SELECT
+                        a.bp_name
+                    FROM
+                        hls_bp_master a
+                    WHERE
+                        a.bp_category = 'AGENT' AND
+                        a.bp_id       = p.invoice_agent_id
+                    ) invoice_agent_id_n,
+                    p.invoice_agent_id,
+                    p.project_id,
+                    p.project_number
+                FROM
+                    zj_wfl_approve_record_v t1,
+                    prj_project p #WHERE_CLAUSE#
+                ORDER BY
+                    approve_date DESC
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:data-filters>
+        <bm:data-filter name="sequence_num" expression="exists (select 1 from zj_wfl_workflow_node zw where zw.node_id = t1.node_id and zw.sequence_num = 10)"/>
+        <bm:data-filter name="action_type" expression="t1.action_type !=3"/>
+        <bm:data-filter name="workflow_code" expression="(select zw.workflow_code from zj_wfl_workflow zw where zw.workflow_id = (select i.workflow_id from zj_wfl_workflow_instance i where i.instance_id = t1.instance_id))=&apos;WFL_PRJ&apos;"/>
+        <bm:data-filter name="instance_id" expression="t1.instance_id = p.wfl_instance_id"/>
+    </bm:data-filters>
+    <bm:query-fields>
+        <bm:query-field name="instance_workflow_id" queryExpression="t1.instance_workflow_id = ${@instance_workflow_id}"/>
+        <bm:query-field name="node_desc" queryExpression="t1.node_desc like &apos;%&apos;||${@node_desc}||&apos;%&apos;"/>
+        <bm:query-field name="instance_id" queryExpression="t1.instance_id = ${@instance_id}"/>
+        <bm:query-field name="document_info" queryExpression="t1.document_info like &apos;%&apos;||${@document_info}||&apos;%&apos;"/>
+        <bm:query-field name="action_type" queryExpression="t1.action_type = ${@action_type}"/>
+        <bm:query-field name="current_node_desc" queryExpression="t1.current_node_desc like &apos;%&apos;||${@current_node_desc}||&apos;%&apos;"/>
+        <bm:query-field name="approve_date_from" queryexpression="t1.creation_date &gt;= to_date(${@approve_date_from},&apos;yyyy-mm-dd hh24:mi:ss&apos;)"/>
+        <bm:query-field name="approve_date_to" queryexpression="t1.creation_date &lt;= to_date(${@approve_date_to},&apos;yyyy-mm-dd hh24:mi:ss&apos;)"/>
+        <bm:query-field name="approve_user_name" queryExpression="t1.approve_user_name like &apos;%&apos;||${@approve_user_name}||&apos;%&apos;"/>
+        <bm:query-field name="invoice_agent_id" queryExpression=" p.invoice_agent_id = ${@invoice_agent_id}"/>
+        <bm:query-field name="approve_user_id_n" queryExpression="(select u.description from sys_user u where u.user_id =(select r.created_by from zj_wfl_approve_record r where r.record_id = t1.record_id)) like &apos;%&apos;||${@approve_user_id_n}||&apos;%&apos;"/>
+        <bm:query-field name="project_number" queryExpression="p.project_number like &apos;%&apos;||${@project_number}||&apos;%&apos;"/>
+        <bm:query-field name="bp_name" queryExpression="(SELECT a.bp_name FROM prj_project_bp a WHERE a.project_id  = p.project_id AND a.bp_category = &apos;TENANT&apos; AND ROWNUM=1)  like &apos;%&apos;||${@bp_name}||&apos;%&apos;"/>
+    </bm:query-fields>
+</bm:model>

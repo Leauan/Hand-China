@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-5-27 下午07:49:42  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[SELECT t.contract_id,
+       f.cashflow_id,
+       f.times,
+       t.contract_number,
+       t.contract_name,
+       p.project_name,
+       b.bp_name,
+       b.bp_code,
+       (select m.bp_name from hls_bp_master m where m.bp_id =t.bp_id_tenant)bp_tenant_name,
+       i.description cf_description,
+       f.due_amount,
+       NVL2(f.estimated_due_amount,f.due_amount,0) virtual_amount,
+       NVL(f.estimated_due_amount, f.due_amount) estimated_due_amount,
+       t.currency currency_code,
+       (select v.currency_name from gld_currency_vl v where t.currency =v.currency_code ) currency_name,
+       TO_CHAR(f.due_date, 'yyyy-mm-dd') due_date,
+       NVL(l.amount, 0) - NVL(l.amount_paid, 0) residual_amount,
+       l.amount apply_amount,
+       TO_CHAR(l.apply_pay_date, 'yyyy-mm-dd') apply_pay_date,
+       h.payment_req_id,
+       l.payment_req_ln_id,
+       l.bp_id
+  FROM con_contract          t,
+       con_contract_cashflow f,
+       prj_project           p,
+       hls_cashflow_item     i,
+       hls_bp_master         b,
+       csh_payment_req_hd    h,
+       csh_payment_req_ln    l
+ WHERE t.contract_id = f.contract_id
+   AND t.project_id = p.project_id(+)
+   AND f.cf_item = i.cf_item
+   and h.payment_req_id = l.payment_req_id
+   and t.contract_id = l.ref_doc_id
+   and f.cashflow_id=l.ref_doc_line_id
+   and l.bp_id = b.bp_id(+)
+   and h.payment_req_id = ${@payment_req_id}
+   and l.payment_status<>'FULL'
+   and h.approval_status = 'APPROVED']]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Guoxuezhao  
+    $Date: 2013-5-28 下午7:38:35  
+    $Revision: 1.0  
+    $Purpose: 其它合同  新增
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.document_category=&apos;LOAN_CONTRACT&apos; and t1.business_type=&apos;LOAN&apos;" fetchAll="true" model="basic.hls_document_type_for_lov" rootPath="document_type_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="tre_loan_contract_save_link_id" url="${/request/@context_path}/modules/tre/tre503/tre_loan_contract_save.svc"/>
+        <a:link id="tre_other_contract_maintain_link_id" url="${/request/@context_path}/modules/tre/tre503/tre_other_contract_maintain.screen"/>
+        <a:link id="tre_loan_contract_maintain_link_id" url="${/request/@context_path}/modules/tre/tre503/tre_loan_contract_maintain.screen"/>
+        <script><![CDATA[
+            Aurora.Masker.mask(document.documentElement, '${l:HLS.LOADING}');
+            
+            function lock_current_window() {
+                Aurora.Masker.mask(document.documentElement, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_current_window() {
+                Aurora.Masker.unmask(document.documentElement);
+            }
+            
+            function wcl_save() {
+                lock_current_window();
+                var head_ds = $('loan_contract_ds'),
+                    head_record = head_ds.getCurrentRecord();
+                if ($('loan_contract_ds').validate()) {
+                    var credit_contract_id=head_record.get('bank_credit_contract_id');
+                    // alert(credit_contract_id);
+                    if(!Ext.isEmpty(credit_contract_id)&&typeof(credit_contract_id)!='undefined'){
+                        var available_amount=head_record.get('available_amount'),
+                            loan_amount=head_record.get('loan_amount');
+                        // alert(loan_amount+'-'+available_amount);
+                        if(loan_amount>available_amount){
+                            // alert(loan_amount-available_amount);
+                            Aurora.showMessage('提示', '借款金额不能大于授信剩余额度！', null, 350);
+                            unlock_current_window();
+                            return;
+                        }
+                    }
+                    $('loan_contract_ds').submit($('tre_loan_contract_save_link_id').getUrl());
+                } else {
+                    unlock_current_window();
+                }
+            }
+            
+            function wcl_goBack() {
+                window.location.href = $('tre_loan_contract_maintain_link_id').getUrl();
+            }
+            
+            function loan_contract_ds_update(dataSet, record, name, value, oldvalue) {
+                if (name == 'base_rate' || name == 'int_rate_fixing_range' || name == 'int_rate_fixing_way') {
+                    var int_rate_fixing_range = record.get('int_rate_fixing_range'),
+                        int_rate_fixing_way = record.get('int_rate_fixing_way'),
+                        base_rate = record.get('base_rate'),
+                        interest_rate;
+                    if (int_rate_fixing_way == 'MUTIPLY') {
+                        interest_rate = mul(base_rate, plus(1, int_rate_fixing_range));
+                    } else if (int_rate_fixing_way == 'FLOATING_DOWNWARD') {
+                        interest_rate = mul(base_rate, minus(1, int_rate_fixing_range));
+                    } else if (int_rate_fixing_way == 'PLUS') {
+                        interest_rate = plus(base_rate, int_rate_fixing_range);
+                    } else if (int_rate_fixing_way == 'DECREASE') {
+                        interest_rate = minus(base_rate, int_rate_fixing_range);
+                    } else {
+                        interest_rate = '';
+                    }
+                    record.set('interest_rate', interest_rate);
+                } else if (name == 'bank_branch_id') {
+                    record.set('bank_account_id', '');
+                    record.set('withdraw_account_id', '');
+                    record.set('bank_account_code', '');
+                    record.set('withdraw_account_code', '');
+                    record.set('bank_account_num', '');
+                    record.set('withdraw_account_num', '');
+                    record.set('currency', '');
+                    record.set('currency_desc', '');
+                } else if (name == 'bank_account_id') {
+                    if (Ext.isEmpty(record.get('withdraw_account_id'))) {
+                        record.set('withdraw_account_id', value);
+                    }
+                } else if (name == 'bank_account_code') {
+                    if (Ext.isEmpty(record.get('withdraw_account_code'))) {
+                        record.set('withdraw_account_code', value);
+                    }
+                } else if (name == 'bank_account_num') {
+                    if (Ext.isEmpty(record.get('withdraw_account_num'))) {
+                        record.set('withdraw_account_num', value);
+                    }
+                }
+            }
+            
+            function loanConSaveSuccess(dataSet, res) {
+                var record = dataSet.getCurrentRecord();
+                window.location.href = $('tre_other_contract_maintain_link_id').getUrl() + '?loan_contract_id=' + record.get('loan_contract_id') + '&business_type=' + record.get('business_type');
+                unlock_current_window();
+            }
+            
+            function loanConSavesubmitfailed() {
+                unlock_current_window();
+            }
+            
+            function loanConDsLoad(ds) {
+                unlock_current_window();
+            }
+            
+            function dateValidator(record, name, value) { //日期校验方法
+                if (name == 'loan_date_from' || name == 'loan_date_to') {
+                    var start_date = Aurora.formatDate(record.get('loan_date_from'));
+                    var end_date = Aurora.formatDate(record.get('loan_date_to'));
+                    if ( !! end_date) { //由于结束日期非必填，只有在结束日期填了才进行比较
+                        if (!compareDate(start_date, end_date)) {
+                            return '${l:TRE503.LOAN_DATE_FROM_BEYOND_TO}'; //校验不通过返回字符串
+                        }
+                    }
+                    return true; //校验通过返回true
+                }
+            }
+            
+            function on_bank_account_focus(object) {
+                var display_name = object.binder.name,
+                    record = object.record || object.binder.ds.create();
+                record.getField(display_name).setLovPara('bank_branch_id', record.get('bank_branch_id') || -999);
+            }
+            
+            function compareDate(start, end) {
+                if (start > end) {
+                    return false;
+                }
+                return true;
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="document_type_name_ds">
+                <a:datas dataSource="/model/document_type_path"/>
+            </a:dataSet>
+            <!-- <a:dataSet id="loan_contract_type_ds" lookupCode="TRE502_LOAN_CONTRACT_TYPE"/> -->
+            <a:dataSet id="yes_no_ds" lookupCode="YES_NO"/>
+            <a:dataSet id="other_loan_amount_type_ds" lookupCode="TRE502_OTHER_LOAN_AMOUNT_TYPE"/>
+            <a:dataSet id="int_rate_fixing_way_ds" lookupCode="TRE502_INT_RATE_FIXING_WAY"/>
+            <a:dataSet id="loan_contract_ds" autoQuery="true" model="tre.tre502.tre_loan_contract" queryUrl="${/request/@context_path}/autocrud/tre.tre502.tre_loan_contract/query?loan_contract_id=${/parameter/@loan_contract_id}">
+                <a:fields>
+                    <a:field name="business_type" defaultValue="INSTITUTION_DEPOSIT"/>
+                    <a:field name="document_category" defaultValue="LOAN_CONTRACT"/>
+                    <a:field name="document_type_desc" displayField="description" options="document_type_name_ds" required="true" returnField="document_type" valueField="document_type"/>
+                    <!-- <a:field name="loan_contract_type" defaultValue="OTHERS"/>
+                    <a:field name="loan_contract_type_desc" displayField="code_value_name" options="loan_contract_type_ds" readOnly="true" returnField="loan_contract_type" valueField="code_value"/> -->
+                    <a:field name="loan_contract_number" required="true"/>
+                    <a:field name="bank_credit_contract_id"/>
+                    <a:field name="bank_credit_contract_number" lovAutoQuery="true" lovGridHeight="270" lovHeight="400" lovService="tre.tre501.tre_bank_credit_contract_lov" lovWidth="700" title="TRE_LOAN_CONTRACT.BANK_CREDIT_CONTRACT_ID">
+                        <a:mapping>
+                            <a:map from="credit_contract_number" to="bank_credit_contract_number"/>
+                            <a:map from="credit_contract_id" to="bank_credit_contract_id"/>
+                            <a:map from="available_amount" to="available_amount"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_branch_code" lovGridHeight="350" lovHeight="510" lovLabelWidth="90" lovService="basic.csh_bank_branch_for_lov" lovWidth="580" prompt="HLS.BANK_CODE" required="true" title="HLS.BANK_CODE">
+                        <a:mapping>
+                            <a:map from="bank_branch_id" to="bank_branch_id"/>
+                            <a:map from="bank_branch_code" to="bank_branch_code"/>
+                            <a:map from="bank_branch_name" to="bank_branch_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_branch_id" required="true"/>
+                    <a:field name="bank_branch_name" prompt="HLS.BANK_NAME" readOnly="true"/>
+                    <a:field name="bank_account_code" lovGridHeight="350" lovHeight="510" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" required="true" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_id" to="bank_account_id"/>
+                            <a:map from="bank_account_code" to="bank_account_code"/>
+                            <a:map from="bank_account_num" to="bank_account_num"/>
+                            <a:map from="currency_code" to="currency"/>
+                            <a:map from="currency_name" to="currency_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_account_id" required="true"/>
+                    <a:field name="bank_account_num" readOnly="true"/>
+                    <a:field name="withdraw_account_code" lovGridHeight="350" lovHeight="510" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" required="true" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_id" to="withdraw_account_id"/>
+                            <a:map from="bank_account_code" to="withdraw_account_code"/>
+                            <a:map from="bank_account_num" to="withdraw_account_num"/>
+                            <a:map from="currency_code" to="currency"/>
+                            <a:map from="currency_name" to="currency_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="withdraw_account_id" required="true"/>
+                    <a:field name="withdraw_account_num" readOnly="true"/>
+                    <a:field name="loan_certificate_flag_desc" displayField="code_value_name" options="yes_no_ds" required="true" returnField="loan_certificate_flag" valueField="code_value"/>
+                    <a:field name="int_rate_fixing_way_desc" displayField="code_value_name" options="int_rate_fixing_way_ds" returnField="int_rate_fixing_way" valueField="code_value"/>
+                    <a:field name="related_party_flag_desc" displayField="code_value_name" options="yes_no_ds" required="true" returnField="related_party_flag" valueField="code_value"/>
+                    <a:field name="loan_amount" required="true"/>
+                    <a:field name="currency"/>
+                    <a:field name="currency_desc" readOnly="true"/>
+                    <a:field name="loan_amount_type_desc" displayField="code_value_name" options="other_loan_amount_type_ds" required="true" returnField="loan_amount_type" valueField="code_value"/>
+                    <a:field name="interest_rate" required="true"/>
+                    <a:field name="loan_date_from" required="true" validator="dateValidator"/>
+                    <a:field name="loan_date_to" required="true" validator="dateValidator"/>
+                    <a:field name="consulting_fee" required="true"/>
+                    <a:field name="loan_charge" required="true"/>
+                    <a:field name="other_fee" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="loanConDsLoad"/>
+                    <a:event name="update" handler="loan_contract_ds_update"/>
+                    <a:event name="submitsuccess" handler="loanConSaveSuccess"/>
+                    <a:event name="submitfailed" handler="loanConSavesubmitfailed"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="wcl_goBack" text="HLS.BACK"/>
+                <a:gridButton click="wcl_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:form marginWidth="30" title="借款合同信息-非金融机构股东存款">
+                <a:box column="4" labelWidth="120" width="1112">
+                    <a:textField name="loan_contract_number" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.LOAN_CONTRACT_NUMBER"/>
+                    <a:comboBox name="document_type_desc" bindTarget="loan_contract_ds" prompt="HLS.CONTRACT_TYPE" readOnly="true"/>
+                    <a:datePicker name="loan_contract_book_date" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.LOAN_CONTRACT_BOOK_DATE"/>
+                    <a:lov name="bank_credit_contract_number" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.BANK_CREDIT_CONTRACT_ID"/>
+                    <a:lov name="bank_branch_code" bindTarget="loan_contract_ds"/>
+                    <a:textField name="bank_branch_name" bindTarget="loan_contract_ds"/>
+                    <a:comboBox name="loan_certificate_flag_desc" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.LOAN_CERTIFICATE_FLAG"/>
+                    <a:comboBox name="related_party_flag_desc" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.RELATED_PARTY_FLAG"/>
+                    <a:lov name="bank_account_code" bindTarget="loan_contract_ds" prompt="TRE502.REPAYMENT_ACCOUNT_CODE">
+                        <a:events>
+                            <a:event name="focus" handler="on_bank_account_focus"/>
+                        </a:events>
+                    </a:lov>
+                    <a:textField name="bank_account_num" bindTarget="loan_contract_ds" prompt="TRE502.REPAYMENT_ACCOUNT_NUM"/>
+                    <a:lov name="withdraw_account_code" bindTarget="loan_contract_ds" prompt="TRE502.WITHDRAW_ACCOUNT_CODE">
+                        <a:events>
+                            <a:event name="focus" handler="on_bank_account_focus"/>
+                        </a:events>
+                    </a:lov>
+                    <a:textField name="withdraw_account_num" bindTarget="loan_contract_ds" prompt="TRE502.WITHDRAW_ACCOUNT_NUM"/>
+                    <a:textField name="note" bindTarget="loan_contract_ds" colspan="2" prompt="HLS.NOTE" width="428"/>
+                </a:box>
+            </a:form>
+            <a:fieldSet title="TRE502.FIELDSET.LOAN_AMOUNT">
+                <a:box column="4" labelWidth="120" width="1112">
+                    <a:numberField name="loan_amount" allowFormat="true" allowNegative="false" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.LOAN_AMOUNT"/>
+                    <a:lov name="currency_desc" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.CURRENCY"/>
+                    <a:datePicker name="loan_date_from" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.LOAN_DATE_FROM_FACTORING"/>
+                    <a:datePicker name="loan_date_to" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.LOAN_DATE_TO_FACTORING"/>
+                    <a:comboBox name="loan_amount_type_desc" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.AMOUNT_TYPE"/>
+                    <a:numberField name="consulting_fee" allowFormat="true" allowNegative="false" bindTarget="loan_contract_ds" prompt="财务顾问费"/>
+                    <a:numberField name="loan_charge" allowFormat="true" allowNegative="false" bindTarget="loan_contract_ds" prompt="手续费"/>
+                    <a:numberField name="other_fee" allowFormat="true" allowNegative="false" bindTarget="loan_contract_ds" prompt="其他费用"/>
+                </a:box>
+            </a:fieldSet>
+            <a:fieldSet title="TRE502.FIELDSET.LOAN_INTEREST">
+                <a:box column="4" labelWidth="120" width="1112">
+                    <a:percentField name="base_rate" allowNegative="false" bindTarget="loan_contract_ds" prompt="HLS.BASE_RATE"/>
+                    <a:comboBox name="int_rate_fixing_way_desc" bindTarget="loan_contract_ds" prompt="TRE_LOAN_CONTRACT.INT_RATE_FIXING_WAY"/>
+                    <a:percentField name="int_rate_fixing_range" allowDecimals="true" allowNegative="true" bindTarget="loan_contract_ds" prompt="TRE503.INT_RATE_FIXING_RANGE"/>
+                    <a:percentField name="interest_rate" allowNegative="false" bindTarget="loan_contract_ds" prompt="TRE503.INTEREST_RATE"/>
+                </a:box>
+            </a:fieldSet>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: liukang  
+    $Date: 2016-05-09 下午7:59:08  
+    $Revision: 1.0  
+    $Purpose: 提前结清打印参数取值
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" needAccessControl="false">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    address_name,
+                    termination_date,
+                    termination_date_3,
+                    bp_name,
+                    project_number,
+                    TO_CHAR(finance_amount, 'fm999,999,999,999,990.00') finance_amount,
+                    TO_CHAR(et_total_amount, 'fm999,999,999,999,990.00') et_total_amount,
+                    et_agreement_id,
+                    contract_status,
+                    last_update_date,
+                    print_date,
+                    TO_CHAR(overdue_amount, 'fm999,999,999,999,990.00') overdue_amount,
+                    NVL(TO_CHAR(undue_principal, 'fm999,999,999,999,990.00'), 0) undue_principal,            --未逾期剩余本金
+                    NVL(TO_CHAR(overdue_principal, 'fm999,999,999,999,990.00'), 0) overdue_principal,        --逾期本金
+                    NVL(TO_CHAR(overdue_interest, 'fm999,999,999,999,990.00'), 0) overdue_interest,          --逾期利息
+                    NVL(TO_CHAR(penalty, 'fm999,999,999,999,990.00'), 0) penalty,                            --罚息
+                    NVL(TO_CHAR(take_back_fee, 'fm999,999,999,999,990.00'), 0) take_back_fee,                --收车费
+                    NVL(TO_CHAR(loy_fee, 'fm999,999,999,999,990.00'), 0) loy_fee,                            --律师信费费用
+                    NVL(TO_CHAR(assessment_fee, 'fm999,999,999,999,990.00'), 0) assessment_fee,              --评估费
+                    NVL(TO_CHAR(collection_fee, 'fm999,999,999,999,990.00'), 0) collection_fee,              -- 上门催收费用
+                    NVL(TO_CHAR(et_fee, 'fm999,999,999,999,990.00'), 0) et_fee,                              --提前结清手续费
+                    NVL(TO_CHAR(undue_principal*0.05, 'fm999,999,999,999,990.00'), 0.00) defaults_fee,               --违约金
+                    NVL(TO_CHAR(collecting_fee, 'fm999,999,999,999,990.00'), 0.00) collecting_fee,           --催收费用
+                    NVL(TO_CHAR(unpay_insurance_fee, 'fm999,999,999,999,990.00'), 0.00) unpay_insurance_fee, -- 未支付保险费
+                    NVL(TO_CHAR(unpay_travel_tax, 'fm999,999,999,999,990.00'), 0.00) unpay_travel_tax,       --未支付车船税
+                    NVL(TO_CHAR(ref_n05, 'fm999,999,999,999,990.00'), 0.00) ref_n05,                         -- 可抵扣保证金
+                    NVL(TO_CHAR(current_interest,'fm999,999,999,999,990.00'), 0.00) current_interest,
+                    TO_CHAR(total_fee,'fm999,999,999,999,990.00') total_fee
+                FROM
+                    (SELECT
+                        (ccb.living_address
+                        || ccb.bp_name) address_name,
+                        TO_CHAR(h.termination_date, 'yyyy-mm-dd') termination_date,
+                        TO_CHAR(h.termination_date + 3, 'yyyy-mm-dd') termination_date_3,
+                        ccb.bp_name,
+                        pp.project_number,
+                        cc.finance_amount,
+                        h.et_total_amount,
+                        h.et_agreement_id,
+                        cc.contract_status,
+                        h.last_update_date,
+                        TO_CHAR(sysdate, 'yyyy-mm-dd') print_date,
+                        h.overdue_amount,                                                                                                                                                                              -- 逾期租金
+                        h.undue_principal,                                                                                                                                                                             --未逾期剩余本金
+                        h.overdue_principal,                                                                                                                                                                           --逾期本金
+                        h.overdue_interest,                                                                                                                                                                            --逾期利息
+                        h.penalty,                                                                                                                                                                                     --罚息
+                        h.take_back_fee,                                                                                                                                                                               --收车费
+                        h.loy_fee,                                                                                                                                                                                     --律师信费费用
+                        h.assessment_fee,                                                                                                                                                                              --评估费
+                        h.collection_fee,                                                                                                                                                                              -- 上门催收费用
+                        decode(h.et_fee,0,500,h.et_fee)et_fee,                                                                                                                                                                       --提前结清手续费
+                        h.defaults_fee,                                                                                                                                                                                --违约金
+                        h.collecting_fee,                                                                                                                                                                              --催收费用
+                        -- h.unpay_insurance_fee,
+                        (select nvl((SELECT (ccc.due_amount - ccc.received_amount) FROM con_contract_cashflow ccc  where ccc.cf_item = 62  and ccc.cf_type = 6  and ccc.times = 0  and ccc.cf_direction = 'OUTFLOW' and ccc.contract_id = cc.contract_id),0) from dual) unpay_insurance_fee,                                                                                                                                                                        -- 未支付保险费
+                       -- h.unpay_travel_tax,  
+                       (select nvl((SELECT (ccc.due_amount - ccc.received_amount) FROM con_contract_cashflow ccc where ccc.cf_item = 83 and ccc.cf_type = 110 and ccc.times = 0 and ccc.cf_direction = 'OUTFLOW' and ccc.contract_id = cc.contract_id),0) from dual) unpay_travel_tax,                                                                                                                                                                        --未支付车船税
+                        h.ref_n05,                                                                                                                                                                                     -- 可抵扣保证金
+                        h.current_interest,                                                                                                                                                                            -- 截止提前还款日应付利息
+                        (nvl(h.undue_principal, 0) + nvl(h.overdue_principal, 0) +
+               nvl(h.overdue_interest, 0) + nvl(h.penalty, 0) +
+               decode(h.et_fee, 0, 500, h.et_fee) +
+               nvl(h.undue_principal, 0) * 0.05 + nvl(h.collecting_fee, 0) +
+               nvl(h.current_interest, 0) -
+               ((select nvl((SELECT (ccc.due_amount - ccc.received_amount)
+                               FROM con_contract_cashflow ccc
+                              where ccc.cf_item = 62
+                                and ccc.cf_type = 6
+                                and ccc.times = 0
+                                and ccc.cf_direction = 'OUTFLOW'
+                                and ccc.contract_id = cc.contract_id),
+                             0)
+                    from dual)) -
+               ((select nvl((SELECT (ccc.due_amount - ccc.received_amount)
+                               FROM con_contract_cashflow ccc
+                              where ccc.cf_item = 83
+                                and ccc.cf_type = 110
+                                and ccc.times = 0
+                                and ccc.cf_direction = 'OUTFLOW'
+                                and ccc.contract_id = cc.contract_id),
+                             0)
+                    from dual)) - nvl(h.ref_n05, 0))total_fee -- 总计
+                    FROM
+                        con_contract_bp ccb,
+                        con_contract cc,
+                        con_contract_et_hd h,
+                        prj_project pp
+                    WHERE
+                        cc.contract_id    = ${@contract_id} AND
+                        h.et_agreement_id = ${@et_agreement_id} AND
+                        cc.contract_id    = ccb.contract_id AND
+                        cc.contract_id    = h.contract_id AND
+                        cc.project_id     = pp.project_id AND
+                        cc.data_class     = 'NORMAL' AND
+                        ccb.bp_category   = 'TENANT'
+                    ORDER BY
+                        h.last_update_date DESC
+                    )
+            ]]></bm:query-sql>
+            <bm:parameters>
+                <bm:parameter name="contract_id"/>
+                <bm:parameter name="et_agreement_id"/>
+            </bm:parameters>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

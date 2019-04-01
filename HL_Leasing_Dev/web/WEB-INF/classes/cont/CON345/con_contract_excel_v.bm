@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: admin  
+    $Date: 2018-12-27 下午8:59:14  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    t1.contract_id,
+                    t1.contract_number contract_number, --合同编号
+                    (SELECT
+                        p.project_number
+                    FROM
+                        prj_project p
+                    WHERE
+                        t1.project_id = p.project_id
+                    ) project_number, --申请编号
+                    t1.bp_id_agent_level1,
+                    (SELECT m.bp_name FROM hls_bp_master m WHERE m.bp_id = t1.bp_id_agent_level1
+                    ) master_bp_name, --经销店
+                    (SELECT m.bp_code FROM hls_bp_master m WHERE m.bp_id = t1.bp_id_agent_level1
+                    ) master_bp_code, --经销店编号
+                    (SELECT
+                        ccb.bp_name
+                    FROM
+                        con_contract_bp ccb
+                    WHERE
+                        t1.contract_id  = ccb.contract_id AND
+                        ccb.bp_category = 'TENANT'
+                    ) contract_bp_name, --承租人
+                    t1.bp_id_tenant,
+                    (SELECT
+                        ccb.bp_code
+                    FROM
+                        con_contract_bp ccb
+                    WHERE
+                        t1.contract_id  = ccb.contract_id AND
+                        ccb.bp_category = 'TENANT'
+                    ) contract_bp_code, --承租人编号
+                    (SELECT
+                        v.code_value_name AS value_name
+                    FROM
+                        sys_code_values_v v
+                    WHERE
+                        v.code          = 'WITHHOLD_WAYS' AND
+                        t1.withhold_way = v.code_value
+                    ) code_value_name, --支付方式
+                    (SELECT
+                        t.ebank_name
+                    FROM
+                        csh_ebank t
+                    WHERE
+                        t.ebank_id = t1.direct_debit_bank_id
+                    ) ebank_name,                            --客户扣款银行
+                    t1.dd_bank_account_num bank_account_num, --客户扣款账号
+                    NVL(t1.dd_bank_account_name,
+                    (SELECT
+                        ccb.bp_name
+                    FROM
+                        con_contract_bp ccb
+                    WHERE
+                        t1.contract_id  = ccb.contract_id AND
+                        ccb.bp_category = 'TENANT'
+                    )) bank_account_name, --客户扣款帐户名
+                    (SELECT
+                        hp.product_name_write
+                    FROM
+                        hls_product_plan_definition hp
+                    WHERE
+                        hp.product_plan_id = li.product_plan_id
+                    ) product_name_write, --产品名称
+                    (SELECT a.description FROM hls_car_model_vl a WHERE a.model_id = li.model_id
+                    ) description,                                                   --车型
+                    TO_CHAR(t1.signing_date, 'yyyy-mm-dd') signing_date,             --签约日期
+                    TO_CHAR(t1.inception_of_lease, 'yyyy-mm-dd') inception_of_lease, --起租日期
+                    ccc.times,                                                       --期数
+                    cf.description cf_item_n,
+                    TO_CHAR(ccc.due_date, 'yyyy-mm-dd') due_date, --预定收款日
+                    ccc.due_amount due_amount,                    --预定收款金额
+                    ccc.vat_due_amount vat_due_amount,            --租金增值税
+                    ccc.net_principal net_principal,              --本金
+                    ccc.vat_principal vat_principal,              --本金增值税
+                    ccc.interest interest,                        --利息合计（税前）
+                    segment_interest segment_interest,
+                    lower_interest lower_interest,
+                    ccc.net_interest net_interest,             --收入合计（税后）
+                    net_segment_interest net_segment_interest, --上段金额（税后）
+                    net_lower_interest net_lower_interest,     --下段金额（税后）
+                    ccc.vat_interest vat_interest,             --税额
+                    vat_segment_interest vat_segment_interest,
+                    vat_lower_interest vat_lower_interest
+                FROM
+                    con_contract t1,
+                    con_contract_lease_item li,
+                    con_contract_cashflow ccc,
+                    hls_cashflow_item cf #WHERE_CLAUSE#
+                ORDER BY
+                    t1.contract_id,
+                    ccc.times
+            ]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:parameters>
+                <bm:parameter name="success_num" input="true" inputPath="/parameter/@success_num" output="true" outputPath="/parameter/@success_num"/>
+            </bm:parameters>
+            <bm:query-sql><![CDATA[
+                BEGIN
+                    hl_excle_exprot_pkg.main(${@bp_id_agent_level1},'N',NULL,${/parameter/@success_num});
+                END;
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <!-- 查询条件的列 -->
+    <bm:query-fields>
+        <bm:query-field name="bp_id_tenant" queryExpression="t1.bp_id_tenant=${@bp_id_tenant}"/>
+        <bm:query-field name="bp_id_agent_level1" queryExpression="t1.bp_id_agent_level1=${@bp_id_agent_level1}"/>
+        <bm:query-field name="contract_id" queryExpression="t1.contract_id=${@contract_id}"/>
+        <bm:query-field name="inception_of_lease_from" queryExpression="t1.inception_of_lease &gt;=to_date(${@inception_of_lease_from},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="inception_of_lease_to" queryExpression="t1.inception_of_lease &lt;=to_date(${@inception_of_lease_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="due_date_from" queryExpression="ccc.due_date &gt;=to_date(${@due_date_from},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="due_date_to" queryExpression="ccc.due_date &lt;=to_date(${@due_date_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="product_plan_id" queryExpression="li.product_plan_id =${@product_plan_id}"/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter name="query" expression="t1.contract_id        = li.contract_id AND ccc.cf_item = cf.cf_item AND   ccc.cf_direction NOT IN (&apos;NONCASH&apos;,&apos;OUTFLOW&apos;) AND                    t1.contract_status    = &apos;INCEPT&apos; AND  t1.contract_id        = ccc.contract_id AND t1.data_class = &apos;NORMAL&apos;"/>
+    </bm:data-filters>
+</bm:model>

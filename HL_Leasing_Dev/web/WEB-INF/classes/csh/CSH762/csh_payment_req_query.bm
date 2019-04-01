@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-5-23 下午03:42:50  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" baseTable="csh_payment_req_hd">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        h.payment_req_number,
+                        h.document_type,
+                        (SELECT
+                            d.document_type_desc
+                        FROM
+                            hls_document_type_v d
+                        WHERE
+                            d.document_type = h.document_type
+                        ) document_type_dis,
+                        TO_CHAR(h.req_date, 'yyyy-mm-dd') req_date,
+                        h.bp_id,
+                        b.bp_code,
+                        b.bp_name,
+                        h.bp_category,
+                        (SELECT
+                            b.description
+                        FROM
+                            hls_bp_category b
+                        WHERE
+                            b.bp_category = h.bp_category
+                        ) bp_category_dis,
+                        (SELECT
+                            ct.description
+                        FROM
+                            hls_bp_category ct
+                        WHERE
+                            ct.bp_category = b.bp_category
+                        ) AS bp_category_desc,
+                        h.amount apply_amount,
+                        h.currency_code,
+                        (SELECT
+                            t.currency_name
+                        FROM
+                            gld_currency_vl t
+                        WHERE
+                            h.currency_code =t.currency_code
+                        ) currency_name,
+                        h.created_by,
+                        (SELECT
+                            e.name
+                        FROM
+                            sys_user u,
+                            exp_employees e
+                        WHERE
+                            h.created_by = u.user_id AND
+                            u.employee_id   = e.employee_id
+                        ) user_name2,
+                        (SELECT
+                            e.name
+                        FROM
+                            sys_user u,
+                            exp_employees e
+                        WHERE
+                            h.created_by = u.user_id AND
+                            u.employee_id   = e.employee_id
+                        ) user_name,
+                        h.submitted_flag,
+                        h.approval_status,
+                        (SELECT
+                            t.code_value_name
+                        FROM
+                            sys_code_values_v t
+                        WHERE
+                            h.approval_status =t.code_value AND
+                            t.code            ='CSH_PAYMENT_REQ_APPROVAL_STATUS'
+                        ) approval_status_desc,
+                        TO_CHAR(h.approval_date, 'yyyy-mm-dd') approval_date,
+                        h.approval_note,
+                        h.payment_req_id,
+                        h.closed_flag,
+                        h.payment_flag,
+                        h.print_flag,
+                        h.owner_user_id,
+                        h.description payment_description,
+                        TO_CHAR(h.apply_pay_date, 'yyyy-mm-dd') apply_pay_date,
+                        yonda_individual_pkg.string_combination(p_sql =>'select t1.contract_number from con_contract t1,csh_payment_req_ln t2 where t1.contract_id = t2.ref_doc_id and t2.payment_req_id=' ,p_compare_column_val => h.payment_req_id,p_division_symbol => ',') contract_number,
+                        yonda_individual_pkg.string_combination(p_sql =>'select hm.bp_name from con_contract t1,csh_payment_req_ln t2,hls_bp_master hm where hm.bp_id = t1.bp_id_tenant and t1.contract_id = t2.ref_doc_id and t2.payment_req_id=' ,p_compare_column_val => h.payment_req_id,p_division_symbol => ',') bp_id_tenant_n,
+                        yonda_individual_pkg.string_combination(p_sql => 'SELECT t4.bank_branch_name ||  ''-''  || t4.bank_account_num banknum  FROM con_contract       t1,   csh_payment_req_ln t2,   fnd_companies      t3,   csh_bank_account_v t4 WHERE t1.contract_id = t2.ref_doc_id AND t1.spv_company_id = t3.company_id  AND t3.bank_account_id = t4.bank_account_id and t2.payment_req_id=', p_compare_column_val => h.payment_req_id, p_division_symbol => ',') bank_account_num,
+                        yonda_individual_pkg.string_combination(p_sql => 'SELECT t4.bank_account_name   FROM con_contract       t1,   csh_payment_req_ln t2,   fnd_companies      t3,   csh_bank_account_v t4 WHERE t1.contract_id = t2.ref_doc_id AND t1.spv_company_id = t3.company_id  AND t3.bank_account_id = t4.bank_account_id and t2.payment_req_id=', p_compare_column_val => h.payment_req_id, p_division_symbol => ',') bank_account_name,
+                        h.bp_bank_account_name,
+                        h.bp_bank_account_num,
+                        (SELECT
+                            SUM(NVL(rl.amount, 0) - NVL(
+                            (SELECT
+                                SUM(amount)
+                            FROM
+                                csh_payment_req_ln_ddct ld
+                            WHERE
+                                ld.payment_req_ln_id = rl.payment_req_ln_id
+                            ), 0) - NVL(
+                            (SELECT
+                                SUM(lp.write_off_amt)
+                            FROM
+                                csh_payment_req_ln_prepay lp
+                            WHERE
+                                lp.payment_req_ln_id = rl.payment_req_ln_id
+                            ), 0))
+                        FROM
+                            csh_payment_req_ln rl
+                        WHERE
+                            rl.payment_req_id = h.payment_req_id
+                        ) sum_act_amount,
+                        (SELECT
+                            vl.price
+                        FROM
+                            hls_lease_products_vl vl
+                        WHERE
+                            vl.lease_products_code =
+                            (SELECT
+                                l.item_frame_number
+                            FROM
+                                con_contract_lease_item l
+                            WHERE
+                                l.contract_id=
+                                (SELECT
+                                    ln.ref_doc_id
+                                FROM
+                                    csh_payment_req_ln ln
+                                WHERE
+                                    ln.payment_req_id = h.payment_req_id AND
+                                    rownum            =1
+                                )
+                            )
+                        )price,
+						(SELECT su.description FROM sys_user su WHERE su.user_id = h.created_by
+                        ) req_user_name
+                    FROM
+                        csh_payment_req_hd h,
+                        hls_bp_master b
+                    WHERE
+                        h.bp_id           = b.bp_id(+) AND
+                        h.closed_flag     ='N' AND
+                        h.submitted_flag  = 'Y' AND
+                        h.approval_status = 'APPROVED'
+                         and not exists (select 1 from con_contract cc where cc.contract_id in (select cl.ref_doc_id from csh_payment_req_ln cl where cl.payment_req_id=h.payment_req_id) and cc.lease_channel='00')
+                         AND EXISTS
+                        (SELECT
+                            1
+                        FROM
+                            csh_payment_req_ln a
+                        WHERE
+                            a.payment_req_id =h.payment_req_id AND
+                            a.payment_status<>'FULL'
+                        ) AND
+                        h.company_id IN
+                        (SELECT
+                            company_id
+                        FROM
+                            fnd_companies START
+                        WITH company_id =${/session/@company_id} CONNECT BY prior company_id = parent_biz_company_id
+                        )
+                    ) v #WHERE_CLAUSE#
+                ORDER BY
+                    v.req_date DESC,
+                    v.payment_req_number DESC
+            ]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+            begin
+            csh_payment_req_pkg.update_csh_payment_flag(p_payment_req_id =>${@payment_req_id} ,
+                                                        p_payment_flag =>${@payment_flag} ,
+                                                        p_user_id =>${/session/@user_id} );
+            end;
+          ]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="print_flag" queryExpression="nvl(v.print_flag,&apos;N&apos;) = ${@print_flag}"/>
+        <bm:query-field name="employee_name" queryExpression="v.user_name like &apos;%&apos; || ${@employee_name} || &apos;%&apos;"/>
+        <bm:query-field name="owner_user_id" queryExpression="v.owner_user_id = ${@user_id}"/>
+        <bm:query-field name="payment_flag" datatype="java.lang.String" queryExpression="nvl(v.payment_flag,&apos;N&apos;)=${@payment_flag}"/>
+        <bm:query-field name="payment_req_number_from" datatype="java.lang.String" queryExpression="v.payment_req_number&gt;=${@payment_req_number_from}"/>
+        <bm:query-field name="payment_req_number_to" datatype="java.lang.String" queryExpression="v.payment_req_number&lt;=${@payment_req_number_to}"/>
+        <bm:query-field name="req_date_from" datatype="java.lang.String" queryexpression="v.req_date &gt;= ${@req_date_from}"/>
+        <bm:query-field name="req_date_to" datatype="java.lang.String" queryexpression="v.req_date &lt;= ${@req_date_to}"/>
+        <bm:query-field name="amount_from" datatype="java.lang.String" queryExpression="v.apply_amount&gt;=${@amount_from}"/>
+        <bm:query-field name="amount_to" datatype="java.lang.String" queryExpression="v.apply_amount&lt;=${@amount_to}"/>
+        <bm:query-field name="approval_date_from" datatype="java.lang.String" queryexpression="v.approval_date &gt;= ${@approval_date_from}"/>
+        <bm:query-field name="approval_date_to" datatype="java.lang.String" queryexpression="v.approval_date &lt;= ${@approval_date_to}"/>
+        <bm:query-field name="approval_status" datatype="java.lang.String" queryexpression="v.approval_status = ${@approval_status}"/>
+        <bm:query-field name="submitted_flag" datatype="java.lang.String" queryOperator="="/>
+        <bm:query-field name="bp_code_from" datatype="java.lang.String" queryExpression="v.bp_code&gt;=${@bp_code_from}"/>
+        <bm:query-field name="bp_code_to" datatype="java.lang.String" queryExpression="v.bp_code&lt;=${@bp_code_to}"/>
+        <bm:query-field name="contract_number" queryExpression="v.contract_number like  &apos;%&apos;||upper(${@contract_number})||&apos;%&apos;"/>
+        <bm:query-field name="user_name" queryExpression="v.user_name like ${@user_name}"/>
+        <bm:query-field name="bp_name" queryExpression="v.bp_id_tenant_n like ${@bp_name}"/>
+        <bm:query-field name="payment_req_number" datatype="java.lang.String" queryExpression="v.payment_req_number like &apos;%&apos;||${@payment_req_number}||&apos;%&apos;"/>
+    </bm:query-fields>
+</bm:model>

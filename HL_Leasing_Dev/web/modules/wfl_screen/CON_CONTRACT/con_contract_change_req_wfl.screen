@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Harry 
+    $Date: 2017-1-20 上午09:19:03  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="attachment_uploadFile_link" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="attachment_downloadFile_link" url="${/request/@context_path}/downloadFile.screen"/>
+        <a:link id="hls_change_history_link" url="${/request/@context_path}/modules/cont/CON732/hls_ccr_modify_histiory_query.screen"/>
+        <a:link id="${/parameter/@layout_code}${/parameter/@pre_layout}get_atch_download_link" url="${/request/@context_path}/modules/batch_download/lease_atm_batch_dl.svc"/>
+        <!-- <script src="${/request/@context_path}/javascripts/lightbox.js"/> -->
+		<link href="${/request/@context_path}/viewerjs/viewer.css" rel="stylesheet"/>
+        <script src="${/request/@context_path}/viewerjs/viewer.js"/>
+        <script src="${/request/@context_path}/viewerjs/viewer_tool.js"/>
+        <script><![CDATA[
+            //Ext.ux.Lightbox.register('a[ref=img]', true);
+            //add by liukang
+            //应张文要求在审批页面增加附件查看按钮
+            //alert(1);
+            window['${/parameter/@layout_code}_upload_layout_dynamic_click'] = function() {
+                var header_id = '${/parameter/@change_req_id}';
+                var url = '';
+                if ('${/parameter/@attachment_flag}' == 'Y') {
+                    url = $('attachment_uploadFile_link').getUrl() + '?table_name=CON_CONTRACT&header_id=' + header_id;
+                } else {
+                    url = $('attachment_downloadFile_link').getUrl() + '?table_name=CON_CONTRACT&header_id=' + header_id;
+                }
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '附件查看',
+                    id: 'approve_downloadFile_id',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {});
+            };
+            
+            //变更信息查看
+            window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function() {
+                var con_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_lease_item');
+                var record = $(con_id).getAt(0);
+                new Aurora.Window({
+                    id: 'hls_standard_history_link_window',
+                    url: $('hls_change_history_link').getUrl(),
+                    params: {
+                        contract_id: record.get('contract_id')
+                    },
+                    width: 1250,
+                    height: 180,
+                    draggable: true
+                });
+            };
+            
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record, bp_seq) {
+                var link_function = '';
+                window['${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                if (name == 'bp_link' && record.get('bp_id') && record.get('record_id')) {
+                    link_function = '${/parameter/@layout_code}_open_bp_detail_window';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+                } else if (name == 'car_detail' && record.get('contract_lease_item_id')) {
+                    link_function = '${/parameter/@layout_code}_open_lease_item_detail_window';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+                } else if (name == 'attachment') {
+                    link_function = '${/parameter/@layout_code}_prj500_cdd_attachtment_upload';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                } else if (name == 'attach_file_name') {
+                    if (value != null) {
+                        var link = '${/request/@context_path}/atm_download.svc?attachment_id=';
+                        var str = value.split(';;');
+                        var url = '';
+                        for (var i = 0;i < str.length;i++) {
+                            var temp = str[i].split('--');
+                            if (!Aurora.isEmpty(temp[0])) {
+            
+                                var file_suffix = temp[0].substr(temp[0].lastIndexOf('.') + 1).toUpperCase();
+                                if (file_suffix == 'BMP' || file_suffix == 'JPG' || file_suffix == 'JPEG' || file_suffix == 'PNG' || file_suffix == 'GIF') {
+                                    url = url + '<a ref="img" href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                                } else {
+                                    url = url + '<a href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                                }
+                            }
+                        }
+                        return url;
+                    }
+                } else if (name == 'description') {
+                    if (record.get('important_flag') == 'Y') {
+                        return '<font color="RED">' + value + '</font>';
+                    }
+                    return value;
+                } else if (name == 'link1') {
+                    link_function = '${/parameter/@layout_code}_ast_con_cdd_attachtment_upload';
+                    if (record.get('atm_num1') > 0) {
+                        return '<a style="color:red" href="javascript:window[\'' + link_function + '\'](\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                    } else {
+                        return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                    }
+                } else if (name == 'link2') {
+                    link_function = '${/parameter/@layout_code}_ast_con_cdd2_attachtment_upload';
+                    if (record.get('atm_num2') > 0) {
+                        return '<a style="color:red" href="javascript:window[\'' + link_function + '\'](\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                    } else {
+                        return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                    }
+            
+                } else if (name == 'link3') {
+                    link_function = '${/parameter/@layout_code}_ast_con_cdd3_attachtment_upload';
+                    if (record.get('atm_num3') > 0) {
+                        return '<a style="color:red" href="javascript:window[\'' + link_function + '\'](\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                    } else {
+                        return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                    }
+                }
+            };
+            
+            //打包下载
+            window['${/parameter/@layout_code}_user_button6_layout_dynamic_click'] = function() {
+                var prj_project_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract');
+                var prj_project_record = $(prj_project_id).getAt(0);
+                var project_id = prj_project_record.get('project_id');
+                var url_l = $('${/parameter/@layout_code}${/parameter/@pre_layout}get_atch_download_link').getUrl() + '?table_pk_value=' + project_id + '&table_name=PRJ_PROJECT' + '&doc_code=' + project_id + '&all_flag=Y';
+                window.open(href = url_l, target = "_self");
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

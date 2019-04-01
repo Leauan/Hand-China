@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Foreinyel  
+    $Date: 2013-11-27 下午3:07:46  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="delete_message_link" model="db.hls_sys_homepage_message_pkg.delete_message" modelaction="batch_update"/>
+        <a:link id="hls_sys_homepage_message_role_link" url="${/request/@context_path}/modules/fnd/FND731/hls_sys_homepage_message_role.screen"/>
+        <a:link id="hls_sys_homepage_message_user_link" url="${/request/@context_path}/modules/fnd/FND731/hls_sys_homepage_message_user.screen"/>
+        <div/>
+        <script><![CDATA[
+
+            function assignUserRender(value, record, name) {
+                return '<a href="javascript:openAssignUser(' + record.get('message_id') + ')">分配用户</a>'
+            }
+            
+            function openAssignUser(msg_id) {
+                if (typeof(msg_id) != 'undefined' && !Ext.isEmpty(msg_id)) {
+                    new Aurora.Window({
+                        id: 'hls_sys_assign_user_window',
+                        url: 'hls_sys_homepage_message_user.screen' /*$('hls_sys_homepage_message_user_link').getUrl()*/
+                        + '?message_id=' + msg_id,
+                        title: '分配用户',
+                        height: 400,
+                        width: 500
+                    });
+                } else {
+                    Aurora.showMessage("提示信息", "该数据还未保存！");
+                }
+            }
+            
+            function assignRoleRender(value, record, name) {
+                return '<a href="javascript:openAssignRole(' + record.get('message_id') + ')">分配角色</a>'
+            }
+            
+            function openAssignRole(msg_id) {
+                if (typeof(msg_id) != 'undefined' && !Ext.isEmpty(msg_id)) {
+                    new Aurora.Window({
+                        id: 'hls_sys_assign_role_window',
+                        url: 'hls_sys_homepage_message_role.screen' /*$('hls_sys_homepage_message_role_link').getUrl()*/
+                        + '?message_id=' + msg_id,
+                        title: '分配角色',
+                        height: 400,
+                        width: 500
+                    });
+                } else {
+                    Aurora.showMessage("提示信息", "该数据还未保存！");
+                }
+            }
+            
+            function delMsg() {
+                var ds = $('hls_sys_homepage_message');
+                var record = ds.getCurrentRecord();
+                var selects = ds.getSelected();
+                var data = ds.getJsonData(true);
+                var count = selects.length;
+                for (i = 0;i < data.length;i++) {
+                    var message_id = data[i]['message_id'];
+                    if (typeof(message_id) == 'undefined') {
+                        data[i] = null;
+                    }
+                }
+            
+                if (count > 0) {
+                    var queryConfirm = Aurora.showConfirm('提示', '确认要删除？', function() {
+                        Aurora.request({
+                            url: '${/request/@context_path}/autocrud/db.hls_sys_homepage_message_pkg.delete_message/batch_update' /*$('delete_message_link').getUrl()*/
+                            ,
+                            para: data,
+                            success: function(args) {
+                                ds.query();
+                            },
+                            scope: this
+                        });
+                    }, function() {
+                        queryConfirm.close();
+                    }, null, null);
+                }
+            }
+            
+            function sys_homepage_message_save() {
+                $('hls_sys_homepage_message').submit();
+            }
+            
+            function subsce(dataSet, ref) {
+                dataSet.query();
+            }
+            
+            function equalValidator(record, name, value) {
+                var equal_value = record.get('equal_value');
+                var un_equan_value = record.get('un_equan_value');
+                if (equal_value == un_equan_value) {
+                    return "等于和不等于的值应不相同！";
+                }
+                return true;
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="hls_sys_homepage_message" autoQuery="true" model="fnd.FND731.hls_sys_homepage_message_for_maintain" pageSize="10" selectable="true">
+                <a:fields>
+                    <a:field name="company_short_name" lovGridHeight="260" lovService="fnd.fnd_companies_lov" lovWidth="480" required="true" title="公司信息">
+                        <a:mapping>
+                            <a:map from="company_code" to="company_code"/>
+                            <a:map from="company_id" to="company_id"/>
+                            <a:map from="company_short_name" to="company_short_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="message_code" required="true"/>
+                    <a:field name="message_desc" required="true"/>
+                    <a:field name="sequence_no" required="true"/>
+                    <a:field name="equal_value" required="true" validator="equalValidator"/>
+                    <a:field name="un_equan_value" required="true" validator="equalValidator"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" required="true" unCheckedValue="N"/>
+                    <a:field name="message_content" required="true"/>
+                    <a:field name="condition_sql" required="true"/>
+                    <a:field name="message_content_type" defaultValue="02"/>
+                    <a:field name="return_condition_type" defaultValue="02"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="subsce"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolBar>
+                <a:toolbarButton click="sys_homepage_message_save" text="HAP_SAVE"/>
+            </a:screenTopToolBar>
+            <a:hBox>
+                <a:vBox>
+                    <a:form height="370" title="首页提醒定义" width="760">
+                        <a:grid bindTarget="hls_sys_homepage_message" height="300" navBar="true" width="710">
+                            <a:toolBar>
+                                <a:button type="add"/>
+                                <a:button type="delete"/>
+                            </a:toolBar>
+                            <a:columns>
+                                <a:column name="company_short_name" editor="shpmLov" prompt="公司名称" width="100"/>
+                                <a:column name="message_code" editor="shpmText" prompt="消息代码" width="100"/>
+                                <a:column name="message_desc" editor="shpmText" prompt="消息描述" width="100"/>
+                                <a:column name="sequence_no" editor="shpmText" prompt="顺序" width="30"/>
+                                <a:column name="assign_user" align="center" prompt="分配用户" renderer="assignUserRender" width="100"/>
+                                <a:column name="assign_role" align="center" prompt="分配角色" renderer="assignRoleRender" width="100"/>
+                                <a:column name="enabled_flag" editor="shpmCb" prompt="启用" width="100"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:lov id="shpmLov"/>
+                                <a:textField id="shpmText"/>
+                                <a:checkBox id="shpmCb"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:form>
+                </a:vBox>
+                <a:vBox>
+                    <a:tabPanel id="hls_sys_homepage_message_tab" height="366" width="560">
+                        <a:tabs>
+                            <a:tab prompt="提醒内容" width="80">
+                                <a:hBox height="30" style="background-color:#eceded" width="558">
+                                    <a:radio name="message_content_type" bindTarget="hls_sys_homepage_message" prompt="" width="200">
+                                        <a:items>
+                                            <a:item label="动态SQL" value="01"/>
+                                            <a:item label="文本" value="02"/>
+                                        </a:items>
+                                    </a:radio>
+                                </a:hBox>
+                                <a:textArea name="message_content" bindTarget="hls_sys_homepage_message" height="274" style="margin:10px 23px" width="505"/>
+                            </a:tab>
+                            <a:tab prompt="发送条件" width="80">
+                                <a:hBox height="30" style="background-color:#eceded" width="558">
+                                    <a:radio name="return_condition_type" bindTarget="hls_sys_homepage_message" prompt="" width="200">
+                                        <a:items>
+                                            <a:item label="函数返回值" value="01"/>
+                                            <a:item label="SQL返回值" value="02"/>
+                                        </a:items>
+                                    </a:radio>
+                                    <a:hBox padding="0" width="300">
+                                        <a:textField name="equal_value" bindTarget="hls_sys_homepage_message" prompt="等于" width="50"/>
+                                        <a:textField name="un_equan_value" bindTarget="hls_sys_homepage_message" prompt="不等于" width="50"/>
+                                    </a:hBox>
+                                </a:hBox>
+                                <a:textArea name="condition_sql" bindTarget="hls_sys_homepage_message" height="274" style="margin:10px 23px" width="505"/>
+                            </a:tab>
+                        </a:tabs>
+                    </a:tabPanel>
+                </a:vBox>
+            </a:hBox>
+        </a:screenBody>
+    </a:view>
+</a:screen>

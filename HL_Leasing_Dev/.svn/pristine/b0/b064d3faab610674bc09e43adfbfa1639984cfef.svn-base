@@ -1,0 +1,845 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-5-21 下午04:17:51  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:w="aurora.plugin.export.word" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="csh.CSH511.csh_transaction" rootPath="csh_transaction_path"/>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootPath="sys_default_value"/>
+        <a:model-query fetchAll="true" model="csh.CSH513.csh_transaction_precision" rootPath="csh_trx_precision_path"/>
+        <a:model-query defaultWhereClause="v.code=&apos;CSH513_WRITE_OFF_TYPE&apos; and v.code_value=&apos;RECEIPT_ADVANCE_RECEIPT&apos;" fetchAll="true" model="basic.sys_code_default_value" rootPath="sys_code_default_value_path"/>
+        <a:model-query defaultWhereClause="v.code=&apos;CSH513_WRITE_OFF_TYPE&apos; and v.code_value=&apos;DEPOSIT&apos;" fetchAll="true" model="basic.sys_code_default_value" rootPath="sys_code_deposit_value_path"/>
+        <a:model-query defaultWhereClause="v.code=&apos;CSH513_WRITE_OFF_TYPE&apos; and v.code_value=&apos;RISK&apos;" fetchAll="true" model="basic.sys_code_default_value" rootPath="sys_code_risk_value_path"/>
+        <a:model-query defaultWhereClause="v.code=&apos;CSH513_WRITE_OFF_TYPE&apos; and v.code_value=&apos;DEPOSIT_CUS&apos;" fetchAll="true" model="basic.sys_code_default_value" rootPath="sys_code_deposit_cus_value_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="csh513_csh_submit_link" model="csh.CSH513.workflow_start" modelaction="execute"/>
+        <a:link id="csh_transaction_receipt_write_off_new_link_id" url="${/request/@context_path}/modules/csh/CSH513/csh_transaction_receipt_write_off_new.svc"/>
+        <a:link id="csh_transaction_receipt_write_off_link_id" url="${/request/@context_path}/modules/csh/CSH513/csh_transaction_receipt_write_off.svc"/>
+        <link href="${/request/@context_path}/resource/aurora.ui.std/default/grid/Grid-min.css" rel="stylesheet"/>
+        <script src="${/request/@context_path}/javascripts/grid_column_wraps.js"/>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <script><![CDATA[
+            function numberRenderer(value) {
+                return $A.formatNumber(value, 2);
+            }
+            
+            function csh513_receipt_detail_return() {
+                $('${/parameter/@winId}').close();
+            }
+            
+            function csh513_submit_final() {
+                Aurora.request({
+                    url: $('csh513_csh_submit_link').getUrl(),
+                    para: {
+                        'transaction_id': '${/parameter/@transaction_id}',
+                        type: '${/parameter/@type}'
+                    },
+                    success: function() {
+                        Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 2000
+                        });
+                        $('csh_transaction_receipt_write_off_result_ds').query();
+                        Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                        csh513_receipt_detail_return();
+                    },
+                    failure: function() {
+                        Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                    },
+                    error: function() {
+                        Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                    },
+                    scope: this
+                });
+            }
+            
+            function csh513_submit_click() {
+                Aurora.showConfirm('${l:PROMPT}', '是否确定提交？', function() {
+                    csh513_receipt_detail_write_off('Y');
+                });
+            }
+            
+            function csh513_receipt_detail_write_off(submit_flag) {
+                //$('csh_transaction_receipt_write_off_detail_head_ds').submit();
+                // if ('${/parameter/@transaction_type}' == 'RECEIPT'){
+                // if ($('csh_transaction_receipt_write_off_detail_head_ds').getAt(0).get('unwrite_off_amount') != 0){
+                // Aurora.showMessage('提示', '收款核销剩余金额不为零，请继续核销！');
+                // Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                // return;
+                // }
+                // }
+                Aurora.Masker.mask($('${/parameter/@winId}').wrap, '${l:HLS.WRITE_OFF_ING}');
+                if (!$('receipt_write_off_creditor_result_ds').getAt(0) && !$('receipt_write_off_prereceipt_result_ds').getAt(0).get('write_off_due_amount') && !$('receipt_write_off_deposit_result_ds').getAt(0).get('write_off_due_amount') && !$('receipt_write_off_risk_result_ds').getAt(0).get('write_off_due_amount') && !$('receipt_write_off_deposit_cus_result_ds').getAt(0).get('write_off_due_amount')) {
+                    Aurora.showMessage('提示', '您未做任何核销操作！核销债权、核销为预收款、核销为保证金需至少操作其中一项！');
+                    Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                    return;
+                }
+                if ($('receipt_write_off_prereceipt_result_ds').getAt(0).get('write_off_due_amount') && $('csh_transaction_receipt_write_off_detail_head_ds').getAt(0).get('lease_channel')=='00') {
+                    Aurora.showMessage('提示', 'CF业务不支持收款核销成预收款！');
+                    Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                    return;
+                } 
+                if ($('csh_transaction_receipt_write_off_detail_head_ds').validate() && $('receipt_write_off_creditor_result_ds').validate() && $('receipt_write_off_prereceipt_result_ds').validate() && $('receipt_write_off_deposit_result_ds').validate()) {
+                    var head_record = $('csh_transaction_receipt_write_off_detail_head_ds').getAt(0);
+                    var creditor_records = $('receipt_write_off_creditor_result_ds').getAll();
+                    var precreditor_record = $('receipt_write_off_prereceipt_result_ds').getAt(0);
+                    var deposit_record = $('receipt_write_off_deposit_result_ds').getAt(0);
+                    var risk_record = $('receipt_write_off_risk_result_ds').getAt(0);
+                    var deposit_cus_record = $('receipt_write_off_deposit_cus_result_ds').getAt(0);
+                    if (head_record.get('unwrite_off_amount') < 0) {
+                        Aurora.showMessage('提示', '本次核销金额大于可核销金额（即<font color="RED">剩余可核销金额</font>小于零），无法完成核销操作！');
+                        Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                        return;
+                    }
+            
+                    if (!creditor_records.length && !precreditor_record && !deposit_record && !risk_record && !deposit_cus_record) {
+                        Aurora.showMessage('${l:PROMPT}', '${l:CSH513.CHENCK_WRITE_OFF_DATA}');
+                        Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                        return;
+                    }
+                    var param = {};
+                    var saveData = [];
+                    param['transaction_id'] = '${/parameter/@transaction_id}';
+                    if (!Ext.isEmpty(precreditor_record.get('write_off_due_amount'))) {
+                        precreditor_record.set('_status', 'insert');
+                        precreditor_record.set('write_off_date', head_record.get('write_off_date'));
+                        saveData.push(precreditor_record.data);
+                    }
+                    if (!Ext.isEmpty(deposit_record.get('write_off_due_amount'))) {
+                        if (!deposit_record.get('bp_id_n') || !deposit_record.get('transfer_type')) {
+                            Aurora.showMessage('提示', '核销经销商保证金，商业伙伴和收入项均不能为空');
+                            Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                            return;
+                        }
+                        deposit_record.set('_status', 'insert');
+                        deposit_record.set('write_off_date', head_record.get('write_off_date'));
+                        saveData.push(deposit_record.data);
+                    }
+                    if (!Ext.isEmpty(risk_record.get('write_off_due_amount'))) {
+                        risk_record.set('_status', 'insert');
+                        risk_record.set('write_off_date', head_record.get('write_off_date'));
+                        saveData.push(risk_record.data);
+                    }
+                    if (!Ext.isEmpty(deposit_cus_record.get('write_off_due_amount'))) {
+                        if (!deposit_cus_record.get('document_id')) {
+                            Aurora.showMessage('提示', '核销客户保证金，合同不能为空');
+                            Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                            return;
+                        }
+                        deposit_cus_record.set('_status', 'insert');
+                        deposit_cus_record.set('write_off_date', head_record.get('write_off_date'));
+                        saveData.push(deposit_cus_record.data);
+                    }
+                    for (var i = 0;i < creditor_records.length;i++) {
+                        var creditor_record;
+                        creditor_record = creditor_records[i];
+                        // aelrt(creditor_record.get('document_line_id'));
+                        // Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                        // return ;
+                        creditor_record.set('_status', 'insert');
+                        creditor_record.set('write_off_date', head_record.get('write_off_date'));
+                        creditor_record.set('transaction_id', '${/parameter/@transaction_id}');
+                        saveData.push(creditor_record.data);
+                    }
+                    param['details'] = saveData;
+                    //DF标志
+                    var cf_df_flag = '${/parameter/@cf_df_flag}' || 'N';
+                    var url = cf_df_flag == 'Y' ? $('csh_transaction_receipt_write_off_link_id').getUrl() : $('csh_transaction_receipt_write_off_new_link_id').getUrl();
+                    Aurora.request({
+                        url: url,
+                        para: param,
+                        success: function() {
+                            //$('csh_transaction_receipt_write_off_result_ds').query();
+                            if (submit_flag == 'Y') {
+                                csh513_submit_final();
+                            } else {
+            
+                                Aurora.SideBar.show({
+                                    msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                    duration: 2000
+                                });
+                                Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                                csh513_receipt_detail_return();
+                            }
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                        },
+                        scope: this
+                    });
+                } else {
+                    Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+                }
+            }
+            
+            function csh513_receipt_detail_remove() {
+                Aurora.showConfirm('${l:PROMPT}', '是否确定删除？', function() {
+                    $('receipt_write_off_creditor_result_ds').remove($('receipt_write_off_creditor_result_ds').getCurrentRecord());
+                }, null, null, null);
+            }
+            
+            function csh513_receipt_detail_add() {
+                $('receipt_write_off_creditor_result_ds').create();
+            }
+            
+            function on_csh_trx_prereceipt_write_off_update(ds, record, name, value, oldvalue) {
+                if (name == 'write_off_due_amount') {
+                    if (value != oldvalue) {
+                        var change_value = get_minus_amount(value, oldvalue);
+                        var head_record = $('csh_transaction_receipt_write_off_detail_head_ds').getAt(0);
+                        var unwrite_off_amount = get_current_amount(head_record.get('unwrite_off_amount'));
+                        head_record.set('unwrite_off_amount', minus(unwrite_off_amount, change_value));
+                    }
+                }
+            }
+            
+            function receipt_write_off_deposit_result_ds_load(ds, record, name, value) {
+                var limit2_flag = '${/parameter/@limit2_flag}' || 'N';
+                if (limit2_flag == 'Y') {
+                    if ($('receipt_write_off_deposit_result_ds').getAt(0).getField('transfer_type_n') != 'undefined') $('receipt_write_off_deposit_result_ds').getAt(0).set('transfer_type', 'DEPOSIT');
+                    $('receipt_write_off_deposit_result_ds').getAt(0).set('transfer_type_n', '保证金互换');
+                    $('receipt_write_off_deposit_result_ds').getAt(0).getField('transfer_type_n').setReadOnly(true);
+                }
+            }
+            function on_csh_trx_receipt_write_off_update(ds, record, name, value, oldvalue) {
+                var head_record = $('csh_transaction_receipt_write_off_detail_head_ds').getAt(0);
+                var unwrite_off_amount = get_current_amount(head_record.get('unwrite_off_amount'));
+                if (name == 'document_line_id') {
+                    cf_type = record.get('cf_type');
+                    if (cf_type == '1' && '${/parameter/@auto_filt_prinicipal_interest}' == 'Y') {
+                        record.set('write_off_due_amount', '');
+                        record.set('write_off_principal', '');
+                        record.set('write_off_interest', '');
+                        record.set('write_off_penalty', '');
+                        record.set('description', '');
+                        record.getField('write_off_due_amount').setReadOnly(false);
+                        record.getField('write_off_principal').setReadOnly(true);
+                        record.getField('write_off_interest').setReadOnly(true);
+                        record.getField('write_off_penalty').setReadOnly(false);
+                        record.getField('description').setReadOnly(false);
+                    } else if (cf_type == '1' && '${/parameter/@auto_filt_prinicipal_interest}' == 'N') {
+                        record.set('write_off_due_amount', '');
+                        record.set('write_off_principal', '');
+                        record.set('write_off_interest', '');
+                        record.set('write_off_penalty', '');
+                        record.set('description', '');
+                        record.getField('write_off_due_amount').setReadOnly(true);
+                        record.getField('write_off_principal').setReadOnly(false);
+                        record.getField('write_off_interest').setReadOnly(false);
+                        record.getField('write_off_penalty').setReadOnly(false);
+                        record.getField('description').setReadOnly(false);
+                    } else {
+                        record.set('write_off_due_amount', '');
+                        record.set('write_off_principal', '');
+                        record.set('write_off_interest', '');
+                        record.set('write_off_penalty', '');
+                        record.set('description', '');
+                        record.getField('write_off_due_amount').setReadOnly(false);
+                        record.getField('write_off_principal').setReadOnly(false);
+                        record.getField('write_off_interest').setReadOnly(false);
+                        if (cf_type != 9) {
+                            record.getField('write_off_penalty').setReadOnly(true);
+                        } else {
+                            record.getField('write_off_penalty').setReadOnly(false);
+                        }
+                        record.getField('description').setReadOnly(false);
+                    }
+                } else if (name == 'write_off_principal' || name == 'write_off_interest') {
+                    if (record.get('cf_type') == '1' && '${/parameter/@auto_filt_prinicipal_interest}' != 'Y') {
+                        if (name == 'write_off_principal') {
+                            if (record.get('write_off_interest')) {
+                                record.set('write_off_due_amount', plus(record.get('write_off_interest'), value));
+                            } else {
+                                record.set('write_off_due_amount', value);
+                            }
+                        } else if (name == 'write_off_interest') {
+                            if (record.get('write_off_principal')) {
+                                record.set('write_off_due_amount', plus(record.get('write_off_principal'), value));
+                            } else {
+                                record.set('write_off_due_amount', value);
+                            }
+                        }
+                    }
+                } else if (name == 'penalty') {
+                    if ('${/parameter/@auto_filt_penalty}' == 'Y') {
+                        record.set('write_off_penalty', value);
+                    }
+                } else if (name == 'write_off_due_amount') {
+                    if (record.get('cf_type') == '1' && '${/parameter/@auto_filt_prinicipal_interest}' == 'Y') {
+                        var write_off_order100 = record.get('write_off_order100'),
+                            write_off_order101 = record.get('write_off_order101'),
+                            current_value, unreceived_principal = get_current_amount(record.get('unreceived_principal')),
+                            unreceived_interest = get_current_amount(record.get('unreceived_interest')),
+                            current_principal_value, current_interest_value, v_message = '';
+                        if (write_off_order100 < write_off_order101) {
+                            current_principal_value = get_min_amount(value, unreceived_principal);
+                            current_interest_value = get_minus_amount(value, current_principal_value);
+                            if (unreceived_interest < current_interest_value) {
+                                v_message = '${l:CSH513.WRITEOFF_INTEREST_BEYOND}';
+                            }
+                        } else {
+                            current_interest_value = get_min_amount(value, unreceived_interest);
+                            current_principal_value = get_minus_amount(value, current_interest_value);
+                            if (unreceived_principal < current_principal_value) {
+                                v_message = '${l:CSH513.WRITEOFF_PRINICIPAL_BEYOND}';
+                            }
+                        }
+                        record.set('write_off_interest', current_interest_value);
+                        record.set('write_off_principal', current_principal_value);
+                        if (v_message) {
+                            Aurora.showMessage('${l:PROMPT}', v_message);
+                        }
+                    }
+                    if (value != oldvalue) {
+                        var change_value = get_minus_amount(value, oldvalue);
+                        head_record.set('unwrite_off_amount', minus(unwrite_off_amount, change_value));
+                    }
+                } else if (name == 'write_off_penalty') {
+                    if (value != oldvalue) {
+                        var penalty_change_value = get_minus_amount(value, oldvalue);
+                        head_record.set('unwrite_off_amount', minus(unwrite_off_amount, penalty_change_value));
+                    }
+                }
+            }
+            
+            function get_current_amount(amt) {
+                if (!Ext.isEmpty(amt)) {
+                    return amt;
+                } else {
+                    return 0;
+                }
+            }
+            
+            function get_minus_amount(amt1, amt2) {
+                var value1 = get_current_amount(amt1),
+                    value2 = get_current_amount(amt2);
+                var value = minus(value1, value2);
+                return value;
+            }
+            
+            function get_min_amount(amt1, amt2) {
+                if (!Ext.isEmpty(amt1) && !Ext.isEmpty(amt2)) {
+                    if (amt1 > amt2) {
+                        return amt2;
+                    } else {
+                        return amt1;
+                    }
+                } else if (Ext.isEmpty(amt1)) {
+                    return amt2;
+                } else if (Ext.isEmpty(amt2)) {
+                    return amt1;
+                } else {
+                    return null;
+                }
+            }
+            
+            function on_write_off_due_amount_dblclick() {
+                var head_record = $('csh_transaction_receipt_write_off_detail_head_ds').getAt(0),
+                    record = $('receipt_write_off_creditor_result_ds').getCurrentRecord();
+                var unwrite_off_amount = head_record.get('unwrite_off_amount'),
+                    unreceived_amount = record.get('unreceived_amount');
+                if (Ext.isEmpty(record.get('write_off_due_amount'))) {
+                    record.set('write_off_due_amount', get_min_amount(unwrite_off_amount, unreceived_amount));
+                }
+            }
+            
+            function on_write_off_penalty_dblclick() {
+                var head_record = $('csh_transaction_receipt_write_off_detail_head_ds').getAt(0),
+                    record = $('receipt_write_off_creditor_result_ds').getCurrentRecord();
+                var unwrite_off_amount = head_record.get('unwrite_off_amount'),
+                    penalty = record.get('penalty');
+                if (Ext.isEmpty(record.get('write_off_penalty')) && !Ext.isEmpty(penalty)) {
+                    record.set('write_off_penalty', get_min_amount(unwrite_off_amount, penalty));
+                }
+            }
+            
+            function on_csh_trx_receipt_write_off_add(ds, record, index) {
+                if ('${/parameter/@transaction_type}' == 'RECEIPT') {
+                    record.set('write_off_type', 'RECEIPT_CREDIT');
+                } else if ('${/parameter/@transaction_type}' == 'ADVANCE_RECEIPT') {
+                    record.set('write_off_type', 'ADVANCE_RECEIPT_CREDIT');
+                } else if ('${/parameter/@transaction_type}' == 'DEPOSIT') {
+                    record.set('write_off_type', 'DEPOSIT_CREDIT');
+                } else if ('${/parameter/@transaction_type}' == 'RISK') {
+                    record.set('write_off_type', 'RISK_CREDIT');
+                }
+            }
+            
+            function on_write_off_detail_head_load(ds) {
+                var tab2_id = document.getElementById('receipt_write_off_prereceipt_tab_id');
+                var tab3_id = document.getElementById('receipt_write_off_deposit_tab_id');
+                var tab4_id = document.getElementById('receipt_write_off_risk_tab_id');
+                var tab5_id = document.getElementById('receipt_write_off_deposit_cus_tab_id'); /* tab2_id.style.display = "none";   modified by Harry 9952 2017/2/28*/
+                if ('${/parameter/@transaction_type}' == 'DEPOSIT' || '${/parameter/@transaction_type}' == 'RISK') {
+                    //
+                    tab2_id.style.display = "none";
+                    tab4_id.style.display = "none";
+                    tab5_id.style.display = "none";
+                }
+                if ('${/parameter/@transaction_type}' == 'RISK') { //风险金不能核销为保证金
+                    tab2_id.style.display = "none";
+                    tab3_id.style.display = "none";
+                }
+                if ('${/parameter/@transaction_type}' == 'ADVANCE_RECEIPT') { //预收款不能核销为预收款
+                    //tab2_id.style.display = "none";
+                }
+                //if tab3_id.style.display = "none";
+            
+            }
+            
+            function on_csh_trx_receipt_write_off_remove(ds, record, index) {
+                var head_record = $('csh_transaction_receipt_write_off_detail_head_ds').getCurrentRecord();
+                var change_value = record.get('write_off_due_amount') || 0;
+                var change_value1 = record.get('write_off_penalty') || 0;
+                var unwrite_off_amount = head_record.get('unwrite_off_amount');
+                unwrite_off_amount = parseInt(unwrite_off_amount) + parseInt(change_value);
+                unwrite_off_amount = parseInt(unwrite_off_amount) + parseInt(change_value1);
+                head_record.set('unwrite_off_amount', unwrite_off_amount);
+            }
+            
+            function con_csh_trx_receipt_load() {
+                var ds = $('receipt_write_off_creditor_result_ds');
+                var records = ds.getAll();
+                for (var i = 0;i < records.length;i++) {
+                    var record = records[i];
+                    var cf_type = record.get('cf_type');
+                    if (cf_type == '1' && '${/parameter/@auto_filt_prinicipal_interest}' == 'Y') {
+                        record.getField('write_off_due_amount').setReadOnly(false);
+                        record.getField('write_off_principal').setReadOnly(true);
+                        record.getField('write_off_interest').setReadOnly(true);
+                        record.getField('write_off_penalty').setReadOnly(false);
+                        record.getField('description').setReadOnly(false);
+                    } else if (cf_type == '1' && '${/parameter/@auto_filt_prinicipal_interest}' == 'N') {
+                        record.getField('write_off_due_amount').setReadOnly(true);
+                        record.getField('write_off_principal').setReadOnly(false);
+                        record.getField('write_off_interest').setReadOnly(false);
+                        record.getField('write_off_penalty').setReadOnly(false);
+                        record.getField('description').setReadOnly(false);
+                    } else {
+                        record.getField('write_off_due_amount').setReadOnly(false);
+                        record.getField('write_off_principal').setReadOnly(false);
+                        record.getField('write_off_interest').setReadOnly(false);
+                        if (cf_type != 9) {
+                            record.getField('write_off_penalty').setReadOnly(true);
+                        } else {
+                            record.getField('write_off_penalty').setReadOnly(false);
+                        }
+                        record.getField('description').setReadOnly(false);
+                    }
+                }
+            }
+        ]]></script>
+        <style><![CDATA[
+        	.add-btn,.close-btn{
+        		background-image:url(${/request/@context_path}/resource/aurora.ui.std/default/toolbar/toolbar_btn.gif);
+        		background-position:0 -34px;
+        		height:17px;
+        		width:17px;
+				margin-top:3px;
+        		display:block;
+        		cursor:pointer;
+        	}
+        	.add-btn{
+    	    	background-position:0 0;
+        	}
+        	.align_dom {
+    			text-align:right;
+    		}
+        ]]></style>
+        <a:dataSets>
+            <a:dataSet id="deposit_transfer_type_ds" lookupCode="CSH_DEPOSIT_TRANSFER_TYPE"/>
+            <a:dataSet id="quarter_ds" lookupCode="HLS_QUARTER"/>
+            <a:dataSet id="month_ds" lookupCode="HLS_MONTHLY"/>
+            <a:dataSet id="hls_cashflow_item_ds">
+                <a:datas dataSource="/model/hls_cashflow_item_path"/>
+            </a:dataSet>
+            <a:dataSet id="csh_transaction_receipt_write_off_detail_head_ds" model="csh.CSH511.csh_transaction">
+                <a:datas dataSource="/model/csh_transaction_path"/>
+                <a:fields>
+                    <a:field name="write_off_date" defaultValue="${/model/sys_default_value/record/@now_time}" readOnly="true" required="true"/>
+                    <a:field name="ref_contract_num" readOnly="true"/>
+                    <a:field name="bank_slip_num" readOnly="true"/>
+                    <a:field name="bp_code" readOnly="true"/>
+                    <a:field name="bp_category" readOnly="true"/>
+                    <a:field name="bp_category_n" readOnly="true"/>
+                    <a:field name="transaction_num" readOnly="true"/>
+                    <a:field name="currency_name" readOnly="true"/>
+                    <a:field name="bp_name" readOnly="true"/>
+                    <a:field name="transaction_amount" readOnly="true"/>
+                    <a:field name="returned_amount" readOnly="true"/>
+                    <a:field name="write_off_amount" readOnly="true"/>
+                    <a:field name="unwrite_off_amount" readOnly="true"/>
+                    <a:field name="ref_v01"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="on_write_off_detail_head_load"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="receipt_write_off_creditor_result_ds" autoQuery="true" fetchAll="true" model="csh.CSH513.csh_write_off_credit" queryUrl="${/request/@context_path}/autocrud/csh.CSH513.csh_write_off_credit/query?transaction_id=${/parameter/@transaction_id}">
+                <a:fields>
+                    <a:field name="contract_number" lovHeight="550" lovUrl="${/request/@context_path}/modules/csh/CSH513/csh_transaction_receipt_ref_contract.screen?transaction_id=${/parameter/@transaction_id}&amp;limit_flag=${/parameter/@limit_flag}&amp;bp_id1=${/parameter/@bp_id1}&amp;bp_limit_flag=${/parameter/@bp_limit_flag}&amp;bank_slip_num=${/model/csh_transaction_path/record/@bank_slip_num}&amp;bp_id=${/model/csh_transaction_path/record/@bp_id}&amp;bp_name=${/model/csh_transaction_path/record/@bp_name}&amp;cf_df_flag=${/parameter/@cf_df_flag}" lovWidth="1050" required="true" title="HLS.CONTRACT">
+                        <a:mapping>
+                            <a:map from="contract_id" to="document_id"/>
+                            <a:map from="cf_type" to="cf_type"/>
+                            <a:map from="cashflow_id" to="document_line_id"/>
+                            <a:map from="document_category" to="document_category"/>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="project_id" to="project_id"/>
+                            <a:map from="project_name" to="project_name"/>
+                            <a:map from="cf_type_name" to="cf_type_name"/>
+                            <a:map from="cf_item" to="cf_item"/>
+                            <a:map from="cf_item_name" to="cf_item_name"/>
+                            <a:map from="bp_id_tenant" to="bp_id"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="due_date" to="due_date"/>
+                            <a:map from="times" to="times"/>
+                            <a:map from="due_amount" to="due_amount"/>
+                            <a:map from="principal" to="principal"/>
+                            <a:map from="interest" to="interest"/>
+                            <a:map from="unreceived_amount" to="unreceived_amount"/>
+                            <a:map from="unreceived_principal" to="unreceived_principal"/>
+                            <a:map from="unreceived_interest" to="unreceived_interest"/>
+                            <a:map from="penalty" to="penalty"/>
+                            <a:map from="penalty_cashflow_id" to="penalty_cashflow_id"/>
+                            <a:map from="write_off_order" to="write_off_order"/>
+                            <a:map from="write_off_order100" to="write_off_order100"/>
+                            <a:map from="write_off_order101" to="write_off_order101"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="write_off_type"/>
+                    <a:field name="write_off_order"/>
+                    <a:field name="write_off_order100"/>
+                    <a:field name="write_off_order101"/>
+                    <a:field name="transaction_category" defaultValue="BUSINESS"/>
+                    <a:field name="transaction_type" defaultValue="${/parameter/@transaction_type}"/>
+                    <a:field name="document_category"/>
+                    <a:field name="document_id"/>
+                    <a:field name="document_line_id"/>
+                    <a:field name="penalty_cashflow_id"/>
+                    <a:field name="project_id"/>
+                    <a:field name="project_name"/>
+                    <a:field name="cf_type"/>
+                    <a:field name="cf_type_name"/>
+                    <a:field name="bp_id"/>
+                    <a:field name="bp_name"/>
+                    <a:field name="due_date"/>
+                    <a:field name="times"/>
+                    <a:field name="due_amount"/>
+                    <a:field name="principal"/>
+                    <a:field name="interest"/>
+                    <a:field name="unreceived_amount"/>
+                    <a:field name="unreceived_principal"/>
+                    <a:field name="unreceived_interest"/>
+                    <a:field name="penalty"/>
+                    <a:field name="write_off_due_amount"/>
+                    <a:field name="write_off_principal"/>
+                    <a:field name="write_off_interest"/>
+                    <a:field name="write_off_penalty"/>
+                    <a:field name="description"/>
+                    <a:field name="cf_item"/>
+                    <a:field name="cf_item_name"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_csh_trx_receipt_write_off_update"/>
+                    <a:event name="add" handler="on_csh_trx_receipt_write_off_add"/>
+                    <a:event name="remove" handler="on_csh_trx_receipt_write_off_remove"/>
+                    <!-- <a:event name="load" handler="con_csh_trx_receipt_load" /> -->
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="receipt_write_off_prereceipt_result_ds" autoCreate="true" autoQuery="true" model="csh.CSH513.csh_write_off_others" queryUrl="${/request/@context_path}/autocrud/csh.CSH513.csh_write_off_others/query?transaction_id=${/parameter/@transaction_id}&amp;write_off_type=RECEIPT_ADVANCE_RECEIPT">
+                <a:fields>
+                    <a:field name="transaction_category" defaultValue="BUSINESS"/>
+                    <a:field name="transaction_type" defaultValue="RECEIPT"/>
+                    <a:field name="write_off_type" defaultValue="${/model/sys_code_default_value_path/record/@code_value}"/>
+                    <a:field name="write_off_type_desc" defaultValue="${/model/sys_code_default_value_path/record/@code_value_name}"/>
+                    <a:field name="write_off_due_amount"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_csh_trx_prereceipt_write_off_update"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="receipt_write_off_deposit_result_ds" autoCreate="true" autoQuery="true" model="csh.CSH513.csh_write_off_others" queryUrl="${/request/@context_path}/autocrud/csh.CSH513.csh_write_off_others/query?transaction_id=${/parameter/@transaction_id}&amp;write_off_type=DEPOSIT">
+                <a:fields>
+                    <a:field name="bp_id_n" lovHeight="500" lovService="csh.CSH513.csh_get_agent_bp" lovWidth="500" title="经销商">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_name" to="bp_id_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="transfer_type_n" displayField="code_value_name" options="deposit_transfer_type_ds" returnField="transfer_type" valueField="code_value"/>
+                    <a:field name="year_flag"/>
+                    <a:field name="quarter_flag_n" displayField="code_value_name" options="quarter_ds" returnField="quarter_flag" valueField="code_value"/>
+                    <a:field name="month_flag_n" displayField="code_value_name" options="month_ds" returnField="month_flag" valueField="code_value"/>
+                    <a:field name="transaction_category" defaultValue="BUSINESS"/>
+                    <a:field name="transaction_type" defaultValue="DEPOSIT"/>
+                    <a:field name="write_off_type" defaultValue="${/model/sys_code_deposit_value_path/record/@code_value}"/>
+                    <a:field name="write_off_type_desc" defaultValue="${/model/sys_code_deposit_value_path/record/@code_value_name}"/>
+                    <a:field name="write_off_due_amount"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_csh_trx_prereceipt_write_off_update"/>
+                    <a:event name="load" handler="receipt_write_off_deposit_result_ds_load"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="receipt_write_off_risk_result_ds" autoCreate="true" autoQuery="true" model="csh.CSH513.csh_write_off_others" queryUrl="${/request/@context_path}/autocrud/csh.CSH513.csh_write_off_others/query?transaction_id=${/parameter/@transaction_id}&amp;write_off_type=RISK">
+                <a:fields>
+                    <a:field name="transaction_category" defaultValue="BUSINESS"/>
+                    <a:field name="transaction_type" defaultValue="RISK"/>
+                    <a:field name="write_off_type" defaultValue="${/model/sys_code_risk_value_path/record/@code_value}"/>
+                    <a:field name="write_off_type_desc" defaultValue="${/model/sys_code_risk_value_path/record/@code_value_name}"/>
+                    <a:field name="write_off_due_amount"/>
+                    <a:field name="risk_in_dec"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_csh_trx_prereceipt_write_off_update"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="receipt_write_off_deposit_cus_result_ds" autoCreate="true" autoQuery="true" model="csh.CSH513.csh_write_off_others" queryUrl="${/request/@context_path}/autocrud/csh.CSH513.csh_write_off_others/query?transaction_id=${/parameter/@transaction_id}&amp;write_off_type=DEPOSIT_CUS">
+                <a:fields>
+                    <a:field name="document_id_n" autoComplete="true" lovHeight="500" lovService="csh.CSH513.deposit_cus_contract" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="contract_number" to="document_id_n"/>
+                            <a:map from="contract_id" to="document_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="transaction_category" defaultValue="BUSINESS"/>
+                    <a:field name="transaction_type" defaultValue="DEPOSIT_CUS"/>
+                    <a:field name="write_off_type" defaultValue="${/model/sys_code_deposit_cus_value_path/record/@code_value}"/>
+                    <a:field name="write_off_type_desc" defaultValue="${/model/sys_code_deposit_cus_value_path/record/@code_value_name}"/>
+                    <a:field name="write_off_due_amount"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_csh_trx_prereceipt_write_off_update"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="csh513_receipt_detail_return" text="HLS.RETURN"/>
+                <a:gridButton click="csh513_receipt_detail_remove" text="HLS.REMOVE"/>
+                <a:gridButton click="csh513_receipt_detail_add" text="HLS.NEW"/>
+                <!--<a:gridButton click="csh513_receipt_detail_write_off" text="HLS.WRITE_OFF"/>-->
+                <!--                 <a:gridButton click="csh513_receipt_detail_write_off" text="HLS.SAVE"/>
+ -->
+                <a:gridButton click="csh513_submit_click" text="提交"/>
+            </a:screenTopToolbar>
+            <a:form title="CSH513.RECEIPT_WRITE_OFF" width="1224">
+                <a:box column="4" labelWidth="100">
+                    <a:datePicker name="write_off_date" bindTarget="csh_transaction_receipt_write_off_detail_head_ds" prompt="HLS.WRITE_OFF_DATE"/>
+                    <a:textField name="ref_contract_num" bindTarget="csh_transaction_receipt_write_off_detail_head_ds" prompt="合同编号"/>
+                    <a:textField name="bp_code" bindTarget="csh_transaction_receipt_write_off_detail_head_ds" prompt="HLS.BP_CODE"/>
+                    <a:textField name="bp_category_n" bindTarget="csh_transaction_receipt_write_off_detail_head_ds" prompt="CSH513.CSH_BP_CATEGORY"/>
+                </a:box>
+                <a:box column="4" labelWidth="100">
+                    <a:textField name="transaction_num" bindTarget="csh_transaction_receipt_write_off_detail_head_ds"/>
+                    <a:textField name="currency_name" bindTarget="csh_transaction_receipt_write_off_detail_head_ds"/>
+                    <a:textField name="bp_name" bindTarget="csh_transaction_receipt_write_off_detail_head_ds" prompt="HLS.BP_NAME" width="408"/>
+                </a:box>
+                <a:box column="4" labelWidth="100">
+                    <a:numberField name="transaction_amount" allowFormat="true" bindTarget="csh_transaction_receipt_write_off_detail_head_ds"/>
+                    <a:numberField name="returned_amount" allowFormat="true" bindTarget="csh_transaction_receipt_write_off_detail_head_ds" prompt="HLS.RETURNED_AMOUNT"/>
+                    <a:numberField name="write_off_amount" allowFormat="true" bindTarget="csh_transaction_receipt_write_off_detail_head_ds" prompt="HLS.WRITEOFF_AMOUNT"/>
+                    <a:numberField name="unwrite_off_amount" allowFormat="true" bindTarget="csh_transaction_receipt_write_off_detail_head_ds" prompt="CSH513.REMAINING_WRITEOFF_AMOUNT"/>
+                </a:box>
+                <a:box column="2" labelWidth="100">
+                    <a:textArea name="description" bindTarget="csh_transaction_receipt_write_off_detail_head_ds" prompt="收款备注" readOnly="true" width="405"/>
+                    <a:textArea name="ref_v01" bindTarget="csh_transaction_receipt_write_off_detail_head_ds" prompt="核销备注" width="405"/>
+                </a:box>
+            </a:form>
+            <a:tabPanel height="375" width="1224">
+                <a:tabs>
+                    <a:tab prompt="CSH513.RECEIPT_CREDIT" width="110">
+                        <div id="demo" class="item-grid item-grid-wrap" style="width:1220px;height:348px;">
+                            <div class="grid-uh" onselectstart="return false;" style="text-align: left; height: 50px; cursor: default" unselectable="on">
+                                <table border="0" cellpadding="0" cellspacing="0">
+                                    <tbody>
+                                        <tr class="grid-hl" height="0">
+                                            <th style="height:0px;" width="30"/>
+                                            <th style="height:0px;" width="40"/>
+                                            <th style="height:0px;" width="100"/>
+                                            <th style="height:0px;" width="100"/>
+                                            <th style="height:0px;" width="100"/>
+                                            <th style="height:0px;" width="100"/>
+                                            <th style="height:0px;" width="100"/>
+                                            <th style="height:0px;" width="100"/>
+                                            <th style="height:0px;" width="100"/>
+                                            <th style="height:0px;" width="100"/>
+                                            <th style="height:0px;" width="100"/>
+                                            <th style="height:0px;" width="100"/>
+                                            <th style="height:0px;" width="100"/>
+                                            <th style="height:0px;" width="40"/>
+                                            <th style="height:0px;" width="18"/>
+                                        </tr>
+                                        <tr height="25">
+                                            <td class="grid-hc" rowspan="2">
+                                                <div><![CDATA[NO]]></div>
+                                            </td>
+                                            <td class="grid-hc" colspan="2">
+                                                <div><![CDATA[${l:HLS.CONTRACT_NUMBER}]]></div>
+                                            </td>
+                                            <td class="grid-hc" colspan="2">
+                                                <div><![CDATA[${l:PRJ501.PRJ_PROJECT.PROJECT_NAME}]]></div>
+                                            </td>
+                                            <td class="grid-hc">
+                                                <div><![CDATA[${l:CSH513.CF_ITEM}]]></div>
+                                            </td>
+                                            <td class="grid-hc" colspan="2">
+                                                <div><![CDATA[${l:CSH513.BP_TENANT}]]></div>
+                                            </td>
+                                            <td class="grid-hc">
+                                                <div><![CDATA[${l:CSH513.DUE_DATE}]]></div>
+                                            </td>
+                                            <td class="grid-hc" colspan="4">
+                                                <div><![CDATA[${l:HLS.COMMENT}]]></div>
+                                            </td>
+                                            <td class="grid-hc" rowspan="2">
+                                                <div align="center">
+                                                    <span class="add-btn"/>
+                                                </div>
+                                            </td>
+                                            <td rowspan="2"/>
+                                        </tr>
+                                        <tr height="25">
+                                            <td class="grid-hc">
+                                                <div><![CDATA[${l:HLS.PERIOD_NUMBER}]]></div>
+                                            </td>
+                                            <td class="grid-hc">
+                                                <div><![CDATA[${l:CSH513.DUE_AMOUNT}]]></div>
+                                            </td>
+                                            <td class="grid-hc">
+                                                <div><![CDATA[${l:CSH513.PRINCIPAL}]]></div>
+                                            </td>
+                                            <td class="grid-hc">
+                                                <div><![CDATA[${l:CSH513.INTEREST}]]></div>
+                                            </td>
+                                            <td class="grid-hc">
+                                                <div><![CDATA[${l:CSH513.UNRECEIVED_AMOUNT}]]></div>
+                                            </td>
+                                            <td class="grid-hc">
+                                                <div><![CDATA[${l:CSH513.UNRECEIVED_PRINCIPAL}]]></div>
+                                            </td>
+                                            <td class="grid-hc">
+                                                <div><![CDATA[${l:CSH513.UNRECEIVED_INTEREST}]]></div>
+                                            </td>
+                                            <td class="grid-hc">
+                                                <div><![CDATA[${l:CSH513.PENALTY}]]></div>
+                                            </td>
+                                            <td class="grid-hc">
+                                                <div><![CDATA[${l:HLS.WRITEOFF_DUE_AMOUNT}]]></div>
+                                            </td>
+                                            <td class="grid-hc">
+                                                <div><![CDATA[${l:CSH513.WRITE_OFF_PRINCIPAL}]]></div>
+                                            </td>
+                                            <td class="grid-hc">
+                                                <div><![CDATA[${l:CSH513.WRITE_OFF_INTEREST}]]></div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="grid-ub" style="height:298px;"><![CDATA[
+        	]]></div>
+                        </div>
+                        <script><![CDATA[
+			new MultiGrid({id:'demo',linetpl:[
+					    '<tr>',
+					    	'<td rowspan="2" align="center"><div dataindex="sequence">{row}</div></td>',
+					    	'<td colspan="2">',
+								'<input atype="lov" readonly="true" dataindex="contract_number">',
+					    	'</td>',
+					    	'<td colspan="2"><div dataindex="project_name"></div></td>',
+					    	'<td><div dataindex="cf_item_name"></div></td>',
+					    	'<td colspan="2"><div dataindex="bp_name"></div></td>',
+					    	'<td><div dataindex="due_date" renderer="Aurora.formatDate"></div></td>',
+					    	'<td colspan="4"><input dataindex="description"/></td>',
+					    	'<td rowspan="2"><div align="center"><span class="close-btn"></span></div></td>',
+					    '</tr>',
+					    '<tr>',
+					    	'<td><div dataindex="times"></div></td>',
+					    	'<td class="align_dom"><div dataindex="due_amount" renderer="Aurora.formatMoney"></div></td>',
+					    	'<td class="align_dom"><div dataindex="principal" renderer="Aurora.formatMoney"></div></td>',
+					    	'<td class="align_dom"><div dataindex="interest" renderer="Aurora.formatMoney"></div></td>',
+					    	'<td class="align_dom"><div dataindex="unreceived_amount" renderer="Aurora.formatMoney"></div></td>',
+					    	'<td class="align_dom"><div dataindex="unreceived_principal" renderer="Aurora.formatMoney"></div></td>',
+					    	'<td class="align_dom"><div dataindex="unreceived_interest" renderer="Aurora.formatMoney"></div></td>',
+					    	'<td class="align_dom"><div dataindex="penalty" renderer="Aurora.formatMoney"></div></td>',
+					    	'<td><input class="align_dom" atype="numberfield" ondblclick="on_write_off_due_amount_dblclick()" dataindex="write_off_due_amount" renderer="Aurora.formatMoney"/></td>',
+					    	'<td><input class="align_dom item-readOnly" atype="numberfield" dataindex="write_off_principal" readOnly="readOnly" renderer="Aurora.formatMoney"/></td>',
+					    	'<td><input class="align_dom item-readOnly" atype="numberfield" dataindex="write_off_interest" readOnly="readOnly" renderer="Aurora.formatMoney"/></td>',
+					    '</tr>'
+		    ],sequencefield:'sequence',context:'${/request/@context_path}/'}).bind('receipt_write_off_creditor_result_ds');
+		]]></script>
+                    </a:tab>
+                    <a:tab id="receipt_write_off_prereceipt_tab_id" prompt="预收款" width="110">
+                        <!-- prompt="CSH513.RECEIPT_ADVANCE_RECEIPT" -->
+                        <a:grid id="receipt_write_off_prereceipt_grid_ds" bindTarget="receipt_write_off_prereceipt_result_ds" height="250" navBar="true" width="1220">
+                            <a:columns>
+                                <a:column name="write_off_type_desc" prompt="HLS.WRITE_OFF_TYPE"/>
+                                <a:column name="write_off_due_amount" editor="precreditor_grid_numberfield_id" prompt="CSH513.WRITE_OFF_DUE_AMOUNT"/>
+                                <a:column name="description" editor="prereceipt_texted_id" prompt="备注" width="250"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:numberField id="precreditor_grid_numberfield_id" allowDecimals="true" allowFormat="true" allowNegative="false"/>
+                                <a:textField id="prereceipt_texted_id"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab id="receipt_write_off_deposit_tab_id" prompt="核销为保证金" width="110">
+                        <a:grid id="receipt_write_off_depost_grid_ds" bindTarget="receipt_write_off_deposit_result_ds" height="250" navBar="true" width="1220">
+                            <a:columns>
+                                <a:column name="write_off_type_desc" prompt="HLS.WRITE_OFF_TYPE"/>
+                                <a:column name="write_off_due_amount" editor="deposit_grid_numberfield_id" prompt="CSH513.WRITE_OFF_DUE_AMOUNT"/>
+                                <a:column name="bp_id_n" editor="deposit_lov_id" prompt="经销商" width="170"/>
+                                <a:column name="transfer_type_n" editor="deposit_combox_id" prompt="收入项"/>
+                                <a:column name="year_flag" editor="deposit_texted_id" prompt="年度" width="70"/>
+                                <a:column name="quarter_flag_n" editor="deposit_combox_id" prompt="季度" width="70"/>
+                                <a:column name="month_flag_n" editor="deposit_combox_id" prompt="月度" width="70"/>
+                                <a:column name="description" editor="deposit_texted_id" prompt="备注" width="250"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:textField id="deposit_texted_id"/>
+                                <a:lov id="deposit_lov_id"/>
+                                <a:comboBox id="deposit_combox_id"/>
+                                <a:checkBox id="deposit_check_id"/>
+                                <a:numberField id="deposit_grid_numberfield_id" allowDecimals="true" allowFormat="true" allowNegative="false"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab id="receipt_write_off_risk_tab_id" prompt="核销为风险金" width="110">
+                        <a:grid id="receipt_write_off_risk_grid_ds" bindTarget="receipt_write_off_risk_result_ds" height="250" navBar="true" width="1220">
+                            <a:columns>
+                                <a:column name="write_off_type_desc" prompt="HLS.WRITE_OFF_TYPE"/>
+                                <a:column name="write_off_due_amount" editor="risk_grid_numberfield_id" prompt="CSH513.WRITE_OFF_DUE_AMOUNT"/>
+                                <a:column name="risk_in_dec" editor="risk_grid_textfield_id" prompt="备注"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:textField id="risk_grid_textfield_id"/>
+                                <a:numberField id="risk_grid_numberfield_id" allowDecimals="true" allowFormat="true" allowNegative="false"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab id="receipt_write_off_deposit_cus_tab_id" prompt="核销为客户保证金" width="110">
+                        <a:grid id="receipt_write_off_deposit_cus_grid_ds" bindTarget="receipt_write_off_deposit_cus_result_ds" height="250" navBar="true" width="1220">
+                            <a:columns>
+                                <a:column name="write_off_type_desc" prompt="HLS.WRITE_OFF_TYPE"/>
+                                <a:column name="write_off_due_amount" editor="deposit_cus_grid_numberfield_id" prompt="CSH513.WRITE_OFF_DUE_AMOUNT"/>
+                                <a:column name="document_id_n" editor="deposit_cus_lov_id" prompt="合同号"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:lov id="deposit_cus_lov_id"/>
+                                <a:numberField id="deposit_cus_grid_numberfield_id" allowDecimals="true" allowFormat="true" allowNegative="false"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

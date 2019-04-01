@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Yenick 
+    $Date: 2018-12-17
+    $Revision: 1.0  
+    $Purpose:手续费导入
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure><![CDATA[
+		
+	]]></a:init-procedure>
+    <a:view>
+        <a:link id="csh_transfer_fee_import_link" url="${/request/@context_path}/modules/csh/CSH750/csh_transfer_fee_import.screen"/>
+        <a:link id="import_upload_link" url="${/request/@context_path}/modules/csh/CSH750/csh_transfer_fee_import_upload.screen"/>
+        <a:link id="transfer_fee_files_detail" url="${/request/@context_path}/modules/csh/CSH750/clear_transfer_fee_files.svc"/>
+        <a:link id="transfer_fee_je" url="${/request/@context_path}/modules/csh/CSH750/csh_transfer_je.svc"/>
+        <a:link id="excel_export" url="${/request/@context_path}/modules/csh/CSH750/excel_export.svc"/>
+        <script><![CDATA[
+            function csh750_reset() {
+                $('con_document_history_query_ds').reset();
+            }
+            
+            function csh750_query() {
+                $('csh_transfer_fee_result_ds').query();
+            }
+            //selectFunction="select_check_box" 
+             function select_check_box(record) {
+                if (record.get('je_flag') == 'Y') {
+                    return false;
+                } else {
+                    return true;
+                }
+            }
+            function con750_import() {
+                var win = new Aurora.Window({
+                    id: 'upload_window',
+                    url: $('import_upload_link').getUrl(),
+                    title: '转账手续费导入',
+                    width: 420,
+                    height: 275
+                });
+                win.on('close', function() {
+                    $('csh_transfer_fee_result_ds').query();
+                });
+            }
+            
+            function con750_export() {
+                _dataSet = $('csh_transfer_fee_result_ds');
+                _records = _dataSet.getSelected();
+                if (_records.length == 0) {
+                    Aurora.showInfoMessage('${l:PROMPT}', '请选择行记录后，导出！');
+                } else {
+                    var datas = [];
+                    for (var i = 0;i < _records.length;i++) {
+                        var data = {
+                            fee_id: _records[i].get('fee_id')
+                        };
+                        datas.push(data);
+                    }
+                    Aurora.request({
+                        url: $('transfer_fee_files_detail').getUrl(),
+                        para: datas,
+                        success: function(args) {
+                            var _url = $('excel_export').getUrl();
+                            window.open(_url);
+                        },
+                        error: function() {},
+                        scope: this
+                    });
+                }
+            }
+               function con750_je() {
+               debugger;
+                _dataSet = $('csh_transfer_fee_result_ds');
+                _records = _dataSet.getSelected();
+               
+                if (_records.length == 0) {
+                    Aurora.showInfoMessage('${l:PROMPT}', '请选择至少一条记录！');
+                } else {
+                     if(_records.length>148){
+                      Aurora.showInfoMessage('${l:PROMPT}', '由于凭证行数限制，请选择不大于148条记录生成凭证！');
+                      return;
+                }
+                    var datas = [];
+                    for (var i = 0;i < _records.length;i++) {
+                        if(_records[i].get('je_flag')=='Y'){
+                              Aurora.showInfoMessage('${l:PROMPT}', '选择的记录中含有已生成凭证的记录，请确认后重新选择！');
+                              return;
+                        }
+                        if(_records[0].get('transfer_fee_date')!=_records[i].get('transfer_fee_date')){
+                              Aurora.showInfoMessage('${l:PROMPT}', '请选择同一天的手续费生成凭证!');
+                              return;
+                        }
+                        var data = {
+                            fee_id: _records[i].get('fee_id')
+                        };
+                        datas.push(data);
+                    }
+                     var queryParams = new Object();
+                queryParams['details'] = datas;
+                     Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+                    Aurora.request({
+                        url: $('transfer_fee_je').getUrl(),
+                        para: queryParams,
+                        success: function(args) {
+                              Aurora.Masker.unmask(Ext.getBody());
+                             Aurora.SideBar.show({
+                                    msg: '操作成功',
+                                    duration: 3000
+                                });
+                                 $('csh_transfer_fee_result_ds').query();
+                        },
+                        error: function() {
+                        Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                }
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=TRANSFER_FEE&amp;function_code=CSH750&amp;"/>
+        <a:dataSets>
+            <a:dataSet id="vehicle_storage_placeDS" lookupCode="VEHICLE_STORAGE_PLACE"/>
+            <a:dataSet id="vis_majorDS" lookupCode="VIS_MAJOR"/>
+            <a:dataSet id="post_gl_status_desc_ds" lookupCode="GLD_JE_CREATE_STATUS"/>
+            <a:dataSet id="transfer_fee_query_ds">
+                <a:fields>
+                    <a:field name="bank_code" lovGridHeight="350" lovHeight="500" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="500" title="银行账号">
+                        <a:mapping>
+                            <a:map from="bank_account_code" to="bank_account_code"/>
+                            <a:map from="bank_account_num" to="bank_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="transfer_fee_date"/>
+                    <a:field name="transfer_fee_amount"/>
+                    <a:field name="journal_num"/>
+                    <a:field name="post_gl_status_desc" defaultValue="未生成" displayField="code_value_name" options="post_gl_status_desc_ds" returnField="invoice_kind" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="csh_transfer_fee_result_ds" autoPageSize="true" autoQuery="true" model="csh.CSH750.hl_transfer_fee_lv" queryDataSet="transfer_fee_query_ds" selectable="true">
+                <a:events>
+                    <a:event name="query" handler="aut_authority_list_validate_query"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="csh750_query" text="查询"/>
+                <a:gridButton click="con750_reset" text="重置"/>
+                <a:gridButton click="con750_import" text="导入"/>
+                <a:gridButton click="con750_export" text="导出"/>
+                <a:gridButton click="con750_je" text="生成凭证"/>
+            </a:screenTopToolbar>
+        </a:screenBody>
+        <a:form column="1" title="查询条件">
+            <a:hBox>
+                <a:datePicker name="transfer_fee_date" bindTarget="transfer_fee_query_ds" prompt="日期"/>
+                <a:textField name="transfer_fee_amount" bindTarget="transfer_fee_query_ds" prompt="金额"/>
+                <a:lov name="bank_code" bindTarget="transfer_fee_query_ds" prompt="银行账户"/>
+                <a:textField name="journal_num" bindTarget="transfer_fee_query_ds" prompt="凭证号"/>
+                <a:comboBox name="post_gl_status_desc" bindTarget="transfer_fee_query_ds" prompt="凭证生成标志"/>
+            </a:hBox>
+        </a:form>
+        <a:grid id="csh_transfer_fee_grid" bindTarget="csh_transfer_fee_result_ds" marginHeight="200" marginWidth="30" navBar="true">
+            <a:columns>
+                <a:column name="transfer_fee_date" prompt="日期" width="150"/>
+                <a:column name="bank_code" prompt="银行账户" width="200"/>
+                <a:column name="transfer_fee_amount" prompt="金额" renderer="Aurora.formatMoney" width="120"/>
+                <a:column name="journal_num" prompt="凭证编号" width="200"/>
+                <a:column name="post_gl_status_desc" prompt="凭证生成标志" width="120"/>
+            </a:columns>
+        </a:grid>
+    </a:view>
+</a:screen>

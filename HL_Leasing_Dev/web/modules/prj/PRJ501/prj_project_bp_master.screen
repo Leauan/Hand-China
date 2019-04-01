@@ -1,0 +1,477 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-2-26 下午2:37:49  
+    $Revision: 1.0  
+    $Purpose: projectMaintainScreen
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query model="basic.sys_session_info" rootPath="default_list"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+        	function bpMaster_showMore(button, e) {
+                var className = 'hide_dom';
+                var obj = Ext.get('moreBpMasterInfo');
+                if (obj.hasClass(className)) {
+                    obj.removeClass(className);
+                    button.setText('${l:PRJ501.HIDE_MORE}');
+                } else {
+                    obj.addClass(className);
+                    button.setText('${l:PRJ501.DISPLAY_MORE}');
+                }
+            
+            }
+            
+            
+            function bpMaster_recordDisplayContral(record)
+            {
+                //如果是选出来的租赁物，那么设置字段只读
+                if(!Ext.isEmpty(record.get('bp_id')))
+                {
+                    if(record.get('readonly_flag')!='Y')
+                    {
+                        var name_list=[
+							'bp_class_desc',
+							'bp_name',
+							'business_license_num',
+							'founded_date',
+							'country_name',
+							'province_name',
+							'city_name',
+							'district_name',
+							'street',
+							'address',
+							'zipcode',
+							'registered_place',
+							'registered_capital',
+							'currency_name',
+							'total_assets',
+							'net_assets',
+							'net_profit',
+							'prime_operating_revenue',
+							'financial_audit_date',
+							'primary_business',
+							'main_products',
+							'legal_form_desc',
+							'industry',
+							'corporate_code',
+							'organization_code',
+							'tax_registry_num',
+							'last_name',
+							'middle_name',
+							'first_name',
+							'name_at_birth',
+							'gender_desc',
+							'nationality',
+							'date_of_birth',
+							'age',
+							'place_of_birth',
+							'id_type_desc',
+							'id_card_no',
+							'academic_background_desc',
+							'marital_status_desc',
+							'number_of_children',
+							'annual_income',
+							'contact_person',
+							'position',
+							'cell_phone',
+							'fax',
+							'email',
+							'phone',
+							'phone_extra',
+							'contact_person_2',
+							'position_2',
+							'cell_phone_2',
+							'fax_2',
+							'email_2',
+							'phone_2',
+							'phone_extra_2'
+			            ];
+                    	for (var i=0,j=name_list.length;i<j;i++)
+                    	{
+                    	    record.getField(name_list[i]).setReadOnly(true);
+                    	}
+                    	record.set('readonly_flag','Y',true);
+                    }
+                }
+            }
+            
+            
+            function bpMaster_ControlBpClass(record,name,oldValue)
+            {
+                if(record.get('readonly_flag')!='Y')
+                {
+                    var readonlyFields=[
+                    	'business_license_num',
+                    	'founded_date',
+                    	'currency_name',
+                    	'currency',
+                    	'total_assets',
+                    	'net_assets',
+                    	'net_profit',
+                    	'prime_operating_revenue',
+                    	'financial_audit_date',
+                    	'primary_business',
+                    	'main_products'
+	                    ];
+                    if(record.get(name)=='NP')
+                    {
+                        for (var i=0,j=readonlyFields.length;i<j;i++)
+                        {
+                            record.getField(readonlyFields[i]).setReadOnly(true);
+                        }
+                    }
+                    else if(oldValue=='NP')
+                    {
+                        for (var i=0,j=readonlyFields.length;i<j;i++)
+                        {
+                            record.getField(readonlyFields[i]).setReadOnly(false);
+                        }
+                    }
+                }
+                    
+            }
+            
+            function onIndexChange_bpMasterDs(ds,record)
+            {
+                if ('${/parameter/@maintain_type}' == 'READONLY') {
+                	record_displayControl(ds,record);
+                }
+                else
+                {
+                    bpMaster_ControlBpClass(record,name,'');
+                    bpMaster_recordDisplayContral(record);
+                }
+                
+            }
+            
+            function onUpdate_bpMasterDs(ds, record, name, value, oldValue) {
+                
+                if(name=='bp_category')
+                {
+                    record.set('bp_type_desc','');
+                    record.set('bp_type','');
+                    record.getField('bp_type_desc').setLovPara('bp_category',value);
+                }
+                if(name=='bp_class')
+                {
+                    bpMaster_ControlBpClass(record,name,oldValue);
+                }
+                else if (name == 'bp_name')
+                {
+                    if (Ext.isEmpty(record.get('bp_id')))
+	                {
+	                    Aurora.request({
+	                        url: $('bmLink_ifBpNameExist').getUrl(),
+	                        para: {
+	                            bp_name: value
+	                        },
+	                        success: function(res) {
+	                            if (res['result']['if_bpName_exist'] == 'Y') {
+	                                Aurora.showMessage('${l:HLS.PROMPT}', '${l:PRJ501.BP_MASTER_EXIST}');
+	                            }
+	                        },
+	                        scope: this
+	                    });
+	                }
+                }
+                else if(name=='bp_id')
+                {
+                    bpMaster_recordDisplayContral(record);
+                }
+                if(name=='country'||name=='province'||name=='city'||name=='district')
+                {
+                    if(value!=oldValue)
+                    {
+                        var nameConfig={
+	                    	country:{
+	                    		clearNameList:['province_name','province','city_name','city','district_name','district','street'],
+	                    		lovConfig:{
+	                    			lovName:'province_name',
+	                    			paraName:'country_id'
+	                    		}
+	                    	},
+	                    	province:{
+	                    		clearNameList:['city_name','city','district_name','district','street'],
+	                    		lovConfig:{
+	                    			lovName:'city_name',
+	                    			paraName:'province_id'
+	                    		}
+	                    	},
+	                    	city:{
+	                    		clearNameList:['district_name','district','street'],
+	                    		lovConfig:{
+	                    			lovName:'district_name',
+	                    			paraName:'city_id'
+	                    		}
+	                    	},
+	                    	district:{
+	                    		clearNameList:['street']
+	                    	}
+	                    }
+                        var config=nameConfig[name];
+	                    var clearNameList=config['clearNameList'];
+	                    for(var i=0,j=clearNameList.length;i<j;i++)
+	                    {
+	                        record.set(clearNameList[i],'');
+	                    }
+	                    if(config['lovConfig']!=undefined)
+	                    {
+	                        var lovConfig=config['lovConfig'];
+	                        record.getField(lovConfig['lovName']).setLovPara(lovConfig['paraName'],value);
+	                    }
+                    }
+                    
+                }
+            }
+            
+            function onRemove_bpMasterDs(ds, record, index) {
+                displayHandle('bpMaster');
+            }
+            
+            function onAdd_bpMasterDs(ds, record, index) {
+                displayHandle('bpMaster');
+            }
+            
+            function onLoad_bpMasterDs(ds) {
+                displayDom('bpMaster_button');
+                displayHandle('bpMaster');
+            }
+            
+            
+            
+            
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="bpMasterDs" autoQuery="true" bindName="bp_master_info" bindTarget="basicInfoDs" fetchAll="true" model="prj.PRJ501.prj_project_bp" queryUrl="${/request/@context_path}/autocrud/prj.PRJ501.prj_project_bp/query?project_id=${/parameter/@project_id}" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="contract_seq" defaultValue="1" required="true"/>
+                    <a:field name="bp_name" fetchRemote="false" lovGridHeight="350" lovHeight="500" lovService="prj.PRJ501.hls_bp_master_prj_v_lov" lovWidth="500" required="true" title="HLS.BP_NAME">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_class" to="bp_class"/>
+                            <a:map from="bp_class_desc" to="bp_class_desc"/>
+                            <a:map from="business_license_num" to="business_license_num"/>
+                            <a:map from="founded_date" to="founded_date"/>
+                            <a:map from="country" to="country"/>
+                            <a:map from="country_name" to="country_name"/>
+                            <a:map from="province" to="province"/>
+                            <a:map from="province_name" to="province_name"/>
+                            <a:map from="city" to="city"/>
+                            <a:map from="city_name" to="city_name"/>
+                            <a:map from="district" to="district"/>
+                            <a:map from="district_name" to="district_name"/>
+                            <a:map from="street" to="street"/>
+                            <a:map from="address" to="address"/>
+                            <a:map from="zipcode" to="zipcode"/>
+                            <a:map from="registered_place" to="registered_place"/>
+                            <a:map from="registered_capital" to="registered_capital"/>
+                            <a:map from="currency" to="currency"/>
+                            <a:map from="currency_name" to="currency_name"/>
+                            <a:map from="legal_form_desc" to="legal_form_desc"/>
+                            <a:map from="industry" to="industry"/>
+                            <a:map from="corporate_code" to="corporate_code"/>
+                            <a:map from="organization_code" to="organization_code"/>
+                            <a:map from="tax_registry_num" to="tax_registry_num"/>
+                            <a:map from="last_name" to="last_name"/>
+                            <a:map from="middle_name" to="middle_name"/>
+                            <a:map from="first_name" to="first_name"/>
+                            <a:map from="name_at_birth" to="name_at_birth"/>
+                            <a:map from="gender" to="gender"/>
+                            <a:map from="gender_desc" to="gender_desc"/>
+                            <a:map from="nationality" to="nationality"/>
+                            <a:map from="date_of_birth" to="date_of_birth"/>
+                            <a:map from="age" to="age"/>
+                            <a:map from="place_of_birth" to="place_of_birth"/>
+                            <a:map from="id_type" to="id_type"/>
+                            <a:map from="id_type_desc" to="id_type_desc"/>
+                            <a:map from="id_card_no" to="id_card_no"/>
+                            <a:map from="academic_background" to="academic_background"/>
+                            <a:map from="academic_background_desc" to="academic_background_desc"/>
+                            <a:map from="marital_status" to="marital_status"/>
+                            <a:map from="marital_status_desc" to="marital_status_desc"/>
+                            <a:map from="number_of_children" to="number_of_children"/>
+                            <a:map from="annual_income" to="annual_income"/>
+                            <a:map from="contact_person" to="contact_person"/>
+                            <a:map from="position" to="position"/>
+                            <a:map from="phone" to="phone"/>
+                            <a:map from="phone_extra" to="phone_extra"/>
+                            <a:map from="fax" to="fax"/>
+                            <a:map from="cell_phone" to="cell_phone"/>
+                            <a:map from="email" to="email"/>
+                            <a:map from="contact_person_2" to="contact_person_2"/>
+                            <a:map from="position_2" to="position_2"/>
+                            <a:map from="phone_2" to="phone_2"/>
+                            <a:map from="phone_extra_2" to="phone_extra_2"/>
+                            <a:map from="fax_2" to="fax_2"/>
+                            <a:map from="cell_phone_2" to="cell_phone_2"/>
+                            <a:map from="email_2" to="email_2"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_class_desc" displayField="code_value_name" options="bpClassDs" required="true" returnField="bp_class" valueField="code_value"/>
+                    <a:field name="bp_category_desc" lovGridHeight="300" lovHeight="500" lovService="basic.hls_bp_category_lov" lovWidth="500" required="true" title="HLS.BP_CATEGORY">
+                        <a:mapping>
+                            <a:map from="description" to="bp_category_desc"/>
+                            <a:map from="bp_category" to="bp_category"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_type_desc" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_type_v_lov" lovWidth="500" required="true" title="HLS.BP_TYPE">
+                        <a:mapping>
+                            <a:map from="description" to="bp_type_desc"/>
+                            <a:map from="bp_type" to="bp_type"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="currency_name" displayField="currency_name" options="currencyDs" returnField="currency" valueField="currency_code"/>
+                    <a:field name="country" defaultValue="${/model/default_list/record/@country_id}"/>
+                    <a:field name="country_name" defaultValue="${/model/default_list/record/@country_name}" lovGridHeight="350" lovHeight="500" lovService="basic.fnd_country_for_lov" lovWidth="500" title="HLS.COUNTRY">
+                        <a:mapping>
+                            <a:map from="country_id" to="country"/>
+                            <a:map from="description" to="country_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="province_name" lovGridHeight="350" lovHeight="500" lovService="basic.fnd_province_for_lov?country_flag=Y&amp;country_id=${/model/default_list/record/@country_id}" lovWidth="500" title="HLS.PROVINCE">
+                        <a:mapping>
+                            <a:map from="province_id" to="province"/>
+                            <a:map from="description" to="province_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="province"/>
+                    <a:field name="city_name" lovGridHeight="350" lovHeight="500" lovService="basic.fnd_city_for_lov?province_flag=Y" lovWidth="500" title="HLS.CITY">
+                        <a:mapping>
+                            <a:map from="city_id" to="city"/>
+                            <a:map from="description" to="city_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="city"/>
+                    <a:field name="district_name" lovGridHeight="350" lovHeight="500" lovService="basic.fnd_district_for_lov?city_flag=Y" lovWidth="500" title="HLS.DISTRICT">
+                        <a:mapping>
+                            <a:map from="district_id" to="district"/>
+                            <a:map from="description" to="district_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="legal_form_desc" displayField="code_value_name" options="legal_form_ds" returnField="legal_form" valueField="code_value"/>
+                    <a:field name="gender_desc" displayField="code_value_name" options="gender_ds" returnField="gender" valueField="code_value"/>
+                    <a:field name="id_type_desc" displayField="code_value_name" options="id_type_ds" returnField="id_type" valueField="code_value"/>
+                    <a:field name="academic_background_desc" displayField="code_value_name" options="academic_background_ds" returnField="academic_background" valueField="code_value"/>
+                    <a:field name="marital_status_desc" displayField="code_value_name" options="marital_status_ds" returnField="marital_status" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="indexchange" handler="onIndexChange_bpMasterDs"/>
+                    <a:event name="update" handler="onUpdate_bpMasterDs"/>
+                    <a:event name="remove" handler="onRemove_bpMasterDs"/>
+                    <a:event name="add" handler="onAdd_bpMasterDs"/>
+                    <a:event name="load" handler="onLoad_bpMasterDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:grid id="grid_bpMasterDs" bindTarget="bpMasterDs" height="180" marginWidth="30">
+            <a:columns>
+                <a:column name="bp_category_desc"/>
+                <a:column name="bp_type_desc"/>
+                <a:column name="bp_class_desc"/>
+                <a:column name="bp_name"/>
+                <a:column name="contract_seq" align="right"/>
+                <a:column name="corporate_code"/>
+                <a:column name="registered_place"/>
+            </a:columns>
+        </a:grid>
+        <a:switch test="/parameter/@maintain_type">
+            <a:case value="READONLY"><![CDATA[
+			                ]]></a:case>
+            <a:case value="*">
+                <div id="bpMaster_button" class="hide_dom">
+                    <script><![CDATA[
+				            function bpMasterDelete() {
+				                $('grid_bpMasterDs').remove();
+				            }
+				            
+				            function bpMasterAdd() {
+				                $('grid_bpMasterDs').showEditorByRecord($('bpMasterDs').create());
+				            }
+				            
+	                	]]></script>
+                    <a:hBox>
+                        <a:button click="bpMasterAdd" text="HLS.NEW"/>
+                        <a:button click="bpMasterDelete" text="HLS.REMOVE"/>
+                    </a:hBox>
+                </div>
+            </a:case>
+        </a:switch>
+        <div id="bpMasterInfo" class="hide_dom">
+            <a:form column="4" labelWidth="120" marginWidth="30" title="基本信息">
+                <a:lov name="bp_category_desc" bindTarget="bpMasterDs"/>
+                <a:lov name="bp_type_desc" bindTarget="bpMasterDs"/>
+                <a:comboBox name="bp_class_desc" bindTarget="bpMasterDs"/>
+                <a:numberField name="contract_seq" allowDecimals="false" bindTarget="bpMasterDs"/>
+                <a:lov name="bp_name" bindTarget="bpMasterDs"/>
+                <a:textField name="business_license_num" bindTarget="bpMasterDs"/>
+                <a:datePicker name="founded_date" bindTarget="bpMasterDs"/>
+                <a:lov name="country_name" bindTarget="bpMasterDs"/>
+                <a:lov name="province_name" bindTarget="bpMasterDs"/>
+                <a:lov name="city_name" bindTarget="bpMasterDs"/>
+                <a:lov name="district_name" bindTarget="bpMasterDs"/>
+                <a:textField name="street" bindTarget="bpMasterDs"/>
+                <a:textField name="address" bindTarget="bpMasterDs"/>
+                <a:textField name="zipcode" bindTarget="bpMasterDs"/>
+                <a:textField name="registered_place" bindTarget="bpMasterDs"/>
+                <a:numberField name="registered_capital" bindTarget="bpMasterDs"/>
+                <a:comboBox name="currency_name" bindTarget="bpMasterDs"/>
+                <a:numberField name="total_assets" bindTarget="bpMasterDs"/>
+                <a:numberField name="net_assets" bindTarget="bpMasterDs"/>
+                <a:numberField name="net_profit" bindTarget="bpMasterDs"/>
+                <a:numberField name="prime_operating_revenue" bindTarget="bpMasterDs"/>
+                <a:datePicker name="financial_audit_date" bindTarget="bpMasterDs"/>
+                <a:textField name="primary_business" bindTarget="bpMasterDs"/>
+                <a:textField name="main_products" bindTarget="bpMasterDs"/>
+            </a:form>
+            <a:hBox>
+                <a:button click="bpMaster_showMore" text="PRJ501.DISPLAY_MORE"/>
+            </a:hBox>
+            <div id="moreBpMasterInfo" class="hide_dom">
+                <a:form column="4" labelWidth="120" marginWidth="30" title="更多">
+                    <a:comboBox name="legal_form_desc" bindTarget="bpMasterDs"/>
+                    <a:textField name="industry" bindTarget="bpMasterDs"/>
+                    <a:textField name="corporate_code" bindTarget="bpMasterDs"/>
+                    <a:textField name="organization_code" bindTarget="bpMasterDs"/>
+                    <a:textField name="tax_registry_num" bindTarget="bpMasterDs"/>
+                    <a:textField name="last_name" bindTarget="bpMasterDs"/>
+                    <a:textField name="middle_name" bindTarget="bpMasterDs"/>
+                    <a:textField name="first_name" bindTarget="bpMasterDs"/>
+                    <a:textField name="name_at_birth" bindTarget="bpMasterDs"/>
+                    <a:comboBox name="gender_desc" bindTarget="bpMasterDs"/>
+                    <a:textField name="nationality" bindTarget="bpMasterDs"/>
+                    <a:datePicker name="date_of_birth" bindTarget="bpMasterDs"/>
+                    <a:numberField name="age" allowDecimals="false" bindTarget="bpMasterDs"/>
+                    <a:textField name="place_of_birth" bindTarget="bpMasterDs"/>
+                    <a:comboBox name="id_type_desc" bindTarget="bpMasterDs"/>
+                    <a:textField name="id_card_no" bindTarget="bpMasterDs"/>
+                    <a:comboBox name="academic_background_desc" bindTarget="bpMasterDs"/>
+                    <a:comboBox name="marital_status_desc" bindTarget="bpMasterDs"/>
+                    <a:numberField name="number_of_children" allowDecimals="false" bindTarget="bpMasterDs"/>
+                    <a:numberField name="annual_income" bindTarget="bpMasterDs"/>
+                </a:form>
+                <a:form column="4" labelWidth="120" marginWidth="30" title=" ">
+                    <a:textField name="contact_person" bindTarget="bpMasterDs"/>
+                    <a:textField name="position" bindTarget="bpMasterDs"/>
+                    <a:textField name="cell_phone" bindTarget="bpMasterDs"/>
+                    <a:textField name="fax" bindTarget="bpMasterDs"/>
+                    <a:textField name="email" bindTarget="bpMasterDs"/>
+                    <a:textField name="phone" bindTarget="bpMasterDs"/>
+                    <a:textField name="phone_extra" bindTarget="bpMasterDs"/>
+                </a:form>
+                <a:form column="4" labelWidth="120" marginWidth="30" title=" ">
+                    <a:textField name="contact_person_2" bindTarget="bpMasterDs"/>
+                    <a:textField name="position_2" bindTarget="bpMasterDs"/>
+                    <a:textField name="cell_phone_2" bindTarget="bpMasterDs"/>
+                    <a:textField name="fax_2" bindTarget="bpMasterDs"/>
+                    <a:textField name="email_2" bindTarget="bpMasterDs"/>
+                    <a:textField name="phone_2" bindTarget="bpMasterDs"/>
+                    <a:textField name="phone_extra_2" bindTarget="bpMasterDs"/>
+                </a:form>
+            </div>
+        </div>
+    </a:view>
+</a:screen>

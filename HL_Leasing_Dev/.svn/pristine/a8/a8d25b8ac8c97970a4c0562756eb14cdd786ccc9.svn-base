@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <script><![CDATA[
+            function workflowDs_query() {
+                $('workflowDs').query();
+            }
+            
+            function para_workflowDs_reset() {
+                $('para_workflowDs').reset();
+            }
+            
+            function render_workflowDs_grid(value, record, name) {
+                if (!record.isNew)
+                {
+                    if(name=='node_define')
+                    {
+                        return '<a href="javascript:winOpen_node_define(' + record.get('workflow_id') + ')">工作流节点定义</a>';
+                    }
+                    return '';
+                }
+                return '';
+            }
+            
+            function winOpen_node_define(workflow_id) {
+                var win = new Aurora.Window({
+                    id: 'zj_wfl_workflow_node_window',
+                    url: 'zj_wfl_workflow_node.screen',
+                    params:{
+                    	workflow_id:workflow_id
+                    },
+                    title: '工作流节点定义',
+                    fullScreen: true
+                });
+                
+                win.on('close',function(){
+                	workflowDs_query();
+                });
+            }
+            
+            function editorFun_workflowDs_grid(record, name) {
+                if(name=='can_cancel')
+                {
+                    if(record.get('sub_category')=='MAIN_PROCESS')
+                    {
+                        return 'workflowDs_grid_check';
+                    }
+                    return '';
+                }
+                else if (record.isNew) {
+                    if (name == 'sub_category_desc') {
+                        return 'workflowDs_grid_comb';
+                    }
+                    if (name == 'workflow_type_code') {
+                        return 'workflowDs_grid_lov';
+                    }
+                    if (name == 'workflow_code') {
+                        return 'workflowDs_grid_tf_upper';
+                    }  
+                }
+                return '';
+            }
+            
+            
+            function onUpdate_workflowDs(ds,record,name,value,oldvalue){
+            	//如果"参数类型"的值发生改变，则将"参数值","类型参数代码"的值清空
+            	if(name=="service_name"){
+					record.set('service_parameter',null);
+            	}
+            	if(name=='sub_category')
+            	{
+            	    record.set('can_cancel','N');
+            	}
+            }
+            
+            ]]></script>
+        <a:dataSets>
+            <a:dataSet id="sub_category_ds" lookupCode="ZJ_WFL_SUB_CATEGORY"/>
+            <a:dataSet id="para_workflowDs" autoCreate="true" model="zjwfl.zj_wfl_workflow">
+                <a:fields>
+                    <a:field name="workflow_type_code" lovGridHeight="300" lovHeight="450" lovService="zjwfl.zj_wfl_workflow_type_lov" lovWidth="550" title="工作流类型">
+                        <a:mapping>
+                            <a:map from="workflow_type_id" to="workflow_type_id"/>
+                            <a:map from="workflow_type_code" to="workflow_type_code"/>
+                            <a:map from="workflow_type_desc" to="workflow_type_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="sub_category_desc" displayField="code_value_name" options="sub_category_ds" returnField="sub_category" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="workflowDs" autoPageSize="true" autoQuery="true" model="zjwfl.zj_wfl_workflow" queryDataSet="para_workflowDs" selectable="true">
+                <a:fields>
+                    <a:field name="workflow_code" required="true"/>
+                    <a:field name="workflow_desc" required="true"/>
+                    <a:field name="sub_category_desc" displayField="code_value_name" options="sub_category_ds" required="true" returnField="sub_category" valueField="code_value"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="can_cancel" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="workflow_type_code" lovGridHeight="300" lovHeight="450" lovService="zjwfl.zj_wfl_workflow_type_lov" lovWidth="550" required="true" title="工作流类型">
+                        <a:mapping>
+                            <a:map from="workflow_type_id" to="workflow_type_id"/>
+                            <a:map from="workflow_type_code" to="workflow_type_code"/>
+                            <a:map from="workflow_type_desc" to="workflow_type_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="service_name" lovGridHeight="320" lovHeight="440" lovService="zjwfl.zj_wfl_workflow_service_lov" lovWidth="480" title="页面选择">
+                        <a:mapping>
+                            <a:map from="service_id" to="service_id"/>
+                            <a:map from="service_name" to="service_name"/>
+                            <a:map from="service_desc" to="service_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="serial_number"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_workflowDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form column="4" labelWidth="80" marginWidth="30" title="查询条件">
+                <a:lov name="workflow_type_code" bindTarget="para_workflowDs" prompt="工作流类型"/>
+                <a:textField name="workflow_code" bindTarget="para_workflowDs" maxLength="200" prompt="工作流代码" typeCase="upper"/>
+                <a:textField name="workflow_desc" bindTarget="para_workflowDs" maxLength="2000" prompt="工作流描述"/>
+                <a:comboBox name="sub_category_desc" bindTarget="para_workflowDs" prompt="主从属性"/>
+            </a:form>
+            <a:hBox>
+                <a:button click="workflowDs_query" text="HAP_QUERY"/>
+                <a:button click="para_workflowDs_reset" text="HAP_RESET"/>
+                <!--<a:button click="WorkflowCopy" text="工作流复制"/>-->
+            </a:hBox>
+            <a:grid id="workflowDs_grid" bindTarget="workflowDs" marginHeight="160" marginWidth="30" navBar="true">
+                <a:toolBar>
+                    <a:button type="add"/>
+                    <a:button type="clear"/>
+                    <a:button type="save"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="workflow_code" editorFunction="editorFun_workflowDs_grid" prompt="工作流代码" width="150"/>
+                    <a:column name="workflow_desc" editor="workflowDs_grid_tf" prompt="工作流描述" width="300"/>
+                    <a:column name="workflow_type_code" editorFunction="editorFun_workflowDs_grid" prompt="工作流类型代码" width="150"/>
+                    <a:column name="workflow_type_desc" prompt="工作流类型描述" width="200"/>
+                    <a:column name="sub_category_desc" editorFunction="editorFun_workflowDs_grid" prompt="工作流主从属性" width="100"/>
+                    <a:column name="serial_number" editor="workflowDs_grid_num" prompt="序号" width="60"/>
+                    <a:column name="enabled_flag" editor="workflowDs_grid_check" prompt="启用" width="60"/>
+                    <a:column name="can_cancel" editorFunction="editorFun_workflowDs_grid" prompt="可收回" width="60"/>
+                    <a:column name="node_define" align="center" prompt="工作流节点定义" renderer="render_workflowDs_grid" width="100"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="workflowDs_grid_num"/>
+                    <a:textField id="workflowDs_grid_tf"/>
+                    <a:textField id="workflowDs_grid_tf_upper" typeCase="upper"/>
+                    <a:checkBox id="workflowDs_grid_check"/>
+                    <a:lov id="workflowDs_grid_lov"/>
+                    <a:comboBox id="workflowDs_grid_comb"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

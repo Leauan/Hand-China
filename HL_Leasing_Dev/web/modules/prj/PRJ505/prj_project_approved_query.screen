@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: LR  
+    $Date: 2013-8-23 上午10:00:27  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.code=&apos;PRJ501_PRJ_STATUS&apos; and t1.language=${/session/@lang} and t1.code_value in(&apos;CONTRACT_CREATED&apos;,&apos;APPROVED&apos;)" model="sys.sys_service_lookup_v" rootPath="prj505_prj_status_path"/>
+        <a:model-query defaultWhereClause="t1.document_type in (&apos;PRJL&apos;,&apos;PRJLB&apos;)" fetchAll="true" model="basic.hls_document_type_v_lov" rootPath="document_type_rp"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="pageLink_projectQueryScreen_welcome" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="pageLink_projectQueryScreen_update_project" url="${/request/@context_path}/modules/prj/PRJ501/prj_project_maintain.screen"/>
+        <a:link id="bmLink_projectQueryScreen_change_project_status" model="prj.PRJ501.prj_project_update_status" modelaction="execute"/>
+        <a:link id="bmLink_projectQueryScreen_project_submit" model="prj.PRJ501.prj_project_update_status" modelaction="update"/>
+        <a:link id="prj_project_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="prj_project_query_link_id" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_create_tree_n.screen"/>
+        <a:link id="prj505_project_create_contract_link" url="${/request/@context_path}/modules/prj/PRJ505/prj_project_create_contract.screen"/>
+        <a:link id="car_modify_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain.screen"/>
+        <a:link id="car_modify_mananger_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain_manager.screen"/>
+        <a:screen-include screen="modules/prj/PRJ500/prj_project_get_layout_code.screen"/>
+        <script><![CDATA[
+            function projectQueryScreen_forward() {
+                history.go(1);
+            }
+            
+            function projectQueryScreen_back() {
+                history.go(-1);
+            }
+            
+            function projectQueryScreen_query() {
+                $('projectQueryScreen_mainDs').query();
+            }
+            
+            function projectQueryScreen_refresh() {
+                var ds = $('projectQueryScreen_mainDs');
+                ds.query(ds.currentPage);
+            }
+            
+            function projectQueryScreen_save() {
+                var ds = $('projectQueryScreen_mainDs');
+                if (ds.validate()) {
+                    ds.submit();
+                }
+            }
+            
+            function projectQueryScreen_quit() {
+                location.href = $('pageLink_projectQueryScreen_welcome').getUrl();
+                parent.shMenu('show');
+            }
+            
+            function prj501_grid_update(reocrd_id, project_id, status) {
+                var maintain_type = 'QUERY';
+                var record = $('projectQueryScreen_mainDs').findById(reocrd_id);
+                //项目类layout_code
+                if (record.get('document_type') == 'PRJ') {
+                    var param = record.data;
+                    param['document_id'] = record.get('project_id');
+                    param['function_code'] = 'PRJ600Q';
+                    param['function_usage'] = 'QUERY';
+                    param['maintain_type'] = maintain_type;
+                    param['url_title'] = '项目详细信息';
+                    hls_doc_get_layout_code('prj_project_get_layout_code_link_id', param, 'prj_project_query_link_id', 'projectQueryScreen_mainDs');
+                }
+            }
+            
+            function prj501_project_number_render(value, record, name) {
+                return '<a href="javascript:prj501_grid_update(' + record.id + ',' + record.get('project_id') + ',\'' + record.get('invoice_status') + '\');">' + value + '</a>';
+            }
+            
+            function render_formatDate(value, record, name) {
+                if (!Ext.isEmpty(value)) {
+                    return value.parseDate('yyyy-mm-dd').format('yyyy-mm-dd');
+                }
+                return '';
+            
+            }
+            
+            function projectQueryScreen_create_con() {
+                var records = $('projectQueryScreen_mainDs').getSelected();
+                if (records.length != 1) {
+                    return;
+                } else {
+                    new Aurora.Window({
+                        id: 'prj505_project_create_contract_window',
+                        url: $('prj505_project_create_contract_link').getUrl() + '?project_id=' + records[0].get('project_id'),
+                        title: '${l:PRJ505.PROJECT_CREATE_CON}',
+                        fullScreen: true
+                    });
+                }
+            }
+            
+            function projectQueryScreen_create_con_open(project_id) {
+                new Aurora.Window({
+                    id: 'prj505_project_create_contract_window',
+                    url: $('prj505_project_create_contract_link').getUrl() + '?project_id=' + project_id,
+                    title: '${l:PRJ505.PROJECT_CREATE_CON}',
+                    fullScreen: true
+                });
+            }
+            
+            function prj505_grid_details_render(value, record, name) {
+                return '<a href="javascript:projectQueryScreen_create_con_open(' + record.get('project_id') + ')">${l:PRJ505.CON_CREATED_DETAIL}</a>';
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=PROJECT&amp;function_code=PRJ505"/>
+            <a:dataSet id="employee_id_of_manager_n_ds" loadData="true" model="basic.exp_org_unit_manager_lov"/>
+            <a:dataSet id="project_status_ds">
+                <a:datas dataSource="/model/prj505_prj_status_path"/>
+            </a:dataSet>
+            <a:dataSet id="hls_document_type_ds">
+                <a:datas dataSource="/model/document_type_rp"/>
+            </a:dataSet>
+            <a:dataSet id="projectQueryScreen_organizationDs" loadData="true" model="basic.hls_lease_organization_for_lov"/>
+            <a:dataSet id="projectQueryScreen_channelDs" loadData="true" model="basic.hls_lease_channel_for_lov"/>
+            <a:dataSet id="projectQueryScreen_divisionDs" loadData="true" model="basic.hls_division_for_lov"/>
+            <a:dataSet id="projectQueryScreen_paraDs">
+                <a:fields>
+                    <a:field name="bp_code" autoComplete="true" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov?bp_category=TENANT" lovWidth="500" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_id" to="bp_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="project_number" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="prj.PRJ501.prj_project_for_lov" lovWidth="500" title="HLS.PROJECT_NUMBER">
+                        <a:mapping>
+                            <a:map from="project_number" to="project_number"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="chance_number" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="prj.PRJ401.prj_chance_lov" lovWidth="500" title="HLS.LEASE_CHANCE_CODE">
+                        <a:mapping>
+                            <a:map from="chance_number" to="chance_number"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="employee_id"/>
+                    <a:field name="employee_name" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="basic.hls_salesman_v_for_lov" lovWidth="500" title="PRJ501.PRJ_PROJECT.EMPLOYEE_NAME">
+                        <a:mapping>
+                            <a:map from="employee_id" to="employee_id"/>
+                            <a:map from="name" to="employee_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="unit_id"/>
+                    <a:field name="unit_name" lovGridHeight="300" lovHeight="450" lovService="basic.exp_org_unit_name_lov" lovWidth="500" title="HLS.UNIT_NAME">
+                        <a:mapping>
+                            <a:map from="unit_id" to="unit_id"/>
+                            <a:map from="unit_name" to="unit_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="lease_organization_n" displayField="description" options="projectQueryScreen_organizationDs" returnField="lease_organization" valueField="lease_organization"/>
+                    <a:field name="lease_channel_n" displayField="description" options="projectQueryScreen_channelDs" returnField="lease_channel" valueField="lease_channel"/>
+                    <a:field name="division_n" displayField="description" options="projectQueryScreen_divisionDs" returnField="division" valueField="division"/>
+                    <!-- <a:field name="employee_id_of_manager_n" displayField="mgr_employee_name" options="employee_id_of_manager_n_ds" returnField="employee_id_of_manager" valueField="mgr_employee_id"/> -->
+                    <a:field name="employee_id_of_manager"/>
+                    <a:field name="employee_id_of_manager_n" lovGridHeight="400" lovHeight="550" lovService="prj.PRJ505.prj_project_unit_employee_lov" lovWidth="450">
+                        <a:mapping>
+                            <a:map from="value_code" to="employee_id_of_manager"/>
+                            <a:map from="value_name" to="employee_id_of_manager_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="document_type_n" displayField="document_type_desc" options="hls_document_type_ds" returnField="document_type" valueField="document_type">
+                        <a:mapping>
+                            <a:map from="business_type" to="business_type"/>
+                            <a:map from="business_type_desc" to="business_type_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="project_status" defaultValue="APPROVED"/>
+                    <a:field name="project_status_dis" defaultValue="通过" displayField="code_value_name" options="project_status_ds" required="true" returnField="project_status" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="projectQueryScreen_mainDs" autoPageSize="true" autoQuery="true" model="prj.PRJ501.prj_project_v_for_project" queryDataSet="projectQueryScreen_paraDs" selectable="true" selectionModel="single">
+                <a:events>
+                    <a:event name="query" handler="aut_authority_list_validate_query"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="projectQueryScreen_back" text="HLS.BACK"/>
+                <a:gridButton click="projectQueryScreen_forward" text="HLS.FORWARD"/>
+                <a:gridButton click="projectQueryScreen_quit" text="HLS.EXIT"/>
+                <a:gridButton click="projectQueryScreen_query" text="HLS.QUERY"/>
+                <a:gridButton click="projectQueryScreen_create_con" text="PRJ505.PROJECT_CREATE_CON"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelSeparator=" " labelWidth="100" marginWidth="30" title="HLS.QUERY_TITLE">
+                <a:lov name="bp_code" bindTarget="projectQueryScreen_paraDs" prompt="HLS.TENANT_CODE">
+                    <a:events>
+                        <a:event name="focus" handler="function(object){on_std_focus(object,&apos;BP&apos;)}"/>
+                    </a:events>
+                </a:lov>
+                <a:textField name="bp_name" bindTarget="projectQueryScreen_paraDs" prompt="HLS.TENANT_NAME"/>
+                <a:datePicker name="creation_date_from" bindTarget="projectQueryScreen_paraDs" prompt="LCH501.QUERY_FIELD.CREATION_DATE_FROM"/>
+                <a:datePicker name="creation_date_to" bindTarget="projectQueryScreen_paraDs" prompt="LCH501.QUERY_FIELD.CREATION_DATE_TO"/>
+                <a:lov name="project_number" bindTarget="projectQueryScreen_paraDs" prompt="HLS.PROJECT_NUMBER">
+                    <a:events>
+                        <a:event name="focus" handler="function(object){on_std_focus(object,&apos;PROJECT&apos;)}"/>
+                    </a:events>
+                </a:lov>
+                <a:textField name="project_name" bindTarget="projectQueryScreen_paraDs" prompt="HLS.PROJECT_NAME"/>
+                <a:lov name="employee_name" bindTarget="projectQueryScreen_paraDs" prompt="HLS.SALES_EMPLOYEE"/>
+                <a:comboBox name="lease_organization_n" bindTarget="projectQueryScreen_paraDs" prompt="HLS.LEASE_ORGANIZATION"/>
+                <a:lov name="chance_number" bindTarget="projectQueryScreen_paraDs" prompt="HLS.LEASE_CHANCE_CODE">
+                    <a:events>
+                        <a:event name="focus" handler="function(object){on_std_focus(object,&apos;CHANCE&apos;)}"/>
+                    </a:events>
+                </a:lov>
+                <a:lov name="employee_id_of_manager_n" bindTarget="projectQueryScreen_paraDs" prompt="HLS.EMPLOYEE_OF_MANAGER"/>
+                <a:comboBox name="division_n" bindTarget="projectQueryScreen_paraDs" prompt="HLS.DIVISION_NAME"/>
+                <a:comboBox name="lease_channel_n" bindTarget="projectQueryScreen_paraDs" prompt="HLS.LEASE_CHANNEL_NAME"/>
+                <a:textField name="search_term_1" bindTarget="projectQueryScreen_paraDs" prompt="CON301.CON_CONTRACT_V.PRJ_SEARCH_TERM_1"/>
+                <a:numberField name="search_term_2" bindTarget="projectQueryScreen_paraDs" prompt="CON301.CON_CONTRACT_V.PRJ_SEARCH_TERM_2"/>
+                <a:comboBox name="document_type_n" bindTarget="projectQueryScreen_paraDs" prompt="HLS.PROJECT_TYPE"/>
+                <a:comboBox name="project_status_dis" bindTarget="projectQueryScreen_paraDs" prompt="PRJ505.PROJECT_STATUS"/>
+            </a:form>
+            <a:grid id="projectQueryScreen_mainDs_grid" bindTarget="projectQueryScreen_mainDs" marginHeight="235" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="project_number" prompt="HLS.PROJECT_NUMBER" renderer="prj501_project_number_render" width="120"/>
+                    <a:column name="project_name" prompt="HLS.PROJECT_NAME" width="230"/>
+                    <a:column name="bp_name" prompt="HLS.TENANT_NAME" width="180"/>
+                    <a:column name="chance_number" prompt="HLS.LEASE_CHANCE_CODE" width="120"/>
+                    <a:column name="document_type_desc" prompt="HLS.PROJECT_TYPE" width="100"/>
+                    <a:column name="employee_name" prompt="HLS.SALES_EMPLOYEE" width="80"/>
+                    <a:column name="lease_organization_desc" prompt="HLS.LEASE_ORGANIZATION" width="100"/>
+                    <a:column name="creation_date" prompt="HLS.CREATION_DATE" renderer="render_formatDate" width="80"/>
+                    <a:column name="project_status_desc" prompt="PRJ505.CURRENT_STATUS" width="80"/>
+                    <a:column name="con_created_detail" align="center" prompt="PRJ505.CON_CREATED_DETAIL" renderer="prj505_grid_details_render" width="100"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

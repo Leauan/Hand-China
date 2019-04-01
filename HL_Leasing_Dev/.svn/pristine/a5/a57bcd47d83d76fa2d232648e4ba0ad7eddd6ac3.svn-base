@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-2-26 下午2:37:49  
+    $Revision: 1.0  
+    $Purpose: 凭证模板头匹配规则
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="v.code=&apos;GLD104_VALUE_SOURCE_TYPE&apos; and v.code_value!=&apos;LOOP_ID&apos;" fetchAll="true" model="basic.sys_code_default_value" rootPath="calculate_symbol_list"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+        function mapConditionPage_close() {
+            $('gld_je_template_group_mapping_condition').close();
+        }
+        
+        function mapConditionDs_grid_query() {
+            $('mapConditionDs').query();
+        }
+    	
+        function mapConditionDs_grid_add() {
+            $('mapConditionDs_grid').showEditorByRecord($('mapConditionDs').create());
+        }
+        
+        function mapConditionDs_grid_remove() {
+            $('mapConditionDs_grid').remove();
+        }
+        
+        function mapConditionDs_grid_save() {
+            var result_ds = $('mapConditionDs');
+            if (result_ds.validate()) {
+                result_ds.submit();
+            }
+        }
+        
+        function editorFunction_mapConditionDs_grid(record,name)
+        {
+            var field=record.getField(name);
+            
+            if(name=='condition_value_type_y_desc')
+            {
+                if(record.get('calulate_symbol')=='IS NULL' || record.get('calulate_symbol')=='IS NOT NULL')
+                {
+                    field.setRequired(false);
+                    return '';
+                }
+                else
+                {
+                    field.setRequired(true);
+                    return 'mapConditionDs_grid_comb';
+                }
+                
+            }
+            else if(name=='condition_value_x'||name=='condition_value_y')
+            {
+                if(record.get('calulate_symbol')=='IS NULL' || record.get('calulate_symbol')=='IS NOT NULL')
+                {
+                    field.setRequired(false);
+                    return '';
+                }
+                else
+                {
+                    if(name=='condition_value_x')
+                    {
+                        var type=record.get('condition_value_type_x');
+                    }
+                    else if(name=='condition_value_y')
+                    {
+                        var type=record.get('condition_value_type_y');
+                    }
+                    
+		            if(Ext.isEmpty(type))
+		            {
+		                field.setRequired(false);
+		                return '';
+		            }
+		            else if(type=='INPUT')
+		            {
+		                field.setRequired(true);
+		                return 'mapConditionDs_grid_tf';
+		            }
+		            else if(type=='PARAMETER')
+		            {
+		                field.setLovService('gld.GLD104.gld_je_trx_parameters_for_lov');
+		            	field.setMapping([{
+	                	    from:'parameter_code', 
+	                	    to: name
+	                	}]);
+		            	field.setLovPara('je_transaction_code','${/parameter/@je_transaction_code}');
+		            	field.setRequired(true);
+		            	return 'mapConditionDs_grid_lov';
+		            }
+		            else if(type=='COLUMN_VALUE')
+		            {
+		                field.setLovService('gld.GLD104.gld_je_trx_tab_columns_v_for_lov');
+		            	field.setMapping([{
+	                	    from:'tab_col_format', 
+	                	    to: name
+	                	}]);
+		            	field.setLovPara('je_transaction_code','${/parameter/@je_transaction_code}');
+		            	field.setRequired(true);
+		            	return 'mapConditionDs_grid_lov';
+		            }
+		            else
+		            {
+		                return '';
+		            }
+                }
+            }
+        }
+        
+        function onUpdate_mapConditionDs(ds,record,name,value,oldvalue)
+        {
+            if(name=='condition_value_type_x')
+            {
+                record.set('condition_value_x','');
+            }
+            else if(name=='condition_value_type_y')
+            {
+                record.set('condition_value_y','');
+            }
+            else if(name=='calulate_symbol')
+            {
+                if(value=='IS NULL'||value=='IS NOT NULL')
+                {
+                    record.set('condition_value_y','');
+                    record.set('condition_value_type_y','');
+                    record.set('condition_value_type_y_desc','');
+                }
+            }
+        }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="calculateSymbolDs" lookupCode="GLD104_CALCULATE_SYMBOL"/>
+            <a:dataSet id="templateValueTypeDs">
+                <a:datas dataSource="/model/calculate_symbol_list"/>
+            </a:dataSet>
+            <a:dataSet id="mapConditionDs" autoQuery="true" model="gld.GLD110.gld_je_templt_grp_map_cond" queryUrl="${/request/@context_path}/autocrud/gld.GLD110.gld_je_templt_grp_map_cond/query?template_group_id=${/parameter/@template_group_id}" selectable="true">
+                <a:fields>
+                    <a:field name="template_group_id" defaultValue="${/parameter/@template_group_id}"/>
+                    <a:field/>
+                    <a:field name="calulate_symbol"/>
+                    <a:field name="calulate_symbol_desc" displayField="code_value_name" options="calculateSymbolDs" required="true" returnField="calulate_symbol" valueField="code_value"/>
+                    <a:field name="condition_value_type_x"/>
+                    <a:field name="condition_value_type_x_desc" displayField="code_value_name" options="templateValueTypeDs" required="true" returnField="condition_value_type_x" valueField="code_value"/>
+                    <a:field name="condition_value_x" lovGridHeight="300" lovHeight="500" lovWidth="850" required="true" title="GLD104.LOV_TITLE.CONDITION_VALUE"/>
+                    <a:field name="condition_value_type_y"/>
+                    <a:field name="condition_value_type_y_desc" displayField="code_value_name" options="templateValueTypeDs" required="true" returnField="condition_value_type_y" valueField="code_value"/>
+                    <a:field name="condition_value_y" lovGridHeight="300" lovHeight="500" lovWidth="850" required="true" title="GLD104.LOV_TITLE.CONDITION_VALUE"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_mapConditionDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="mapConditionPage_close" text="HLS.CLOSE"/>
+                <a:gridButton click="mapConditionDs_grid_query" text="HLS.QUERY"/>
+                <a:gridButton click="mapConditionDs_grid_add" text="HLS.NEW"/>
+                <a:gridButton click="mapConditionDs_grid_remove" text="HLS.REMOVE"/>
+                <a:gridButton click="mapConditionDs_grid_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:grid id="mapConditionDs_grid" bindTarget="mapConditionDs" height="330" navBar="true" width="850">
+                <a:columns>
+                    <a:column name="condition_value_type_x_desc" editor="mapConditionDs_grid_comb" width="100"/>
+                    <a:column name="condition_value_x" editorFunction="editorFunction_mapConditionDs_grid" width="250"/>
+                    <a:column name="calulate_symbol_desc" editor="mapConditionDs_grid_comb" width="100"/>
+                    <a:column name="condition_value_type_y_desc" editorFunction="editorFunction_mapConditionDs_grid" width="100"/>
+                    <a:column name="condition_value_y" editorFunction="editorFunction_mapConditionDs_grid" width="250"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="mapConditionDs_grid_tf"/>
+                    <a:lov id="mapConditionDs_grid_lov"/>
+                    <a:comboBox id="mapConditionDs_grid_comb"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

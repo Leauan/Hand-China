@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-8-30 上午11:30:49  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        (SELECT
+                            b.bp_bank_account_num
+                        FROM
+                            csh_payment_req_debt_ln_lv b
+                        WHERE
+                            cl.payment_req_ln_id = b.payment_req_ln_id
+							and rownum=1
+                        ) bp_num,
+                        (SELECT
+                            b.bp_bank_account_id_n
+                        FROM
+                            csh_payment_req_debt_ln_lv b
+                        WHERE
+                            cl.payment_req_ln_id = b.payment_req_ln_id
+							and rownum=1
+                        ) bp_bank_account_name,
+                        h.payment_req_number,
+                        h.payment_req_id,
+                        h.req_date,
+                        h.business_type,
+                        h.document_type,
+                        h.document_category,
+                        h.approval_date,
+                        h.apply_pay_date,
+                        nvl(h.approval_status,'NEW') approval_status,
+                        h.closed_date,
+                        h.closed_flag,
+                        h.created_by,
+                        (SELECT
+                            SUM(NVL(rl.amount, 0) - NVL(
+                            (SELECT
+                                SUM(amount)
+                            FROM
+                                csh_payment_req_ln_ddct ld
+                            WHERE
+                                ld.payment_req_ln_id = rl.payment_req_ln_id
+                            ), 0) - NVL(
+                            (SELECT
+                                SUM(lp.write_off_amt)
+                            FROM
+                                csh_payment_req_ln_prepay lp
+                            WHERE
+                                lp.payment_req_ln_id = rl.payment_req_ln_id
+                            ), 0))
+                        FROM
+                            csh_payment_req_ln rl
+                        WHERE
+                            rl.payment_req_ln_id = cl.payment_req_ln_id
+                        ) sum_act_amount,
+                        (SELECT
+                            e.ebank_name
+                        FROM
+                            csh_ebank e
+                        WHERE
+                            e.ebank_id = cc.direct_debit_bank_id
+                        ) bank_full_name,
+                        (SELECT su.description FROM sys_user su WHERE su.user_id = h.created_by
+                        ) user_name,
+                        h.bp_id,
+                        (SELECT
+                            b.bp_name
+                        FROM
+                            csh_payment_req_debt_ln_lv b
+                        WHERE
+                            cl.payment_req_ln_id = b.payment_req_ln_id
+							and rownum=1
+                        ) bp_name,
+                        (SELECT b.bp_category FROM hls_bp_master b WHERE h.bp_id = b.bp_id
+                        ) bp_category,
+                        (SELECT
+                            c.description
+                        FROM
+                            hls_bp_master b,
+                            hls_bp_category c
+                        WHERE
+                            h.bp_id       = b.bp_id AND
+                            b.bp_category = c.bp_category
+                        ) bp_category_n,
+                        (SELECT b.bp_code FROM hls_bp_master b WHERE h.bp_id = b.bp_id
+                        ) bp_code,
+                        h.amount,
+                        cc.contract_number,
+                        (SELECT
+                            pp.project_number
+                        FROM
+                            prj_project pp
+                        WHERE
+                            pp.project_id=cc.project_id
+                        ) project_number,
+                        (SELECT hm.bp_name FROM hls_bp_master hm WHERE hm.bp_id=cc.bp_id_tenant
+                        ) bp_id_tenant_n,
+                        h.print_flag,
+                        DECODE(cl.payment_status,'FULL','Y','N') payment_flag,
+                        h.currency_code,
+                        cc.fin_manager,
+                        (SELECT ee.name FROM exp_employees ee WHERE ee.employee_id=cc.fin_manager
+                        ) fin_manager_n,
+                        (SELECT
+                            vl.price
+                        FROM
+                            hls_lease_products vl,
+                            con_contract_lease_item l
+                        WHERE
+                            vl.lease_products_code = l.item_frame_number AND
+                            l.contract_id          = cc.contract_id
+                        ) price,
+						 (SELECT
+                            to_date(ct.transaction_date)
+                        FROM
+                            csh_transaction ct
+                        WHERE
+                            ct.source_doc_id      = h.payment_req_id AND
+                            ct.source_doc_line_id = cl.payment_req_ln_id AND
+                            ct.write_off_flag     = 'FULL' AND
+                            ROWNUM                = 1
+                        ) transaction_date,
+                        cc.lease_channel,
+                         (SELECT ch.description
+          FROM hls_lease_channel ch
+         WHERE ch.lease_channel = cc.lease_channel) AS lease_channel_n
+                    FROM
+                        csh_payment_req_hd h,
+                        csh_payment_req_ln cl,
+                        con_contract cc
+                    WHERE
+                        h.payment_req_id=cl.payment_req_id AND
+                        cl.ref_doc_id   =cc.contract_id
+                    ) h #WHERE_CLAUSE#
+                ORDER BY
+                    transaction_date DESC
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="project_number" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="sum_act_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="bp_num" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="bank_full_name" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="bp_bank_account_name" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="contract_number" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="payment_flag" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="payment_req_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="PAYMENT_REQ_ID" prompt="CSH_PAYMENT_REQ_HD.PAYMENT_REQ_ID"/>
+        <bm:field name="payment_req_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PAYMENT_REQ_NUMBER" required="true"/>
+        <bm:field name="req_date" databaseType="DATE" datatype="java.util.Date" physicalName="REQ_DATE"/>
+        <bm:field name="approval_date" databaseType="DATE" datatype="java.util.Date" physicalName="APPROVAL_DATE"/>
+        <bm:field name="apply_pay_date" databaseType="DATE" datatype="java.util.Date" physicalName="apply_pay_date"/>
+        <bm:field name="approval_status" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="APPROVAL_STATUS"/>
+        <bm:field name="closed_date" databaseType="DATE" datatype="java.util.Date" physicalName="CLOSED_DATE"/>
+        <bm:field name="closed_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CLOSED_FLAG"/>
+        <bm:field name="created_by" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CREATED_BY"/>
+        <bm:field name="user_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="user_name"/>
+        <bm:field name="bp_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="bp_name"/>
+        <bm:field name="bp_category" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="bp_category"/>
+        <bm:field name="bp_category_n" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="amount"/>
+        <bm:field name="currency_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="currency_code"/>
+        <bm:field name="print_flag" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="bp_id_tenant_n" datatype="java.lang.String"/>
+        <bm:field name="fin_manager_n" datatype="java.lang.String"/>
+        <bm:field name="price" databaseType="java.lang.Double"/>
+        <bm:field name="lease_channel" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="lease_channel_n" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="transaction_date" databaseType="DATE" datatype="java.util.Date"/>
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field name="agent_flag" queryExpression="h.bp_id = decode((select su.bp_category from sys_user su where su.user_id =${/session/@user_id}),&apos;AGENT&apos;,(select su.bp_id from sys_user su where su.user_id =${/session/@user_id}),&apos;EMPLOYEE&apos;,h.bp_id)"/>
+        <bm:query-field name="print_flag" queryExpression="nvl(h.print_flag,&apos;N&apos;) = ${@print_flag} and h.approval_status = &apos;APPROVED&apos; and nvl(h.closed_flag,&apos;N&apos;) = &apos;N&apos;"/>
+        <bm:query-field name="payment_flag" queryExpression="h.payment_flag = ${@payment_flag}"/>
+        <bm:query-field name="payment_req_number_from" datatype="java.lang.String" queryExpression="h.payment_req_number&gt;=${@payment_req_number_from}"/>
+        <bm:query-field name="payment_req_number_to" datatype="java.lang.String" queryExpression="h.payment_req_number&lt;=${@payment_req_number_to}"/>
+        <bm:query-field name="payment_req_number" queryExpression="upper(h.payment_req_number) like &apos;%&apos; || upper(${@payment_req_number}) || &apos;%&apos;"/>
+        <bm:query-field name="contract_number" queryExpression="upper(h.contract_number) like &apos;%&apos; || upper(${@contract_number}) || &apos;%&apos;"/>
+        <bm:query-field name="req_date_from" datatype="java.lang.String" queryexpression="h.req_date &gt;= to_date(${@req_date_from},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="req_date_to" datatype="java.lang.String" queryexpression="h.req_date &lt;= to_date(${@req_date_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="bp_code" datatype="java.lang.String" queryExpression="h.bp_code=${@bp_code}"/>
+        <bm:query-field name="bp_code_from" datatype="java.lang.String" queryExpression="h.bp_code&gt;=${@bp_code_from}"/>
+        <bm:query-field name="bp_code_to" datatype="java.lang.String" queryExpression="h.bp_code&lt;=${@bp_code_to}"/>
+        <bm:query-field name="apply_pay_date_from" datatype="java.lang.String" queryexpression="trunc(h.apply_pay_date) &gt;= to_date(${@apply_pay_date_from},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="apply_pay_date_to" datatype="java.lang.String" queryexpression="trunc(h.apply_pay_date) &lt;= to_date(${@apply_pay_date_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="amount_from" datatype="java.lang.String" queryExpression="h.amount&gt;=${@amount_from}"/>
+        <bm:query-field name="amount_to" datatype="java.lang.String" queryExpression="h.amount&lt;=${@amount_to}"/>
+        <bm:query-field name="approval_date_from" datatype="java.lang.String" queryexpression="trunc(h.approval_date) &gt;= to_date(${@approval_date_from},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="approval_date_to" datatype="java.lang.String" queryexpression="trunc(h.approval_date) &lt;= to_date(${@approval_date_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="approval_status" datatype="java.lang.String" queryExpression="h.approval_status=${@approval_status}"/>
+        <bm:query-field name="submitted_flag" datatype="java.lang.String" queryExpression="h.submitted_flag=${@submitted_flag}"/>
+        <bm:query-field name="closed_flag" datatype="java.lang.String" queryExpression="h.closed_flag=${@closed_flag}"/>
+        <bm:query-field name="currency_code" datatype="java.lang.String" queryExpression="h.currency_code=${@currency_code}"/>
+        <bm:query-field name="closed_date_from" datatype="java.lang.String" queryexpression="trunc(h.closed_date) &gt;= to_date(${@closed_date_from},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="closed_date_to" datatype="java.lang.String" queryexpression="trunc(h.closed_date) &lt;= to_date(${@closed_date_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="bp_id_tenant_n" datatype="java.lang.String" queryexpression="h.bp_id_tenant_n like ${@bp_id_tenant_n}"/>
+        <bm:query-field name="fin_manager_n" datatype="java.lang.String" queryexpression="h.fin_manager_n like ${@fin_manager_n}"/>
+        <bm:query-field name="bp_category" dataType="java.lang.String" queryExpression="h.bp_category = ${@bp_category}"/>
+        <bm:query-field name="lease_channel" dataType="java.lang.String" queryExpression="h.lease_channel = ${@lease_channel}"/>
+    </bm:query-fields>
+</bm:model>

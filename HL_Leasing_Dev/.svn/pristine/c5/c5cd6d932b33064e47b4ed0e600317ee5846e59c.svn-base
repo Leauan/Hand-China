@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        tt1.project_id,
+                        tt1.project_number,
+                        tt2.bp_name,
+                        (SELECT description FROM hls_division WHERE division = tt1.division
+                        ) division_n,
+                        tt3.lease_times,
+                        (SELECT DESCRIPTION FROM hls_price_list WHERE price_list = tt3.price_list
+                        )price_list_n,
+                        tt5.bp_name agent_name,
+                        TO_CHAR(tt3.finance_amount,'FM999,999,999.90') finance_amount,
+                        tt4.deposit_ratio,
+                        tt4.down_payment_ratio,
+                        TO_CHAR(tt4.pmt_first,'FM999,999,999.90') pmt_first,
+                        (SELECT
+                            company_full_name
+                        FROM
+                            fnd_companies
+                        WHERE
+                            company_id = tt1.company_id
+                        )company_full_name,
+                        '' major_brand,
+                        '' total_overdue,
+                        tt1.bp_class,
+                        (SELECT
+                            r.score_result
+                        FROM
+                            fnd_sc_score t,
+                            fnd_sc_score_result r,
+                            fnd_score_template fst
+                        WHERE
+                            tt2.project_id          = t.project_id AND
+                            tt1.company_id          = t.company_id AND
+                            t.score_num             = 1 AND
+                            t.sc_score_id           = r.sc_score_id AND
+                            
+                            r.score_template_id     = fst.score_template_id AND
+                            fst.score_template_code = 'TEL_OFFICE_CHECK' AND
+                            r.pre_score_result     IS NOT NULL
+                        )score_result,
+                        (SELECT
+                            r.pre_score_result
+                        FROM
+                            fnd_sc_score t,
+                            fnd_sc_score_result r,
+                            fnd_score_template fst
+                        WHERE
+                            tt2.project_id          = t.project_id AND
+                            tt1.company_id          = t.company_id AND
+                            t.score_num             = 1 AND
+                            t.sc_score_id           = r.sc_score_id AND
+                           
+                            r.score_template_id     = fst.score_template_id AND
+                            fst.score_template_code = 'TEL_OFFICE_CHECK'
+                        )pre_score_result
+                    FROM
+                        prj_project tt1,
+                        prj_project_bp tt2,
+                        prj_quotation tt3,
+                        hls_fin_calculator_hd tt4,
+                        hls_bp_master tt5
+                    WHERE
+                        tt1.project_id        = tt2.project_id(+) AND
+                        tt2.bp_category(+)    = 'TENANT' AND
+                        tt1.project_id        = tt3.document_id AND
+                        tt3.document_category = 'PROJECT' AND
+                        tt3.calc_session_id   = tt4.calc_session_id AND
+                        tt1.invoice_agent_id  = tt5.bp_id(+)
+                    ) t1
+                WHERE
+                    t1.project_id = ${@project_id}
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

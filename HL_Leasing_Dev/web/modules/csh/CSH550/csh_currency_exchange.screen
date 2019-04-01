@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-10-3 下午03:07:52  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="currency_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="csh_currency_exchange_detail_link_id" url="${/request/@context_path}/modules/csh/CSH550/csh_currency_exchange_detail.screen"/>
+        <a:link id="csh_currency_exchange_post_detail_link_id" url="${/request/@context_path}/modules/csh/CSH550/csh_currency_exchange_post_detail.screen"/>
+        <script><![CDATA[
+            function csh_currency_exchange_query() {
+                $('csh_currency_exchange_result_ds').query();
+            }
+            
+            function csh_currency_exchange_reset() {
+                $('csh_currency_exchange_query_ds').reset();
+            }
+            
+            function csh_currency_exchange_new() {
+                csh_currency_exchange_window(null);
+            }
+            
+            function construct_from_to() {
+                var config = ['transaction_num', 'transaction_date', 'exchange_in_bank_slip_num', 'exchange_out_bank_slip_num'];
+                var pattern = ['_from', '_to'];
+                var obj = {};
+                for (var i = 0,
+                    j = config.length;i < j;i++) {
+                    for (var m = 0,
+                        n = pattern.length;m < n;m++) {
+                        obj[config[i] + pattern[m]] = config[i] + pattern[n - 1 - m];
+                    }
+                }
+                return obj;
+            }
+            
+            function on_currency_exchange_query_update(ds, record, name, value, oldvalue) {
+                var from_to = construct_from_to();
+                var opposite_name = from_to[name];
+                if (!Ext.isEmpty(opposite_name)) {
+                    var opposite_value = record.get(opposite_name);
+                    if (!Ext.isEmpty(value) && Ext.isEmpty(opposite_value)) {
+                        record.set(opposite_name, value);
+                    }
+                }
+            }
+            
+            function csh_currency_exchange_window(exchange_out_transaction_id,posted_flag) {
+                var url;
+                if(posted_flag=='Y'){
+                   url=$('csh_currency_exchange_post_detail_link_id').getUrl();
+                }else{
+                    url=$('csh_currency_exchange_detail_link_id').getUrl();
+                }
+                var win = new Aurora.Window({
+                    id: 'csh_currency_exchange_detail_winid',
+                    url: url,
+                    params: {
+                        transaction_id: exchange_out_transaction_id,
+                        winid: 'csh_currency_exchange_detail_winid',
+                        dsid: 'csh_currency_exchange_result_ds'
+                    },
+                    title: '${l:CSH550.CSH_CURRENCY_EXCHANGE}',
+                    width: 1050,
+                    height: 520
+                });
+                win.on('close', function() {
+                    csh_currency_exchange_query();
+                });
+            }
+            
+            function see_render_currency_exchange_detail(value, record, name) {
+                if (value) {
+                    return '<a href="javascript:csh_currency_exchange_window(' + record.get('exchange_out_transaction_id') + ',\''+record.get('posted_flag')+'\');">' + value + '</a>';
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="currency_ds">
+                <a:datas dataSource="/model/currency_path"/>
+            </a:dataSet>
+            <a:dataSet id="currency_exchange_posted_flag_ds" lookupCode="CSH_POSTED_FLAG"/>
+            <a:dataSet id="csh_currency_exchange_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="transaction_num_from"/>
+                    <a:field name="transaction_num_to"/>
+                    <a:field name="currency_name_in" displayField="currency_name" options="currency_ds" returnField="currency_in" valueField="currency_code"/>
+                    <a:field name="currency_in"/>
+                    <a:field name="currency_name_out" displayField="currency_name" options="currency_ds" returnField="currency_out" valueField="currency_code"/>
+                    <a:field name="currency_out"/>
+                    <a:field name="transaction_date_from"/>
+                    <a:field name="transaction_date_to"/>
+                    <a:field name="exchange_in_bank_account_code" lovGridHeight="350" lovHeight="530" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="550" title="HLS.BANK_ACCOUNT_NAME">
+                        <a:mapping>
+                            <a:map from="bank_account_id" to="exchange_in_bank_account_id"/>
+                            <a:map from="bank_account_code" to="exchange_in_bank_account_code"/>
+                            <a:map from="bank_account_name" to="exchange_in_bank_account_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="exchange_in_bank_account_id"/>
+                    <a:field name="exchange_in_bank_account_name" readOnly="true"/>
+                    <a:field name="exchange_in_bank_slip_num_from"/>
+                    <a:field name="exchange_in_bank_slip_num_to"/>
+                    <a:field name="exchange_out_bank_account_code" lovGridHeight="350" lovHeight="530" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="550" title="HLS.BANK_ACCOUNT_NAME">
+                        <a:mapping>
+                            <a:map from="bank_account_id" to="exchange_out_bank_account_id"/>
+                            <a:map from="bank_account_code" to="exchange_out_bank_account_code"/>
+                            <a:map from="bank_account_name" to="exchange_out_bank_account_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="exchange_out_bank_account_id"/>
+                    <a:field name="exchange_out_bank_account_name" readOnly="true"/>
+                    <a:field name="exchange_out_bank_slip_num_from"/>
+                    <a:field name="exchange_out_bank_slip_num_to"/>
+                    <a:field name="posted_flag_display" displayField="code_value_name" options="currency_exchange_posted_flag_ds" returnField="posted_flag" valueField="code_value"/>
+                    <a:field name="user_name" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="basic.sys_user_for_lov" lovWidth="500" prompt="AUT_TRX_USER_AUTHORIZE.USER_ID" title="员工选择">
+                        <a:mapping>
+                            <a:map from="description" to="user_name"/>
+                            <a:map from="user_id" to="user_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="user_id"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_currency_exchange_query_update"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="csh_currency_exchange_result_ds" autoQuery="true" model="csh.CSH550.csh_currency_exchange_query" queryDataSet="csh_currency_exchange_query_ds" selectable="true"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="csh_currency_exchange_query" text="HLS.QUERY"/>
+                <a:gridButton click="csh_currency_exchange_reset" text="HLS.RESET"/>
+                <a:gridButton click="csh_currency_exchange_new" text="HLS.NEW"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="100" marginWidth="30" title="CSH550.CSH_CURRENCY_EXCHANGE">
+                <a:textField name="transaction_num_from" bindTarget="csh_currency_exchange_query_ds" prompt="HLS.TRANSACTION_NUMBER_FROM"/>
+                <a:textField name="transaction_num_to" bindTarget="csh_currency_exchange_query_ds" prompt="HLS.TRANSACTION_NUMBER_TO"/>
+                <a:comboBox name="currency_name_out" bindTarget="csh_currency_exchange_query_ds" prompt="CSH550.CURRENCY_EXCHANGE_OUT"/>
+                <a:comboBox name="currency_name_in" bindTarget="csh_currency_exchange_query_ds" prompt="CSH550.CURRENCY_EXCHANGE_IN"/>
+                <a:datePicker name="transaction_date_from" bindTarget="csh_currency_exchange_query_ds" prompt="CSH550.CURRENCY_EXCHANGE_DATE_FROM"/>
+                <a:datePicker name="transaction_date_to" bindTarget="csh_currency_exchange_query_ds" prompt="CSH550.CURRENCY_EXCHANGE_DATE_TO"/>
+                <a:lov name="exchange_out_bank_account_code" bindTarget="csh_currency_exchange_query_ds" prompt="CSH550.EXCHANGE_OUT_BANK_ACCOUNT_CODE"/>
+                <a:textField name="exchange_out_bank_account_name" bindTarget="csh_currency_exchange_query_ds" prompt="CSH550.BANK_ACCOUNT_NAME"/>
+                <a:textField name="exchange_out_bank_slip_num_from" bindTarget="csh_currency_exchange_query_ds" prompt="CSH550.EXCHANGE_OUT_BANK_SLIP_NUM_FROM"/>
+                <a:textField name="exchange_out_bank_slip_num_to" bindTarget="csh_currency_exchange_query_ds" prompt="CSH550.EXCHANGE_OUT_BANK_SLIP_NUM_TO"/>
+                <a:lov name="exchange_in_bank_account_code" bindTarget="csh_currency_exchange_query_ds" prompt="CSH550.EXCHANGE_IN_BANK_ACCOUNT_CODE"/>
+                <a:textField name="exchange_in_bank_account_name" bindTarget="csh_currency_exchange_query_ds" prompt="CSH550.BANK_ACCOUNT_NAME"/>
+                <a:textField name="exchange_in_bank_slip_num_from" bindTarget="csh_currency_exchange_query_ds" prompt="CSH550.EXCHANGE_IN_BANK_SLIP_NUM_FROM"/>
+                <a:textField name="exchange_in_bank_slip_num_to" bindTarget="csh_currency_exchange_query_ds" prompt="CSH550.EXCHANGE_IN_BANK_SLIP_NUM_TO"/>
+                <a:comboBox name="posted_flag_display" bindTarget="csh_currency_exchange_query_ds" prompt="CSH550.IS_POSTED"/>
+                <a:lov name="user_name" bindTarget="csh_currency_exchange_query_ds" prompt="HLS.DOCUMENT_CREATED_BY"/>
+            </a:form>
+            <a:grid id="csh_currency_exchange_grid_id" bindTarget="csh_currency_exchange_result_ds" marginHeight="280" marginWidth="32" navBar="true">
+                <a:columns>
+                    <a:column name="transaction_num" prompt="HLS.TRANSACTION_NUMBER" renderer="see_render_currency_exchange_detail" width="120"/>
+                    <a:column name="transaction_date" align="center" prompt="HLS.TRANSACTION_DATE" renderer="Aurora.formatDate"/>
+                    <a:column name="posted_flag" align="center" prompt="HLS.POSTED_FLAG"/>
+                    <a:column name="exchange_out_currency_name" prompt="CSH550.CURRENCY_EXCHANGE_OUT"/>
+                    <a:column name="exchange_out_trx_amount" align="right" prompt="CSH550.EXCHANGE_OUT_TRX_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="exchange_out_bank_slip_num" prompt="CSH550.EXCHANGE_OUT_BANK_SLIP_NUM"/>
+                    <a:column name="exchange_out_bank_account_name" prompt="CSH550.EXCHANGE_OUT_BANK_ACCOUNT_CODE"/>
+                    <a:column name="exchange_out_bank_account_num" prompt="CSH550.EXCHANGE_OUT_BANK_ACCOUNT_NUM"/>
+                    <a:column name="exchange_in_currency_name" prompt="CSH550.CURRENCY_EXCHANGE_IN"/>
+                    <a:column name="exchange_in_trx_amount" align="right" prompt="CSH550.EXCHANGE_IN_TRX_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="exchange_in_bank_slip_num" prompt="CSH550.EXCHANGE_IN_BANK_SLIP_NUM"/>
+                    <a:column name="exchange_in_bank_account_name" prompt="CSH550.EXCHANGE_IN_BANK_ACCOUNT_CODE"/>
+                    <a:column name="exchange_in_bank_account_num" prompt="CSH550.EXCHANGE_IN_BANK_ACCOUNT_NUM"/>
+                    <a:column name="user_name" prompt="HLS.DOCUMENT_CREATED_BY"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

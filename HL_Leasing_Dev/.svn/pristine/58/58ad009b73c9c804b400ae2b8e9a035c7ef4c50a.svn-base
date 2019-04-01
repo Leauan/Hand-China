@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-6-24 下午03:23:39  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" cacheEnabled="true" cacheKey="${/parameter/@layout_code}_screen" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <!-- <s:server-script import="aut_authority_validate.js"/> -->
+        <a:model-query fetchAll="true" model="hls.HLS030.hls_doc_layout_main" rootPath="layout_main_path"/>
+        <a:model-query fetchAll="true" model="cont.CON500.hls_doc_layout_button" rootPath="layout_main_button_path"/>
+        <a:model-query defaultWhereClause="t1.parent_table is null and t1.tab_type!=&apos;TAB&apos; and t1.enabled_flag=&apos;Y&apos; and rownum=1" fetchAll="true" model="cont.CON500.con_hls_doc_layout_tab_query" rootPath="base_table_path"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+           function prj_check_bp_id(record) {
+                var bp_id;
+                if (record) {
+                    bp_id = record.get('bp_id');
+                }
+                if (!bp_id) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.EXECUTE_AFTER_SAVE}');
+                    bp_id = '';
+                }
+                return bp_id;
+            }
+            if ('$c{/parameter/@master_id}') {
+                var detail_mask;
+                if ('${/parameter/@winid}') {
+                    if (parent.$A.CmpManager.get('${/parameter/@winid}')) {
+                        detail_mask = parent.$('${/parameter/@winid}').wrap;
+                        parent.Aurora.Masker.mask(detail_mask, '${l:HLS.LOADING}');
+                    } else {
+                        detail_mask = $('${/parameter/@winid}').wrap;
+                        Aurora.Masker.mask(detail_mask, '${l:HLS.LOADING}');
+                    }
+                } else {
+                    detail_mask = Ext.getBody();
+                    Aurora.Masker.mask(detail_mask, '${l:HLS.LOADING}');
+                }
+            }
+            
+            function hls213_bp_master_save(nextStep) {
+                var root_ds = $('${/model/base_table_path/record/@tab_code}_${/model/base_table_path/record/@base_table}_ds');
+                if (root_ds.validate()) {
+                    var winid = '${/parameter/@winid}';
+                    Aurora.Masker.mask($(winid).wrap, '${l:HLS.EXECUTING}');
+                    var root_record = root_ds.getAt(0);
+                    root_ds.setSubmitParameter('layout_code', '${/parameter/@layout_code}');
+                    on_hls_save_dynamic(root_ds, root_record, nextStep, winid);
+                }
+            }
+            
+            function hls213_bp_master_exit() {
+                $('${/parameter/@winid}').close();
+            }
+            
+            function hls213_bp_master_save_exit() {
+                hls213_bp_master_save(hls213_bp_master_exit);
+            }
+             // //附件上传
+            // window['${/parameter/@layout_code}_upload_layout_dynamic_click'] = function() {
+                // debugger;
+                // var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_bp_master');
+                // var record = $(ds_id).getCurrentRecord();
+                // var bp_id = prj_check_bp_id(record);
+                // if (!bp_id) {
+                    // return;
+                // }else{
+                     // var url;
+                    // if ('${/parameter/@function_usage}' == 'QUERY') {
+                        // url = $('prj500_cdd_downloadFile').getUrl() + '?table_name=HLS_BP_MASTER_CONTENT&header_id=' + bp_id;
+                    // } else {
+                        // url = $('prj500_cdd_uploadFile').getUrl() + '?table_name=HLS_BP_MASTER_CONTENT&header_id=' + bp_id;
+                    // }
+               // var win = new Aurora.Window({
+                        // url: url,
+                        // title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                        // id: 'prj500_cdd_uploadFile_screen_id_1',
+                        // width: 850,
+                        // height: 400
+                    // });
+                     // win.on('close', function() {
+                        // // record.ds.query();
+                    // });
+               // }
+            // };
+        ]]></script>
+        <a:freeMarker><![CDATA[
+	        	<#if model.getObject("/model/layout_main_button_path").getChilds()??>
+	        		<#if model.getObject("/parameter/@tab_tab_code")??>
+		        	<#else>
+		        		<a:screenTopToolbar>
+			        		<#list model.getObject('/model/layout_main_button_path').getChilds() as item>
+				        			<#if item.getString('button_code') =='SAVE'>
+				        				<a:gridButton click="hls213_bp_master_save" text="${item.getString('prompt')!""}"/>
+				        			<#elseif item.getString('button_code') =='EXIT'>
+				        				<a:gridButton click="hls213_bp_master_exit" text="${item.getString('prompt')!""}"/>
+				        			<#elseif item.getString('button_code') =='SAVE_EXIT'>
+				        				<a:gridButton click="hls213_bp_master_save_exit" text="${item.getString('prompt')!""}"/>
+				        			<#elseif item.getString('button_code') =='USER_BUTTON1'&&item.getString('function_code')=='${model.getObject("/parameter/@function_code")!""}'>
+				        				<a:gridButton click="function(){hls213_bp_master_prj_import&amp;&amp;hls213_bp_master_prj_import($('${model.getObject("/model/base_table_path/record/@tab_code")!""}_${model.getObject("/model/base_table_path/record/@base_table")}_ds'))}" text="${item.getString('prompt')!""}"/>
+				        			<#elseif item.getString('button_code') =='USER_BUTTON2'&&item.getString('function_code')=='${model.getObject("/parameter/@function_code")!""}'>
+				        				<a:gridButton click="function(){hls213_bp_master_prj_query&amp;&amp;hls213_bp_master_prj_query($('${model.getObject("/model/base_table_path/record/@tab_code")!""}_${model.getObject("/model/base_table_path/record/@base_table")}_ds'))}" text="${item.getString('prompt')!""}"/>
+				        			<#else>
+				        				<a:gridButton id="${item.getString('button_code')!""}" click="function(btn){hls213_define_button&amp;&amp;hls213_define_button(btn,$('${model.getObject("/model/base_table_path/record/@tab_code")!""}_${model.getObject("/model/base_table_path/record/@base_table")}_ds'))}" text="${item.getString('prompt')!""}"/>
+				        			</#if>
+			        		</#list>
+		        		</a:screenTopToolbar>
+		        	</#if>
+	        	</#if>
+	        ]]></a:freeMarker>
+        <a:screenBody padding="5" style="width:98%">
+            <a:placeHolder id="dynamicMain_id"/>
+        </a:screenBody>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="dynamicMain_id">
+            <p:loop source="/model/layout_main_path">
+                <p:switch test="@tab_type">
+                    <p:case value="FORM">
+                        <c:process-config>
+                            <a:screen-include screen="modules/hls/HLS213/hls_bp_master_dynamic_create_form.screen?form_tab_code=${@tab_code}&amp;layout_code=${/parameter/@layout_code}&amp;document_id=$c{/parameter/@document_id}&amp;document_category=$c{/parameter/@document_category}&amp;winid=${/parameter/@winid}&amp;function_code=${/parameter/@function_code}&amp;function_usage=$c{/parameter/@function_usage}&amp;maintain_type=${/parameter/@maintain_type}&amp;master_id=$c{/parameter/@master_id}&amp;master_type=$c{/parameter/@master_type}&amp;default_value_dsid=$c{/parameter/@default_value_dsid}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="GRID">
+                        <c:process-config>
+                            <a:screen-include screen="modules/hls/HLS213/hls_bp_master_dynamic_create_grid.screen?grid_tab_code=${@tab_code}&amp;layout_code=${/parameter/@layout_code}&amp;document_id=$c{/parameter/@document_id}&amp;document_category=$c{/parameter/@document_category}&amp;winid=${/parameter/@winid}&amp;function_code=${/parameter/@function_code}&amp;function_usage=$c{/parameter/@function_usage}&amp;maintain_type=${/parameter/@maintain_type}&amp;master_id=$c{/parameter/@master_id}&amp;master_type=$c{/parameter/@master_type}&amp;default_value_dsid=$c{/parameter/@default_value_dsid}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TEXTAREA">
+                        <c:process-config>
+                            <a:screen-include screen="modules/hls/HLS213/hls_bp_master_dynamic_create_textarea.screen?textarea_tab_code=${@tab_code}&amp;layout_code=${/parameter/@layout_code}&amp;document_id=$c{/parameter/@document_id}&amp;document_category=${/parameter/@document_category&amp;winid=${/parameter/@winid}&amp;function_code=${/parameter/@function_code}&amp;function_usage=$c{/parameter/@function_usage}&amp;maintain_type=${/parameter/@maintain_type}&amp;master_id=$c{/parameter/@master_id}&amp;master_type=$c{/parameter/@master_type}&amp;default_value_dsid=$c{/parameter/@default_value_dsid}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TAB">
+                        <c:process-config>
+                            <a:screen-include screen="modules/hls/HLS213/hls_bp_master_dynamic_create_tabpanel.screen?tab_group=${@tab_group}&amp;parent_tab_code=${/parameter/@tab_tab_code}&amp;layout_code=${/parameter/@layout_code}&amp;document_id=$c{/parameter/@document_id}&amp;document_category=$c{/parameter/@document_category}&amp;winid=${/parameter/@winid}&amp;function_code=${/parameter/@function_code}&amp;function_usage=$c{/parameter/@function_usage}&amp;maintain_type=${/parameter/@maintain_type}&amp;master_id=$c{/parameter/@master_id}&amp;master_type=$c{/parameter/@master_type}&amp;default_value_dsid=$c{/parameter/@default_value_dsid}"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

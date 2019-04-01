@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-5-23 上午9:30:47  
+    $Revision: 1.0  
+    $Purpose: 更新优化
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query autocount="true" fetchall="true" model="gld.gld_coa_structure" rootpath="coa_structure"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="pageLink_account_detail" url="${/request/@context_path}/modules/gld/FND2140/gld_accounts.screen"/>
+        <a:link id="sys_service_welcome_link" url="${/request/@context_path}/welcome.screen"/>
+        <a:screen-include screen="modules/hls/hls_common_javascript.screen"/>
+        <script><![CDATA[
+            function accountDefineDs_query() {
+                $('gld_account_sets_result_ds').query();
+            }
+            
+            function resetAccountSet() {
+                $('accountDefineDs').reset();
+            }
+            
+            function accountDefineDs_grid_add() {
+                $('accountDefineDs_grid').showEditorByRecord($('gld_account_sets_result_ds').create());
+            }
+            
+            function accountDefineDs_grid_clear() {
+                $('accountDefineDs_grid').clear();
+            }
+            
+            
+            function accountDefineDs_grid_submit() {
+                var result_ds = $('gld_account_sets_result_ds');
+                if (result_ds.validate()) {
+                    result_ds.submit();
+                }
+            }
+            
+            
+            
+            function accountDefineScreen_quit() {
+                location.href = $('sys_service_welcome_link').getUrl();
+                parent.shMenu('show');
+            }
+            
+            function editorFunction_accountDefineDs_grid(record,name)
+            {
+                if(name=='account_set_code')
+                {
+                    if (record.isNew) {
+                    	return 'accountDefineDs_grid_editor_tf_upper';
+                	}
+                }
+                if(name=='coa_structure_code')
+                {
+                    if (record.isNew) {
+                    	return 'accountDefineDs_grid_editor_lov';
+                	}
+                }
+                return '';
+                
+            }
+            
+            function render_accountDefineDs_grid(value, record, name) {
+                if(name=='account_detail')
+                {
+                    var account_set_id=record.get('account_set_id');
+                    if(!Ext.isEmpty(account_set_id))
+                    {
+                        return '<a href="javascript:winOpen_account_detail(' + account_set_id + ')">${l:GLD_ACCOUNT_SETS.SHOW_DETAIL}</a>';
+                    }
+                }
+                return '';
+            }
+            
+            function winOpen_account_detail(account_set_id) {
+                new Aurora.Window({
+                    id: 'gld_accounts',
+                    url: $('pageLink_account_detail').getUrl(),
+                    params:{
+                    	account_set_id:account_set_id
+                    },
+                    title: '${l:GLD_ACCOUNTS_DETAIL}',
+                    fullScreen:true,
+                    draggable:true
+                    
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="gld_coa_structure_ds">
+                <a:datas dataSource="/model/coa_structure"/>
+            </a:dataSet>
+            <a:dataSet id="accountDefineDs" model="gld.gld_account_sets"/>
+            <a:dataSet id="gld_account_sets_result_ds" autoQuery="true" fetchAll="false" model="gld.gld_account_sets" notification="有数据没有保存" queryDataSet="accountDefineDs" selectable="true">
+                <a:fields>
+                    <a:field name="account_set_code" required="true" validator="hlsCommon_validateCode"/>
+                    <a:field name="account_set_name" required="true"/>
+                    <a:field name="coa_structure_code" lovHeight="520" lovLabelWidth="120" lovService="gld.gld_coa_structure_lov" lovWidth="540">
+                        <a:mapping>
+                            <a:map from="coa_structure_id" to="coa_structure_id"/>
+                            <a:map from="coa_structure_code" to="coa_structure_code"/>
+                            <a:map from="description" to="description"/>
+                            <a:map from="structure_format" to="structure_format"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="accountDefineScreen_quit" text="HLS.EXIT"/>
+                <a:gridButton click="accountDefineDs_query" text="HLS.QUERY"/>
+                <a:gridButton click="accountDefineDs_grid_add" text="HLS.NEW"/>
+                <a:gridButton click="accountDefineDs_grid_clear" text="HLS.CLEAR"/>
+                <a:gridButton click="accountDefineDs_grid_submit" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:form column="2" title="GLD_ACCOUNT_SETS.QUERY">
+                <a:textField name="account_set_code" bindTarget="accountDefineDs" typeCase="upper">
+                    <a:events>
+                        <a:event name="enterdown" handler="accountDefineDs_query"/>
+                    </a:events>
+                </a:textField>
+                <a:textField name="account_set_name" bindTarget="accountDefineDs">
+                    <a:events>
+                        <a:event name="enterdown" handler="accountDefineDs_query"/>
+                    </a:events>
+                </a:textField>
+            </a:form>
+            <a:grid id="accountDefineDs_grid" bindTarget="gld_account_sets_result_ds" marginHeight="180" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="account_set_code" align="left" editorFunction="editorFunction_accountDefineDs_grid" sortable="true" width="200"/>
+                    <a:column name="account_set_name" align="left" editor="accountDefineDs_grid_editor_tf" width="200"/>
+                    <a:column name="coa_structure_code" align="left" editorFunction="editorFunction_accountDefineDs_grid" width="200"/>
+                    <a:column name="description" align="left" width="200"/>
+                    <a:column name="structure_format" align="left" sortable="true" width="150"/>
+                    <a:column name="account_detail" align="center" prompt="GLD_ACCOUNT_SETS.SHOW_DETAIL" renderer="render_accountDefineDs_grid" width="80"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="accountDefineDs_grid_editor_tf_upper" typeCase="upper"/>
+                    <a:textField id="accountDefineDs_grid_editor_tf"/>
+                    <a:comboBox id="accountDefineDs_grid_editor_comb"/>
+                    <a:lov id="accountDefineDs_grid_editor_lov"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

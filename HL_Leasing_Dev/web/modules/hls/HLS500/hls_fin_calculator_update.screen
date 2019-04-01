@@ -1,0 +1,1341 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-4-17 上午09:26:12  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" customizationEnabled="true" trace="true">
+    <a:init-procedure participants="aurora.service.exception.ExceptionHandler">
+        <a:model-query defaultWhereClause="d.enabled_flag=&apos;Y&apos; and nvl(d.display_flag,&apos;N&apos;)!=&apos;N&apos;" fetchAll="true" model="hls.HLS500.hls_fin_calc_config_ln" rootPath="calc_config_ln_path"/>
+        <a:model-query defaultWhereClause="d.enabled_flag=&apos;Y&apos;" fetchAll="true" model="hls.HLS500.hls_fin_calc_config_ln" rootPath="calc_config_ln_all_path"/>
+        <a:model-query fetchAll="true" model="hls.HLS500.hls_fin_calc_button" rootPath="calc_button_path"/>
+        <a:model-query defaultWhereClause="t.enabled_flag=&apos;Y&apos; and t.display_flag=&apos;Y&apos;" fetchAll="true" model="hls.HLS500.hls_fin_calc_config_hd" rootPath="calc_config_hd_path"/>
+        <a:model-query defaultWhereClause="t.enabled_flag=&apos;Y&apos; and t.display_flag=&apos;N&apos;" fetchAll="true" model="hls.HLS500.hls_fin_calc_config_hd" rootPath="temp_config_hd_path"/>
+        <a:model-query fetchAll="true" model="hls.HLS500.hls_fin_calculator_ln_formula" rootPath="ln_formula_path"/>
+        <a:model-query fetchAll="true" model="hls.HLS500.hls_fin_calculator_hd_formula" rootPath="hd_formula_path"/>
+        <a:model-query defaultwhereclause="(d.layout_area_seq = &apos;H&apos;)" fetchAll="true" model="hls.HLS500.hls_parameter_value_lov_load" rootPath="hd_parameter_sql_value"/>
+        <a:model-query defaultwhereclause="(d.layout_area_seq = &apos;L&apos;)" fetchAll="true" model="hls.HLS500.hls_parameter_value_lov_load" rootPath="ln_parameter_sql_value"/>
+        <p:exception-handles>
+            <p:catch Exception="*">
+                <p:action name="HandleException"/>
+                <p:action name="CreateErrorResponse"/>
+            </p:catch>
+        </p:exception-handles>
+    </a:init-procedure>
+    <a:view>
+        <!-- <a:link id="hls_parameter_value_lov_link" url="${/request/@context_path}/modules/hls/HLS500/hls_parameter_value_lov.screen"/> -->
+        <a:link id="hls_fin_calculator_price_list" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calculator_price_list.screen"/>
+        <a:link id="hls_fin_calc_update" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calc_update.svc"/>
+        <a:link id="hls_fin_calculator_update" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calculator_update.screen"/>
+        <a:link id="hls_fin_calc_formula_update" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calc_formula_update.screen"/>
+        <a:link id="hls_fin_calc_quotation_choose_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calc_quotation_choose.screen"/>
+        <a:link id="hls_fin_calc_import_line_link_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calc_import_line.screen"/>
+        <a:link id="hls_fin_calc_show_display_line_link_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calc_show_display_line.screen"/>
+        <style><![CDATA[
+        .finGrid td[dataindex=percent]{
+            border-right-color:#FFF;
+            background-color:#FFF;
+            border-bottom-color:#FFF;
+        }
+		.item-options{
+		    background:#ffffff;
+		}
+		.cell-editor{
+    		border:none;
+    		margin-left:3px;
+    	}
+        ]]></style>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <a:screen-include screen="modules/hls/HLS500/hls_fin_calculator_dynamic.screen?calc_session_id=${/parameter/@calc_session_id}&amp;calc_type=CLASSIC_CALCULATOR&amp;document_category=${/parameter/@document_category}&amp;winId=${/parameter/@winId}"/>
+        <script><![CDATA[
+            var formula_column_name = '';
+            var formula_column_code = '';
+            var formula_prompt = '';
+            var formula_row = '';
+            var formula_calc_line_id = '';
+            var recreate_L_formula_value = '';
+            var recreate_L_formula = '${/parameter/@recreate_L_formula}' || 'N';
+            var recreate_H_formula = '${/parameter/@recreate_H_formula}' || 'N';
+            var global_button_code = '';
+            var global_save_data_first = '';
+            var global_action_after_button = '';
+            var global_javascript = '';
+            var quotation_update_flag = 'N';
+            var errorColor = {
+                ERROR: 'FFFF00'
+            };
+            
+            Aurora.Masker.mask(document.documentElement, '${l:HLS.LOADING}');
+            
+            function hls_hls500_save(nextStep, source_procedure) {
+                lock_calc_current_window('${l:HLS.SAVING}');
+                if (!$('hls_fin_calculator_hd_ds').validate() || !$('hls_fin_calculator_ln_ds').validate()) {
+                    unlock_calc_current_window();
+                    return;
+                }
+                var column_list;
+                var value_list;
+                var total_list = [];
+                var temp_head_records = $('hls_fin_calculator_hd_ds').getAll();
+                for (var q = 0;q < temp_head_records.length;q++) {
+                    if (!$('temp_hd_attribute_ds').find('column_code', temp_head_records[q].get('column_code'))) {
+                        $('temp_hd_attribute_ds').create(temp_head_records[q].data);
+                    }
+                }
+                var head_records = $('temp_hd_attribute_ds').getAll();
+                var head_formula_record = $('hd_formula_ds').getAt(0);
+                var calc_session_id = '${/parameter/@calc_session_id}';
+                for (var i = 0;i < head_records.length;i++) {
+                    var head_record = head_records[i];
+                    column_list = head_record.get('column_name');
+                    if (head_record.get('column_value') || head_record.get('column_value') === 0) {
+                        if (head_record.get('lov_return_vcode') == 'N' && (head_record.get('validation_type') == 'COMBOBOX' || head_record.get('validation_type') == 'LOV')) {
+                            if (head_record.get('percent') == '%') {
+                                value_list = "'" + div(head_record.get('column_value_c'), 100) + "'";
+                            } else {
+                                value_list = "'" + head_record.get('column_value_c') + "'";
+                            }
+                        } else if (head_record.get('percent') == '%') {
+                            value_list = "'" + div(head_record.get('column_value'), 100) + "'";
+                        } else if (head_record.get('validation_type') == 'DATEPICKER') {
+                            value_list = "'" + Aurora.formatDate(head_record.get('column_value')) + "'";
+                        } else {
+                            value_list = "'" + head_record.get('column_value') + "'";
+                        }
+                    } else {
+                        value_list = "''";
+                    }
+                    total_list.push(column_list + '=' + value_list);
+                }
+                total_list = total_list.join(',');
+                var headRecord = $('hls_fin_cal_save_hd_ds').getAt(0);
+                headRecord.set('total_list', total_list);
+                headRecord.set('calc_session_id', calc_session_id);
+                headRecord.set('document_id', '${/parameter/@document_id}');
+                headRecord.set('document_category', '${/parameter/@document_category}');
+                headRecord.set('_status', 'update');
+                head_formula_record.set('_status', 'update');
+                var param = headRecord.data;
+                param['hd_formula'] = [];
+                param['hd_formula'].push(head_formula_record.data);
+                var line_records = $('hls_fin_calculator_ln_ds').getAll();
+                var line_formula_records = $('ln_formula_ds').getAll();
+                param['details'] = [];
+                param['ln_formula'] = [];
+                for (var j = 0;j < line_records.length;j++) {
+                    var line_record = line_records[j];
+                    line_record.set('calc_session_id', calc_session_id);
+                    if (!line_record.isNew && !line_record.dirty) {
+                        continue;
+                    }
+                    if (line_record.dirty) {
+                        line_record.set('_status', 'update');
+                    }
+                    if (line_record.isNew) {
+                        line_record.set('_status', 'insert');
+                    }
+                    param['details'].push(line_record.data);
+                }
+                for (var m = 0;m < line_formula_records.length;m++) {
+                    var line_formula_record = line_formula_records[m];
+                    line_formula_record.set('calc_session_id', calc_session_id);
+                    if (line_formula_record.dirty) {
+                        line_formula_record.set('_status', 'update');
+                        param['ln_formula'].push(line_formula_record.data);
+                    }
+                }
+                Aurora.request({
+                    url: $('hls_fin_calc_update').getUrl(),
+                    para: param,
+                    success: function(res) {
+                        if (typeof(nextStep) == 'function') {
+                            nextStep(source_procedure);
+                        } else {
+                            var res_records = res.result.details.record;
+                            for (var j = 0;j < line_records.length;j++) {
+                                var line_record = line_records[j];
+                                if (line_record.isNew) {
+                                    for (var r = 0;r < res_records.length;r++) {
+                                        var res_record = res_records[r];
+                                        if (res_record.times == line_record.get('times')) {
+                                            if (Ext.isEmpty(res_record.calc_line_id)) {
+                                                Aurora.showMessage('${l:PROMPT}', '${l:HLS.DATA_ERROR}');
+                                                return;
+                                            }
+                                            line_record.set('calc_line_id', res_record.calc_line_id);
+                                        }
+                                    }
+                                }
+                                line_record.isNew = false;
+                                line_record.dirty = false;
+                            }
+            
+                            function on_ln_formula_load(ds) {
+                                success_sidebar_show();
+                                unlock_calc_current_window();
+                                $('ln_formula_ds').un('load', on_ln_formula_load);
+                            }
+                            $('ln_formula_ds').on('load', on_ln_formula_load);
+                            $('ln_formula_ds').query();
+                        }
+                    },
+                    failure: function() {
+                        unlock_calc_current_window();
+                    },
+                    error: function() {
+                        unlock_calc_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            function hls_hls500_calc() {
+                lock_calc_current_window('${l:HLS.CALCULATING}');
+                hls_hls500_save(calc_execute, 'CALC');
+            }
+            
+            function hls_hls500_re_calc() {
+                lock_calc_current_window('${l:HLS.CALCULATING}');
+                hls_hls500_save(calc_execute, 'RE_CALC');
+            }
+            
+            function open_after_save_execute() {
+                if ('${/parameter/@global_flag}' == 'Y') {
+                    var url = $('hls_fin_calculator_update').getUrl();
+                    var id_num = '${/parameter/@id_num}' * 1 + 1;
+                    var winId = 'global_hls_fin_calculator_update_id' + id_num;
+                    current_win_close();
+                    unlock_calc_current_window();
+                    new Aurora.Window({
+                        id: winId,
+                        params: {
+                            calc_session_id: '${/parameter/@calc_session_id}',
+                            document_id: '${/parameter/@document_id}',
+                            quotation_id: '${/parameter/@quotation_id}',
+                            document_category: '${/parameter/@document_category}',
+                            calc_type: '${/parameter/@calc_type}',
+                            dsId: '${/parameter/@dsId}',
+                            dsId1: '${/parameter/@dsId1}',
+                            winId: winId,
+                            winId1: '${/parameter/@winId1}',
+                            global_flag: 'Y',
+                            id_num: id_num,
+                            recreate_H_formula: recreate_H_formula,
+                            recreate_L_formula: recreate_L_formula
+                        },
+                        url: url,
+                        title: '${l:HLS.FIN_CALCULATOR}',
+                        fullScreen: true
+                    });
+                } else {
+                    window.location.href = $('hls_fin_calculator_update').getUrl() + '?calc_session_id=' + '${/parameter/@calc_session_id}';
+                }
+            }
+            
+            function calc_execute(source_procedure) {
+                var final_recreate_H_formula, final_recreate_L_formula;
+                if (source_procedure == 'RE_CALC') {
+                    final_recreate_H_formula = 'Y';
+                    final_recreate_L_formula = 'Y';
+                } else {
+                    final_recreate_H_formula = recreate_H_formula;
+                    final_recreate_L_formula = recreate_L_formula;
+                }
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/hls.HLS500.hls_fin_calculator_calc/update',
+                    para: {
+                        calc_session_id: '${/parameter/@calc_session_id}',
+                        document_id: '${/parameter/@document_id}',
+                        document_category: '${/parameter/@document_category}',
+                        recreate_H_formula: final_recreate_H_formula,
+                        recreate_L_formula: final_recreate_L_formula,
+                        quotation_id: '${/parameter/@quotation_id}'
+                    },
+                    success: function(res) {
+                        on_calc_success_query('${/parameter/@dsId}', '${/parameter/@document_category}');
+                        get_warning_message(res.result.warning_message);
+                        recreate_H_formula = 'N';
+                        recreate_L_formula = 'N';
+                        open_after_save_execute();
+                    },
+                    failure: function() {
+                        unlock_calc_current_window();
+                    },
+                    error: function() {
+                        unlock_calc_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            
+            function hls_formatMoney(v, p) {
+                return Aurora.formatNumber(v, p);
+            }
+            
+            function hls_formatMoney_zero_fill(v, p) {
+                return Aurora.formatNumber(v, p).replace(/0*$/g, '').replace(/\.$/, '');
+            }
+            
+            function is_false_return(value) {
+                if (isNaN(value) && Ext.isDefined(value)) {
+                    if (value.substring(0, 1) == '#') {
+                        return false;
+                    }
+            
+                } else {
+                    return true;
+                }
+            }
+            
+            function setGridCellStyle(record, name, cls) {
+                var id = 'hls_fin_calculator_hd_grid_id_' + name + '_' + record.id,
+                    intervalId = setInterval(function() {
+                        var div = Ext.get(id);
+                        if (div) {
+                            if (!div.getBorderWidth('t r b l')) {
+                                div = div.parent();
+                            }
+                            clearInterval(intervalId);
+                            div.dom.className = '';
+                            div.addClass(cls);
+                        }
+                    }, 10);
+            }
+            
+            function seedetail_column_hd(value, record, name) {
+                var field = record.getField(name);
+                if (field.isRequired()) {
+                    setGridCellStyle(record, name, 'item-notBlank');
+                } else if (!field.isRequired() && !field.isReadOnly()) {
+                    setGridCellStyle(record, name, 'item-options');
+                }
+                if (is_false_return(value) == false) {
+                    return "<div style='background-color:#" + errorColor['ERROR'] + "'>" + value + "</div>";
+                }
+                if (record.get('validation_type') == 'NUMBERFIELD' && (value || value === 0)) {
+                    if (record.get('allow_format') == 'TRUE') {
+                        if (record.get('precision')) {
+                            if (record.get('zero_fill') == 'TRUE') {
+                                return hls_formatMoney(value, record.get('precision'));
+                            } else {
+                                return hls_formatMoney_zero_fill(value, record.get('precision'));
+                            }
+                        } else {
+                            return hls_formatMoney(value);
+                        }
+                    } else {
+                        if (record.get('precision') && record.get('allow_decimal') == 'TRUE') {
+                            if (record.get('zero_fill') == 'TRUE') {
+                                return parseFloat(value).toFixed(record.get('precision'));
+                            } else {
+                                return parseFloat(value).toFixed(record.get('precision')).replace(/0*$/g, '').replace(/\.$/, '');
+                            }
+                        } else {
+                            if (record.get('allow_decimal') == 'TRUE') {
+                                return value;
+                            } else {
+                                return parseFloat(parseFloat(value).toFixed(0));
+                            }
+                        }
+                    }
+                } else if (record.get('validation_type') == 'DATEPICKER') {
+                    return Aurora.formatDate(value);
+                } else {
+                    return value;
+                }
+            }
+            
+            function wrap_render(value, record, name) {
+                var editor_record = $('line_attribute_ds').find('column_name', name);
+                if (editor_record.get('validation_type') == 'NUMBERFIELD' && editor_record.get('input_mode') != 'READONLY' && name != 'times' && editor_record.get('sys_grid_col_underline') == 'Y' && !Ext.isEmpty(value)) {
+                    return '<u>' + seedetail_column_ln(value, record, name) + '</u>';
+                } else {
+                    return seedetail_column_ln(value, record, name);
+                }
+            }
+            
+            function seedetail_column_ln(value, record, name) {
+                if (is_false_return(value) == false) {
+                    return "<div style='background-color:#" + errorColor['ERROR'] + "'>" + value + "</div>";
+                }
+                var editor_record = $('line_attribute_ds').find('column_name', name);
+                if (editor_record.get('validation_type') == 'NUMBERFIELD' && (value || value === 0)) {
+                    if (editor_record.get('allow_format') == 'TRUE') {
+                        if (editor_record.get('precision')) {
+                            if (editor_record.get('zero_fill') == 'TRUE') {
+                                return hls_formatMoney(value, editor_record.get('precision'));
+                            } else {
+                                return hls_formatMoney_zero_fill(value, editor_record.get('precision'));
+                            }
+                        } else {
+                            return hls_formatMoney(value);
+                        }
+                    } else {
+                        if (editor_record.get('precision') && editor_record.get('allow_decimal') == 'TRUE') {
+                            if (editor_record.get('zero_fill') == 'TRUE') {
+                                return parseFloat(value).toFixed(editor_record.get('precision'));
+                            } else {
+                                return parseFloat(value).toFixed(editor_record.get('precision')).replace(/0*$/g, '').replace(/\.$/, '');
+                            }
+                        } else {
+                            if (editor_record.get('allow_decimal') == 'TRUE') {
+                                return value;
+                            } else {
+                                return parseFloat(parseFloat(value).toFixed(0));
+                            }
+                        }
+                    }
+                } else if (editor_record.get('validation_type') == 'DATEPICKER') {
+                    return Aurora.formatDate(value);
+                } else {
+                    return value;
+                }
+            }
+            
+            function parameter_function(record, name) {
+                var field = record.getField(name),
+                    ds = $('hls_fin_calculator_hd_ds'),
+                    input_mode = record.get('input_mode');
+                set_field_input_mode(record, field, name, input_mode);
+                special_editor_function(ds, record, name);
+                if (record.get('alignment')) {
+                    Ext.each($('hls_fin_calculator_hd_grid_id').columns, function(c) {
+                        if (c.name == name) {
+                            c.align = record.get('alignment');
+                        }
+                    });
+                }
+                if (record.get('validation_type') == 'NUMBERFIELD') {
+                    if (record.get('allow_decimal') == 'TRUE') {
+                        field.setPropertity('allowdecimals', true);
+                    } else {
+                        field.setPropertity('allowdecimals', false);
+                    }
+                    if (record.get('precision') || record.get('precision') == 0) {
+                        field.setPropertity('decimalprecision', record.get('precision'));
+                    }
+                    if (record.get('zero_fill') == 'TRUE') {
+                        field.setPropertity('allowpad', true);
+                    } else {
+                        field.setPropertity('allowpad', false);
+                    }
+                    set_field_limit(record, field);
+                    if (field.get('readonly')) {
+                        return '';
+                    } else {
+                        return 'hls500_hd_numberfield_id';
+                    }
+                } else if (record.get('validation_type') == 'LOV') {
+                    var documentMapping;
+                    if (record.get('lov_return_vcode') == 'Y') {
+                        documentMapping = [{
+                            from: 'value_code',
+                            to: name
+                        }];
+                    } else {
+                        documentMapping = [{
+                            from: 'value_name',
+                            to: name
+                        }, {
+                            from: 'value_code',
+                            to: name + '_c'
+                        }];
+                    }
+                    var hd_parameter_sql_value_record = $('hd_parameter_sql_value_ds').find('column_code', record.get('column_code'));
+                    field.setLovPara('validation_sql', hd_parameter_sql_value_record.get('validation_sql'));
+                    field.setTitle(record.get('prompt'));
+                    field.setMapping(documentMapping);
+                    field.setLovModel('hls.HLS500.hls_parameters_lov');
+                    if (field.get('readonly')) {
+                        return '';
+                    } else {
+                        return 'hls500_hd_lov_id';
+                    }
+                } else if (record.get('validation_type') == 'COMBOBOX') {
+                    var combobox_ds = record.get('layout_area_seq') + '_' + record.get('column_name') + '_combobox_ds';
+                    combobox_ds = $(combobox_ds);
+                    field.setOptions(combobox_ds);
+                    combobox_ds.setQueryParameter('validation_sql', record.get('validation_sql'));
+                    var comboBoxMapping;
+                    field.setPropertity('valuefield', 'value_code');
+                    if (record.get('lov_return_vcode') == 'Y') {
+                        field.setPropertity('displayfield', 'value_code');
+                        comboBoxMapping = [{
+                            from: 'value_code',
+                            to: name
+                        }];
+                    } else {
+                        field.setPropertity('displayfield', 'value_name');
+                        comboBoxMapping = [{
+                            from: 'value_code',
+                            to: name + '_c'
+                        }];
+                    }
+                    field.setMapping(comboBoxMapping);
+                    if (field.get('readonly')) {
+                        return '';
+                    } else {
+                        return 'hls500_hd_combobox_id';
+                    }
+                } else if (record.get('validation_type') == 'TEXTFIELD') {
+                    if (field.get('readonly')) {
+                        return '';
+                    } else {
+                        return 'hls500_hd_textfield_id';
+                    }
+                } else if (record.get('validation_type') == 'DATEPICKER') {
+                    return 'hls500_hd_datepicker_id';
+                } else if (record.get('validation_type') == 'CHECKBOX') {
+                    field.setPropertity('checkedvalue', 'Y');
+                    field.setPropertity('uncheckedvalue', 'N');
+                    if (field.get('readonly')) {
+                        return '';
+                    } else {
+                        return 'hls500_hd_checkbox_id';
+                    }
+                } else {
+                    return '';
+                }
+            }
+            
+            function do_hls500_column_name(record, name) {
+                var editor_record = $('line_attribute_ds').find('column_name', name),
+                    field = record.getField(name),
+                    input_mode = editor_record.get('input_mode');
+                set_field_input_mode(record, field, name, input_mode);
+                if (editor_record.get('validation_type') == 'NUMBERFIELD') {
+                    if (editor_record.get('allow_decimal') == 'TRUE') {
+                        field.setPropertity('allowdecimals', true);
+                    } else {
+                        field.setPropertity('allowdecimals', false);
+                    }
+                    if (editor_record.get('precision') || editor_record.get('precision') == 0) {
+                        field.setPropertity('decimalprecision', editor_record.get('precision'));
+                    }
+                    if (editor_record.get('zero_fill') == 'TRUE') {
+                        field.setPropertity('allowpad', true);
+                    } else {
+                        field.setPropertity('allowpad', false);
+                    }
+                    set_field_limit(editor_record, field);
+                    if (field.get('readonly')) {
+                        return '';
+                    } else {
+                        if (name == 'times' && (!record.isNew)) {
+                            return '';
+                        }
+                        return 'hls500_ln_numberfield_id';
+                    }
+                } else if (editor_record.get('validation_type') == 'LOV') {
+                    var documentMapping = [{
+                        from: 'value_code',
+                        to: name
+                    }];
+                    var ln_parameter_sql_value_record = $('ln_parameter_sql_value_ds').find('column_code', editor_record.get('column_code'));
+                    field.setLovPara('validation_sql', ln_parameter_sql_value_record.get('validation_sql'));
+                    field.setTitle(editor_record.get('prompt'));
+                    field.setMapping(documentMapping);
+                    field.setLovModel('hls.HLS500.hls_parameters_lov');
+                    if (field.get('readonly')) {
+                        return '';
+                    } else {
+                        return 'hls500_ln_lov_id';
+                    }
+                } else if (editor_record.get('validation_type') == 'TEXTFIELD') {
+                    if (field.get('readonly')) {
+                        return '';
+                    } else {
+                        return 'hls500_ln_textfield_id';
+                    }
+                } else if (editor_record.get('validation_type') == 'DATEPICKER') {
+                    return 'hls500_ln_datepicker_id';
+                } else if (editor_record.get('validation_type') == 'CHECKBOX') {
+                    field.setPropertity('checkedvalue', 'Y');
+                    field.setPropertity('uncheckedvalue', 'N');
+                    if (field.get('readonly')) {
+                        return '';
+                    } else {
+                        return 'hls500_ln_checkbox_id';
+                    }
+                } else {
+                    return '';
+                }
+            }
+            
+            function hls_hls500_add() {
+                $('hls_fin_calculator_ln_grid_id').showEditorByRecord($('hls_fin_calculator_ln_ds').create(0));
+            }
+            
+            function hls_hls500_return() {
+                if ('${/parameter/@global_flag}' == 'Y') {
+                    current_win_close();
+                } else {
+                    var url = $('hls_fin_calculator_price_list').getUrl();
+                    window.location.href = url;
+                }
+            }
+            
+            function do_hls500_line_load(ds) {
+                var lineRecords = ds.getAll();
+                var attribute_records = $('line_attribute_ds').getAll();
+                if (!lineRecords) {
+                    return;
+                }
+                if ('${/model/calc_config_hd_path/record/@show_column_code}' == 'Y') {
+                    for (var i = 0;i < lineRecords.length;i++) {
+                        var ln_formula_record = $('ln_formula_ds').find('calc_line_id', lineRecords[i].get('calc_line_id'));
+                        for (var j = 0;j < attribute_records.length;j++) {
+                            var column_name = attribute_records[j].get('column_name');
+                            var tooltip_ln_formula = escapeHtml(appendBr(ln_formula_record.get(column_name), 60));
+                            lineRecords[i].getField(column_name).setPropertity('tooltip', tooltip_ln_formula);
+                        }
+                    }
+                }
+            }
+            
+            function do_hls500_line_update(ds, record, name, value, old_value) {
+                if (quotation_update_flag == 'N') {
+                    quotation_update_flag = 'Y';
+                }
+                var formula_record = $('ln_formula_ds').find('calc_line_id', record.get('calc_line_id'));
+                if (formula_record) {
+                    formula_record.set(name, value);
+                }
+                onLineupdate_setEmpty(ds, record, name, value, old_value);
+            }
+            
+            function do_hls500_head_update(ds, record, name, value, old_value) {
+                if (record.get('lov_return_vcode') == 'N' && (record.get('validation_type') == 'COMBOBOX' || record.get('validation_type') == 'LOV')) {
+                    value = record.get('column_value_c');
+                } else {
+                    if (name == 'column_value') {
+                        record.set('column_value_c', value);
+                    }
+                }
+                if (quotation_update_flag == 'N') {
+                    quotation_update_flag = 'Y';
+                }
+                var formula_record = $('hd_formula_ds').getAt(0);
+                if (record.get('percent') == '%' && !Ext.isEmpty(value)) {
+                    formula_record.set(record.get('column_name'), div(value, 100));
+                } else {
+                    formula_record.set(record.get('column_name'), value);
+                }
+                if (record.get('column_name') == 'lease_times') {
+                    if (!recreate_L_formula_value) {
+                        recreate_L_formula_value = old_value;
+                    }
+                    if (value != recreate_L_formula_value) {
+                        recreate_L_formula = 'Y';
+                    } else {
+                        recreate_L_formula = 'N';
+                    }
+                }
+                onEditorupdate(ds, record, name, value, old_value);
+            }
+            
+            function hls_hls500_formula_change() {
+                if (!formula_column_name) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:HLS500.CHANGE_FORMULA_FIELD}');
+                    return;
+                }
+                if (!formula_calc_line_id) {
+                    Aurora.showConfirm('${l:HLS.PROMPT}', '${l:HLS500.CHANGE_HD_FIELD}' + formula_prompt, function() {
+                        openWindow();
+                    }, function() {
+                        return;
+                    }, null, null);
+                } else {
+                    Aurora.request({
+                        url: '${/request/@context_path}/autocrud/hls.HLS500.hls_fin_calc_config_ln/query',
+                        para: {
+                            calc_session_id: '${/parameter/@calc_session_id}',
+                            column_name: formula_column_name
+                        },
+                        success: function(res) {
+                            formula_column_code = res.result.record.column_code;
+                            Aurora.showConfirm('${l:HLS.PROMPT}', '${l:HLS500.CHANGE_LN_FIELD}' + formula_row + '${l:HLS500.LN_FIELD}' + formula_prompt, function() {
+                                openWindow();
+                            }, function() {
+                                return;
+                            }, null, null);
+                        },
+                        scope: this
+                    });
+                }
+            
+            }
+            
+            function hls500_hd_cellcick(grid, row, name, record) {
+                formula_column_name = record.get('column_name');
+                formula_column_code = record.get('column_code');
+                formula_prompt = record.get('prompt');
+                formula_calc_line_id = '';
+                formula_row = row;
+            }
+            
+            function hls500_ln_cellcick(grid, row, name, record) {
+                var ln_formula_record = $('line_attribute_ds').find('column_name', name);
+                formula_column_name = name;
+                formula_column_code = '';
+                formula_prompt = ln_formula_record.get('prompt');
+                formula_calc_line_id = record.get('calc_line_id');
+                formula_row = row;
+            }
+            
+            function openWindow() {
+                var url = $('hls_fin_calc_formula_update').getUrl();
+                new Aurora.Window({
+                    id: 'hd_formula_update_winid',
+                    url: url,
+                    params: {
+                        calc_session_id: '${/parameter/@calc_session_id}',
+                        document_id: '${/parameter/@document_id}',
+                        document_category: '${/parameter/@document_category}',
+                        column_name: formula_column_name,
+                        column_code: formula_column_code,
+                        prompt: formula_prompt,
+                        calc_line_id: formula_calc_line_id,
+                        winid: 'hd_formula_update_winid'
+                    },
+                    title: '${l:HLS500.FORMULA_UPDATE}',
+                    height: 300,
+                    width: 400
+                });
+            }
+            
+            function escapeHtml(str) {
+                if (Ext.isEmpty(str) || !Ext.isString(str)) {
+                    return str;
+                }
+                return $A.escapeHtml(str).replace(/&lt;br\/&gt;/gm, '<br/>');
+            }
+            
+            function appendBr(s, max) {
+                if (s) {
+                    for (var i = max || 10;i < s.length;i += max + 5) {
+                        s = s.substr(0, i) + '<br/>' + s.substr(i);
+                    }
+                    return s;
+                } else {
+                    return '';
+                }
+            }
+            
+            function on_hd_load_last_deal(ds, each_record) {
+                var value;
+                if (each_record.get('lov_return_vcode') == 'N' && (each_record.get('validation_type') == 'COMBOBOX' || each_record.get('validation_type') == 'LOV')) {
+                    value = each_record.get('column_value_c');
+                } else {
+                    value = each_record.get('column_value');
+                }
+                onEditor_load_fire(ds, each_record, each_record.get('column_name'), value, null);
+            }
+            
+            function onEditorHdload(ds) {
+                var headRecords = ds.getAll();
+                if (headRecords[0].get('show_column_code') == 'N') {
+                    $('hls_fin_calculator_hd_grid_id').hideColumn('column_code');
+                    $('hls_fin_calculator_export_grid_id').hideColumn('column_code');
+                } else {
+                    var hd_formula_record = $('hd_formula_ds').getAt(0);
+                    for (var i = 0;i < headRecords.length;i++) {
+                        var column_name = headRecords[i].get('column_name');
+                        var tooltip_hd_formula = escapeHtml(appendBr(hd_formula_record.get(column_name), 60));
+                        headRecords[i].getField('column_code').setPropertity('tooltip', tooltip_hd_formula);
+                        headRecords[i].getField('prompt').setPropertity('tooltip', tooltip_hd_formula);
+                        headRecords[i].getField('column_value').setPropertity('tooltip', tooltip_hd_formula);
+                    }
+                }
+                Ext.each(ds.getAll(), function(each_record) {
+                    each_record.isNew = true;
+                    Ext.iterate(ds.fields, function(key) {
+                        key == 'column_value' && parameter_function(each_record, key);
+                    })
+                });
+                Ext.each(ds.getAll(), function(each_record) {
+                    on_hd_load_last_deal(ds, each_record);
+                });
+                Ext.each($('temp_hd_attribute_ds').getAll(), function(each_record) {
+                    on_hd_load_last_deal($('temp_hd_attribute_ds'), each_record);
+                });
+                Aurora.Masker.unmask(document.documentElement);
+            }
+            
+            function hls500_define_button(btn) {
+                lock_calc_current_window();
+                global_button_code = btn.id.substring(7);
+                var button_record = $('calc_button_ds').find('button_code', global_button_code);
+                global_save_data_first = button_record.get('save_data_first');
+                global_action_after_button = button_record.get('action_after_button');
+                global_javascript = button_record.get('javascript');
+                if (Ext.isDefined(global_javascript)) {
+                    if (global_save_data_first == 'Y') {
+                        hls_hls500_save(hls500_define_button_js);
+                    } else {
+                        hls500_define_button_js();
+                    }
+                } else {
+                    if (global_save_data_first == 'Y') {
+                        hls_hls500_save(hls500_define_button_execute);
+                    } else {
+                        hls500_define_button_execute();
+                    }
+                }
+            }
+            
+            function hls500_action_after_button() {
+                if (global_action_after_button == 'EXIT') {
+                    hls_hls500_return();
+                } else if (global_action_after_button == 'QUERY') {
+                    open_after_save_execute();
+                }
+            }
+            
+            function hls500_define_button_js() {
+                // if (window.execScript) {
+                // window.execScript(global_javascript);
+                // } else {
+                eval(global_javascript);
+                // }
+                unlock_calc_current_window();
+                hls500_action_after_button();
+            }
+            
+            function hls500_define_button_execute() {
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/hls.HLS500.hls_fin_calc_user_define_btn/update',
+                    para: {
+                        calc_session_id: '${/parameter/@calc_session_id}',
+                        button_code: global_button_code,
+                        document_id: '${/parameter/@document_id}',
+                        document_category: '${/parameter/@document_category}'
+                    },
+                    success: function(res) {
+                        parent.Aurora.SideBar.show({
+                            html: '<div style="background-color:#ccfbd5;position:absolute;padding:3px;border:1px solid #009900">' + res.result.return_value + '</div>',
+                            duration: 5000
+                        });
+                        unlock_calc_current_window();
+                        hls500_action_after_button();
+                    },
+                    failure: function() {
+                        unlock_calc_current_window();
+                    },
+                    error: function() {
+                        unlock_calc_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            function hls500_hd_process(datas) {
+                for (var i = 0;i < datas.length;i++) {
+                    var temp = datas[i];
+                    if (temp.data['validation_type'] == 'NUMBERFIELD') {
+                        temp.data['column_value'] = isNaN(temp.data['column_value']) == true ? temp.data['column_value'] : parseFloat(parseFloat(temp.data['column_value']).toFixed(temp.data['precision']));
+                    }
+                }
+                return datas;
+            }
+            
+            function hls500_hd_formula_process(datas) {
+                for (var i = 0;i < datas.length;i++) {
+                    var temp = datas[i];
+                    if (Ext.isDefined(temp.data)) {
+                        temp = temp.data;
+                    }
+                    for (var name in temp) {
+                        var temp_record = $('hd_attribute_ds').find('column_name', name);
+                        if (temp_record) {
+                            if (temp_record.get('validation_type') == 'NUMBERFIELD') {
+                                temp[name] = isNaN(temp[name]) == true ? temp[name] : parseFloat(parseFloat(temp[name]).toFixed(temp_record.get('precision')));
+                            }
+                        }
+                    }
+                }
+                return datas;
+            }
+            
+            function hls500_ln_process(datas) {
+                for (var i = 0;i < datas.length;i++) {
+                    var temp = datas[i];
+                    for (var name in temp.data) {
+                        var temp_record = $('line_attribute_ds').find('column_name', name);
+                        if (temp_record) {
+                            if (temp_record.get('validation_type') == 'NUMBERFIELD') {
+                                temp.data[name] = isNaN(temp.data[name]) == true ? temp.data[name] : parseFloat(parseFloat(temp.data[name]).toFixed(temp_record.get('precision')));
+                            }
+                        }
+                    }
+                }
+                return datas;
+            }
+            
+            function hls500_ln_formula_process(datas) {
+                for (var i = 0;i < datas.length;i++) {
+                    var temp = datas[i];
+                    if (Ext.isDefined(temp.data)) {
+                        temp = temp.data;
+                    }
+                    for (var name in temp) {
+                        var temp_record = $('line_attribute_ds').find('column_name', name);
+                        if (temp_record) {
+                            if (temp_record.get('validation_type') == 'NUMBERFIELD') {
+                                temp[name] = isNaN(temp[name]) == true ? temp[name] : parseFloat(parseFloat(temp[name]).toFixed(temp_record.get('precision')));
+                            }
+                        }
+                    }
+                }
+                return datas;
+            }
+            
+            function hls_hls500_delete() {
+                $('hls_hls500_delete_id').disable();
+                var records = $('hls_fin_calculator_ln_ds').getSelected();
+                if (!records.length) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    $('hls_hls500_delete_id').enable();
+                    return;
+                }
+                var saveData = [];
+                for (var i = 0;i < records.length;i++) {
+                    records[i].set('_status', 'delete');
+                    records[i].set('document_id', '${/parameter/@document_id}');
+                    records[i].set('document_category', '${/parameter/@document_category}');
+                    saveData.push(records[i].data);
+                }
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/hls.HLS500.hls_fin_calc_delete_ln/batch_update',
+                    para: saveData,
+                    success: function() {
+                        success_sidebar_show();
+                        $('hls_fin_calculator_ln_grid_id').clear();
+                        $('hls_hls500_delete_id').enable();
+                    },
+                    failure: function() {
+                        $('hls_hls500_delete_id').enable();
+                    },
+                    error: function() {
+                        $('hls_hls500_delete_id').enable();
+                    },
+                    scope: this
+                });
+            }
+            
+            function hls_hls500_quotation() {
+                if (quotation_update_flag == 'Y') {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS500.QUOTATION_CALC_FIRST}');
+                    return;
+                }
+                if ('${/parameter/@global_flag}' == 'Y') {
+                    lock_calc_current_window('${l:HLS.SAVING}');
+                    Aurora.request({
+                        url: '${/request/@context_path}/autocrud/hls.HLS500.hls_quotation_save/insert',
+                        para: {
+                            calc_session_id: '${/parameter/@calc_session_id}',
+                            document_id: '${/parameter/@document_id}',
+                            document_category: '${/parameter/@document_category}'
+                        },
+                        success: function() {
+                            $('${/parameter/@dsId}').query();
+                            if ('${/parameter/@quotation_id}') {
+                                var win = new Aurora.Window({
+                                    id: 'hls_fin_calc_quotation_choose_winid',
+                                    params: {
+                                        quotation_id: '${/parameter/@quotation_id}',
+                                        document_id: '${/parameter/@document_id}',
+                                        document_category: '${/parameter/@document_category}',
+                                        dsId: '${/parameter/@dsId}',
+                                        dsId1: '${/parameter/@dsId1}',
+                                        winId: '${/parameter/@winId}',
+                                        winId1: '${/parameter/@winId1}'
+                                    },
+                                    url: $('hls_fin_calc_quotation_choose_id').getUrl(),
+                                    title: '${l:PROMPT}',
+                                    height: 200,
+                                    width: 400
+                                });
+                                win.on('close', function() {
+                                    unlock_calc_current_window();
+                                });
+                            } else {
+                                Aurora.SideBar.show({
+                                    msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                    duration: 2000
+                                });
+                            }
+                            unlock_calc_current_window();
+                        },
+                        failure: function() {
+                            unlock_calc_current_window();
+                        },
+                        error: function() {
+                            unlock_calc_current_window();
+                        },
+                        scope: this
+                    });
+                }
+            }
+            
+            function hls_hls500_export() {
+                $('hls_fin_calculator_export_ds').query();
+            
+                function on_hls_fin_calculator_export_load() {
+                    $('hls_fin_calculator_export_grid_id')._export();
+                    $('hls_fin_calculator_export_ds').un('load', on_hls_fin_calculator_export_load);
+                }
+                $('hls_fin_calculator_export_ds').on('load', on_hls_fin_calculator_export_load);
+            }
+            
+            function hd_grid_rowrenderer() {
+                return 'background-color:#f3f3f3';
+            }
+            
+            function do_hls500_line_remove(ds, record, index) {
+                var formula_record = $('ln_formula_ds').find('calc_line_id', record.get('calc_line_id'));
+                $('ln_formula_ds').remove(formula_record);
+            }
+            
+            function hls_hls500_restructure() {
+                lock_calc_current_window('${l:HLS.CALCULATING}');
+                var win = Aurora.showConfirm('${l:PROMPT}', '${l:HLS.SAVE_FIRST}', function() {
+                    hls_hls500_save(hls_hls500_restructure_execute);
+                }, function() {
+                    hls_hls500_restructure_execute()
+                }, null, null);
+                win.on('close', function() {
+                    unlock_calc_current_window();
+                });
+            }
+            
+            function hls_hls500_restructure_execute() {
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/hls.HLS500.hls_fin_calc_structure_execute/update',
+                    para: {
+                        calc_session_id: '${/parameter/@calc_session_id}'
+                    },
+                    success: function() {
+                        open_after_save_execute();
+                    },
+                    failure: function() {
+                        unlock_calc_current_window();
+                    },
+                    error: function() {
+                        unlock_calc_current_window();
+                    },
+                    scope: this
+                });
+            }
+            Aurora.onReady(function() {
+                Ext.fly('hls_fin_calculator_export_grid_id_wrap').setStyle({
+                    display: 'none'
+                });
+            });
+            
+            function hls_hls500_import() {
+                $('hls_hls500_import_id').disable();
+                hls_hls500_save(hls_hls500_import_detail);
+            }
+            
+            function hls_hls500_import_detail() {
+                $('hls_hls500_import_id').disable();
+                unlock_calc_current_window();
+                var win = new Aurora.Window({
+                    id: 'upload_handle_window',
+                    params: {
+                        calc_session_id: '${/parameter/@calc_session_id}',
+                        parent_winId: '${/parameter/@winId}',
+                        winId: 'upload_handle_window',
+                        document_id: '${/parameter/@document_id}',
+                        document_category: '${/parameter/@document_category}',
+                        calc_type: '${/parameter/@calc_type}',
+                        global_flag: '${/parameter/@global_flag}'
+                    },
+                    url: $('hls_fin_calc_import_line_link_id').getUrl(),
+                    title: '${l:HLS.IMPORT}',
+                    width: 420,
+                    height: 275
+                });
+                win.on('close', function() {
+                    $('hls_hls500_import_id').enable();
+                });
+            }
+            
+            function hls_hls500_show_col(btn) {
+                $('hls_hls500_show_col_id').disable();
+                var win = new Aurora.Window({
+                    id: 'show_col_window_id',
+                    params: {
+                        calc_session_id: '${/parameter/@calc_session_id}',
+                        calc_grid_id: 'hls_fin_calculator_ln_grid_id',
+                        calc_export_grid_id: 'hls_fin_calculator_export_grid_id',
+                        winid: 'show_col_window_id'
+                    },
+                    url: $('hls_fin_calc_show_display_line_link_id').getUrl(),
+                    title: btn.el.dom['innerText'],
+                    width: 550,
+                    height: 520
+                });
+                win.on('close', function() {
+                    $('hls_hls500_show_col_id').enable();
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:placeHolder id="dynamicDataSet_left_id"/>
+            <a:dataSet id="hls_dynamiclinefields_ds" autoCreate="true">
+                <a:fields>
+                    <a:placeHolder id="dynamicLineFields"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="line_attribute_ds">
+                <a:datas dataSource="/model/calc_config_ln_path"/>
+            </a:dataSet>
+            <a:dataSet id="line_field_ds">
+                <a:datas dataSource="/model/calc_config_ln_all_path"/>
+            </a:dataSet>
+            <a:dataSet id="temp_hd_attribute_ds">
+                <a:datas dataSource="/model/temp_config_hd_path"/>
+                <a:events>
+                    <a:event name="update" handler="do_hls500_head_update"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="hd_parameter_sql_value_ds">
+                <a:datas dataSource="/model/hd_parameter_sql_value"/>
+            </a:dataSet>
+            <a:dataSet id="ln_parameter_sql_value_ds">
+                <a:datas dataSource="/model/ln_parameter_sql_value"/>
+            </a:dataSet>
+            <a:dataSet id="hd_attribute_ds">
+                <a:datas dataSource="/model/calc_config_hd_path"/>
+            </a:dataSet>
+            <a:dataSet id="ln_formula_ds" processfunction="hls500_ln_formula_process" queryUrl="${/request/@context_path}/autocrud/hls.HLS500.hls_fin_calculator_ln_formula/query?calc_session_id=${/parameter/@calc_session_id}">
+                <a:datas dataSource="/model/ln_formula_path"/>
+            </a:dataSet>
+            <a:dataSet id="hd_formula_ds" processfunction="hls500_hd_formula_process">
+                <a:datas dataSource="/model/hd_formula_path"/>
+            </a:dataSet>
+            <a:dataSet id="calc_button_ds">
+                <a:datas dataSource="/model/calc_button_path"/>
+            </a:dataSet>
+            <a:dataSet id="hls_fin_cal_save_hd_ds" autoCreate="true"/>
+            <a:dataSet id="hls_fin_calculator_hd_ds" autoQuery="true" fetchAll="true" model="hls.HLS500.hls_fin_calc_config_hd" processfunction="hls500_hd_process" queryUrl="${/request/@context_path}/autocrud/hls.HLS500.hls_fin_calc_config_hd/query?calc_session_id=${/parameter/@calc_session_id}&amp;enabled_flag=Y&amp;display_flag=Y">
+                <a:fields>
+                    <a:field name="column_value" lovGridHeight="350" lovHeight="500" lovWidth="500"/>
+                    <a:field name="column_value_c"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="do_hls500_head_update"/>
+                    <a:event name="load" handler="onEditorHdload"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="hls_fin_calculator_ln_ds" autoQuery="true" fetchAll="true" model="hls.HLS500.hls_fin_calculator_ln" processfunction="hls500_ln_process" queryUrl="${/request/@context_path}/autocrud/hls.HLS500.hls_fin_calculator_ln/query?calc_session_id=${/parameter/@calc_session_id}" selectable="true">
+                <a:events>
+                    <a:event name="load" handler="do_hls500_line_load"/>
+                    <a:event name="update" handler="do_hls500_line_update"/>
+                    <a:event name="remove" handler="do_hls500_line_remove"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="hls_fin_calculator_export_ds" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/hls.HLS500.hls_fin_calculator_export/query?calc_session_id=${/parameter/@calc_session_id}"/>
+        </a:dataSets>
+        <a:screenBody padding="0" style="margin:3px">
+            <a:vBox padding="0" style="border:1px solid #ccc;">
+                <a:screenTopToolbar style="height:40px;padding:0;border-bottom-color:#000;">
+                    <div style="font-size:15px;margin:10px 5px 0 5px"><![CDATA[${l:HLS.FIN_CALCULATOR}]]></div>
+                    <a:placeHolder id="hls500_button_ds"/>
+                </a:screenTopToolbar>
+                <a:hBox padding="0" style="padding:3px">
+                    <a:grid id="hls_fin_calculator_hd_grid_id" bindTarget="hls_fin_calculator_hd_ds" marginHeight="${/model/calc_config_hd_path/record/@margin_height}" rowRenderer="hd_grid_rowrenderer" style="margin-right:3px" width="${/model/calc_config_hd_path/record/@grid_left_width}">
+                        <a:columns>
+                            <a:column name="column_code" align="left" autoAdjust="false" prompt="HLS050.HLS_FIN_CALC_CONFIG.COLUMN_CODE" width="40"/>
+                            <a:column name="prompt" align="right" autoAdjust="false" prompt="HLS500.PROMPT" width="110"/>
+                            <a:column name="column_value" autoAdjust="false" editorFunction="parameter_function" prompt="HLS500.PROMPT_VALUE" renderer="seedetail_column_hd" showtitle="${/model/calc_config_hd_path/record/@sys_grid_show_title}" width="110"/>
+                            <a:column name="percent" autoAdjust="false" width="19"/>
+                        </a:columns>
+                        <a:editors>
+                            <a:numberField id="hls500_hd_numberfield_id"/>
+                            <a:lov id="hls500_hd_lov_id">
+                                <a:events>
+                                    <a:event name="focus" handler="on_object_hd_calc_focus"/>
+                                </a:events>
+                            </a:lov>
+                            <a:textField id="hls500_hd_textfield_id"/>
+                            <a:datePicker id="hls500_hd_datepicker_id"/>
+                            <a:checkBox id="hls500_hd_checkbox_id"/>
+                            <a:comboBox id="hls500_hd_combobox_id">
+                                <a:events>
+                                    <a:event name="focus" handler="on_object_hd_calc_focus"/>
+                                </a:events>
+                            </a:comboBox>
+                        </a:editors>
+                        <a:events>
+                            <a:event name="cellclick" handler="hls500_hd_cellcick"/>
+                        </a:events>
+                    </a:grid>
+                    <a:grid id="hls_fin_calculator_ln_grid_id" bindTarget="hls_fin_calculator_ln_ds" marginHeight="${/model/calc_config_hd_path/record/@margin_height}" marginWidth="${/model/calc_config_hd_path/record/@grid_margin_width}">
+                        <a:columns>
+                            <a:placeHolder id="dynamicLineColumn_id"/>
+                        </a:columns>
+                        <a:editors>
+                            <a:numberField id="hls500_ln_numberfield_id"/>
+                            <a:lov id="hls500_ln_lov_id">
+                                <a:events>
+                                    <a:event name="focus" handler="on_object_ln_calc_focus"/>
+                                </a:events>
+                            </a:lov>
+                            <a:textField id="hls500_ln_textfield_id"/>
+                            <a:datePicker id="hls500_ln_datepicker_id"/>
+                            <a:checkBox id="hls500_ln_checkbox_id"/>
+                        </a:editors>
+                        <a:events>
+                            <a:event name="cellclick" handler="hls500_ln_cellcick"/>
+                        </a:events>
+                    </a:grid>
+                    <script><![CDATA[
+                    	Aurora.onReady(function(){
+                    	   var records=$('line_field_ds').getAll();
+                    	   if(records.length){
+                    	      for(var i=0;i<records.length;i++){
+                    	          var record=records[i],column_name=record.get('column_name');
+                    	          if(record.get('display_flag')=='C'){
+                    	          	 $('hls_fin_calculator_ln_grid_id').hideColumn(column_name);
+                    	          	 $('hls_fin_calculator_export_grid_id').hideColumn(column_name);
+                    	          }
+                    	      }
+                    	   }
+                    	});
+                    ]]></script>
+                </a:hBox>
+            </a:vBox>
+            <a:grid id="hls_fin_calculator_export_grid_id" bindTarget="hls_fin_calculator_export_ds" height="350" width="900">
+                <a:columns>
+                    <a:column name="prompt" align="right" autoAdjust="false" lock="true" prompt="HLS500.PROMPT" width="100"/>
+                    <a:column name="column_value" autoAdjust="false" editorFunction="parameter_function" lock="true" prompt="HLS500.PROMPT_VALUE" renderer="seedetail_column_hd" showtitle="true"/>
+                    <a:column name="percent" autoAdjust="false" lock="true" prompt=" " width="19"/>
+                    <a:placeHolder id="dynamicLineColumn_export_id"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="dynamicDataSet_left_id">
+            <p:loop source="/model/calc_config_hd_path">
+                <p:switch test="@validation_type">
+                    <p:case value="COMBOBOX">
+                        <c:process-config>
+                            <a:dataSet id="${@layout_area_seq}_${@column_name}_combobox_ds" queryUrl="${/request/@context_path}/autocrud/hls.HLS500.hls_parameters_lov/query"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="hls500_button_ds">
+            <p:loop source="/model/calc_button_path">
+                <p:switch test="@button_code">
+                    <p:case value="EXIT">
+                        <c:process-config>
+                            <a:gridButton click="hls_hls500_return" style="margin-top:10px;margin-left:5px" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="ADD_LN">
+                        <c:process-config>
+                            <a:gridButton id="hls_hls500_add_id" click="hls_hls500_add" style="margin-top:10px;margin-left:5px" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="DEL_LN">
+                        <c:process-config>
+                            <a:gridButton id="hls_hls500_delete_id" click="hls_hls500_delete" style="margin-top:10px;margin-left:5px" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="SAVE">
+                        <c:process-config>
+                            <a:gridButton id="hls_hls500_save_id" click="hls_hls500_save" style="margin-top:10px;margin-left:5px" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="MODF_FORMULA">
+                        <c:process-config>
+                            <a:gridButton id="hls_hls500_formula_id" click="hls_hls500_formula_change" style="margin-top:10px;margin-left:5px" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="CALC">
+                        <c:process-config>
+                            <a:gridButton id="hls_hls500_calc_id" click="hls_hls500_calc" style="margin-top:10px;margin-left:5px" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="RE_CALC">
+                        <c:process-config>
+                            <a:gridButton id="hls_hls500_re_calc_id" click="hls_hls500_re_calc" style="margin-top:10px;margin-left:5px" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="SAVE_QUOTATION">
+                        <c:process-config>
+                            <a:gridButton id="hls_hls500_quotation_id" click="hls_hls500_quotation" style="margin-top:10px;margin-left:5px" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="EXPORT">
+                        <c:process-config>
+                            <a:gridButton id="hls_hls500_export_id" click="hls_hls500_export" style="margin-top:10px;margin-left:5px" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="IMPORT">
+                        <c:process-config>
+                            <a:gridButton id="hls_hls500_import_id" click="hls_hls500_import" style="margin-top:10px;margin-left:5px" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="RESTRUCTURE">
+                        <c:process-config>
+                            <a:gridButton id="hls_hls500_restructure_id" click="hls_hls500_restructure" style="margin-top:10px;margin-left:5px" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="SHOW_COL">
+                        <c:process-config>
+                            <a:gridButton id="hls_hls500_show_col_id" click="hls_hls500_show_col" style="margin-top:10px;margin-left:5px" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="*">
+                        <c:process-config>
+                            <a:gridButton id="hls500_${@button_code}" click="hls500_define_button" style="margin-top:10px;margin-left:5px" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicLineColumn_id">
+            <p:loop source="/model/calc_config_ln_path">
+                <p:switch test="@show_column_code">
+                    <p:case value="Y">
+                        <c:process-config>
+                            <a:column lock="${@lock_column}" prompt="${@column_code}" width="${@width}">
+                                <a:column name="${@column_name}" align="${@alignment}" editorFunction="do_hls500_column_name" exportDatatype="${@data_type}" lock="${@lock_column}" prompt="${@prompt}" renderer="wrap_render" showtitle="${@sys_grid_show_title}" width="${@width}"/>
+                            </a:column>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="N">
+                        <c:process-config>
+                            <a:column name="${@column_name}" align="${@alignment}" editorFunction="do_hls500_column_name" exportDatatype="${@data_type}" lock="${@lock_column}" prompt="${@prompt}" renderer="wrap_render" showtitle="${@sys_grid_show_title}" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicLineColumn_export_id">
+            <p:loop source="/model/calc_config_ln_path">
+                <c:process-config>
+                    <a:column lock="${@lock_column}" prompt="${@upper_column_name}" width="${@width}">
+                        <a:column name="${@column_name}" align="${@alignment}" editorFunction="do_hls500_column_name" exportDatatype="${@data_type}" lock="${@lock_column}" prompt="${@prompt}" renderer="wrap_render" showtitle="${@sys_grid_show_title}" sortable="true" width="${@width}"/>
+                    </a:column>
+                </c:process-config>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicLineFields">
+            <p:loop source="/model/calc_config_ln_all_path">
+                <c:process-config>
+                    <a:field name="${@column_name}" defaultValue="${@default_value}" lovGridHeight="350" lovHeight="500" lovWidth="500"/>
+                </c:process-config>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

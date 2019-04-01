@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-12-19 上午09:39:25  
+    $Revision: 1.0  
+    $Purpose: 还款查詢
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <!-- <a:model-query fetchAll="true" model="basic.hls_business_type_for_lov" rootPath="business_type"/> -->
+        <a:model-query defaultWhereClause="exists ( select 1 from hls_doc_category_biz_type b where b.business_type = t1.business_type and b.document_category = &apos;LOAN_CONTRACT&apos;)" fetchAll="true" model="basic.hls_business_type_for_lov" rootPath="business_type"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="tre_working_capital_loan_readonly_link_id" url="${/request/@context_path}/modules/tre/TRE311/tre_working_capital_loan_readonly.screen"/>
+        <a:link id="tre_factoring_contract_readonly_link_id" url="${/request/@context_path}/modules/tre/TRE311/tre_factoring_contract_readonly.screen"/>
+        <a:link id="tre_entrustment_loan_contract_readonly_link_id" url="${/request/@context_path}/modules/tre/TRE311/tre_entrustment_loan_contract_readonly.screen"/>
+        <a:link id="tre_other_contract_readonly_link_id" url="${/request/@context_path}/modules/tre/TRE311/tre_other_contract_readonly.screen"/>
+        <a:link id="tre_loan_contract_repayment_review_detail_link_id" url="${/request/@context_path}/modules/tre/TRE313/tre_loan_con_repayment_detail_query.screen"/>
+        <script><![CDATA[
+            var loanConTypeLink = {
+                'WORKING_CAPITAL_LOAN': $('tre_working_capital_loan_readonly_link_id').getUrl() + '?loan_contract_id=',
+                //流动资金借款合同  	
+                'FACTORING': $('tre_factoring_contract_readonly_link_id').getUrl() + '?business_type=FACTORING&loan_contract_id=',
+                //公开型无追索权保理合同
+                'ENTRUSTMENT_LOAN': $('tre_entrustment_loan_contract_readonly_link_id').getUrl() + '?loan_contract_id=',
+                //委托债权合同
+                'OTHERS': $('tre_other_contract_readonly_link_id').getUrl() + '?loan_contract_id=' //其它合同
+            };
+            
+            function tre503_loan_query() {
+                $('loan_contract_ds').query();
+            }
+            
+            function tre503_loan_reset() {
+                $('loan_contract_query_ds').reset();
+            }
+            
+            function repayment_details_render(value, record, name) {
+                return '<a href="javascript:openRepaymentWin(' + record.get('loan_contract_id') + ',\'' + record.get('loan_contract_number') + '\');">${l:TRE502.REPAYMENT_DETAILS}</a>';
+            }
+            
+            function openRepaymentWin(id, number) {
+                window.location.href = $('tre_loan_contract_repayment_review_detail_link_id').getUrl() + '?loan_contract_id=' + id + '&loan_contract_number=' + number;
+            }
+            
+            function loanConRender(value, record, name) {
+                return '<a href="' + loanConTypeLink[record.get('business_type')] + record.get('loan_contract_id') + '">' + value + '</a>';
+            }
+            
+            function intPayableRender(value, record, name) {
+                return '<a href="#">' + Aurora.formatMoney(value) + '</a>';
+            }
+            
+            function on_loan_contract_ds_query(ds, qpara) {
+                qpara['loan_contract_status'] = 'REVIEWED';
+            }
+            function on_bank_account_focus(object) {
+                var display_name = object.binder.name,
+                    record = object.record;
+                if (!Ext.isEmpty(record.get('bank_branch_id'))) {
+                    record.getField(display_name).setLovPara('bank_branch_id', record.get('bank_branch_id'));
+                } else {
+                    record.getField(display_name).setLovPara('bank_branch_id', '');
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="business_type_ds">
+                <a:datas dataSource="/model/business_type"/>
+            </a:dataSet>
+            <a:dataSet id="other_loan_amount_type_ds" lookupCode="TRE502_OTHER_LOAN_AMOUNT_TYPE"/>
+            <a:dataSet id="loan_contract_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="bank_branch_name" lovGridHeight="350" lovHeight="510" lovLabelWidth="90" lovService="basic.csh_bank_branch_for_lov" lovWidth="580" prompt="HLS.BANK_CODE" title="HLS.BANK_CODE">
+                        <a:mapping>
+                            <a:map from="bank_branch_id" to="bank_branch_id"/>
+                            <a:map from="bank_branch_code" to="bank_branch_code"/>
+                            <a:map from="bank_branch_name" to="bank_branch_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="withdraw_account_code" lovGridHeight="350" lovHeight="510" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_id" to="withdraw_account_id"/>
+                            <a:map from="bank_account_code" to="withdraw_account_code"/>
+                            <a:map from="bank_account_num" to="withdraw_account_num"/>
+                            <a:map from="currency_code" to="currency"/>
+                            <a:map from="currency_name" to="currency_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_account_code" lovGridHeight="350" lovHeight="510" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_id" to="bank_account_id"/>
+                            <a:map from="bank_account_code" to="bank_account_code"/>
+                            <a:map from="bank_account_num" to="bank_account_num"/>
+                            <a:map from="currency_code" to="currency"/>
+                            <a:map from="currency_name" to="currency_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="business_type_desc" displayField="description" options="business_type_ds" returnField="business_type" valueField="business_type"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="loan_contract_ds" autoPageSize="true" autoQuery="true" model="tre.tre503.tre_loan_contract_overview" queryDataSet="loan_contract_query_ds">
+                <a:fields>
+                    <a:field name="business_type_desc" displayField="description" options="business_type_ds" returnField="business_type" valueField="business_type"/>
+                    <a:field name="loan_amount_type_desc" displayField="code_value_name" options="other_loan_amount_type_ds" returnField="loan_amount_type" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="query" handler="on_loan_contract_ds_query"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="tre503_loan_query" text="HLS.QUERY"/>
+                <a:gridButton click="tre503_loan_reset" text="HLS.RESET"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="110" title="HLS.QUERY_TITLE">
+                <a:textField name="credit_contract_number" bindTarget="loan_contract_query_ds" prompt="TRE501.TRE_BANK_CREDIT_CONTRACT.CREDIT_CONTRACT_NUMBER"/>
+                <a:textField name="loan_contract_number" bindTarget="loan_contract_query_ds" prompt="TRE_LOAN_CONTRACT.LOAN_CONTRACT_NUMBER"/>
+                <a:datePicker name="loan_date_from" bindTarget="loan_contract_query_ds" prompt="TRE_LOAN_CONTRACT.LOAN_DATE_FROM"/>
+                <a:datePicker name="loan_date_to" bindTarget="loan_contract_query_ds" prompt="TRE_LOAN_CONTRACT.LOAN_DATE_TO"/>
+                <a:lov name="bank_branch_name" bindTarget="loan_contract_query_ds" prompt="HLS.BANK_NAME"/>
+                <a:comboBox name="business_type_desc" bindTarget="loan_contract_query_ds" prompt="TRE_LOAN_CONTRACT.LOAN_CONTRACT_TYPE"/>
+                <a:lov name="bank_account_code" bindTarget="loan_contract_query_ds" prompt="TRE502.REPAYMENT_ACCOUNT_CODE">
+                    <a:events>
+                        <a:event name="focus" handler="on_bank_account_focus"/>
+                    </a:events>
+                </a:lov>
+                <a:lov name="withdraw_account_code" bindTarget="loan_contract_query_ds" prompt="TRE502.WITHDRAW_ACCOUNT_CODE">
+                    <a:events>
+                        <a:event name="focus" handler="on_bank_account_focus"/>
+                    </a:events>
+                </a:lov>
+            </a:form>
+            <a:grid bindTarget="loan_contract_ds" marginHeight="170" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="loan_contract_number" prompt="TRE_LOAN_CONTRACT.LOAN_CONTRACT_NUMBER" renderer="loanConRender" width="180"/>
+                    <a:column name="bank_branch_name" prompt="HLS.BANK_BRANCH_NAME" width="200"/>
+                    <a:column name="business_type_desc" prompt="TRE503.BUSINESS_TYPE" width="130"/>
+                    <a:column name="loan_amount" align="right" prompt="TRE_LOAN_CONTRACT.LOAN_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="repayment_principal" align="right" prompt="TRE502.REPAYMENT_PRINCIPAL" renderer="Aurora.formatMoney"/>
+                    <a:column name="repayment_interest" align="right" prompt="TRE502.REPAYMENT_INTEREST" renderer="Aurora.formatMoney"/>
+                    <a:column align="center" prompt="TRE502.REPAYMENT_DETAILS" renderer="repayment_details_render"/>
+                    <a:column name="loan_amount_type_desc" prompt="TRE_LOAN_CONTRACT.AMOUNT_TYPE"/>
+                    <a:column name="loan_date_from" align="center" prompt="TRE_LOAN_CONTRACT.LOAN_DATE_FROM" renderer="Aurora.formatDate"/>
+                    <a:column name="loan_date_to" align="center" prompt="TRE_LOAN_CONTRACT.LOAN_DATE_TO" renderer="Aurora.formatDate"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,694 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-2-26 下午2:37:49  
+    $Revision: 1.0  
+    $Purpose: calcConfigScreen
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="v.code=&apos;HLS050_INPUT_MODE&apos; and v.ref_v01 = &apos;Y&apos;" model="basic.sys_code_default_value" rootPath="input_mode_list"/>
+        <a:model-query defaultWhereClause="v.code=&apos;HLS050_VALIDATION_TYPE&apos; and v.ref_v01 = &apos;Y&apos;" model="basic.sys_code_default_value" rootPath="validation_type_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="bmLink_calcConfigScreen_load" model="hls.HLS050.hls_fin_calc_config_load" modelaction="execute"/>
+        <a:link id="bmLink_calcConfigScreen_reload" model="hls.HLS050.hls_fin_calc_config_load" modelaction="batch_update"/>
+        <a:link id="bmLink_calcConfigScreen_calc_formula" url="${/request/@context_path}/modules/hls/HLS050/hls_fin_calc_config_formula.screen"/>
+        <a:link id="bmLink_calcConfigScreen_calc_btn" url="${/request/@context_path}/modules/hls/HLS050/hls_fin_calc_config_btn.screen"/>
+        <a:link id="pageLink_calcConfigPage_batch_update" url="${/request/@context_path}/modules/hls/HLS050/hls_fin_calc_config_batch_update.screen"/>
+        <a:link id="hls_fin_calc_config_js_link" url="${/request/@context_path}/modules/hls/HLS050/hls_fin_calc_config_js.screen"/>
+        <a:link id="hls_fin_calc_config_attribute_link" url="${/request/@context_path}/modules/hls/HLS050/hls_fin_calc_config_attribute.screen"/>
+        <script><![CDATA[
+            function config_batch_update() {
+                var head_records = $('calcConfigScreen_mainDs').getSelected();
+                var line_records = $('calcConfigScreen_lineDs').getSelected();
+                if (head_records.length > 0 || line_records.length > 0) {
+                    new Aurora.Window({
+                        id: 'hls_fin_calc_config_batch_update',
+                        url: $('pageLink_calcConfigPage_batch_update').getUrl(),
+                        params: {
+                            price_list: '${/parameter/@price_list}'
+                        },
+                        title: '批量修改',
+                        width: 1100,
+                        height: 600
+                    });
+                } else {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请选择一条记录');
+                }
+            
+            }
+            
+            function calcConfigScreen_getTabType() {
+                var config = {
+                    0: 'H',
+                    1: 'L',
+                    2: 'BTN'
+                };
+                return config[$('calcConfigScreen_tab').selectedIndex];
+            
+            }
+            
+            function calcConfigScreen_getDs() {
+                var config = {
+                    'H': 'calcConfigScreen_mainDs',
+                    'L': 'calcConfigScreen_lineDs',
+                    'BTN': 'calcConfigScreen_btnDs'
+                };
+                return config[calcConfigScreen_getTabType()];
+            }
+            
+            function calcConfigScreen_query() {
+                var dsName = calcConfigScreen_getDs();
+                $(dsName).query();
+            }
+            
+            function calcConfigScreen_save() {
+                var dsName = calcConfigScreen_getDs();
+                var ds = $(dsName);
+                if (ds.validate()) {
+                    ds.submit();
+                }
+            }
+            
+            function calcConfigScreen_close() {
+                $('hls_fin_calc_config').close();
+            }
+            
+            function calcConfigScreen_load() {
+                Aurora.request({
+                    url: $('bmLink_calcConfigScreen_load').getUrl(),
+                    para: {
+                        price_list: '${/parameter/@price_list}'
+                    },
+                    success: function(res) {
+                        Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 2000
+                        });
+                        $('calcConfigScreen_mainDs').query();
+                        $('calcConfigScreen_lineDs').query();
+                        $('calcConfigScreen_btnDs').query();
+                    },
+                    scope: this
+                });
+            }
+            
+            function calcConfigScreen_clear() {
+                var dsName = calcConfigScreen_getDs();
+                var gridName = dsName + '_grid';
+                $(gridName).clear();
+            }
+            
+            function calcConfigScreen_reload() {
+                var tab = $('calcConfigScreen_tab');
+                var dsName = calcConfigScreen_getDs();
+                var records = $(dsName).getSelected();
+            
+                if (records.length == 0) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+            
+                var datas = [];
+                for (var i = 0;i < records.length;i++) {
+                    datas[i] = {
+                        config_id: records[i].get('config_id'),
+                        price_list: '${/parameter/@price_list}',
+                        button_code: records[i].get('button_code'),
+                        _status: 'insert'
+                    };
+                }
+            
+                Aurora.request({
+                    url: $('bmLink_calcConfigScreen_reload').getUrl(),
+                    para: datas,
+                    success: function(res) {
+                        Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 2000
+                        });
+                        calcConfigScreen_query();
+                    },
+                    scope: this
+                });
+            }
+            
+            function render_calcConfigScreen_calc_formula(value, record, name) {
+                if (!record.isNew) {
+                    return '<a href="javascript:winOpen_calcConfigScreen_calc_formula(' + record.get('config_id') + ',' + record.get('column_id') + ',\'' + key_field_flag + '\'));">' + '${l:HLS050.LINK.CALC_FORMULA}' + '</a>';
+                }
+                return '';
+            }
+            
+            function render_calcConfigScreen_column_name(value, record, name) {
+                var key_field_flag = record.get('key_field_flag');
+                var exits_formula = record.get('exits_formula');
+                if (!record.isNew) {
+                    if (exits_formula ==0||!exits_formula){
+                        return '<a href="javascript:winOpen_calcConfigScreen_calc_formula(' + record.get('config_id') + ',' + record.get('column_id') + ',\'' + key_field_flag + '\');">' + value + '</a>';
+                    }else{
+                      return '<a href="javascript:winOpen_calcConfigScreen_calc_formula(' + record.get('config_id') + ',' + record.get('column_id') + ',\'' + key_field_flag + '\');">' + '<font color="#FF9900">'+value+'</font>' + '</a>';  
+                    }
+                    
+                }
+                return value;
+            }
+            
+            function render_calcConfigScreen_calc_btn(value, record, name) {
+                if (!record.isNew && record.get('system_flag') == 'N') {
+                    return '<a href="javascript:winOpen_calcConfigScreen_calc_btn(\'' + record.get('price_list') + '\',\'' + record.get('button_code') + '\');">' + '${l:HLS050.BTN_PROCEDURE}' + '</a>';
+                }
+                return '';
+            }
+            
+            function winOpen_calcConfigScreen_calc_btn(price_list, button_code) {
+                new Aurora.Window({
+                    id: 'hls_fin_calc_config_btn',
+                    url: $('bmLink_calcConfigScreen_calc_btn').getUrl(),
+                    params: {
+                        price_list: price_list,
+                        button_code: button_code
+            
+                    },
+                    title: '${l:HLS050.BTN_UPDATE}',
+                    width: 800,
+                    height: 400
+                });
+            }
+            
+            function winOpen_calcConfigScreen_calc_formula(config_id, column_id, key_field_flag) {
+                if (key_field_flag == 'Y') {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS050.IS_KEY_FILED_FLAG}');
+                } else {
+                    var layout_area_seq = calcConfigScreen_getTabType();
+                    new Aurora.Window({
+                        id: 'hls_fin_calc_config_formula',
+                        url: $('bmLink_calcConfigScreen_calc_formula').getUrl(),
+                        params: {
+                            config_id: config_id,
+                            layout_area_seq: layout_area_seq,
+                            column_id: column_id
+            
+                        },
+                        title: '${l:HLS050.WIN_TITLE.CALC_FORMULA}',
+                        width: 900,
+                        height: 500
+                    });
+                }
+            }
+            
+            function setField_validation_sql(record, name, ds_name) {
+                var field = record.getField(name);
+                field.setLovUrl('${/request/@context_path}/modules/hls/HLS050/hls_fin_calc_config_sql_validate.screen');
+                field.setMapping([{
+                    from: 'sql_text',
+                    to: 'validation_sql'
+                }]);
+                field.setLovWidth(600);
+                field.setLovHeight(350);
+                field.setLovPara('ds_name', ds_name);
+                field.setTitle('SQL校验');
+            }
+            
+            function editorFun_calcConfigScreen_mainDs_grid(record, name) {
+                if (name == 'validation_sql') {
+                    setField_validation_sql(record, name, 'calcConfigScreen_mainDs');
+                    return 'calcConfigScreen_mainDs_grid_lov';
+                }
+                if (name == 'enabled_flag') {
+                    if (record.get('key_field_flag') == 'Y') {
+                        return '';
+                    }
+                    return 'calcConfigScreen_mainDs_grid_check';
+                }
+                return '';
+            
+            }
+            
+            function editorFun_calcConfigScreen_lineDs_grid(record, name) {
+                if (name == 'validation_sql') {
+                    setField_validation_sql(record, name, 'calcConfigScreen_lineDs');
+                    return 'calcConfigScreen_lineDs_grid_lov';
+                }
+                if (name == 'enabled_flag') {
+                    if (record.get('key_field_flag') == 'Y') {
+                        return '';
+                    }
+                    return 'calcConfigScreen_lineDs_grid_check';
+                }
+                return '';
+            
+            }
+            
+            function editorFun_javascript(record, name) {
+                if (name == 'javascript' && record.get('system_flag') == 'N') {
+                    return 'calcConfigScreen_btnDs_grid_lov';
+                }
+                return '';
+            }
+            
+            function action_after_button_dis_ef(record, name) {
+                if (name == 'action_after_button_display' && record.get('system_flag') == 'N') {
+                    return 'calcConfigScreen_btnDs_grid_comb';
+                }
+                return '';
+            }
+            
+            function calcConfigScreen_btnDs_grid_cc(grid, row, name, record) {
+                record.getField('javascript').setLovUrl($('hls_fin_calc_config_js_link').getUrl() + '?record_id=' + record.id);
+                record.getField('javascript').setTitle('JS脚本');
+            }
+            
+            function calcConfigScreen_btnDs_grid_remove() {
+                $('calcConfigScreen_btnDs_grid').remove();
+            }
+            
+            
+            //验证ds是否保存
+            
+            function validate_ds_save(ds) {
+                if (ds.isModified()) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:HLS050.DATA_SAVE}');
+                    return false;
+                } else {
+                    var select_ds = ds.getSelected();
+                    if (validate_ds_select(select_ds)) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+            
+            }
+            
+            //验证ds是否选择了一行
+            
+            function validate_ds_select(ds) {
+                var ds_length = ds.length;
+                if (ds_length == 0) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:HLS050.CHOOSE_ONE_ADDITIONAL_ATTRIBUTES}');
+                    return false;
+                } else if (ds_length > 1) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:HLS050.ONLY_CHOOSE_ONE_ADDITIONAL_ATTRIBUTES}');
+                    return false;
+                }
+                return true;
+            }
+            
+            //进入附加属性
+            
+            function open_attribute_win(config_id, layout_area_seq, price_list) {
+                var para = {
+                    'config_id': config_id,
+                    'layout_area_seq': layout_area_seq,
+                    'price_list': price_list
+                };
+                new Aurora.Window({
+                    id: 'hls_fin_calc_config_attribute_id',
+                    title: '${l:HLS050.ADDITIONAL_ATTRIBUTES}',
+                    url: $('hls_fin_calc_config_attribute_link').getUrl(),
+                    params: para,
+                    width: 550,
+                    height: 550
+                });
+            }
+            
+            function calcConfigScreen_attribute() {
+                var tab_index = $('calcConfigScreen_tab').selectedIndex;
+                var config_id, layout_area_seq, price_list;
+            
+                if (tab_index == 0) {
+                    var mainds = $('calcConfigScreen_mainDs');
+                    if (!validate_ds_save(mainds)) {
+                        return;
+                    }
+                    var mainds_record = mainds.getSelected();
+                    config_id = mainds_record[0].get('config_id');
+                    layout_area_seq = mainds_record[0].get('layout_area_seq');
+                    price_list = mainds_record[0].get('price_list');
+                    open_attribute_win(config_id, layout_area_seq, price_list);
+            
+                } else if (tab_index == 1) {
+                    var lineds = $('calcConfigScreen_lineDs');
+                    if (!validate_ds_save(lineds)) {
+                        return;
+                    }
+                    var lineds_record = lineds.getSelected();
+                    config_id = lineds_record[0].get('config_id');
+                    layout_area_seq = lineds_record[0].get('layout_area_seq');
+                    price_list = lineds_record[0].get('price_list');
+                    open_attribute_win(config_id, layout_area_seq, price_list);
+                }
+            }
+            function calcConfigScreen_mainDs_grid_lov_fun(record,name){
+                if (record.isNew){
+                    return 'calcConfigScreen_mainDs_grid_lov';
+                }
+                return;
+            }
+            function calcConfigScreen_lineDs_grid_lov_fun(record,name){
+                if (record.isNew){
+                    return 'calcConfigScreen_lineDs_grid_lov';
+                }
+                return;
+            }
+            
+            function hls050_config_add(){
+                var tab_index = $('calcConfigScreen_tab').selectedIndex;
+                if (tab_index==0){ //如果是第一个tab被选中，则使用头增加
+                    $('calcConfigScreen_mainDs_grid').showEditorByRecord($('calcConfigScreen_mainDs').create());
+                }else if(tab_index==1){ //如果是第二个tab被选中，则使用行增加
+                    $('calcConfigScreen_lineDs_grid').showEditorByRecord($('calcConfigScreen_lineDs').create());
+                }
+                
+            }
+            function hls050_config_delete(){
+                var tab_index = $('calcConfigScreen_tab').selectedIndex;
+                if (tab_index==0){ //如果是第一个tab被选中，则使用头删除
+                    $('calcConfigScreen_mainDs_grid').remove();
+                }else if(tab_index==1){ //如果是第二个tab被选中，则使用行删除
+                    $('calcConfigScreen_lineDs_grid').remove();
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="layout_area_seq_ds">
+                <a:datas>
+                    <a:record code_value="H" code_value_name="头界面"/>
+                    <a:record code_value="L" code_value_name="行界面"/>
+                    <a:record code_value="BOTH" code_value_name="通用"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="display_flag_ds" lookupCode="HLS050_DISPLAY_FLAG"/>
+            <a:dataSet id="alignment_ds" lookupCode="HLS050_ALIGNMENT"/>
+            <a:dataSet id="calcConfigScreen_inputModeDs">
+                <a:datas dataSource="/model/input_mode_list"/>
+            </a:dataSet>
+            <a:dataSet id="calcConfigScreen_validationTypeDs">
+                <a:datas dataSource="/model/validation_type_list"/>
+            </a:dataSet>
+            <a:dataSet id="action_after_button_ds" lookupCode="HLS_ACTION_AFTER_BUTTON"/>
+            <a:dataSet id="cashflow_item_ds">
+                <a:datas dataSource="/model/cashflow_item_path"/>
+            </a:dataSet>
+            <a:dataSet id="checkboxValueDs" lookupCode="HLS_CHECKBOX"/>
+            <a:dataSet id="displayFlagValueDs" lookupCode="HLS050_DISPLAY_FLAG_CHECK"/>
+            <a:dataSet id="checkboxValue2Ds">
+                <a:datas>
+                    <a:record code_value="TRUE" code_value_name="是"/>
+                    <a:record code_value="FALSE" code_value_name="否"/>
+                    <a:record code_value="ALL" code_value_name="全部"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="dataTypeDs" lookupCode="HLS050_DATA_TYPE"/>
+            <a:dataSet id="queryParaDs" autoCreate="true" model="hls.HLS050.hls_fin_calc_config">
+                <a:fields>
+                    <a:field name="column_code"/>
+                    <a:field name="column_name"/>
+                    <a:field name="data_type"/>
+                    <a:field name="data_type_display" displayField="code_value_name" options="dataTypeDs" returnField="data_type" valueField="code_value"/>
+                    <a:field name="input_mode"/>
+                    <a:field name="input_mode_display" displayField="code_value_name" options="calcConfigScreen_inputModeDs" returnField="input_mode" valueField="code_value"/>
+                    <a:field name="validation_type_display" displayField="code_value_name" options="calcConfigScreen_validationTypeDs" returnField="validation_type" valueField="code_value"/>
+                    <a:field name="enabled_flag_desc" displayField="code_value_name" options="checkboxValueDs" prompt="启用" returnField="enabled_flag" valueField="code_value"/>
+                    <a:field name="display_flag_desc" displayField="code_value_name" options="displayFlagValueDs" prompt="显示" returnField="display_flag" valueField="code_value"/>
+                    <a:field name="allow_decimal_desc" displayField="code_value_name" options="checkboxValue2Ds" prompt="小数" returnField="allow_decimal" valueField="code_value"/>
+                    <a:field name="alignment_display" displayField="code_value_name" options="alignment_ds" returnField="alignment" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="calcConfigScreen_mainDs" autoQuery="true" fetchAll="true" model="hls.HLS050.hls_fin_calc_config" queryDataSet="queryParaDs" queryUrl="${/request/@context_path}/autocrud/hls.HLS050.hls_fin_calc_config/query?layout_area_seq=H&amp;price_list=${/parameter/@price_list}" selectable="true">
+                <a:fields>
+                    <a:field name="layout_area_seq" defaultValue="H"/>
+                    <a:field name="column_name" lovGridHeight="320" lovHeight="500" lovService="hls.HLS050.hls_fin_calc_column_lov?layout_area_seq=H&amp;price_list=${/parameter/@price_list}" lovWidth="500" required="true">
+                        <a:mapping>
+                            <a:map from="column_code" to="column_code"/>
+                            <a:map from="column_name" to="column_name"/>
+                            <a:map from="data_type" to="data_type"/>
+                            <a:map from="system_flag" to="system_flag"/>
+                            <a:map from="key_field_flag" to="key_field_flag"/>
+                            <a:map from="enabled_flag" to="enabled_flag"/>
+                            <a:map from="display_flag" to="display_flag"/>
+                            <a:map from="display_flag_dis" to="display_flag_dis"/>
+                            <a:map from="display_order" to="display_order"/>
+                            <a:map from="prompt" to="prompt"/>
+                            <a:map from="input_mode" to="input_mode"/>
+                            <a:map from="validation_type" to="validation_type"/>
+                            <a:map from="validation_sql" to="validation_sql"/>
+                            <a:map from="lov_return_vcode" to="lov_return_vcode"/>
+                            <a:map from="allow_decimal" to="allow_decimal"/>
+                            <a:map from="precision" to="precision"/>
+                            <a:map from="zero_fill" to="zero_fill"/>
+                            <a:map from="allow_format" to="allow_format"/>
+                            <a:map from="alignment" to="alignment"/>
+                            <a:map from="width" to="width"/>
+                            <a:map from="percent" to="percent"/>
+                            <a:map from="default_value" to="default_value"/>
+                            <a:map from="upper_limit" to="upper_limit"/>
+                            <a:map from="lower_limit" to="lower_limit"/>
+                            <a:map from="cf_item" to="cf_item"/>
+                            <a:map from="usage_calculator" to="usage_calculator"/>
+                            <a:map from="height" to="height"/>
+                            <a:map from="data_type_display" to="data_type_display"/>
+                            <a:map from="input_mode_display" to="input_mode_display"/>
+                            <a:map from="validation_type_display" to="validation_type_display"/>
+                            <a:map from="alignment_display" to="alignment_display"/>
+                            <a:map from="cf_item_display" to="cf_item_display"/>
+                            <a:map from="column_id" to="column_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="validation_sql"/>
+                    <a:field name="config_id"/>
+                    <a:field name="price_list" defaultValue="${/parameter/@price_list}"/>
+                    <a:field name="data_type_display" readOnly="true"/>
+                    <a:field name="input_mode_display" displayField="code_value_name" options="calcConfigScreen_inputModeDs" returnField="input_mode" valueField="code_value"/>
+                    <a:field name="validation_type_display" displayField="code_value_name" options="calcConfigScreen_validationTypeDs" returnField="validation_type" valueField="code_value"/>
+                    <a:field name="system_flag" checkedValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="display_flag_dis" displayField="code_value_name" options="display_flag_ds" prompt="显示" returnField="display_flag" valueField="code_value"/>
+                    <a:field name="display_flag"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="key_field_flag" checkedValue="Y" defaultValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="lov_return_vcode" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="zero_fill" checkedValue="TRUE" defaultValue="TRUE" uncheckedValue="FALSE"/>
+                    <a:field name="allow_format" checkedValue="TRUE" defaultValue="TRUE" uncheckedValue="FALSE"/>
+                    <a:field name="allow_decimal" checkedValue="TRUE" defaultValue="TRUE" uncheckedValue="FALSE"/>
+                    <a:field name="percent" checkedValue="%" defaultValue="%" uncheckedValue=""/>
+                    <a:field name="alignment_display" displayField="code_value_name" options="alignment_ds" returnField="alignment" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="calcConfigScreen_lineDs" autoQuery="true" fetchAll="true" model="hls.HLS050.hls_fin_calc_config" queryDataSet="queryParaDs" queryUrl="${/request/@context_path}/autocrud/hls.HLS050.hls_fin_calc_config/query?layout_area_seq=L&amp;price_list=${/parameter/@price_list}" selectable="true">
+                <a:fields>
+                    <a:field name="layout_area_seq" defaultValue="L"/>
+                    <a:field name="column_name" lovGridHeight="320" lovHeight="500" lovService="hls.HLS050.hls_fin_calc_column_lov?layout_area_seq=L&amp;price_list=${/parameter/@price_list}" lovWidth="500" required="true">
+                        <a:mapping>
+                            <a:map from="column_code" to="column_code"/>
+                            <a:map from="column_name" to="column_name"/>
+                            <a:map from="data_type" to="data_type"/>
+                            <a:map from="system_flag" to="system_flag"/>
+                            <a:map from="key_field_flag" to="key_field_flag"/>
+                            <a:map from="enabled_flag" to="enabled_flag"/>
+                            <a:map from="display_flag" to="display_flag"/>
+                            <a:map from="display_flag_dis" to="display_flag_dis"/>
+                            <a:map from="display_order" to="display_order"/>
+                            <a:map from="prompt" to="prompt"/>
+                            <a:map from="input_mode" to="input_mode"/>
+                            <a:map from="validation_type" to="validation_type"/>
+                            <a:map from="validation_sql" to="validation_sql"/>
+                            <a:map from="lov_return_vcode" to="lov_return_vcode"/>
+                            <a:map from="allow_decimal" to="allow_decimal"/>
+                            <a:map from="precision" to="precision"/>
+                            <a:map from="zero_fill" to="zero_fill"/>
+                            <a:map from="allow_format" to="allow_format"/>
+                            <a:map from="alignment" to="alignment"/>
+                            <a:map from="width" to="width"/>
+                            <a:map from="percent" to="percent"/>
+                            <a:map from="default_value" to="default_value"/>
+                            <a:map from="upper_limit" to="upper_limit"/>
+                            <a:map from="lower_limit" to="lower_limit"/>
+                            <a:map from="cf_item" to="cf_item"/>
+                            <a:map from="usage_calculator" to="usage_calculator"/>
+                            <a:map from="height" to="height"/>
+                            <a:map from="data_type_display" to="data_type_display"/>
+                            <a:map from="input_mode_display" to="input_mode_display"/>
+                            <a:map from="validation_type_display" to="validation_type_display"/>
+                            <a:map from="alignment_display" to="alignment_display"/>
+                            <a:map from="cf_item_display" to="cf_item_display"/>
+                            <a:map from="column_id" to="column_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="config_id"/>
+                    <a:field name="price_list" defaultValue="${/parameter/@price_list}"/>
+                    <a:field name="data_type_display" readOnly="true"/>
+                    <a:field name="input_mode_display" displayField="code_value_name" options="calcConfigScreen_inputModeDs" returnField="input_mode" valueField="code_value"/>
+                    <a:field name="validation_type_display" displayField="code_value_name" options="calcConfigScreen_validationTypeDs" returnField="validation_type" valueField="code_value"/>
+                    <a:field name="system_flag" checkedValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="display_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="key_field_flag" checkedValue="Y" defaultValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="lov_return_vcode" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="zero_fill" checkedValue="TRUE" defaultValue="TRUE" uncheckedValue="FALSE"/>
+                    <a:field name="allow_format" checkedValue="TRUE" defaultValue="TRUE" uncheckedValue="FALSE"/>
+                    <a:field name="allow_decimal" checkedValue="TRUE" defaultValue="TRUE" uncheckedValue="FALSE"/>
+                    <a:field name="percent" checkedValue="%" defaultValue="%" uncheckedValue=""/>
+                    <a:field name="alignment_display" displayField="code_value_name" options="alignment_ds" returnField="alignment" valueField="code_value"/>
+                    <a:field name="cf_item_display" lovGridHeight="350" lovHeight="500" lovLabelWidth="120" lovService="hls.HLS050.hls_cashflow_item_company_v" lovWidth="600" title="HLS.CF_ITEM_DESC">
+                        <a:mapping>
+                            <a:map from="cf_item" to="cf_item"/>
+                            <a:map from="cf_item_desc" to="cf_item_display"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="display_flag_dis" displayField="code_value_name" options="display_flag_ds" returnField="display_flag" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="calcConfigScreen_btnDs" autoQuery="true" fetchAll="true" model="hls.HLS050.hls_fin_calc_button" queryUrl="${/request/@context_path}/autocrud/hls.HLS050.hls_fin_calc_button/query?price_list=${/parameter/@price_list}" selectable="true">
+                <a:fields>
+                    <a:field name="layout_area_seq_desc" displayField="code_value_name" options="layout_area_seq_ds" returnField="layout_area_seq" valueField="code_value"/>
+                    <a:field name="action_after_button_display" displayField="code_value_name" options="action_after_button_ds" returnField="action_after_button" valueField="code_value"/>
+                    <a:field name="price_list" defaultValue="${/parameter/@price_list}"/>
+                    <a:field name="button_code" required="true"/>
+                    <a:field name="prompt" required="true"/>
+                    <a:field name="save_data_first" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="system_flag" checkedValue="Y" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="display_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="javascript" lovHeight="430" lovWidth="580"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="calcConfigScreen_close" text="HLS.CLOSE"/>
+                <a:gridButton click="calcConfigScreen_query" text="HLS.QUERY"/>
+                <a:gridButton click="calcConfigScreen_clear" text="HLS.CLEAR"/>
+                <a:gridButton click="calcConfigScreen_save" text="HLS.SAVE"/>
+                <a:gridButton click="calcConfigScreen_load" text="HLS050.BUTTON.LOAD"/>
+                <a:gridButton click="calcConfigScreen_reload" text="HLS050.BUTTON.RELOAD"/>
+                <a:gridButton click="config_batch_update" text="批量修改"/>
+                <a:gridButton click="hls050_config_add" text="增加"/>
+                <a:gridButton click="hls050_config_delete" text="删除"/>
+                <a:gridButton click="calcConfigScreen_btnDs_grid_remove" text="删除按钮"/>
+                <a:gridButton click="calcConfigScreen_attribute" text="HLS050.ADDITIONAL_ATTRIBUTES"/>
+            </a:screenTopToolbar>
+            <a:form column="5">
+                <a:textField name="column_code" bindTarget="queryParaDs"/>
+                <a:textField name="column_name" bindTarget="queryParaDs"/>
+                <a:comboBox name="data_type_display" bindTarget="queryParaDs"/>
+                <a:textField name="prompt" bindTarget="queryParaDs"/>
+                <a:comboBox name="input_mode_display" bindTarget="queryParaDs"/>
+                <a:comboBox name="validation_type_display" bindTarget="queryParaDs"/>
+                <a:comboBox name="enabled_flag_desc" bindTarget="queryParaDs"/>
+                <a:comboBox name="display_flag_desc" bindTarget="queryParaDs"/>
+                <a:comboBox name="alignment_display" bindTarget="queryParaDs"/>
+                <a:comboBox name="allow_decimal_desc" bindTarget="queryParaDs"/>
+            </a:form>
+            <a:tabPanel id="calcConfigScreen_tab" marginHeight="200" marginWidth="30">
+                <a:tabs>
+                    <a:tab id="hls050_head_tab" prompt="HLS050.HEAD_TITLE" selected="true">
+                        <a:grid id="calcConfigScreen_mainDs_grid" bindTarget="calcConfigScreen_mainDs" marginHeight="250" marginWidth="60">
+                            <a:columns>
+                                <a:column name="column_code" autoAdjust="false" sortable="true" width="40"/>
+                                <a:column name="column_name" autoAdjust="false" editorFunction="calcConfigScreen_mainDs_grid_lov_fun" renderer="render_calcConfigScreen_column_name" showtitle="true" sortable="true" width="150"/>
+                                <a:column name="data_type_display" autoAdjust="false" width="35"/>
+                                <a:column name="system_flag" autoAdjust="false" width="35"/>
+                                <a:column name="enabled_flag" autoAdjust="false" editorFunction="editorFun_calcConfigScreen_mainDs_grid" sortable="true" width="35"/>
+                                <a:column name="display_flag_dis" autoAdjust="false" editor="calcConfigScreen_mainDs_grid_comb" sortable="true" width="55"/>
+                                <a:column name="prompt" autoAdjust="false" editor="calcConfigScreen_mainDs_grid_tf" showtitle="true" width="100"/>
+                                <a:column name="display_order" align="right" autoAdjust="false" editor="calcConfigScreen_mainDs_grid_tf" sortable="true" width="40"/>
+                                <a:column name="input_mode_display" autoAdjust="false" editor="calcConfigScreen_mainDs_grid_comb" width="60"/>
+                                <a:column name="validation_type_display" autoAdjust="false" editor="calcConfigScreen_mainDs_grid_comb" width="80"/>
+                                <a:column name="allow_decimal" autoAdjust="false" editor="calcConfigScreen_mainDs_grid_check" width="35"/>
+                                <a:column name="precision" autoAdjust="false" editor="calcConfigScreen_mainDs_grid_integer_nf" width="35"/>
+                                <a:column name="zero_fill" autoAdjust="false" editor="calcConfigScreen_mainDs_grid_check" width="35"/>
+                                <a:column name="allow_format" autoAdjust="false" editor="calcConfigScreen_mainDs_grid_check" width="40"/>
+                                <a:column name="key_field_flag" autoAdjust="false" width="60"/>
+                                <a:column name="percent" align="right" autoAdjust="false" editor="calcConfigScreen_mainDs_grid_check" width="40"/>
+                                <a:column name="alignment_display" autoAdjust="false" editor="calcConfigScreen_mainDs_grid_comb" width="60"/>
+                                <a:column name="validation_sql" autoAdjust="false" editorFunction="editorFun_calcConfigScreen_mainDs_grid" showtitle="true" width="100"/>
+                                <a:column name="default_value" autoAdjust="false" editor="calcConfigScreen_mainDs_grid_tf" width="120"/>
+                                <a:column name="lov_return_vcode" autoAdjust="false" editor="calcConfigScreen_mainDs_grid_check" width="80"/>
+                                <a:column name="lower_limit" align="right" autoAdjust="false" editor="calcConfigScreen_mainDs_grid_nf" width="35"/>
+                                <a:column name="upper_limit" align="right" autoAdjust="false" editor="calcConfigScreen_mainDs_grid_nf" width="35"/>
+                                <!-- <a:column name="calc_formula" prompt="HLS050.WIN_TITLE.CALC_FORMULA" renderer="render_calcConfigScreen_calc_formula" width="35"/> -->
+                            </a:columns>
+                            <a:editors>
+                                <a:textField id="calcConfigScreen_mainDs_grid_tf"/>
+                                <a:comboBox id="calcConfigScreen_mainDs_grid_comb"/>
+                                <a:lov id="calcConfigScreen_mainDs_grid_lov"/>
+                                <a:checkBox id="calcConfigScreen_mainDs_grid_check"/>
+                                <a:numberField id="calcConfigScreen_mainDs_grid_integer_nf" allowDecimals="false"/>
+                                <a:numberField id="calcConfigScreen_mainDs_grid_nf" allowDecimals="true"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab id="hls050_line_tab" prompt="HLS050.LINE_TITLE">
+                        <a:grid id="calcConfigScreen_lineDs_grid" bindTarget="calcConfigScreen_lineDs" marginHeight="250" marginWidth="60">
+                            <a:columns>
+                                <a:column name="column_code" autoAdjust="false" sortable="true" width="40"/>
+                                <a:column name="column_name" autoAdjust="false" editorFunction="calcConfigScreen_lineDs_grid_lov_fun" renderer="render_calcConfigScreen_column_name" showtitle="true" sortable="true" width="150"/>
+                                <a:column name="data_type_display" autoAdjust="false" width="35"/>
+                                <a:column name="system_flag" autoAdjust="false" width="35"/>
+                                <a:column name="enabled_flag" autoAdjust="false" editorFunction="editorFun_calcConfigScreen_lineDs_grid" sortable="true" width="35"/>
+                                <a:column name="display_flag_dis" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_comb" prompt="HLS050.HLS_FIN_CALC_CONFIG.DISPLAY_FLAG" sortable="true" width="55"/>
+                                <a:column name="prompt" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_tf" showtitle="true" width="100"/>
+                                <a:column name="display_order" align="right" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_tf" sortable="true" width="40"/>
+                                <a:column name="input_mode_display" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_comb" width="60"/>
+                                <a:column name="validation_type_display" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_comb" width="80"/>
+                                <a:column name="allow_decimal" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_check" width="35"/>
+                                <a:column name="precision" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_integer_nf" width="35"/>
+                                <a:column name="zero_fill" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_check" width="35"/>
+                                <a:column name="allow_format" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_check" width="40"/>
+                                <a:column name="key_field_flag" autoAdjust="false" width="60"/>
+                                <a:column name="lov_return_vcode" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_check" width="80"/>
+                                <a:column name="percent" align="right" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_check" width="40"/>
+                                <a:column name="alignment_display" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_comb" width="60"/>
+                                <a:column name="cf_item_display" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_lov" width="70"/>
+                                <a:column name="width" align="right" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_integer_nf" width="60"/>
+                                <a:column name="validation_sql" autoAdjust="false" editorFunction="editorFun_calcConfigScreen_lineDs_grid" showtitle="true" width="100"/>
+                                <!-- <a:column name="default_value" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_tf" width="60"/> -->
+                                <a:column name="lower_limit" align="right" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_nf" width="35"/>
+                                <a:column name="upper_limit" align="right" autoAdjust="false" editor="calcConfigScreen_lineDs_grid_nf" width="35"/>
+                                <!-- <a:column name="calc_formula" autoAdjust="false" prompt="HLS050.WIN_TITLE.CALC_FORMULA" renderer="render_calcConfigScreen_calc_formula" width="35"/> -->
+                            </a:columns>
+                            <a:editors>
+                                <a:textField id="calcConfigScreen_lineDs_grid_tf"/>
+                                <a:comboBox id="calcConfigScreen_lineDs_grid_comb"/>
+                                <a:lov id="calcConfigScreen_lineDs_grid_lov"/>
+                                <a:checkBox id="calcConfigScreen_lineDs_grid_check"/>
+                                <a:numberField id="calcConfigScreen_lineDs_grid_integer_nf" allowDecimals="false"/>
+                                <a:numberField id="calcConfigScreen_lineDs_grid_nf" allowDecimals="true"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab prompt="HLS050.BTN_TITLE">
+                        <a:grid id="calcConfigScreen_btnDs_grid" bindTarget="calcConfigScreen_btnDs" marginHeight="250" marginWidth="60">
+                            <a:columns>
+                                <a:column name="layout_area_seq_desc" editor="calcConfigScreen_btnDs_grid_comb" prompt="用途"/>
+                                <a:column name="display_order" align="right" autoAdjust="false" editor="calcConfigScreen_btnDs_grid_tf" width="35"/>
+                                <a:column name="button_code" autoAdjust="false" width="150"/>
+                                <a:column name="prompt" autoAdjust="false" editor="calcConfigScreen_btnDs_grid_tf" width="100"/>
+                                <a:column name="system_flag" autoAdjust="false" editor="calcConfigScreen_btnDs_grid_check" width="35"/>
+                                <a:column name="enabled_flag" autoAdjust="false" editor="calcConfigScreen_btnDs_grid_check" width="35"/>
+                                <a:column name="display_flag" autoAdjust="false" editor="calcConfigScreen_btnDs_grid_check" width="35"/>
+                                <a:column name="save_data_first" autoAdjust="false" editor="calcConfigScreen_btnDs_grid_check" width="80"/>
+                                <a:column name="action_after_button_display" autoAdjust="false" editorFunction="action_after_button_dis_ef" width="80"/>
+                                <a:column name="calc_btn" align="center" autoAdjust="false" prompt="HLS050.BTN_PROCEDURE" renderer="render_calcConfigScreen_calc_btn" width="80"/>
+                                <a:column name="javascript" autoAdjust="false" editorFunction="editorFun_javascript" width="300"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:textField id="calcConfigScreen_btnDs_grid_tf"/>
+                                <a:comboBox id="calcConfigScreen_btnDs_grid_comb"/>
+                                <a:lov id="calcConfigScreen_btnDs_grid_lov"/>
+                                <a:checkBox id="calcConfigScreen_btnDs_grid_check"/>
+                                <a:numberField id="calcConfigScreen_btnDs_grid_integer_nf" allowDecimals="false"/>
+                                <a:numberField id="calcConfigScreen_btnDs_grid_nf" allowDecimals="false"/>
+                            </a:editors>
+                            <a:events>
+                                <a:event name="cellclick" handler="calcConfigScreen_btnDs_grid_cc"/>
+                            </a:events>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

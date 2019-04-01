@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author:  Yimeng
+    $Date: 2015-03-13 下午05:58:31  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <!--  <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="con509_excel_import" url="${/request/@context_path}/modules/cont/CON509/acr_excel_import.screen"/> -->
+        <a:link id="con509_excel_import" url="${/request/@context_path}/modules/cont/CON509/acr_excel_import.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON509.con_contract_location" modelaction="batch_update"/>
+        <a:link id="csh_payment_req_doc_print_link" url="${/request/@context_path}/modules/cont/CON509/csh_payment_doc_print.screen"/>
+        <script><![CDATA[
+            //indexchange事件(grid,attach,gridbox,table)
+            window['${/parameter/@layout_code}_on_layout_dynamic_grid_indexchange'] = function(ds, record, bp_seq) {
+                //debugger;
+                var con_contract_location_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_location');
+                var con_contract_location_ln_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_location_ln');
+                if (ds.id == con_contract_location_ds_id) {
+                    var location_id = record.get('location_id');
+                    $(con_contract_location_ln_ds_id).setQueryParameter('location_id', location_id);
+                    $(con_contract_location_ln_ds_id).query();
+                }
+            };
+            
+            //新增
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                // debugger;
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_location');
+                $(ds_id).create();
+                // window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                // Aurora.request({
+                // url:$('con508_list_query').getUrl(),
+                // para:{},
+                // success:function(){
+                // window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                // $(ds_id).query();
+                // },
+                // scope:this
+                // });
+            };
+            
+            //删除
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_location');
+                var records = $(ds_id).getSelected();
+                for (var i = 0;i < records.length;i++) {
+                    if (records[i].get('docu_amount') > 0) {
+                        Aurora.showMessage('提示', '选择的箱子有文件!');
+                        return;
+                    }
+                }
+                var grid_id = ds_id.replace('ds', 'layout_grid_id');
+                $(grid_id).remove();
+            };
+            //导入
+            // window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function() {
+            // var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_location');
+            // new Aurora.Window({
+            // id: 'con509_upload_window',
+            // param :{winid :'con509_upload_window'},
+            // url: $('con509_excel_import').getUrl(),
+            // title: '${l:HLS.IMPORT}',
+            // width: 420,
+            // height: 275
+            // });
+            // };
+            
+            //导出
+            window['${/parameter/@layout_code}_user_button4_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_location_ln');
+                var grid_id = ds_id.replace('ds', 'layout_grid_id');
+                $(grid_id)._export();
+            };
+            
+            
+            //更新时调用
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+                var con_contract_location_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_location');
+                if (ds.id == con_contract_location_id) {
+                    if (name == 'doc_type') {
+            
+                        var years = record.getField('years');
+                        var doc_type = record.get('doc_type');
+                        if (doc_type == '20') {
+            
+                            years.setRequired(true);
+                        } else {
+                            years.setRequired(false);
+                        }
+                    } else if (name == 'chest_number' && !Ext.isEmpty(value)) {
+                        var ress = $(con_contract_location_id).getAll();
+                        var chest_number_lag = 'N';
+                        for (var i = 0;i < ress.length - 1;i++) {
+                            if (ress[i].get('chest_number') == value) {
+                                chest_number_lag = 'Y';
+                            }
+            
+                        }
+                        if (chest_number_lag == 'Y') {
+            
+                            Aurora.showMessage('提示', '箱号不能重复!');
+                            setTimeout(function() {
+                                record.set('chest_number', '');
+                            }, 500);
+                        }
+                    }
+            
+            
+                }
+            };
+            
+            //入库存储
+            window['${/parameter/@layout_code}_user_button5_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_location');
+                var records = $(ds_id).getSelected();
+                if (records.length < 1) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '未选择箱子不能入库！');
+                    return;
+                }
+                var prams = [];
+                for (var i = 0;i < records.length;i++) {
+                    var data = {};
+                    data['location_id'] = records[i].get('location_id');
+                    data['storage_flag'] = records[i].get('storage_flag');
+                    data['_status'] = 'update';
+                    prams[i] = data;
+                }
+                Aurora.request({
+                    url: $('con_contract_get_layout_code_link_id').getUrl(),
+                    para: prams,
+                    success: function() {
+                        Aurora.SideBar.show({
+                            msg: '操作成功',
+                            duration: 2000
+                        });
+                        $(ds_id).query();
+                    },
+                    failure: function() {
+            
+                       },
+                    error: function() {
+            
+                       },
+                    scope: this
+                });
+            
+            };
+            //外运完成
+            window['${/parameter/@layout_code}_user_button6_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_location');
+                var records = $(ds_id).getSelected();
+                if (records.length < 1) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '未选择箱子不能外运！');
+                    return;
+                }
+                var prams = [];
+                for (var i = 0;i < records.length;i++) {
+                    if (records[0].get('express_out_flag') == 'Y') {
+                        Aurora.showMessage('${l:HLS.PROMPT}', '已经外运不能外运！');
+                        return;
+                    }
+                    var data = {};
+                    data['location_id'] = records[i].get('location_id');
+                    data['_status'] = 'execute';
+                    prams[i] = data;
+                }
+                Aurora.request({
+                    url: $('con_contract_get_layout_code_link_id').getUrl(),
+                    para: prams,
+                    success: function() {
+                        Aurora.SideBar.show({
+                            msg: '操作成功',
+                            duration: 2000
+                        });
+                       	$(ds_id).submit();
+                        $(ds_id).query();
+                    },
+                    failure: function() {
+            		
+                       },
+                    error: function() {
+            
+                       },
+                    scope: this
+                });
+            
+            
+            };
+             window['${/parameter/@layout_code}_user_button7_layout_dynamic_click'] = function() {
+                 debugger;
+                  var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_location_ln');
+                  var records = $(ds_id).getSelected();
+                   if (records.length === 0) {
+                    Aurora.showMessage('${l:PROMPT}', '请选择至少一条记录');
+                    return;}
+                // }else if(!check_data(records)){
+                    // Aurora.showWarningMessage('提示','仅能打印汇签单列显示为<font color="red">未打印</font>或已打印的数据！');
+                    // return ;
+                // }
+                var instr = '';
+                for (var i = 0;i < records.length;i++) {
+                    if (i == 0) {
+                        instr = instr + records[i].get('con_contract_location_ln');
+                    } else {
+                        instr = instr + ',' + records[i].get('con_contract_location_ln');
+                    }
+                }
+                var url = $('csh_payment_req_doc_print_link').getUrl() + '?con_contract_location_ln=' + instr;
+                window.open(url);
+                  };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author:wangwei 
+    $Date: 2015-01-29
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:view>
+        <a:script><![CDATA[
+            function csh_payment_query() {
+                $('csh_no_payment_info_ds').query();
+            }
+            
+            function summaryRenderer(datas, name) {
+                if(name === 'approval_status_n'){
+                    return '<font color="red">合计：</font>';
+                }
+                var sum = 0;
+                for (var i = 0;i < datas.length;i++) {
+                    record = datas[i];
+                    if (name == "other_fee") {
+                        var other_fee_1 = record.get("other_fee");
+                        var other_fee_2 = parseFloat(other_fee_1);
+                        if (!isNaN(other_fee_2)) {
+                            sum += other_fee_2;
+                        }
+                    }
+                    
+                }
+                if (name == "other_fee") {
+                      return '<font color="red">' + Aurora.formatNumber(sum, 2) + '</font>';
+                }
+            }
+        ]]></a:script>
+        <a:dataSets>
+            <a:dataSet id="approve_status_ds">
+                <a:datas>
+                    <a:record name="已交财务部，尚未付款" value="1"/>
+                    <a:record name="正在走付款流程" value="2"/>
+                    <a:record name="尚未收到付款材料" value="3"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="for_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="approval_status_n" displayField="name" options="approve_status_ds" returnField="approval_status" valueField="value"/>
+                    <a:field name="approval_status"/>
+                    <a:field name="contract_number"/>
+                    <a:field name="unit_id_n"/>
+                    <a:field name="invoice_number"/>
+                    <a:field name="inception_of_lease_from"/>
+                    <a:field name="inception_of_lease_to"/>
+                    <a:field name="invoice_date_from"/>
+                    <a:field name="invoice_date_to"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="csh_no_payment_info_ds" autoPageSize="true" autoQuery="true" model="csh.CSH508.csh_no_payment_info" queryDataSet="for_query_ds">
+                <a:fields>
+                    <a:field name="signing_date" datatype="java.util.Date"/>
+                    <a:field name="inception_of_lease" datatype="java.util.Date"/>
+                    <a:field name="invoice_date" datatype="java.util.Date"/>
+                    <a:field name="accounting_date" datatype="java.util.Date"/>
+                    <a:field name="payment_completed_date" datatype="java.util.Date"/>
+                    <a:field name="descriptions" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="csh_payment_query" text="查询"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="100" marginWidth="35" title="HLS.QUERY_TITLE">
+                <a:comboBox name="approval_status_n" bindTarget="for_query_ds" prompt="未付款原因"/>
+                <a:textField name="contract_number" bindTarget="for_query_ds" prompt="合同号"/>
+                <a:textField name="unit_id_n" bindTarget="for_query_ds" prompt="供应商"/>
+                <a:textField name="invoice_number" bindTarget="for_query_ds" prompt="发票号"/>
+                <a:datePicker name="inception_of_lease_from" bindTarget="for_query_ds" prompt="客户到账日从"/>
+                <a:datePicker name="inception_of_lease_to" bindTarget="for_query_ds" prompt="客户到账日到"/>
+                <a:datePicker name="invoice_date_from" bindTarget="for_query_ds" prompt="发票收到日从"/>
+                <a:datePicker name="invoice_date_to" bindTarget="for_query_ds" prompt="发票收到日到"/>
+            </a:form>
+            <a:grid bindTarget="csh_no_payment_info_ds" marginHeight="180" marginWidth="35" navBar="true">
+                <a:toolBar>
+                    <a:button type="excel"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="contract_number" lock="true" prompt="合同编号" width="120"/>
+                    <a:column name="approval_status_n" footerRenderer="summaryRenderer" lock="true" prompt="未付款原因" showTitle="true" width="150"/>
+                    <a:column name="wfl_approval_status_n" prompt="工作流审批状态" width="100"/>
+                    <a:column name="lease_channel_n" align="center" prompt="科目"/>
+                    <a:column name="bp_id_tenant_n" prompt="承租人" showTitle="true" width="200"/>
+                    <a:column name="employee_id_n" prompt="融资区域经理" width="100"/>
+                    <a:column name="unit_id_n" prompt="供应商" showTitle="true" width="180"/>
+                    <a:column name="signing_date" align="center" prompt="签约日" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="inception_of_lease" align="center" prompt="客户到账" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="invoice_date" align="center" prompt="发票登记日" renderer="Aurora.formatDate" width="80"/>
+                    <a:column name="invoice_status_n" align="center" prompt="发票状态" width="80"/>
+                    <a:column prompt="合同金额">
+                        <a:column name="other_fee" align="right" footerRenderer="summaryRenderer" prompt="车价(元)" renderer="Aurora.formatMoney"/>
+                    </a:column>
+                    <a:column prompt="购车款付款明细">
+                        <!--<a:column name="invoice_number" prompt="发票号" width="120"/>-->
+                        <a:column name="total_amount" align="right" prompt="金额" renderer="Aurora.formatMoney"/>
+                        <!-- <a:column name="accounting_date" align="center" prompt="递交财务日期" renderer="Aurora.formatDate" width="120"/>
+                        <a:column name="payment_completed_date" align="center" prompt="付款日期" renderer="Aurora.formatDate" width="120"/> -->
+                    </a:column>
+                    <a:column name="descriptions" editor="textArea_e" prompt="备注" showTitle="true" width="120"/>
+                </a:columns>
+                <a:editors>
+                    <a:textArea id="textArea_e"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

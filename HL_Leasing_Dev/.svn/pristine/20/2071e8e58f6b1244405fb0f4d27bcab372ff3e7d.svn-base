@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Guoxuezhao
+    $Date: 2013-6-27 下午5:06:56}  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    tlcrd.repayment_dtl_id,
+                    tlcr.repayment_id,
+                    tlcr.loan_contract_id,
+                    tlc.loan_contract_number,
+                    tlcrd.repayment_amount,
+                    tlcrd.repayment_principal,
+                    tlcrd.repayment_interest,
+                    tlcrd.repayment_vat_interest,
+                    tlcw.withdraw_id,
+                    tlcw.withdraw_number,
+                    TO_CHAR(tlcw.withdraw_date, 'yyyy-mm-dd') AS withdraw_date,
+                    DECODE(tlc.business_type,'FACTORING',tlc.vat_rate_of_interest,tlcw.vat_rate_of_interest) vat_rate_of_interest,
+                    tlcw.withdraw_amount,
+                    tlcw.withdraw_amount -
+                    (SELECT
+                        NVL(SUM(lcrd.repayment_principal), 0)
+                    FROM
+                        tre_loan_con_repayment_dtl lcrd,
+                        tre_loan_contract_repayment cr
+                    WHERE
+                        lcrd.withdraw_id         = tlcw.withdraw_id AND
+                        lcrd.repayment_id        = cr.repayment_id AND
+                        NVL(cr.reversed_flag,'N')='N'
+                    ) AS remaining_amount,
+                    crp.amount -
+                    (SELECT
+                        NVL(SUM(lcrd1.repayment_amount), 0)
+                    FROM
+                        tre_loan_con_repayment_dtl lcrd1,
+                        tre_loan_contract_repayment cr1
+                    WHERE
+                        lcrd1.repayment_plan_id = crp.repayment_plan_id AND
+                        lcrd1.repayment_id      = cr1.repayment_id AND
+                        NVL(cr1.reversed_flag,'N')='N'
+                    ) AS unpay_factoring_fee,
+                    crp.principal -
+                    (SELECT
+                        NVL(SUM(lcrd1.repayment_principal), 0)
+                    FROM
+                        tre_loan_con_repayment_dtl lcrd1,
+                        tre_loan_contract_repayment cr1
+                    WHERE
+                        lcrd1.repayment_plan_id = crp.repayment_plan_id AND
+                        lcrd1.repayment_id      = cr1.repayment_id AND
+                        NVL(cr1.reversed_flag,'N')='N'
+                    ) AS unpay_principal,
+                    crp.interest -
+                    (SELECT
+                        NVL(SUM(lcrd1.repayment_interest), 0)
+                    FROM
+                        tre_loan_con_repayment_dtl lcrd1,
+                        tre_loan_contract_repayment cr1
+                    WHERE
+                        lcrd1.repayment_plan_id = crp.repayment_plan_id AND
+                        lcrd1.repayment_id      = cr1.repayment_id AND
+                        NVL(cr1.reversed_flag,'N')='N'
+                    ) AS unpay_interest,
+                    crp.repayment_plan_id,
+                    crp.times,
+                    crp.amount total_repayment_amount,
+                    TO_CHAR(crp.repayment_date, 'yyyy-mm-dd') repayment_date,
+                    TO_CHAR(crp.expire_date, 'yyyy-mm-dd') expire_date
+                FROM
+                    tre_loan_con_repayment_dtl tlcrd,
+                    tre_loan_contract_repayment tlcr,
+                    tre_loan_contract_withdraw_v tlcw,
+                    tre_loan_contract_v tlc,
+                    tre_loan_con_repayment_plan crp
+                WHERE
+                    tlcrd.repayment_id      = tlcr.repayment_id AND
+                    tlcrd.withdraw_id       = tlcw.withdraw_id(+) AND
+                    tlcr.repayment_id       = ${@repayment_id} AND
+                    tlcr.loan_contract_id   = tlc.loan_contract_id AND
+                    tlcrd.repayment_plan_id = crp.repayment_plan_id(+)
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="repayment_dtl_id"/>
+        <bm:field name="repayment_id"/>
+        <bm:field name="loan_contract_id"/>
+        <bm:field name="loan_contract_number"/>
+        <bm:field name="repayment_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="repayment_principal" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="repayment_interest" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="repayment_vat_interest" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="withdraw_id"/>
+        <bm:field name="withdraw_number"/>
+        <bm:field name="withdraw_date"/>
+        <bm:field name="withdraw_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="remaining_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="total_repayment_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="unpay_factoring_fee" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="unpay_principal" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="unpay_interest" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="times"/>
+        <bm:field name="repayment_date"/>
+        <bm:field name="expire_date"/>
+        <bm:field name="repayment_plan_id"/>
+        <bm:field name="vat_rate_of_interest" databaseType="NUMBER" datatype="java.lang.Double"/>
+    </bm:fields>
+</bm:model>

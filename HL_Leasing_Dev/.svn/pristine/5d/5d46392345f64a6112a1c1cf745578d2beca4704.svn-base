@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang 
+    $Date: 2015-6-10 下午03:17:55  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    faa.file_name,
+                    faa.file_path,
+                    faa.file_type_code,
+                    (
+                        CASE
+                            WHEN document_table='CON_CONTRACT'
+                            THEN
+                                (SELECT
+                                    c.contract_number
+                                FROM
+                                    con_contract c
+                                WHERE
+                                    c.contract_id=to_number(${@document_id})
+                                )
+                            ELSE ''
+                        END ) contract_number,
+                    (
+                        CASE
+                            WHEN document_table='CON_CONTRACT'
+                            THEN
+                                (SELECT
+                                    c.bp_id_tenant_n
+                                FROM
+                                    con_contract_lv c
+                                WHERE
+                                    c.contract_id=to_number(${@document_id})
+                                )
+                            ELSE ''
+                        END ) bp_id_tenant_n,
+                    (
+                        CASE
+                            WHEN document_table='CON_CONTRACT'
+                            THEN
+                                (SELECT
+                                    p.project_number
+                                FROM
+                                    con_contract c,
+                                    prj_project p
+                                WHERE
+                                    p.project_id =c.project_id AND
+                                    c.contract_id=to_number(${@document_id})
+                                )
+                            ELSE ''
+                        END ) project_number,
+                    (SELECT
+                        'Y'
+                    FROM
+                        fnd_atm_attachment_multi m1
+                    WHERE
+                        m1.table_name     = 'HLS_DOC_FILE_CONTENT' AND
+                        m1.table_pk_value = cc.content_id
+                    ) file_exists_flag,
+                    (SELECT
+                        faa.file_name
+                    FROM
+                        fnd_atm_attachment_multi m1,
+                        fnd_atm_attachment faa
+                    WHERE
+                        m1.table_name     = 'HLS_DOC_FILE_CONTENT' AND
+                        m1.table_pk_value = cc.content_id AND
+                        m1.attachment_id  = faa.attachment_id
+                    ) download_file_name,
+                    (SELECT
+                        faa.file_path
+                    FROM
+                        fnd_atm_attachment_multi m1,
+                        fnd_atm_attachment faa
+                    WHERE
+                        m1.table_name     = 'HLS_DOC_FILE_CONTENT' AND
+                        m1.table_pk_value = cc.content_id AND
+                        m1.attachment_id  = faa.attachment_id
+                    ) download_file_path,
+                    (SELECT
+                        m1.attachment_id
+                    FROM
+                        fnd_atm_attachment_multi m1
+                    WHERE
+                        m1.table_name     = 'HLS_DOC_FILE_CONTENT' AND
+                        m1.table_pk_value = cc.content_id
+                    ) download_attachment_id,
+                    NVL(${/parameter/@to_file_name},faa.file_name) to_file_name,
+                    lt.pwd,
+                    cc.content_id,
+                    (SELECT
+                        cct.templet_code
+                    FROM
+                        con_clause_templet cct
+                    WHERE
+                        cct.templet_id=cc.templet_id
+                    ) templet_code,
+                    faa.attachment_id
+                FROM
+                    fnd_atm_attachment faa,
+                    fnd_atm_attachment_multi m,
+                    hls_doc_file_templet lt,
+                    con_clause_templet t,
+                    hls_doc_file_content cc
+                WHERE
+                    faa.attachment_id = m.attachment_id AND
+                    m.table_name      = 'HLS_DOC_FILE_TEMPLET' AND
+                    m.table_pk_value  = lt.templet_id AND
+                    lt.templet_id     = t.doc_template_id AND
+                    t.doc_plugin_flag = 'Y' AND
+                    t.templet_id      = cc.templet_id AND
+                    (
+                        cc.content_id =${/parameter/@content_id} OR
+                        (
+                            cc.document_id           =${/parameter/@document_id} AND
+                            cc.document_table        =${/parameter/@document_table} AND
+                            ${/parameter/@batch_flag}='Y'
+                        )
+                    )
+            ]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+            	begin
+            		hls_doc_file_templet_pkg.init_hls_doc_file_content(
+            		  p_document_id    =>${/parameter/@document_id},
+                      p_document_table =>${/parameter/@document_table},
+                      p_user_id        =>${/session/@user_id});
+            	end;
+        	]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="file_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="FILE_NAME"/>
+        <bm:field name="file_path" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="FILE_PATH"/>
+        <bm:field name="file_type_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="FILE_TYPE_CODE"/>
+        <bm:field name="file_exists_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="FILE_EXISTS_FLAG"/>
+        <bm:field name="to_file_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="TO_FILE_NAME"/>
+        <bm:field name="pwd" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PWD"/>
+        <bm:field name="content_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CONTENT_ID"/>
+        <bm:field name="download_file_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DOWNLOAD_FILE_NAME"/>
+        <bm:field name="download_file_path" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DOWNLOAD_FILE_PATH"/>
+        <bm:field name="attachment_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="download_attachment_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="bp_id_tenant_n" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="contract_number" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="project_number" databaseType="VARCHAR2" datatype="java.lang.String"/>
+    </bm:fields>
+</bm:model>

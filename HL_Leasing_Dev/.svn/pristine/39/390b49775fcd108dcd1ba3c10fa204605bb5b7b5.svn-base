@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-8-7 下午03:46:55  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            select *
+			  from (
+			select  s.sequence,h.h_seq,h.column_code,h.column_name,h.column_value,h.prompt,l.*
+			   from fnd_common_sequence s,
+			
+			(select rownum as h_seq,
+			       column_name,
+			       column_code,
+			       prompt,
+			       (case when percent='%' and hls_fin_calculator_save_pkg.get_default_value_name(${@calc_session_id},price_list,column_name,layout_area_seq,${/session/@user_id},${/session/@session_id}) is not null then
+			         hls_fin_calculator_save_pkg.get_default_value_name(${@calc_session_id},price_list,column_name,layout_area_seq,${/session/@user_id},${/session/@session_id})||'%'
+			       else 
+			         hls_fin_calculator_save_pkg.get_default_value_name(${@calc_session_id},price_list,column_name,layout_area_seq,${/session/@user_id},${/session/@session_id})
+			       end) column_value
+			  from (
+			select column_name,column_code,price_list,layout_area_seq,prompt,percent
+			  from hls_fin_calc_config a
+			where a.price_list = (select ch.price_list from hls_fin_calculator_hd ch where ch.calc_session_id=${@calc_session_id})
+			  and a.layout_area_seq = 'H'
+			  and enabled_flag = 'Y'
+			  --and nvl(a.ref_v05,'N') = 'Y'
+			order by a.display_order)) h,
+			(
+			select rownum as l_seq,
+			        d.*
+			  from       
+			(select cl.*
+			  from hls_fin_calculator_ln cl
+			 where cl.calc_session_id = ${@calc_session_id}
+			 order by to_number(cl.times)) d ) l
+			 where s.sequence = h.h_seq(+)
+			 and s.sequence = l.l_seq(+)）
+			 where h_seq is not null or l_seq is not null
+ 			  order by sequence
+ 		]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

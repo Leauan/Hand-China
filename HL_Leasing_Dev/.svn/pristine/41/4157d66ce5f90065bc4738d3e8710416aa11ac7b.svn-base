@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hp  
+    $Date: 2014-6-20 下午04:56:55  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:service xmlns:ns1="uncertain.cache.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <!--         <a:batch-apply sourcepath="/parameter/details">
+            <a:model-insert model="prj.PRJ888.prj_manager_change_his_temp"/>
+        </a:batch-apply> -->
+        <s:server-script import="aes.js;wechat.js;request.js"><![CDATA[
+            importPackage(com.creidt.query);
+            importPackage(java.io);
+            importPackage(java.util);
+            
+            // var weixinAskRequestObject = new WeixinAskRequestObject();
+            try {
+                var parameter = $ctx.parameter;
+                var query_reason;
+                var query_category;
+                var query_xml_str_multi_headed;
+                var query_xml_str_anti_fraud;
+                var batch_id;
+                var anti_batch_id; 
+                var mul_batch_id;
+                var batch_number;
+                var deal_result;
+                var file_path = 'C:/project/pdf/';//存储xml、PDF的zip压缩文件的目录路径   传入的时候需要全路径包含zip文件名
+                var file_size;//zip大小
+                var file_name;//zip名
+                // println(parameter.cad);
+                var request_bm = $bm('db.credit_query_pkg.credit_query_request');
+                request_bm.execute({
+                "project_id": parameter.project_id,
+                "query_reason":parameter.query_reason,
+                "query_category":parameter.query_category,
+                "mul_batch_id":mul_batch_id,
+                "anti_batch_id":anti_batch_id,
+                "batch_number":batch_number,
+                "query_xml_str_anti_fraud":query_xml_str_anti_fraud,
+                "query_xml_str_multi_headed":query_xml_str_multi_headed
+                });
+                var atachment_bm = $bm('db.credit_query_pkg.credit_atachment_ref');
+                file_name = parameter.bp_name +'_多头借贷报告_' + parameter.batch_number + '_' + parameter.mul_batch_id;//文件名
+                
+	            //处理返回结果  解析xml插入表数据
+                var return_xml = Test.test_xml_pdf_html(parameter.query_xml_str_multi_headed,'https',file_path,file_name); 
+                
+                //返回状态 1正常 2异常 异常时returnStatus返回错误代码与错误原因
+                if(Test.returnStatus == '1'){
+                   
+                //多头借贷  附件关联
+                atachment_bm.execute({
+                "batch_id":parameter.mul_batch_id,
+                "file_name":Test.pdfFileName,
+                "file_size":Test.fileSize,
+                "file_path":Test.pdfFilePath
+                });
+                
+                var atachment_bm = $bm('db.credit_query_pkg.credit_atachment_ref');
+                file_name = parameter.bp_name +'_多头借贷报告_' + parameter.batch_number + '_' + parameter.mul_batch_id;//文件名
+                
+	            //处理返回结果  解析xml插入表数据
+                var return_xml = Test.test_xml_pdf_html(parameter.query_xml_str_multi_headed,'https',file_path,file_name); 
+                
+                //返回状态 1正常 2异常 异常时returnStatus返回错误代码与错误原因
+                if(Test.returnStatus == '1'){
+                   
+                //多头借贷  附件关联
+                atachment_bm.execute({
+                "batch_id":parameter.mul_batch_id,
+                "file_name":Test.pdfFileName,
+                "file_size":Test.fileSize,
+                "file_path":Test.pdfFilePath
+                });
+                
+
+                var response_bm = $bm('db.credit_query_pkg.deal_return_result');
+                response_bm.execute({
+                "project_id": parameter.project_id,
+                "batch_id": parameter.mul_batch_id,//多头借贷id
+                "xml_clob":return_xml,//查询请求返回的xml
+                "deal_result":deal_result
+                });
+
+                }
+                else{
+                var error_message_bm = $bm('db.credit_query_pkg.credit_update_error_message');
+                error_message_bm.execute({
+                "error_message": Test.returnStatus,
+                "batch_id":parameter.mul_batch_id
+                });    
+                    
+                }    
+                    
+                
+                
+                
+                //个人反欺诈  附件关联
+                file_name = parameter.bp_name +'_个人反欺诈报告_' + parameter.batch_number + '_' + parameter.anti_batch_id;//文件名
+               
+                //处理返回结果  解析xml插入表数据
+                var return_xml_anti = Test.test_xml_pdf_html(parameter.query_xml_str_anti_fraud,'https',file_path,file_name); 
+                //返回状态 1正常 2异常 异常时returnStatus返回错误代码与错误原因
+                if(Test.returnStatus == '1'){
+                    
+                atachment_bm.execute({
+                "batch_id":parameter.anti_batch_id,
+                "file_name":Test.pdfFileName,
+                "file_size":Test.fileSize,
+                "file_path":Test.pdfFilePath
+                });
+
+                }
+                else{
+                var error_message_bm = $bm('db.credit_query_pkg.credit_update_error_message');
+                error_message_bm.execute({
+                "error_message": Test.returnStatus,
+                "batch_id":parameter.mul_batch_id
+                });    
+                    
+                }    
+                    
+
+                
+
+                var response_bm = $bm('db.credit_query_pkg.deal_result_anti_cheat');
+                response_bm.execute({
+                "project_id": parameter.project_id,
+                "batch_id": parameter.anti_batch_id,//个人反欺诈id
+                "xml_clob":return_xml_anti,//查询请求返回的xml
+                "deal_result":deal_result
+                });
+                }else{
+                var error_message_bm = $bm('db.credit_query_pkg.credit_update_error_message');
+                error_message_bm.execute({
+                "error_message": Test.returnStatus,
+                "batch_id":parameter.anti_batch_id
+                });    
+                    
+                }
+                
+                
+
+                
+                
+                //个人反欺诈  附件关联
+                file_name = parameter.bp_name +'_个人反欺诈报告_' + parameter.batch_number + '_' + parameter.anti_batch_id;//文件名
+               
+                //处理返回结果  解析xml插入表数据
+                var return_xml_anti = Test.test_xml_pdf_html(parameter.query_xml_str_anti_fraud,'https',file_path,file_name); 
+                //返回状态 1正常 2异常 异常时returnStatus返回错误代码与错误原因
+                if(Test.returnStatus == '1'){
+                    
+                atachment_bm.execute({
+                "batch_id":parameter.anti_batch_id,
+                "file_name":Test.pdfFileName,
+                "file_size":Test.fileSize,
+                "file_path":Test.pdfFilePath
+                });
+                var response_bm = $bm('db.credit_query_pkg.deal_result_anti_cheat');
+                response_bm.execute({
+                "project_id": parameter.project_id,
+                "batch_id": parameter.anti_batch_id,//个人反欺诈id
+                "xml_clob":return_xml_anti,//查询请求返回的xml
+                "deal_result":deal_result
+                });
+                }else{
+                var error_message_bm = $bm('db.credit_query_pkg.credit_update_error_message');
+                error_message_bm.execute({
+                "error_message": Test.returnStatus,
+                "batch_id":parameter.anti_batch_id
+                });    
+                    
+                }
+                
+                
+                
+
+            } catch (e) {
+            
+                println('e' + e);
+            
+            } finally {
+            
+            
+               }
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:service-output output="/parameter"/>
+</a:service>

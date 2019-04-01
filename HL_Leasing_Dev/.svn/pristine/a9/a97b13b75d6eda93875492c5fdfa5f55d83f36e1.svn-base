@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            //importPackage(java.util.zip);
+            importPackage(java.util.zip);
+            importPackage(java.io); /*可以传入参数*/
+            //importPackage(java.util.zip);
+            
+            function writeFile(zos, fn, fp) {
+                var ze = new ZipEntry(fn);
+                //zos.setEncoding("UTF-8");//如果是org.apache.tools.zip需要追加字符集
+                zos.putNextEntry(ze);
+                var fis = new FileInputStream(fp);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    zos.write(b, 0, len);
+                }
+                fis.close();
+            }
+            
+            function transfer(file, os) {
+                var fis = new FileInputStream(file);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    os.write(b, 0, len);
+                }
+                fis.close();
+            }
+            
+            
+            function getdate() {
+                var now = new Date()
+                y = now.getFullYear()
+                m = now.getMonth() + 1
+                d = now.getDate()
+                m = m < 10 ? "0" + m : m
+                d = d < 10 ? "0" + d : d
+                return y + "" + m + "" + d
+            }
+            $ctx["__request_type__"] = 'file'; //to indicate this request is not a JSON_REQUEST
+            var resp = $ctx['_instance.javax.servlet.http.HttpServletResponse'];
+            resp.setHeader("Pragma", "No-cache");
+            resp.setHeader("Cache-Control", "no-cache, must-revalidate");
+            var doc_code = '催收通知函打印'
+            var date = getdate();
+            var type = $ctx.parameter.type;
+            var file_path;
+            resp.setDateHeader("Expires", 0);
+            resp.setContentType("application/x-msdownload");
+            
+            try {
+                var attachment_batch_dl = $bm('cont.CON637.con_collection_content_download');
+                var result = attachment_batch_dl.queryAsMap();
+                var arr = result.getChildren();
+                if (arr.length >= 1) {
+                    //打包下载
+                    zip_filename =doc_code + date + ".zip";
+                    resp.setHeader("Content-disposition", "attachment; filename=" + encodeURI(zip_filename));
+                    var zos = new ZipOutputStream(resp.getOutputStream());
+                    var file_exist_list = {};
+                    for (var i = 0;i < arr.length;i++) {
+                        var f = arr[i];
+                        if (f.file_path && !file_exist_list[f.file_name]) {
+                            writeFile(zos, f.file_name, f.file_path);
+                            file_exist_list[f.file_name] = 1;
+                        } else {
+                            file_exist_list[f.file_name] = file_exist_list[f.file_name] * 1 + 1;
+                            var last_index = f.file_name.lastIndexOf(".");
+                            var temp_exists_file_name = f.file_name.substr(0, last_index);
+                            var temp_exists_file_type = f.file_name.substr(last_index, f.file_name.length);
+                            temp_exists_file_name = temp_exists_file_name + '-' + file_exist_list[f.file_name] + temp_exists_file_type;
+                            writeFile(zos, temp_exists_file_name, f.file_path);
+                        }
+                    }
+                    zos.close();
+                }
+            } catch (e) {
+                println(e);
+                var logger = $logger("server-script");
+                logger.severe(e.message);
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

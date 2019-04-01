@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang 
+    $Date: 2014-12-8 下午01:22:16  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure><![CDATA[
+    ]]></a:init-procedure>
+    <a:view>
+        <a:link id="yonda_hls_tl_single_hand_writeoff_link_id" model="csh.CSH602.yonda_hls_tl_single_hand_writeoff" modelaction="batch_update"/>
+        <a:link id="yonda_hls_tl_interface_transfor_link_id" url="${/request/@context_path}/modules/csh/CSH602/yonda_hls_tl_interface_transfor.svc"/>
+        <a:link id="csh602_yonda_hls_tl_logs_link_id" url="${/request/@context_path}/modules/csh/CSH603/yonda_hls_tl_logs.screen"/>
+        <a:link id="yonda_hls_tl_interface_batch_query_link_id" url="${/request/@context_path}/modules/csh/CSH603/yonda_hls_tl_interface_batch_query.svc"/>
+        <script><![CDATA[
+            function lock_current_window() {
+                Aurora.Masker.mask(document.documentElement, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_current_window() {
+                Aurora.Masker.unmask(document.documentElement);
+            }
+            
+            function query_tl_itfc() {
+                $('yonda_hls_tl_cashflow_result_ds').query();
+                $('yonda_hls_tl_itfc_result_ds').query();
+                $('yonda_hls_tl_itfc_dealing_result_ds').query();
+                $('yonda_hls_tl_itfc_notwriteoff_result_ds').query();
+            }
+            
+            function on_yonda_hls_tl_itfc_result_load(ds) {
+                unlock_current_window();
+            }
+            
+            function resultexport() {
+                $('yonda_hls_tl_itfc_grid_id')._export();
+            }
+            
+            function transfor_itfc_detail() {
+                lock_current_window();
+                var records = $('yonda_hls_tl_cashflow_result_ds').getSelected();
+                if (records.length == 1) {
+                    var saveData = [];
+                    saveData.push(records[0].data);
+                    Aurora.request({
+                        url: $('yonda_hls_tl_interface_transfor_link_id').getUrl(),
+                        para: saveData,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '执行成功',
+                                duration: 2000
+                            });
+                            query_tl_itfc();
+                        },
+                        error: function() {
+                            unlock_current_window();
+                        },
+                        failure: function() {
+                            unlock_current_window();
+                        },
+                        scope: this
+                    });
+                } else {
+                    unlock_current_window();
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先选择一行数据！');
+                }
+            
+            }
+            
+            function transfor_itfc_writeoff() {
+                lock_current_window();
+                var records = $('yonda_hls_tl_itfc_notwriteoff_result_ds').getSelected();
+                if (records.length) {
+                    var saveData = [];
+                    for (var i = 0;i < records.length;i++) {
+                        var record = records[i];
+                        record.set('_status', 'update');
+                        saveData.push(record.data);
+                    }
+                    Aurora.request({
+                        url: $('yonda_hls_tl_single_hand_writeoff_link_id').getUrl(),
+                        para: saveData,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '核销成功',
+                                duration: 2000
+                            });
+                            query_tl_itfc();
+                        },
+                        error: function() {
+                            unlock_current_window();
+                        },
+                        failure: function() {
+                            unlock_current_window();
+                        },
+                        scope: this
+                    });
+                } else {
+                    unlock_current_window();
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先选择一行数据！');
+                }
+            }
+            
+            function on_yonda_hls_tl_itfc_detail_renderer(value, record, name) {
+                if (record.get('tl_itfc_line_id')) {
+                    return '<a href="javascript:windowopen_yonda_tl_detail_logs(\'' + record.get('tl_itfc_line_id') + '\');">日志</a>';
+                }
+            }
+            
+            function windowopen_yonda_tl_detail_logs(tl_itfc_line_id) {
+                new Aurora.Window({
+                    id: 'yonda_hls_tl_logs_link_winid',
+                    url: $('csh602_yonda_hls_tl_logs_link_id').getUrl(),
+                    params: {
+                        'source_id': tl_itfc_line_id,
+                        'source_table': 'YONDA_HLS_TL_ITFC_LINE'
+                    },
+                    width: 550,
+                    height: 400
+                });
+            }
+            
+            function transfor_itfc_batch_query_in_hand() {
+                lock_current_window();
+                Aurora.request({
+                    url: $('yonda_hls_tl_interface_batch_query_link_id').getUrl(),
+                    success: function() {
+                        Aurora.SideBar.show({
+                            msg: '执行成功',
+                            duration: 2000
+                        });
+                        query_tl_itfc();
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="tl_itfc_trx_status" lookupCode="CSH602_YONDA_HLS_TL_LN_STATUS"/>
+            <a:dataSet id="con_write_off_flag_ds" lookupCode="CON_WRITE_OFF_FLAG"/>
+            <a:dataSet id="yonda_hls_tl_itfc_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="bp_name"/>
+                    <a:field name="dbtacc"/>
+                    <a:field name="contract_number"/>
+                    <a:field name="trx_code" defaultValue="100011"/>
+                    <a:field name="trx_status"/>
+                    <a:field name="trx_status_display" displayField="code_value_name" options="tl_itfc_trx_status" returnField="trx_status" valueField="code_value"/>
+                    <a:field name="due_date"/>
+                    <a:field name="write_off_flag_display" displayField="code_value_name" options="con_write_off_flag_ds" returnField="write_off_flag" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="yonda_hls_tl_cashflow_result_ds" autoPageSize="true" autoQuery="true" model="csh.CSH602.yonda_hls_tl_cashflow_v" queryDataSet="yonda_hls_tl_itfc_query_ds" selectable="true">
+                <a:events>
+                    <a:event name="load" handler="on_yonda_hls_tl_itfc_result_load"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="yonda_hls_tl_itfc_dealing_result_ds" autoPageSize="true" autoQuery="true" model="csh.CSH602.yonda_hls_tl_itfc_v" queryDataSet="yonda_hls_tl_itfc_query_ds" queryUrl="${/request/@context_path}/autocrud/csh.CSH602.yonda_hls_tl_itfc_v/query?line_trx_status=DEALING" selectable="true">
+                <a:events>
+                    <a:event name="load" handler="on_yonda_hls_tl_itfc_result_load"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="yonda_hls_tl_itfc_notwriteoff_result_ds" autoPageSize="true" autoQuery="true" model="csh.CSH602.yonda_hls_tl_itfc_v" queryDataSet="yonda_hls_tl_itfc_query_ds" queryUrl="${/request/@context_path}/autocrud/csh.CSH602.yonda_hls_tl_itfc_v/query?line_trx_status=COMPLETE_NOT_WRITEOFF" selectable="true">
+                <a:events>
+                    <a:event name="load" handler="on_yonda_hls_tl_itfc_result_load"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="yonda_hls_tl_itfc_result_ds" autoPageSize="true" autoQuery="true" model="csh.CSH602.yonda_hls_tl_itfc_v" queryDataSet="yonda_hls_tl_itfc_query_ds" queryUrl="${/request/@context_path}/autocrud/csh.CSH602.yonda_hls_tl_itfc_v/query?line_trx_status_end_flag=Y" selectable="true">
+                <a:events>
+                    <a:event name="load" handler="on_yonda_hls_tl_itfc_result_load"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="transfor_itfc_detail" text="单笔实时代扣"/>
+                <a:gridButton click="transfor_itfc_batch_query_in_hand" text="手动同步代扣结果"/>
+                <a:gridButton click="transfor_itfc_writeoff" text="手动核销代扣成功未核销事务"/>
+                <a:gridButton click="query_tl_itfc" text="HLS.QUERY"/>
+            </a:screenTopToolbar>
+            <a:form LabelWidth="120" column="4" marginWidth="30" title="HAP_QUERY_TITLE">
+                <a:textField name="contract_number" bindTarget="yonda_hls_tl_itfc_query_ds" prompt="合同编号">
+                    <a:events>
+                        <a:event name="enterdown" handler="query_tl_itfc"/>
+                    </a:events>
+                </a:textField>
+                <a:textField name="bp_name" bindTarget="yonda_hls_tl_itfc_query_ds" prompt="客户名">
+                    <a:events>
+                        <a:event name="enterdown" handler="query_tl_itfc"/>
+                    </a:events>
+                </a:textField>
+                <a:textField name="ebank_account_num" bindTarget="yonda_hls_tl_itfc_query_ds" prompt="代扣账号">
+                    <a:events>
+                        <a:event name="enterdown" handler="query_tl_itfc"/>
+                    </a:events>
+                </a:textField>
+                <a:comboBox name="write_off_flag_display" bindTarget="yonda_hls_tl_itfc_query_ds" prompt="核销状态">
+                    <a:events>
+                        <a:event name="enterdown" handler="query_tl_itfc"/>
+                    </a:events>
+                </a:comboBox>
+            </a:form>
+            <a:tabPanel marginHeight="200" marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="代扣款现金流" width="100">
+                        <a:grid id="yonda_hls_cashflow_grid_id" bindTarget="yonda_hls_tl_cashflow_result_ds" marginHeight="250" marginWidth="60" navBar="true">
+                            <a:columns>
+                                <a:column name="contract_number" align="center" lock="true" prompt="合同编号" width="120"/>
+                                <a:column name="times" align="center" lock="true" prompt="期数" width="50"/>
+                                <a:column name="company_short_name" prompt="公司" width="200"/>
+                                <a:column name="bp_name" align="left" prompt="客户名" width="200"/>
+                                <a:column name="bank_name" prompt="银行" width="100"/>
+                                <a:column name="ebank_type_desc" align="center" prompt="账号类型" width="70"/>
+                                <a:column name="ebank_account_prop_desc" align="center" prompt="账号属性" width="70"/>
+                                <a:column name="ebank_account_num" align="right" prompt="代扣账号" width="140"/>
+                                <a:column name="ebank_account_name" prompt="代扣账号名" width="80"/>
+                                <a:column name="cf_item_desc" align="center" prompt="性质" width="50"/>
+                                <a:column name="currency" align="center" prompt="币种" width="70"/>
+                                <a:column name="write_off_flag_desc" align="center" prompt="核销状态" width="80"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab prompt="正在处理" width="120">
+                        <a:grid id="yonda_hls_tl_itfc_dealing_grid_id" bindTarget="yonda_hls_tl_itfc_dealing_result_ds" marginHeight="250" marginWidth="60" navBar="true">
+                            <a:columns>
+                                <a:column name="contract_number" align="center" lock="true" prompt="合同编号" width="120"/>
+                                <a:column name="times" align="center" lock="true" prompt="期数" width="50"/>
+                                <a:column name="company_short_name" prompt="公司" width="200"/>
+                                <a:column name="bp_name" align="left" prompt="客户名" width="200"/>
+                                <a:column name="bank_name" prompt="银行" width="100"/>
+                                <a:column name="ebank_type_desc" align="center" prompt="账号类型" width="70"/>
+                                <a:column name="ebank_account_prop_desc" align="center" prompt="账号属性" width="70"/>
+                                <a:column name="ebank_account_num" align="right" prompt="代扣账号" width="140"/>
+                                <a:column name="ebank_account_name" prompt="代扣账号名" width="80"/>
+                                <a:column name="cf_item_desc" align="center" prompt="性质" width="50"/>
+                                <a:column name="currency" align="center" prompt="币种" width="70"/>
+                                <a:column name="line_trx_status" align="center" prompt="处理状态" width="80"/>
+                                <a:column name="write_off_flag_desc" align="center" prompt="核销状态" width="80"/>
+                                <a:column name="submit_time" align="center" prompt="实际发送日期" renderer="Aurora.formatDate" width="100"/>
+                                <a:column name="logs" align="center" prompt="日志" renderer="on_yonda_hls_tl_itfc_detail_renderer" width="80"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab prompt="已发生实时代扣未核销现金流" width="200">
+                        <a:grid id="yonda_hls_tl_itfc_notwriteoff_grid_id" bindTarget="yonda_hls_tl_itfc_notwriteoff_result_ds" marginHeight="250" marginWidth="60" navBar="true">
+                            <a:columns>
+                                <a:column name="contract_number" align="center" lock="true" prompt="合同编号" width="120"/>
+                                <a:column name="times" align="center" lock="true" prompt="期数" width="50"/>
+                                <a:column name="company_short_name" prompt="公司" width="200"/>
+                                <a:column name="bp_name" align="left" prompt="客户名" width="200"/>
+                                <a:column name="bank_name" prompt="银行" width="100"/>
+                                <a:column name="ebank_type_desc" align="center" prompt="账号类型" width="70"/>
+                                <a:column name="ebank_account_prop_desc" align="center" prompt="账号属性" width="70"/>
+                                <a:column name="ebank_account_num" align="right" prompt="代扣账号" width="140"/>
+                                <a:column name="ebank_account_name" prompt="代扣账号名" width="80"/>
+                                <a:column name="cf_item_desc" align="center" prompt="性质" width="50"/>
+                                <a:column name="currency" align="center" prompt="币种" width="70"/>
+                                <a:column name="line_trx_status" align="center" prompt="处理状态" width="80"/>
+                                <a:column name="write_off_flag_desc" align="center" prompt="核销状态" width="80"/>
+                                <a:column name="submit_time" align="center" prompt="实际发送日期" renderer="Aurora.formatDate" width="100"/>
+                                <a:column name="logs" align="center" prompt="日志" renderer="on_yonda_hls_tl_itfc_detail_renderer" width="80"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab prompt="已结束" width="100">
+                        <a:grid id="yonda_hls_tl_itfc_grid_id" bindTarget="yonda_hls_tl_itfc_result_ds" marginHeight="250" marginWidth="60" navBar="true">
+                            <a:columns>
+                                <a:column name="contract_number" align="center" lock="true" prompt="合同编号" width="120"/>
+                                <a:column name="times" align="center" lock="true" prompt="期数" width="50"/>
+                                <a:column name="company_short_name" prompt="公司" width="200"/>
+                                <a:column name="bp_name" align="left" prompt="客户名" width="200"/>
+                                <a:column name="bank_name" prompt="银行" width="100"/>
+                                <a:column name="ebank_type_desc" align="center" prompt="账号类型" width="70"/>
+                                <a:column name="ebank_account_prop_desc" align="center" prompt="账号属性" width="70"/>
+                                <a:column name="ebank_account_num" align="right" prompt="代扣账号" width="140"/>
+                                <a:column name="ebank_account_name" prompt="代扣账号名" width="80"/>
+                                <a:column name="cf_item_desc" align="center" prompt="性质" width="50"/>
+                                <a:column name="currency" align="center" prompt="币种" width="70"/>
+                                <a:column name="line_trx_status" align="center" prompt="处理状态" width="80"/>
+                                <a:column name="write_off_flag_desc" align="center" prompt="核销状态" width="80"/>
+                                <a:column name="submit_time" align="center" prompt="实际发送日期" renderer="Aurora.formatDate" width="100"/>
+                                <a:column name="logs" align="center" prompt="日志" renderer="on_yonda_hls_tl_itfc_detail_renderer" width="80"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

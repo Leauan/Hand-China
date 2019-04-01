@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-7-23 下午01:50:23  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:fields>
+        <bm:field name="project_id"/>
+        <bm:field name="approval_id"/>
+        <bm:field name="project_number"/>
+        <bm:field name="project_name"/>
+        <bm:field name="division"/>
+        <bm:field name="company_id"/>
+        <bm:field name="meeting_count"/>
+        <bm:field name="meeting_date" databaseType="DATE" datatype="java.util.Date"/>
+        <bm:field name="wfl_instance_id"/>
+        <bm:field name="meeting_location"/>
+        <bm:field name="pre_flag"/>
+        <bm:field name="second_meet_flag"/>
+        <bm:field name="project_status"/>
+        <bm:field name="project_status_desc"/>
+        <bm:field name="current_node_desc"/>
+        <bm:field name="approver_comment_summary"/>
+        <bm:field name="declare_flag"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    t1.*
+                FROM
+                    (SELECT
+                        a.project_id,
+                        a.approval_id,
+                        p.project_number,
+                        p.project_name,
+                        p.division,
+                        p.company_id,
+                        p.declare_flag,
+                        a.meeting_count,
+                        a.meeting_date,
+                        a.meeting_location,
+                        a.approver_comment_summary,
+                        p.wfl_instance_id,
+                        zj_wfl_workflow_pkg.get_current_node_desc(p.wfl_instance_id) AS current_node_desc,
+                        p.project_status,
+                        (SELECT
+                            t.code_value_name
+                        FROM
+                            sys_code_values_v t
+                        WHERE
+                            t.code       = 'PRJ501_PRJ_STATUS' AND
+                            t.code_value = p.project_status
+                        ) project_status_desc,
+                        NVL(
+                        (SELECT
+                            'Y'
+                        FROM
+                            dual
+                        WHERE
+                            EXISTS
+                            (SELECT
+                                1
+                            FROM
+                                ZJ_WFL_APPROVE_HISTORY_V v
+                            WHERE
+                                v.instance_id       = p.wfl_instance_id AND
+                                v.node_sequence_num = 90
+                            )
+                        ),'N')pre_flag,
+                        (
+                            CASE
+                                WHEN a.approval_count > 1
+                                THEN 'Y'
+                                ELSE 'N'
+                            END)second_meet_flag
+                    FROM
+                        prj_project_approval a,
+                        prj_project p
+                    WHERE
+                        a.project_id = p.project_id
+                    ORDER BY
+                        a.last_update_date DESC
+                    )t1 #WHERE_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field field="project_number" queryOperator="="/>
+        <bm:query-field field="project_name" queryOperator="like"/>
+        <bm:query-field field="project_status" queryOperator="="/>
+        <bm:query-field field="second_meet_flag" queryOperator="="/>
+        <bm:query-field field="pre_flag" queryOperator="="/>
+        <bm:query-field name="meeting_date_from" queryExpression="t1.meeting_date between to_date(${@meeting_date_from},&apos;yyyy-mm-dd&apos;) and nvl(to_date(${@meeting_date_to},&apos;yyyy-mm-dd&apos;),t1.meeting_date)"/>
+        <bm:query-field name="meeting_date_to" queryExpression="t1.meeting_date between nvl(to_date(${@meeting_date_from},&apos;yyyy-mm-dd&apos;),t1.meeting_date) and to_date(${@meeting_date_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field field="meeting_count" queryOperator="like"/>
+    </bm:query-fields>
+</bm:model>

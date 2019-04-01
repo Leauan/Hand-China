@@ -1,0 +1,743 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: xuls  
+    $Date: 2017-1-4 下午03:42:50  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    v.*
+                FROM
+                    (SELECT
+                        rank() over(Order By h.payment_req_id DESC) rk,
+                        --cp.ref_doc_id,
+                        h.payment_req_number,
+                        h.payment_req_id,
+                        h.created_by,
+                        (SELECT su.description FROM sys_user su WHERE su.user_id = h.created_by
+                        ) req_man,
+                        (SELECT
+                            eou.DESCRIPTION
+                        FROM
+                            sys_user su,
+                            exp_employees ee,
+                            exp_employee_assigns ea,
+                            exp_org_position_vl eop,
+                            exp_org_unit_vl eou
+                        WHERE
+                            su.user_id               = h.created_by AND
+                            su.employee_id           = ee.employee_id AND
+                            ee.employee_id           = ea.employee_id AND
+                            ea.primary_position_flag = 'Y' AND
+                            eop.POSITION_ID          = ea.position_id AND
+                            eop.unit_id              = eou.unit_id
+                        ) unit_name,
+                        (SELECT
+                            SUM(NVL(rl.amount, 0) - NVL(
+                            (SELECT
+                                SUM(amount)
+                            FROM
+                                csh_payment_req_ln_ddct ld
+                            WHERE
+                                ld.payment_req_ln_id = rl.payment_req_ln_id
+                            ), 0))
+                        FROM
+                            csh_payment_req_ln rl
+                        WHERE
+                            rl.payment_req_id = h.payment_req_id
+                        ) sum_act_amount,
+                        (SELECT
+                            SUM(DECODE(rl.amount_paid, '0', NULL, rl.amount_paid) - NVL(
+                            (SELECT
+                                SUM(amount)
+                            FROM
+                                csh_payment_req_ln_ddct ld
+                            WHERE
+                                ld.payment_req_ln_id = rl.payment_req_ln_id
+                            ), 0))
+                        FROM
+                            csh_payment_req_ln rl
+                        WHERE
+                            rl.payment_req_id = h.payment_req_id
+                        ) sum_amount_paid,
+                        (SELECT
+                            bm.bp_name
+                        FROM
+                            csh_payment_req_ln l,
+                            con_contract c,
+                            hls_bp_master bm
+                        WHERE
+                            l.payment_req_id = h.payment_req_id AND
+                            l.ref_doc_id     = c.contract_id AND
+                            rownum           = 1 AND
+                            bm.bp_id         = c.bp_id_tenant
+                        ) bp_name,
+                        h.bp_bank_account_name,
+                        h.bp_bank_account_num,
+                        h.bank_full_name bp_branch_name,
+                        fnd_convert_to_chinese_pkg.amount_convert_to_chinese(
+                        (SELECT
+                            SUM(NVL(rl.amount, 0) - NVL(
+                            (SELECT
+                                SUM(amount)
+                            FROM
+                                csh_payment_req_ln_ddct ld
+                            WHERE
+                                ld.payment_req_ln_id = rl.payment_req_ln_id
+                            ), 0))
+                        FROM
+                            csh_payment_req_ln rl
+                        WHERE
+                            rl.payment_req_id = h.payment_req_id
+                        )) sum_act_amount_big,
+                        (SELECT
+                            li.item_frame_number
+                        FROM
+                            csh_payment_req_ln l,
+                            con_contract_lease_item li
+                        WHERE
+                            l.payment_req_id = h.payment_req_id AND
+                            l.ref_doc_id     = li.contract_id AND
+                            rownum           = 1
+                        ) item_frame_number,
+                        '电汇' payment_method_id_n,
+                        (SELECT
+                            to_char(c.lease_start_date,'yyyy-mm-dd')
+                        FROM
+                            csh_payment_req_ln l,
+                            con_contract c
+                        WHERE
+                            l.payment_req_id = h.payment_req_id AND
+                            l.ref_doc_id     = c.contract_id AND
+                            rownum           = 1
+                        ) lease_start_date,
+                        (SELECT
+                            c.contract_number
+                        FROM
+                            csh_payment_req_ln l,
+                            con_contract c
+                        WHERE
+                            l.payment_req_id = h.payment_req_id AND
+                            l.ref_doc_id     = c.contract_id AND
+                            rownum           = 1
+                        ) contract_number,
+                        h.wfl_instance_id,
+                        (SELECT
+                            (
+                                CASE
+                                    WHEN a.cf_description = '融资租赁资产'
+                                    THEN
+                                        (SELECT
+                                            pt.comment_text_out
+                                        FROM
+                                            (SELECT
+                                                ar.comment_text_out,
+                                                b.payment_req_id
+                                            FROM
+                                                zj_wfl_approve_record ar,
+                                                zj_wfl_workflow_node wn,
+                                                con_contract cc,
+                                                csh_payment_req_ln b
+                                            WHERE
+                                                ar.instance_id = cc.wfl_instance_id AND
+                                                ar.node_id     = wn.node_id AND
+                                                b.ref_doc_id   = cc.contract_id
+                                                --And b.payment_req_id = h.payment_req_id
+                                                AND
+                                                wn.node_desc = '自动车部业务担当合同审核'
+                                            ORDER BY
+                                                ar.creation_date DESC
+                                            ) pt
+                                        WHERE
+                                            rownum            = 1 AND
+                                            pt.payment_req_id = h.payment_req_id
+                                        )
+                                    WHEN a.cf_description = '业务委托费'
+                                    THEN
+                                        (SELECT
+                                            ar.comment_text_out
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn
+                                        WHERE
+                                            ar.instance_id = h.wfl_instance_id AND
+                                            ar.node_id     = wn.node_id AND
+                                            wn.node_desc   = '自动车部业务担当审批' AND
+                                            rownum         = 1
+                                        )
+                                END) comment_text_out_1
+                        FROM
+                            CSH_PAYMENT_REQ_DEBT_LN_LV a
+                        WHERE
+                            a.payment_req_id = h.payment_req_id AND
+                            rownum           = 1
+                        ) comment_text_out1,
+                        (SELECT
+                            (
+                                CASE
+                                    WHEN a.cf_description = '融资租赁资产'
+                                    THEN
+                                        (SELECT
+                                            pt.comment_text_out
+                                        FROM
+                                            (SELECT
+                                                ar.comment_text_out,
+                                                b.payment_req_id
+                                            FROM
+                                                zj_wfl_approve_record ar,
+                                                zj_wfl_workflow_node wn,
+                                                con_contract cc,
+                                                csh_payment_req_ln b
+                                            WHERE
+                                                ar.instance_id = cc.wfl_instance_id AND
+                                                ar.node_id     = wn.node_id AND
+                                                b.ref_doc_id   = cc.contract_id
+                                                --And b.payment_req_id = h.payment_req_id
+                                                AND
+                                                wn.node_desc = '自动车部资产管理担当合同审核'
+                                            ORDER BY
+                                                ar.creation_date DESC
+                                            ) pt
+                                        WHERE
+                                            rownum            = 1 AND
+                                            pt.payment_req_id = h.payment_req_id
+                                        )
+                                    WHEN a.cf_description = '业务委托费'
+                                    THEN
+                                        (SELECT
+                                            ar.comment_text_out
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn
+                                        WHERE
+                                            ar.instance_id = h.wfl_instance_id AND
+                                            ar.node_id     = wn.node_id AND
+                                            wn.node_desc   = '自动车部资产管理担当审批' AND
+                                            rownum         = 1
+                                        )
+                                END) comment_text_out_2
+                        FROM
+                            CSH_PAYMENT_REQ_DEBT_LN_LV a
+                        WHERE
+                            a.payment_req_id = h.payment_req_id AND
+                            rownum           = 1
+                        ) comment_text_out2,
+                        (SELECT
+                            (
+                                CASE
+                                    WHEN a.cf_description = '融资租赁资产'
+                                    THEN
+                                        (SELECT
+                                            pt.comment_text_out
+                                        FROM
+                                            (SELECT
+                                                ar.comment_text_out,
+                                                b.payment_req_id
+                                            FROM
+                                                zj_wfl_approve_record ar,
+                                                zj_wfl_workflow_node wn,
+                                                con_contract cc,
+                                                csh_payment_req_ln b
+                                            WHERE
+                                                ar.instance_id = cc.wfl_instance_id AND
+                                                ar.node_id     = wn.node_id AND
+                                                b.ref_doc_id   = cc.contract_id
+                                                --And b.payment_req_id = h.payment_req_id
+                                                AND
+                                                wn.node_desc = '自动车部长合同复审'
+                                            ORDER BY
+                                                ar.creation_date DESC
+                                            ) pt
+                                        WHERE
+                                            rownum            = 1 AND
+                                            pt.payment_req_id = h.payment_req_id
+                                        )
+                                    WHEN a.cf_description = '业务委托费'
+                                    THEN
+                                        (SELECT
+                                            ar.comment_text_out
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn
+                                        WHERE
+                                            ar.instance_id = h.wfl_instance_id AND
+                                            ar.node_id     = wn.node_id AND
+                                            wn.node_desc   = '自动车部长审批' AND
+                                            rownum         = 1
+                                        )
+                                END) comment_text_out_3
+                        FROM
+                            CSH_PAYMENT_REQ_DEBT_LN_LV a
+                        WHERE
+                            a.payment_req_id = h.payment_req_id AND
+                            rownum           = 1
+                        ) comment_text_out3,
+                        (SELECT
+                            (
+                                CASE
+                                    WHEN a.cf_description = '融资租赁资产'
+                                    THEN
+                                        (SELECT
+                                            pt.comment_text_out
+                                        FROM
+                                            (SELECT
+                                                ar.comment_text_out,
+                                                b.payment_req_id
+                                            FROM
+                                                zj_wfl_approve_record ar,
+                                                zj_wfl_workflow_node wn,
+                                                con_contract cc,
+                                                csh_payment_req_ln b
+                                            WHERE
+                                                ar.instance_id = cc.wfl_instance_id AND
+                                                ar.node_id     = wn.node_id AND
+                                                b.ref_doc_id   = cc.contract_id
+                                                --And b.payment_req_id = h.payment_req_id
+                                                AND
+                                                wn.node_desc = '营业本部长审批车款支付申请'
+                                            ORDER BY
+                                                ar.creation_date DESC
+                                            ) pt
+                                        WHERE
+                                            rownum            = 1 AND
+                                            pt.payment_req_id = h.payment_req_id
+                                        )
+                                    WHEN a.cf_description = '业务委托费'
+                                    THEN
+                                        (SELECT
+                                            ar.comment_text_out
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn
+                                        WHERE
+                                            ar.instance_id = h.wfl_instance_id AND
+                                            ar.node_id     = wn.node_id AND
+                                            wn.node_desc   = '营业本部长审批' AND
+                                            rownum         = 1
+                                        )
+                                END) comment_text_out_4
+                        FROM
+                            CSH_PAYMENT_REQ_DEBT_LN_LV a
+                        WHERE
+                            a.payment_req_id = h.payment_req_id AND
+                            rownum           = 1
+                        ) comment_text_out4,
+                        (SELECT
+                            (
+                                CASE
+                                    WHEN a.cf_description = '融资租赁资产'
+                                    THEN
+                                        (SELECT
+                                            to_char(pa.creation_date,'yyyy-mm-dd')
+                                        FROM
+                                            (SELECT
+                                                ar.creation_date,
+                                                b.payment_req_id
+                                            FROM
+                                                zj_wfl_approve_record ar,
+                                                zj_wfl_workflow_node wn,
+                                                con_contract cc,
+                                                csh_payment_req_ln b
+                                            WHERE
+                                                ar.instance_id = cc.wfl_instance_id AND
+                                                ar.node_id     = wn.node_id AND
+                                                b.ref_doc_id   = cc.contract_id
+                                                --And b.payment_req_id = h.payment_req_id
+                                                AND
+                                                wn.node_desc = '自动车部业务担当合同审核'
+                                            ORDER BY
+                                                ar.creation_date DESC
+                                            ) pa
+                                        WHERE
+                                            rownum            = 1 AND
+                                            pa.payment_req_id = h.payment_req_id
+                                        )
+                                    WHEN a.cf_description = '业务委托费'
+                                    THEN
+                                        (SELECT
+                                            to_char(ar.creation_date,'yyyy-mm-dd')
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn
+                                        WHERE
+                                            ar.instance_id = h.wfl_instance_id AND
+                                            ar.node_id     = wn.node_id AND
+                                            wn.node_desc   = '自动车部业务担当审批' AND
+                                            rownum         = 1
+                                        )
+                                END) date1
+                        FROM
+                            CSH_PAYMENT_REQ_DEBT_LN_LV a
+                        WHERE
+                            a.payment_req_id = h.payment_req_id AND
+                            rownum           = 1
+                        ) date1,
+                        (SELECT
+                            (
+                                CASE
+                                    WHEN a.cf_description = '融资租赁资产'
+                                    THEN
+                                        (SELECT
+                                            to_char(pa.creation_date,'yyyy-mm-dd')
+                                        FROM
+                                            (SELECT
+                                                ar.creation_date,
+                                                b.payment_req_id
+                                            FROM
+                                                zj_wfl_approve_record ar,
+                                                zj_wfl_workflow_node wn,
+                                                con_contract cc,
+                                                csh_payment_req_ln b
+                                            WHERE
+                                                ar.instance_id = cc.wfl_instance_id AND
+                                                ar.node_id     = wn.node_id AND
+                                                b.ref_doc_id   = cc.contract_id
+                                                --And b.payment_req_id = h.payment_req_id
+                                                AND
+                                                wn.node_desc = '自动车部资产管理担当合同审核'
+                                            ORDER BY
+                                                ar.creation_date DESC
+                                            ) pa
+                                        WHERE
+                                            rownum            = 1 AND
+                                            pa.payment_req_id = h.payment_req_id
+                                        )
+                                    WHEN a.cf_description = '业务委托费'
+                                    THEN
+                                        (SELECT
+                                            to_char(ar.creation_date,'yyyy-mm-dd')
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn
+                                        WHERE
+                                            ar.instance_id = h.wfl_instance_id AND
+                                            ar.node_id     = wn.node_id AND
+                                            wn.node_desc   = '自动车部资产管理担当审批' AND
+                                            rownum         = 1
+                                        )
+                                END) date2
+                        FROM
+                            CSH_PAYMENT_REQ_DEBT_LN_LV a
+                        WHERE
+                            a.payment_req_id = h.payment_req_id AND
+                            rownum           = 1
+                        ) date2,
+                        (SELECT
+                            (
+                                CASE
+                                    WHEN a.cf_description = '融资租赁资产'
+                                    THEN
+                                        (SELECT
+                                            to_char(pa.creation_date,'yyyy-mm-dd')
+                                        FROM
+                                            (SELECT
+                                                ar.creation_date,
+                                                b.payment_req_id
+                                            FROM
+                                                zj_wfl_approve_record ar,
+                                                zj_wfl_workflow_node wn,
+                                                con_contract cc,
+                                                csh_payment_req_ln b
+                                            WHERE
+                                                ar.instance_id = cc.wfl_instance_id AND
+                                                ar.node_id     = wn.node_id AND
+                                                b.ref_doc_id   = cc.contract_id
+                                                --And b.payment_req_id = h.payment_req_id
+                                                AND
+                                                wn.node_desc = '自动车部长合同复审'
+                                            ORDER BY
+                                                ar.creation_date DESC
+                                            ) pa
+                                        WHERE
+                                            rownum            = 1 AND
+                                            pa.payment_req_id = h.payment_req_id
+                                        )
+                                    WHEN a.cf_description = '业务委托费'
+                                    THEN
+                                        (SELECT
+                                            to_char(ar.creation_date,'yyyy-mm-dd')
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn
+                                        WHERE
+                                            ar.instance_id = h.wfl_instance_id AND
+                                            ar.node_id     = wn.node_id AND
+                                            wn.node_desc   = '自动车部长审批' AND
+                                            rownum         = 1
+                                        )
+                                END) date3
+                        FROM
+                            CSH_PAYMENT_REQ_DEBT_LN_LV a
+                        WHERE
+                            a.payment_req_id = h.payment_req_id AND
+                            rownum           = 1
+                        ) date3,
+                        (SELECT
+                            (
+                                CASE
+                                    WHEN a.cf_description = '融资租赁资产'
+                                    THEN
+                                        (SELECT
+                                            to_char(pa.creation_date,'yyyy-mm-dd')
+                                        FROM
+                                            (SELECT
+                                                ar.creation_date,
+                                                b.payment_req_id
+                                            FROM
+                                                zj_wfl_approve_record ar,
+                                                zj_wfl_workflow_node wn,
+                                                con_contract cc,
+                                                csh_payment_req_ln b
+                                            WHERE
+                                                ar.instance_id = cc.wfl_instance_id AND
+                                                ar.node_id     = wn.node_id AND
+                                                b.ref_doc_id   = cc.contract_id
+                                                --And b.payment_req_id = h.payment_req_id
+                                                AND
+                                                wn.node_desc = '营业本部长审批车款支付申请'
+                                            ORDER BY
+                                                ar.creation_date DESC
+                                            ) pa
+                                        WHERE
+                                            rownum            = 1 AND
+                                            pa.payment_req_id = h.payment_req_id
+                                        )
+                                    WHEN a.cf_description = '业务委托费'
+                                    THEN
+                                        (SELECT
+                                            to_char(ar.creation_date,'yyyy-mm-dd')
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn
+                                        WHERE
+                                            ar.instance_id = h.wfl_instance_id AND
+                                            ar.node_id     = wn.node_id AND
+                                            wn.node_desc   = '营业本部长审批' AND
+                                            rownum         = 1
+                                        )
+                                END) date4
+                        FROM
+                            CSH_PAYMENT_REQ_DEBT_LN_LV a
+                        WHERE
+                            a.payment_req_id = h.payment_req_id AND
+                            rownum           = 1
+                        ) date4,
+                        (SELECT
+                            (
+                                CASE
+                                    WHEN a.cf_description = '融资租赁资产'
+                                    THEN
+                                        (SELECT
+                                            ee.name
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn,
+                                            sys_user su,
+                                            exp_employees ee,
+                                            con_contract cc,
+                                            csh_payment_req_ln b
+                                        WHERE
+                                            ar.instance_id   = cc.wfl_instance_id AND
+                                            ar.node_id       = wn.node_id AND
+                                            wn.node_desc     = '自动车部业务担当合同审核' AND
+                                            ar.created_by    = su.user_id AND
+                                            ee.employee_id   = su.employee_id AND
+                                            cc.contract_id   = b.ref_doc_id AND
+                                            b.payment_req_id = h.payment_req_id AND
+                                            rownum           = 1
+                                        )
+                                    WHEN a.cf_description = '业务委托费'
+                                    THEN
+                                        (SELECT
+                                            ee.name
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn,
+                                            sys_user su,
+                                            exp_employees ee
+                                        WHERE
+                                            ar.instance_id = h.wfl_instance_id AND
+                                            ar.node_id     = wn.node_id AND
+                                            wn.node_desc   = '自动车部业务担当审批' AND
+                                            ar.created_by  = su.user_id AND
+                                            ee.employee_id = su.employee_id AND
+                                            rownum         = 1
+                                        )
+                                END) user_1
+                        FROM
+                            CSH_PAYMENT_REQ_DEBT_LN_LV a
+                        WHERE
+                            a.payment_req_id = h.payment_req_id AND
+                            ROWNUM           = 1
+                        ) user1,
+                        (SELECT
+                            (
+                                CASE
+                                    WHEN a.cf_description = '融资租赁资产'
+                                    THEN
+                                        (SELECT
+                                            ee.name
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn,
+                                            sys_user su,
+                                            exp_employees ee,
+                                            con_contract cc,
+                                            csh_payment_req_ln b
+                                        WHERE
+                                            ar.instance_id   = cc.wfl_instance_id AND
+                                            ar.node_id       = wn.node_id AND
+                                            wn.node_desc     = '自动车部资产管理担当合同审核' AND
+                                            ar.created_by    = su.user_id AND
+                                            ee.employee_id   = su.employee_id AND
+                                            cc.contract_id   = b.ref_doc_id AND
+                                            b.payment_req_id = h.payment_req_id AND
+                                            rownum           = 1
+                                        )
+                                    WHEN a.cf_description = '业务委托费'
+                                    THEN
+                                        (SELECT
+                                            ee.name
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn,
+                                            sys_user su,
+                                            exp_employees ee
+                                        WHERE
+                                            ar.instance_id = h.wfl_instance_id AND
+                                            ar.node_id     = wn.node_id AND
+                                            wn.node_desc   = '自动车部资产管理担当审批' AND
+                                            ar.created_by  = su.user_id AND
+                                            ee.employee_id = su.employee_id AND
+                                            rownum         = 1
+                                        )
+                                END) user_2
+                        FROM
+                            CSH_PAYMENT_REQ_DEBT_LN_LV a
+                        WHERE
+                            a.payment_req_id = h.payment_req_id AND
+                            ROWNUM           = 1
+                        ) user2,
+                        (SELECT
+                            (
+                                CASE
+                                    WHEN a.cf_description = '融资租赁资产'
+                                    THEN
+                                        (SELECT
+                                            ee.name
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn,
+                                            sys_user su,
+                                            exp_employees ee,
+                                            con_contract cc,
+                                            csh_payment_req_ln b
+                                        WHERE
+                                            ar.instance_id   = cc.wfl_instance_id AND
+                                            ar.node_id       = wn.node_id AND
+                                            wn.node_desc     = '自动车部长合同复审' AND
+                                            ar.created_by    = su.user_id AND
+                                            ee.employee_id   = su.employee_id AND
+                                            cc.contract_id   = b.ref_doc_id AND
+                                            b.payment_req_id = h.payment_req_id AND
+                                            rownum           = 1
+                                        )
+                                    WHEN a.cf_description = '业务委托费'
+                                    THEN
+                                        (SELECT
+                                            ee.name
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn,
+                                            sys_user su,
+                                            exp_employees ee
+                                        WHERE
+                                            ar.instance_id = h.wfl_instance_id AND
+                                            ar.node_id     = wn.node_id AND
+                                            wn.node_desc   = '自动车部长审批' AND
+                                            ar.created_by  = su.user_id AND
+                                            ee.employee_id = su.employee_id AND
+                                            rownum         = 1
+                                        )
+                                END) user_3
+                        FROM
+                            CSH_PAYMENT_REQ_DEBT_LN_LV a
+                        WHERE
+                            a.payment_req_id = h.payment_req_id AND
+                            ROWNUM           = 1
+                        ) user3,
+                        (SELECT
+                            (
+                                CASE
+                                    WHEN a.cf_description = '融资租赁资产'
+                                    THEN
+                                        (SELECT
+                                            ee.name
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn,
+                                            sys_user su,
+                                            exp_employees ee,
+                                            con_contract cc,
+                                            csh_payment_req_ln b
+                                        WHERE
+                                            ar.instance_id   = cc.wfl_instance_id AND
+                                            ar.node_id       = wn.node_id AND
+                                            wn.node_desc     = '营业本部长审批车款支付申请' AND
+                                            ar.created_by    = su.user_id AND
+                                            ee.employee_id   = su.employee_id AND
+                                            cc.contract_id   = b.ref_doc_id AND
+                                            b.payment_req_id = h.payment_req_id AND
+                                            rownum           = 1
+                                        )
+                                    WHEN a.cf_description = '业务委托费'
+                                    THEN
+                                        (SELECT
+                                            ee.name
+                                        FROM
+                                            zj_wfl_approve_record ar,
+                                            zj_wfl_workflow_node wn,
+                                            sys_user su,
+                                            exp_employees ee
+                                        WHERE
+                                            ar.instance_id = h.wfl_instance_id AND
+                                            ar.node_id     = wn.node_id AND
+                                            wn.node_desc   = '营业本部长审批' AND
+                                            ar.created_by  = su.user_id AND
+                                            ee.employee_id = su.employee_id AND
+                                            rownum         = 1
+                                        )
+                                END) user_4
+                        FROM
+                            CSH_PAYMENT_REQ_DEBT_LN_LV a
+                        WHERE
+                            a.payment_req_id = h.payment_req_id AND
+                            ROWNUM           = 1
+                        ) user4,
+                        (SELECT
+                            h.bp_name
+                        FROM
+                            con_contract cc,
+                            hls_bp_master h,
+                            csh_payment_req_ln cp
+                        WHERE
+                            cc.bp_id_tenant   = h.bp_id AND
+                            cc.contract_id    = cp.ref_doc_id AND
+                            cp.payment_req_id = h.payment_req_id AND
+                            rownum            = 1
+                        ) bp_id_tenant_n
+                    FROM
+                        csh_payment_req_hd h
+                    WHERE
+                        h.payment_req_id IN (${:@payment_req_id})
+                    ) v #WHERE_CLAUSE#
+                ORDER BY
+                    v.rk
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

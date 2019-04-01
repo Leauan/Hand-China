@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:o="aurora.database.local.oracle" xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="prj_project" needAccessControl="false">
+    <bm:fields>
+        <bm:field name="contract_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="contract_number" databaseType="VARCHAR" datatype="java.lang.String"/>
+        <bm:field name="contract_status" databaseType="VARCHAR" datatype="java.lang.String"/>
+        <bm:field name="model"/>
+        <bm:field name="license_number"/>
+        <bm:field name="price_desc" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="finance_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="net_finance_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="total_rental" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="lease_term"/>
+        <bm:field name="inception_of_lease"/>
+        <bm:field name="total_received_rental" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="total_left_rental" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="overdue_times"/>
+        <bm:field name="overdue_max_days"/>
+        <bm:field name="total_left_principal" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="risk_exposure" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="description"/>
+    </bm:fields>
+    <bm:features>
+        <f:standard-who/>
+    </bm:features>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+SELECT c.contract_id as contract_id,
+       c.contract_number as contract_number,
+       (select v.code_value_name
+          from sys_code_values_v v
+         where v.code = 'CON500_CONTRACT_STATUS'
+           and v.code_value = c.contract_status) as contract_status,
+       (SELECT brand_id_n || '-' || series_id_n || '-' || model_id_n
+          FROM con_contract_lease_item_lv
+         WHERE contract_id = c.contract_id
+           AND ROWNUM = 1) as model,
+       (SELECT ac.license_number
+          FROM ast_car_license ac, con_contract_item_detail ci
+         WHERE ac.item_detail_id = ci.item_detail_id
+           AND ci.contract_id = c.contract_id
+           AND ROWNUM = 1) as license_number,
+       (SELECT cl.ref_n01*cl.quantity
+          FROM con_contract_lease_item cl
+         WHERE cl.contract_id = c.contract_id
+           AND ROWNUM = 1) as price_desc,
+       c.finance_amount as finance_amount,
+       c.net_finance_amount as net_finance_amount,
+       c.total_rental as total_rental,
+       c.lease_term as lease_term,
+       c.inception_of_lease as inception_of_lease,
+       (SELECT SUM(cc.received_amount)
+          FROM con_contract_cashflow cc
+         WHERE cc.contract_id = c.contract_id
+           AND cc.cf_item = 1) as total_received_rental,
+       (SELECT sum(cc.due_amount) - SUM(cc.received_amount)
+          FROM con_contract_cashflow cc
+         WHERE cc.contract_id = c.contract_id
+           AND cc.cf_item = 1) as total_left_rental,
+       (SELECT COUNT(*)
+          FROM con_contract_cashflow cc
+         WHERE cc.contract_id = c.contract_id
+           AND cc.cf_type = 9
+           AND cc.generated_source NOT IN ('CREATE')) as overdue_times,
+       c.overdue_max_days as overdue_max_days,
+       (SELECT sum(cc.principal) - SUM(cc.received_principal)
+          FROM con_contract_cashflow cc
+         WHERE cc.contract_id = c.contract_id
+           AND cc.cf_item = 1) as total_left_principal,
+       (SELECT sum(cc.principal) - SUM(cc.received_principal)
+          FROM con_contract_cashflow cc
+         WHERE cc.contract_id = c.contract_id
+           AND cc.cf_item = 1) - c.deposit as risk_exposure,
+       c.description as description
+  FROM con_contract c
+ where c.bp_id_tenant in 
+              (select t5.bp_id
+                 from prj_project_bp t5
+                where t5.project_id = ${/parameter/@project_id}
+                  and t5.bp_category = 'TENANT')
+             and c.data_class = 'NORMAL'
+union all
+
+select t1.project_id as contract_id,
+       t1.project_number as contract_number,
+       t1.project_status_n as contract_status,
+       prj_project_lease_item_pkg.get_lease_items(t1.project_id) as model,
+       '' as license_number,
+       decode((select count(*)
+                from prj_project_lease_item t3
+               where t3.project_id = t1.project_id),
+              0,
+              0,
+              1,
+              (select t4.price*t4.quantity
+                 from prj_project_lease_item t4
+                where t4.project_id = t1.project_id),
+              (select sum(t4.price*t4.quantity)
+                 from prj_project_lease_item t4
+                where t4.project_id = t1.project_id)) as price_desc,
+       null as finance_amount,
+       null as net_finance_amount,
+       null as total_rental,
+       null as lease_term,
+       null as inception_of_lease,
+       null as total_received_rental,
+       null as total_left_rental,
+       null as overdue_times,
+       null as overdue_max_days,
+       null as total_left_principal,
+       null as risk_exposure,
+       null as description
+  FROM prj_project_lv t1
+ where t1.project_id in
+       (select t2.project_id
+          from prj_project_bp t2
+         where t2.bp_id = (select t5.bp_id
+                             from prj_project_bp t5
+                            where t5.project_id =  ${/parameter/@project_id}
+                              and t5.bp_category = 'TENANT'))
+   and t1.project_status in ('APPROVED',
+                             'APPROVED_RETURN',
+                             'APPROVING',
+                             'CLOSED',
+                             'REVIEW',
+                             'NEW',
+                             'PREVIEW',
+                             'REJECT',
+                             'CONDITIONAL')
+   and t1.project_id != ${/parameter/@project_id}
+   and t1.project_id not in (select cc.project_id from con_contract cc)             
+   
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="project_id" queryOperator="="/>
+    </bm:query-fields>
+    <!-- <bm:primary-key>
+        <bm:pk-field name="project_id"/>
+    </bm:primary-key> -->
+</bm:model>

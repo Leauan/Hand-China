@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Mouse Chow  
+    $Date: 2012-12-26 下午05:53:15  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" needAccessControl="false">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            select * from 
+            (
+            	select g.lease_object_type as parameter_usage_code,
+				       g.authorization_group as parameter_value,
+				       g.authorization_group as parameter_code,
+				       g.description as parameter_name,
+				       'Y' as enabled_flag
+				  from fnd_authorization_group g
+				 where g.lease_object_type = ${@para_type}
+				   and g.authorization_group not in
+				       (select p.parameter_value
+				          from fnd_parameter p
+				         where p.company_id = ${/session/@company_id}
+				           and p.role_id = ${@role_id}
+				           and p.parameter_usage_code = ${@para_type})
+				union all
+				select 'LEASE_ORG',
+				       lov.lease_organization,
+				       lov.lease_organization,
+				       lov.description,
+				       'Y'
+				  from hls_lease_organization lov
+				 where 'LEASE_ORG' = ${@para_type}
+				   and lov.lease_organization not in
+				       (select p.parameter_value
+				          from fnd_parameter p
+				         where p.company_id = ${/session/@company_id}
+				           and p.role_id = ${@role_id}
+				           and p.parameter_usage_code = 'LEASE_ORG')
+				union all
+				select 'LEASE_CHAN',
+				       lcv.lease_channel,
+				       lcv.lease_channel,
+				       lcv.description,
+				       'Y'
+				  from hls_lease_channel lcv
+				 where 'LEASE_CHAN' = ${@para_type}
+				   and lcv.lease_channel not in
+				       (select p.parameter_value
+				          from fnd_parameter p
+				         where p.company_id = ${/session/@company_id}
+				           and p.role_id = ${@role_id}
+				           and p.parameter_usage_code = 'LEASE_CHAN')
+				union all
+				select 'DIVISION', dv.division, dv.division, dv.description, 'Y'
+				  from hls_division dv
+				 where 'DIVISION' = ${@para_type}
+				   and dv.division not in
+				       (select p.parameter_value
+				          from fnd_parameter p
+				         where p.company_id = ${/session/@company_id}
+				           and p.role_id = ${@role_id}
+				           and p.parameter_usage_code = 'DIVISION')
+				union all
+				select p.parameter_usage_code,
+				       p.parameter_value,
+				       pd.parameter_code,
+				       pd.parameter_name,
+				       'N'
+				  from fnd_parameter p,
+				       (select g.authorization_group as parameter_value,
+				               g.authorization_group as parameter_code,
+				               g.description         as parameter_name
+				          from fnd_authorization_group g
+				         where g.lease_object_type = ${@para_type}
+				        union all
+				        select lov.lease_organization,
+				               lov.lease_organization,
+				               lov.description as parameter_name
+				          from hls_lease_organization lov
+				         where 'LEASE_ORG' = ${@para_type}
+				           and lov.lease_organization in
+				               (select p.parameter_value
+				                  from fnd_parameter p
+				                 where p.company_id = ${/session/@company_id}
+				                   and p.role_id = ${@role_id}
+				                   and p.parameter_usage_code = 'LEASE_ORG')
+				        union all
+				        select lcv.lease_channel, lcv.lease_channel, lcv.description
+				          from hls_lease_channel lcv
+				         where 'LEASE_CHAN' = ${@para_type}
+				           and lcv.lease_channel in
+				               (select p.parameter_value
+				                  from fnd_parameter p
+				                 where p.company_id = ${/session/@company_id}
+				                   and p.role_id = ${@role_id}
+				                   and p.parameter_usage_code = 'LEASE_CHAN')
+				        union all
+				        select dv.division, dv.division, dv.description
+				          from hls_division dv
+				         where 'DIVISION' = ${@para_type}
+				           and dv.division in
+				               (select p.parameter_value
+				                  from fnd_parameter p
+				                 where p.company_id = ${/session/@company_id}
+				                   and p.role_id = ${@role_id}
+				                   and p.parameter_usage_code = 'DIVISION')) pd
+				
+				 where p.company_id = ${/session/@company_id}
+				   and p.role_id = ${@role_id}
+				   and p.parameter_usage_code = ${@para_type}
+				   and p.parameter_value = pd.parameter_value
+            )
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="parameter_usage_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PARAMETER_USAGE_CODE" required="true"/>
+        <bm:field name="parameter_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PARAMETER_VALUE" prompt="值" required="true"/>
+        <bm:field name="parameter_value" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PARAMETER_VALUE" required="true"/>
+        <bm:field name="parameter_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PARAMETER_NAME" prompt="描述"/>
+        <bm:field name="enabled_flag" databaseType="CHAR" datatype="java.lang.String" physicalName="ENABLED_FLAG" prompt="启用"/>
+    </bm:fields>
+</bm:model>

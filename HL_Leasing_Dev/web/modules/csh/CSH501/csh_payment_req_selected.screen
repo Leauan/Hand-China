@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-5-22 上午11:10:19  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="acr512_currency_list"/>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootPath="sys_time_default_value_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="csh_payment_req_link" url="${/request/@context_path}/modules/csh/CSH501/csh_payment_req_create.screen"/>
+        <a:link id="csh_payment_req_cashflow_id_link" url="${/request/@context_path}/modules/csh/CSH501/csh_payment_req_cashflow_id.svc"/>
+        <a:link id="csh501_prepayment_link" url="${/request/@context_path}/modules/csh/CSH504/csh_prepayment_update.screen"/>
+        <a:link id="csh501_csh_payment_req_link_id" url="${/request/@context_path}/modules/csh/CSH501/csh_payment_req.screen"/>
+        <a:link id="csh501_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <div/>
+        <script><![CDATA[
+            var cashflow_id = '';
+            var agent_first='';
+            function confirmFun() {
+                button_flag ='';
+                debugger;
+                var cf_item70 = 0;
+                var cf_item5 = 0;
+                var cf_item_other = 0;
+                var a = $('csh_payment_req_selectedDs').getSelected();
+                var record = a[0];
+                var cashflow_id_list = [];
+                var param = {};
+                if (record == undefined) {
+                    Aurora.showMessage('${l:PROMPT_MESSAGE}', '未选中行', null, 250, 100);
+                } else {
+                    for (i = 0;i < a.length;i++) {
+                        agent_first=a[0].get('bp_code');
+                        if(agent_first!=a[i].get('bp_code')){
+                             Aurora.showMessage('${l:PROMPT_MESSAGE}', '请选择同一个经销商', null, 250, 100);
+                        return;
+                        }
+                        
+                        if (a[i].get('cf_item') == '70') {
+                            cf_item70 += 1;
+                        } else if (a[i].get('cf_item') == '5') {
+                            cf_item5 += 1;
+                        } else if (a[i].get('cf_item') == 'other') {
+                            cf_item_other += 1;
+                        }
+                        cashflow_id = a[i].get('cashflow_id');
+                        var arr = {};
+                        arr['_status'] = 'insert';
+                        arr['cashflow_id'] = cashflow_id;
+                        arr['contract_id'] = a[i].get('contract_id');
+                        arr['session_id'] = ${/session/@session_id};
+                        cashflow_id_list.push(arr);
+                    }
+            
+                    if (cf_item70 != a.length && cf_item5 != a.length && cf_item_other != a.length) {
+                        Aurora.showMessage('${l:PROMPT_MESSAGE}', '请选择同一种款项', null, 250, 100);
+                        return;
+                    } 
+                    if (cf_item70 == a.length){
+                        //button_flag=Y 表示隐藏 付款按钮
+                        button_flag='Y';
+                    }else{
+                         button_flag='N';
+                    }
+                    param['details'] = cashflow_id_list;
+                    Aurora.Masker.mask(Ext.getBody(), '${l:HLS.SAVING}');
+                    Aurora.request({
+                        url: $('csh_payment_req_cashflow_id_link').getUrl(),
+                        para: param,
+                        success: function() {
+                            debugger;
+                            if (cashflow_id != '') {
+                                Aurora.Masker.unmask(Ext.getBody());
+                                var param = {};
+                                var query_record = $('csh_payment_req_query_ds').getCurrentRecord();
+                                debugger;
+                                param['function_code'] = 'CSH501H';
+                                param['function_usage'] = 'CREATE';
+                                param['document_category'] = 'PAYMENT_REQ';
+                                param['business_type'] = 'PAYMENT';
+                                param['business_type_n'] = '预付款申请';
+                                param['button_flag'] = button_flag;
+                                param['payment_bp_id'] = query_record.get('bp_id');
+                                param['taxpayer_type'] = record.get('taxpayer_type');
+                                param['taxpayer_type_n'] = record.get('taxpayer_type_n');
+                                param['con_business_type'] = record.get('con_business_type');
+                                param['con_business_type_n'] = record.get('con_business_type_n');
+                                //add by 9188
+                                if (a.length == 1) {
+                                    param['contract_number'] = record.get('contract_number');
+                                    param['bp_id_tenant_n'] = record.get('bp_id_tenant_n');
+                                    param['product_type_n'] = record.get('product_type_n');
+                                    param['product_name_write'] = record.get('product_name_write');
+                                }
+                                param['winid'] = 'csh501_csh_payment_req_link_winid';
+                                param['url_title'] = '付款申请';
+                                hls_doc_get_layout_code('csh501_get_layout_code_link_id', param, 'csh501_csh_payment_req_link_id', 'csh_payment_req_selectedDs');
+                            }
+                        },
+                        failure: function() {
+                            Aurora.showWarningMessage('', '${l:PRJ509.DATA_NOT_BACK}', null, 200, 100);
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+            
+            
+                }
+            }
+            
+            function csh511_prepayment_create() {
+                var param = {};
+                param['function_code'] = 'CSH501_PRE_D';
+                param['function_usage'] = 'CREATE';
+                param['document_category'] = 'PAYMENT_REQ';
+                param['business_type'] = 'PREPAYMENT';
+                param['winid'] = 'csh501_csh_payment_req_link_winid';
+                param['url_title'] = '预付款申请';
+                hls_doc_get_layout_code('csh501_get_layout_code_link_id', param, 'csh501_csh_payment_req_link_id', 'csh_payment_req_selectedDs');
+            }
+            
+            
+            function payment_req_query() {
+                $('csh_payment_req_selectedDs').query();
+            }
+            
+            function csh501_payment_maintain_update(ds, record, name, value, oldvalue) {
+                if (name == 'pay_contract_from') {
+                    if (record.get('pay_contract_to') == 'undefined' || record.get('pay_contract_to') == null || record.get('pay_contract_to') == '') {
+                        record.set('pay_contract_to', value);
+                    }
+                } else if (name == 'pay_contract_to') {
+                    if (record.get('pay_contract_from') == 'undefined' || record.get('pay_contract_from') == null || record.get('pay_contract_from') == '') {
+                        record.set('pay_contract_from', value);
+                    }
+                } else if (name == 'due_amount_from') {
+                    if (record.get('due_amount_to') == 'undefined' || record.get('due_amount_to') == null || record.get('due_amount_to') == '') {
+                        record.set('due_amount_to', value);
+                    }
+                } else if (name == 'due_amount_to') {
+                    if (record.get('due_amount_from') == 'undefined' || record.get('due_amount_from') == null || record.get('due_amount_from') == '') {
+                        record.set('due_amount_from', value);
+                    }
+                } else if (name == 'due_date_from') {
+                    if (record.get('due_date_to') == 'undefined' || record.get('due_date_to') == null || record.get('due_date_to') == '') {
+                        record.set('due_date_to', value);
+                    }
+                } else if (name == 'due_date_to') {
+                    if (record.get('due_date_from') == 'undefined' || record.get('due_date_from') == null || record.get('due_date_from') == '') {
+                        record.set('due_date_from', value);
+                    }
+                } else if (name == 'bp_code_tenant_from') {
+                    if (record.get('bp_code_tenant_to') == 'undefined' || record.get('bp_code_tenant_to') == null || record.get('bp_code_tenant_to') == '') {
+                        record.set('bp_code_tenant_to', value);
+                    }
+                } else if (name == 'bp_code_tenant_to') {
+                    if (record.get('bp_code_tenant_from') == 'undefined' || record.get('bp_code_tenant_from') == null || record.get('bp_code_tenant_from') == '') {
+                        record.set('bp_code_tenant_from', value);
+                    }
+                } else if (name == 'project_number_from') {
+                    if (record.get('project_number_to') == 'undefined' || record.get('project_number_to') == null || record.get('project_number_to') == '') {
+                        record.set('project_number_to', value);
+                    }
+                } else if (name == 'project_number_to') {
+                    if (record.get('project_number_from') == 'undefined' || record.get('project_number_from') == null || record.get('project_number_from') == '') {
+                        record.set('project_number_from', value);
+                    }
+                }
+            
+            }
+            
+            function csh501_payment_reset() {
+                $('csh_payment_req_query_ds').reset();
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=CONTRACT&amp;function_code=CSH501"/>
+        <a:dataSets>
+		    <a:dataSet id="yes_no_ds" lookupCode="YES_NO"/>
+			<a:dataSet id="archive_ds" lookupCode="ARCHIVE_STATUS"/>
+            <a:dataSet id="vat_flag_ds">
+                <a:datas>
+                    <a:record name="Y" code="Y"/>
+                    <a:record name="N" code="N"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="acr512_currency_ds">
+                <a:datas dataSource="/model/acr512_currency_list"/>
+            </a:dataSet>
+            <a:dataSet id="csh_payment_req_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="due_date_to" defaultValue="${/model/sys_time_default_value_list/record/@now_time}"/>
+                    <a:field name="project_number_from" lovGridHeight="300" lovHeight="450" lovService="prj.PRJ501.prj_project_for_lov" lovWidth="500" title="ACR510.FIELD.PROJECT_NUMBER_FROM">
+                        <a:mapping>
+                            <a:map from="project_number" to="project_number_from"/>
+                            <a:map from="project_name" to="project_name_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="project_number_to" lovGridHeight="300" lovHeight="450" lovService="prj.PRJ501.prj_project_for_lov" lovWidth="500" title="ACR510.FIELD.PROJECT_NUMBER_TO">
+                        <a:mapping>
+                            <a:map from="project_number" to="project_number_to"/>
+                            <a:map from="project_name" to="project_name_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="cf_item_desc" lovGridHeight="300" lovHeight="500" lovService="hls.HLS005.hls_cashflow_item_v_lov?cf_direction=OUTFLOW" lovWidth="850" title="ACR510.ACR_INVOICE_CONTRACT_CF_V.CF_ITEM_DESC">
+                        <a:mapping>
+                            <a:map from="cf_item" to="cf_item"/>
+                            <a:map from="cf_item_desc" to="cf_item_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_code" lovGridHeight="300" lovHeight="450" lovLabelWidth="120" lovService="basic.hls_bp_agent_for_lov" lovWidth="600" title="承租人">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_name" readOnly="true"/>
+                    <a:field name="bp_name_tenant" readOnly="true"/>
+                    <a:field name="bp_code_tenant" lovGridHeight="300" lovHeight="450" lovLabelWidth="120" lovService="basic.hls_bp_master_v_for_lov" lovWidth="600" title="HLS.TENANT_NUMBER_FROM">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code_tenant"/>
+                            <a:map from="bp_name" to="bp_name_tenant"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_code_tenant_from" lovGridHeight="300" lovHeight="450" lovLabelWidth="120" lovService="basic.hls_bp_master_v_for_lov" lovWidth="600" title="HLS.TENANT_NUMBER_FROM">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code_tenant_from"/>
+                            <a:map from="bp_name" to="bp_name_tenant_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_code_tenant_to" lovGridHeight="300" lovHeight="450" lovLabelWidth="120" lovService="basic.hls_bp_master_v_for_lov" lovWidth="600" title="HLS.TENANT_NUMBER_TO">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code_tenant_to"/>
+                            <a:map from="bp_name" to="bp_name_tenant_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="currency_name" displayField="currency_name" options="acr512_currency_ds" returnField="currency" valueField="currency_code"/>
+                    <a:field name="vat_flag" displayField="name" options="vat_flag_ds" returnField="code" valueField="code"/>
+                    <a:field name="mortgage_flag"/>
+                    <a:field name="mortgage_flag_desc" displayField="code_value_name" options="yes_no_ds" prompt="是否办理抵押" returnField="mortgage_flag" valueField="code_value"/>
+                    <a:field name="enabled_flag"/>
+                    <a:field name="enabled_flag_desc" displayField="code_value_name" options="yes_no_ds" prompt="是否已上牌" returnField="enabled_flag" valueField="code_value"/>
+                    <a:field name="archive_status"/>
+                    <a:field name="archive_status_n" displayField="code_value_name" options="archive_ds" prompt="归档状态" returnField="archive_status" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="csh501_payment_maintain_update"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="csh_payment_req_selectedDs" autoPageSize="true" autoQuery="true" model="csh.CSH501.csh_payment_req_selected" queryDataSet="csh_payment_req_query_ds" selectable="true">
+                <a:events>
+                    <a:event name="query" handler="aut_authority_list_validate_query"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton id="csh511_receipt_back_id" click="payment_req_query" text="HAP_QUERY"/>
+                <a:gridButton click="csh501_payment_reset" text="HLS.RESET"/>
+                <a:gridButton id="csh511_receipt_posted_id" click="confirmFun" text="HAP_CONFIRM"/>
+                <!-- <a:gridButton id="csh511_receipt_prepayment_id" click="csh511_prepayment_create" text="预付款创建"/> -->
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="100" title="CSH501.CSH_REQ_CREATE">
+                <a:textField name="pay_contract_from" bindTarget="csh_payment_req_query_ds" prompt="合同序号从" width="150"/>
+                <a:textField name="pay_contract_to" bindTarget="csh_payment_req_query_ds" prompt="合同序号至" width="150"/>
+                <a:datePicker name="due_date_from" bindTarget="csh_payment_req_query_ds" prompt="CSH501.CSH_DUE_DATE_FROM" width="150"/>
+                <a:datePicker name="due_date_to" bindTarget="csh_payment_req_query_ds" prompt="CSH501.CSH_DUE_DATE_TO" width="150"/>
+                <!--  <a:lov name="project_number_from" bindTarget="csh_payment_req_query_ds" prompt="HLS.PROJECT_NUMBER_FROM">
+                    <a:events>
+                        <a:event name="focus" handler="function(object){on_std_focus(object,&apos;PROJECT&apos;)}"/>
+                    </a:events>
+                </a:lov>
+                <a:lov name="project_number_to" bindTarget="csh_payment_req_query_ds" prompt="HLS.PROJECT_NUMBER_TO_LANG">
+                    <a:events>
+                        <a:event name="focus" handler="function(object){on_std_focus(object,&apos;PROJECT&apos;)}"/>
+                    </a:events>
+                </a:lov> -->
+                <a:lov name="bp_code_tenant" bindTarget="csh_payment_req_query_ds" prompt="承租人">
+                    <a:events>
+                        <a:event name="focus" handler="function(object){on_std_focus(object,&apos;BP&apos;)}"/>
+                    </a:events>
+                </a:lov>
+                <a:textField name="item_frame_number" bindTarget="csh_payment_req_query_ds" prompt="车架号">
+                    <a:events>
+                        <a:event name="focus" handler="function(object){on_std_focus(object,&apos;BP&apos;)}"/>
+                    </a:events>
+                </a:textField>
+                <!--  <a:textField name="serial_number" bindTarget="csh_payment_req_query_ds" prompt="机编号">
+                    <a:events>
+                        <a:event name="focus" handler="function(object){on_std_focus(object,&apos;BP&apos;)}"/>
+                    </a:events>
+                </a:textField> -->
+                <!-- <a:lov name="bp_code_tenant_from" bindTarget="csh_payment_req_query_ds" prompt="HLS.TENANT_NUMBER_FROM">
+                    <a:events>
+                        <a:event name="focus" handler="function(object){on_std_focus(object,&apos;BP&apos;)}"/>
+                    </a:events>
+                </a:lov>
+                <a:lov name="bp_code_tenant_to" bindTarget="csh_payment_req_query_ds" prompt="HLS.TENANT_NUMBER_TO">
+                    <a:events>
+                        <a:event name="focus" handler="function(object){on_std_focus(object,&apos;BP&apos;)}"/>
+                    </a:events>
+                </a:lov> -->
+                <a:numberField name="due_amount_from" allowDecimals="true" allowFormat="true" bindTarget="csh_payment_req_query_ds" prompt="CSH501.CSH_DUE_AMOUNT_FROM" width="150"/>
+                <a:numberField name="due_amount_to" allowDecimals="true" allowFormat="true" bindTarget="csh_payment_req_query_ds" prompt="CSH501.CSH_DUE_AMOUNT_TO" width="150"/>
+                <!-- <a:textField name="project_name" bindTarget="csh_payment_req_query_ds" prompt="CSH501.CSH_PROJECT_NAME" width="150"/> -->
+                <a:lov name="bp_code" bindTarget="csh_payment_req_query_ds" prompt="经销商">
+                    <a:events>
+                        <a:event name="focus" handler="function(object){on_std_focus(object,&apos;BP&apos;)}"/>
+                    </a:events>
+                </a:lov>
+                <a:textField name="bp_name" bindTarget="csh_payment_req_query_ds" prompt="经销商"/>
+                <a:lov name="cf_item_desc" bindTarget="csh_payment_req_query_ds" prompt="HLS.PAYMENT_PROJECT"/>
+                <a:comboBox name="currency_name" bindTarget="csh_payment_req_query_ds" prompt="HLS.CURRENCY" width="150"/>
+                <!--   <a:comboBox name="vat_flag" bindTarget="csh_payment_req_query_ds" prompt="增值税标志"/> -->
+				<a:comboBox name="enabled_flag_desc" bindTarget="csh_payment_req_query_ds" prompt="是否完成上牌" width="150"/>
+                <a:comboBox name="mortgage_flag_desc" bindTarget="csh_payment_req_query_ds" prompt="是否完成抵押" width="150"/>
+				<a:datePicker name="write_off_date_from" bindTarget="csh_payment_req_query_ds" prompt="贷款起日起" width="150"/>
+                <a:datePicker name="write_off_date_to" bindTarget="csh_payment_req_query_ds" prompt="贷款起日到" width="150"/>
+                <a:comboBox name="archive_status_n" bindTarget="csh_payment_req_query_ds" prompt="归档状态" width="150"/>
+            </a:form>
+            <a:grid id="csh_payment_req_maintain_grid_ds" bindTarget="csh_payment_req_selectedDs" marginHeight="230" marginWidth="30" navBar="true">
+			 <a:toolBar>
+                    <a:button type="excel"/>
+             </a:toolBar>
+                <a:columns>
+                    <a:column name="contract_number" width="120"/>
+                    <!--  <a:column name="search_term_1" prompt="合同号" width="120"/> -->
+                    <a:column name="bp_id_tenant_n" prompt="承租人" width="120"/>
+                    <!--   <a:column name="serial_number" prompt="机编号" width="120"/> -->
+                    <a:column name="item_frame_number" prompt="车架号" width="120"/>
+                    <a:column name="contract_name" width="150"/>
+                    <a:column name="times" align="cneter" width="40"/>
+                    <!--   <a:column name="project_name" width="170"/> -->
+                    <a:column name="bp_name" prompt="经销商名称" width="170"/>
+                    <a:column name="cf_item_desc" width="80"/>
+                    <a:column name="due_amount" align="right" renderer="Aurora.formatMoney" width="110"/>
+                    <a:column name="currency" width="60"/>
+                    <a:column name="due_date"/>
+					<a:column name="write_off_date" align="center" prompt="贷款起日" width="80"/>
+                    <a:column name="residual_amount" align="right" renderer="Aurora.formatMoney" width="110"/>
+                    <!-- <a:column name="received_amount" prompt="实际支付金额" renderer="Aurora.formatMoney"/> -->
+                    <a:column name="applied_pay_amount" align="right" prompt="CSH501.CSH_APPLIED_PAYMENT_AMOUNT" renderer="Aurora.formatMoney" width="110"/>
+                    <!--   <a:column name="vat_flag" align="center" prompt="增值税标志" width="60"/> -->
+					<a:column name="archive_status_n" align="center" prompt="归档状态" width="80"/>
+					<a:column name="enabled_flag_desc" prompt="是否完成上牌" width="80" align="center"/>
+                    <a:column name="mortgage_flag_desc" prompt="是否完成抵押" width="80" align="center"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

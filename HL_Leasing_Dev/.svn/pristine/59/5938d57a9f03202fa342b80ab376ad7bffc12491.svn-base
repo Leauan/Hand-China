@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hyb  
+    $Date: 2012-10-11 下午4:21:04  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+				select t.company_id,
+					   t2.company_code,
+					   t2.company_short_name,
+				       t.responsibility_center_id,
+				       c.responsibility_center_code,
+				       c.responsibility_center_name,
+				       t.internal_period_num,
+				       t.set_of_books_id,
+				       t.account_id,
+				       a.account_code,
+				       a.description as account_desc,
+				       t.period_name,
+				       t.period_year,
+				       t.period_num,
+				       0 as entered_to_date_amt,
+				       0 as entered_period_net_dr_amt,
+				       0 as entered_period_net_cr_amt,
+				       0 as entered_project_to_date_amt,
+				       sum(nvl(t.functional_project_to_date, 0) -
+				           nvl(t.functional_period_to_date, 0)) as functional_to_date_amt, --本币期初余额
+				       sum(nvl(t.functional_period_net_dr, 0)) as functional_period_net_dr, --本币借方发生额
+				       sum(nvl(t.functional_period_net_cr, 0)) as functional_period_net_cr, --本币贷方发生额
+				       sum(nvl(t.functional_project_to_date, 0)) as functional_project_to_date, --本币余额
+				       0 as entered_quarter_net_dr_amt,
+				       0 as entered_quarter_net_cr_amt,
+				       0 as entered_year_net_dr_amt,
+				       0 as entered_year_net_cr_amt,
+				       0 as entered_project_net_dr_amt,
+				       0 as entered_project_net_cr_amt,
+				       sum(nvl(t.functional_quarter_net_dr, 0)) as functional_quarter_net_dr, --本币季度借方累计
+				       sum(nvl(t.functional_quarter_net_cr, 0)) as functional_quarter_net_cr, --本币季度贷方累计
+				       sum(nvl(t.functional_year_net_dr, 0)) as functional_year_net_dr, --本币年度借方累计
+				       sum(nvl(t.functional_year_net_cr, 0)) as functional_year_net_cr, --本币年度贷方累计
+				       sum(nvl(t.functional_project_net_dr, 0)) as functional_project_net_dr, --本币借方累计
+				       sum(nvl(t.functional_project_net_cr, 0)) as functional_project_net_cr --本币贷方累计
+				  from gld_balances t, gld_accounts_vl a, fnd_responsibility_centers_vl c, fnd_companies_vl t2
+				 where t.company_id = ${@company_id}
+				   and t.account_id = a.account_id
+				   and t.responsibility_center_id = c.responsibility_center_id
+				   and t.internal_period_num BETWEEN ${@internal_period_num_from} AND ${@internal_period_num_to}
+				   and a.account_code BETWEEN NVL(${@account_code_from}, a.account_code) AND
+				       NVL(${@account_code_to}, a.account_code)
+				   and c.responsibility_center_code BETWEEN NVL(${@resp_center_code_from}, c.responsibility_center_code) AND
+				       NVL(${@resp_center_code_to}, c.responsibility_center_code)
+				   and (
+					      (${@account_summary_flag}='Y' AND ${@account_sub_flag}='Y') 
+					   or (${@account_summary_flag}='Y' AND ${@account_sub_flag}='N' AND a.summary_flag='Y')
+					   or (${@account_summary_flag}='N' AND ${@account_sub_flag}='Y' AND nvl(a.summary_flag,'N')='N')
+					   or (${@account_summary_flag}='N' AND ${@account_sub_flag}='N' AND 1!=1)
+				   )
+				   and (
+					      (${@resp_summary_flag}='Y' and ${@resp_sub_flag}='Y') 
+					   or (${@resp_summary_flag}='Y' AND ${@resp_sub_flag}='N' AND c.summary_flag='Y')
+					   or (${@resp_summary_flag}='N' AND ${@resp_sub_flag}='Y' AND nvl(c.summary_flag,'N')='N')
+					   or (${@resp_summary_flag}='N' AND ${@resp_sub_flag}='N' AND 1!=1)
+				   )
+				   and t2.company_id = t.company_id
+				 group by t.company_id,
+				          t.responsibility_center_id,
+				          c.responsibility_center_code,
+				          c.responsibility_center_name,
+				          t2.company_code,
+					      t2.company_short_name,
+					      t.internal_period_num,
+				          t.set_of_books_id,
+				          t.account_id,
+				          a.account_code,
+				          a.description,
+				          t.period_name,
+				          t.period_year,
+				          t.period_num
+				 order by t.company_id,
+				          c.responsibility_center_code,
+				          a.account_code,
+				          t.period_year,
+				          t.period_num
+								 
+         ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

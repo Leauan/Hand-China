@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-4-1 下午2:37:49  
+    $Revision: 1.0  
+    $Purpose: 指标值枚举
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="pageLink_templateLineScreen_self" url="${/request/@context_path}/modules/fnd/FND713/fnd_score_template_line.screen"/>
+        <a:link id="pageLink_templateLineScreen_line_value" url="${/request/@context_path}/modules/fnd/FND713/fnd_score_template_line_value.screen"/>
+        <a:link id="pageLink_templateLineScreen_template_define" url="${/request/@context_path}/modules/fnd/FND713/fnd_score_template_define.screen"/>
+        <script><![CDATA[
+            function templateLineScreen_add() {
+                var parent_line_id = Number('${/parameter/@score_template_line_id}');
+                if (parent_line_id != 0) {
+                    $('templateLineScreenDs_grid').showEditorByRecord($('templateLineScreenDs').create({
+                        parent_line_id: parent_line_id
+                    }));
+                } else {
+                    $('templateLineScreenDs_grid').showEditorByRecord($('templateLineScreenDs').create());
+                }
+            
+            
+            }
+            
+            function templateLineScreen_remove() {
+                $('templateLineScreenDs_grid').remove();
+            }
+            
+            function templateLineScreen_save() {
+                var ds = $('templateLineScreenDs');
+                if (ds.validate()) {
+                    ds.submit();
+                }
+            }
+            
+            
+            function render_child_target(value, record, name) {
+                if (!record.isNew) {
+                    return '<a href="javascript:winReload_templateLineScreen_child_target(' + record.get('score_template_line_id') + ',' + record.get('score_template_id') + ',\'' + record.get('summary_flag') + '\');">' + '${l:FND713.LINK.CHILD_TARGET}' + '</a>';
+                }
+                return '';
+            }
+            
+            function winReload_templateLineScreen_child_target(score_template_line_id, score_template_id, summary_flag) {
+                if (summary_flag == 'Y') {
+                    window.location.href = $('pageLink_templateLineScreen_self').getUrl() + '?score_template_line_id=' + score_template_line_id + '&score_template_id=' + score_template_id + '&target_type_code=${/parameter/@target_type_code}&template_type=${/parameter/@template_type}&score_method=${/parameter/@score_method}';
+                } else {
+                    winOpen_templateLineScreen_line_value(score_template_line_id);
+                }
+            
+            }
+            
+            function winOpen_templateLineScreen_line_value(score_template_line_id) {
+                new Aurora.Window({
+                    id: 'fnd_score_template_line_value',
+                    url: $('pageLink_templateLineScreen_line_value').getUrl(),
+                    params: {
+                        template_type: '${/parameter/@template_type}',
+                        score_template_line_id: score_template_line_id,
+                        score_method: '${/parameter/@score_method}'
+                    },
+                    title: '${l:FND713.WIN_TITLE.LINE_VALUE}',
+                    height: 400,
+                    width: 550
+                });
+            }
+            
+            function editorFunction_templateLineScreen_score_target_code(record, name) {
+                if (record.isNew) {
+                    return 'templateLineScreenDs_grid_lov';
+                } else {
+                    return '';
+                }
+            }
+            
+            function templateLineScreen_up() {
+                var records = $('templateLineScreen_parentDs').getAll();
+                if (records.length == 0) {
+                    window.location.href = $('pageLink_templateLineScreen_template_define').getUrl();
+                } else {
+                    var parent_line_id = records[0].get('parent_line_id');
+                    if (Ext.isEmpty(parent_line_id)) {
+                        window.location.href = $('pageLink_templateLineScreen_self').getUrl() + '?score_template_id=${/parameter/@score_template_id}&target_type_code=${/parameter/@target_type_code}&score_template_line_id=0&score_method=${/parameter/@score_method}&template_type=${/parameter/@template_type}';
+                    } else {
+                        window.location.href = $('pageLink_templateLineScreen_self').getUrl() + '?score_template_id=${/parameter/@score_template_id}&target_type_code=${/parameter/@target_type_code}&score_method=${/parameter/@score_method}&template_type=${/parameter/@template_type}&score_template_line_id=' + parent_line_id;
+                    }
+                }
+            }
+            
+            function onUpdate_templateLineScreenDs(ds, record, name, value, oldValue) {
+                if (name == 'weight_value') {
+                    if (Ext.isEmpty(value)) {
+                        record.set('score_value', '');
+                    } else {
+                        var score = $('templateLineScreen_totalScoreDs').getAt(0).get('score');
+                        var n_score = Number(value) * Number(score) / 100;
+                        record.set('score_value', n_score);
+            
+                    }
+                } else if (name == 'multiple_flag') {
+                    if (value == 'Y') {
+                        record.getField('target_object_type').setRequired(true);
+                        record.getField('target_object_type_desc').setRequired(true);
+                    } else {
+                        record.getField('target_object_type').setRequired(false);
+                        record.getField('target_object_type_desc').setRequired(false);
+                    }
+            
+                }
+            
+            }
+            
+            // function templateLineScreenDs_grid_Func(record, name) {
+                // 
+                // if (name == 'multiple_flag' && '${/parameter/@template_type}' == 'LGD') {
+                    // return 'templateLineScreenDs_grid_check';
+                // } else if (name == 'target_object_type_desc' && '${/parameter/@template_type}' == 'LGD') {
+                    // if (record.get('multiple_flag') == 'Y') {
+                        // return 'templateLineScreenDs_grid_ccb';
+                    // } else {
+                        // return '';
+                    // }
+                // } else {
+                    // return '';
+                // }
+            // }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="templateLineScreen_totalScoreDs" loadData="true" model="fnd.FND713.fnd_score_template_line_get_total_score">
+                <a:fields>
+                    <a:field name="score"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="templateLineScreen_templateDs" loadData="true" model="fnd.FND713.fnd_score_template">
+                <a:fields>
+                    <a:field name="target_type_name"/>
+                    <a:field name="score_template_name"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="target_object_type_ds" lookupCode="FND_SCORE_TARGET_OBJECT_TYPE"/>
+            <a:dataSet id="templateLineScreen_parentDs" loadData="true" model="fnd.FND713.fnd_score_template_line"/>
+            <a:dataSet id="templateLineScreenDs" autoQuery="true" model="fnd.FND713.fnd_score_template_line" queryUrl="${/request/@context_path}/autocrud/fnd.FND713.fnd_score_template_line/query?score_template_id=${/parameter/@score_template_id}&amp;parent_line_id=${/parameter/@score_template_line_id}" selectable="true">
+                <a:fields>
+                    <a:field name="score_template_id" defaultValue="${/parameter/@score_template_id}"/>
+                    <a:field name="summary_flag" checkedValue="Y" defaultValue="N" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="display_flag" checkedValue="Y" defaultValue="Y" prompt="显示" uncheckedValue="N"/>
+                    <a:field name="score_value"/>
+                    <a:field name="weight_value" defaultValue="0" required="true"/>
+                    <a:field name="score_target_code" lovGridHeight="300" lovHeight="500" lovService="fnd.FND712.fnd_score_target_for_lov?target_type_code=${/parameter/@target_type_code}" lovWidth="600" required="true" title="FND713.SCORE_TARGET_CODE.SCORE_TARGET_CODE">
+                        <a:mapping>
+                            <a:map from="score_target_id" to="score_target_id"/>
+                            <a:map from="score_target_code" to="score_target_code"/>
+                            <a:map from="score_target_name" to="score_target_name"/>
+                            <a:map from="summary_flag" to="summary_flag"/>
+                            <a:map from="data_value_from_display" to="data_value_from_display"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="target_object_type"/>
+                    <a:field name="target_object_type_desc" displayField="code_value_name" options="target_object_type_ds" returnField="target_object_type" valueField="code_value"/>
+                    <a:field name="multiple_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_templateLineScreenDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="templateLineScreen_add" text="HLS.NEW"/>
+                <a:gridButton click="templateLineScreen_remove" text="HLS.REMOVE"/>
+                <a:gridButton click="templateLineScreen_save" text="HLS.SAVE"/>
+                <a:gridButton click="templateLineScreen_up" text="FND713.PRAENT_TARGET"/>
+            </a:screenTopToolbar>
+            <a:form column="2" title=" ">
+                <a:textField name="target_type_name" bindTarget="templateLineScreen_templateDs" readOnly="true"/>
+                <a:textField name="score_template_name" bindTarget="templateLineScreen_templateDs" readOnly="true"/>
+                <a:textField name="score_target_code" bindTarget="templateLineScreen_parentDs" prompt="FND713.SCORE_TARGET_CODE.PARENT_SCORE_TARGET_CODE" readOnly="true"/>
+                <a:textField name="score_target_name" bindTarget="templateLineScreen_parentDs" readOnly="true"/>
+            </a:form>
+            <a:grid id="templateLineScreenDs_grid" bindTarget="templateLineScreenDs" marginHeight="180" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="score_target_code" editorFunction="editorFunction_templateLineScreen_score_target_code" width="120"/>
+                    <a:column name="score_target_name" width="120"/>
+                    <a:column name="summary_flag" editor="templateLineScreenDs_grid_check" width="100"/>
+                    <a:column name="display_flag" editor="templateLineScreenDs_grid_check" width="100"/>
+                    <a:column name="data_value_from_display" width="120"/>
+                    <a:column name="weight_value" editor="templateLineScreenDs_grid_nf" width="100"/>
+                    <a:column name="score_value" width="100"/>
+                    <a:column name="multiple_flag" editor="templateLineScreenDs_grid_check" prompt="FND713.SCORE_TARGET_CODE.MULTIPLE_FLAG"/>
+                    <a:column name="target_object_type_desc" editor="templateLineScreenDs_grid_ccb" prompt="FND713.SCORE_TARGET_CODE.TARGET_OBJECT_TYPE"/>
+                    <a:column name="child_target" prompt="FND713.WIN_TITLE.CHILD_TARGET" renderer="render_child_target" width="100"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="templateLineScreenDs_grid_nf"/>
+                    <a:lov id="templateLineScreenDs_grid_lov"/>
+                    <a:checkBox id="templateLineScreenDs_grid_check"/>
+                    <a:comboBox id="templateLineScreenDs_grid_ccb"/>
+                </a:editors>
+            </a:grid>
+            <script><![CDATA[
+            	Aurora.onReady(function(){
+            	    if('${/parameter/@score_method}'=='ABSOLUTE'){
+            	        $('templateLineScreenDs_grid').hideColumn('score_value');
+            	    }
+            	    if('${/parameter/@template_type}'=='PD')
+            	    {
+            	        $('templateLineScreenDs_grid').hideColumn('multiple_flag');
+            	        $('templateLineScreenDs_grid').hideColumn('target_object_type_desc');
+            	    }
+            	});
+            ]]></script>
+        </a:screenBody>
+    </a:view>
+</a:screen>

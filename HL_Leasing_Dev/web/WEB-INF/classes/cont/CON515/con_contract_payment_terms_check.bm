@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-7-18 下午07:16:22  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    pci.cdd_item,
+                    pci.description,
+                    pci.order_seq,
+                    pci.show_seq,
+                    pp.send_flag,
+                    pp.paper_required,
+                    pp.attachment_required,
+                    pp.not_applicable,
+                    pp.check_id,
+                    pci.sys_flag,
+                    pci.note,
+                    pci.cdd_list_id,
+                    pci.cdd_item_id,
+                    pci.line_type,
+                    pci.chance_required_flag,
+                    pci.chance_display_flag,
+                    pci.project_required_flag,
+                    pci.project_display_flag,
+                    pci.contract_required_flag,
+                    pci.contract_display_flag,
+                    pci.sign_required_flag,
+                    pci.sign_display_flag,
+                    pci.incept_required_flag,
+                    pci.incept_display_flag,
+                    pci.lender_required_flag,
+                    pci.lender_display_flag,
+                    pci.chance_tab_group,
+                    pci.project_tab_group,
+                    pci.contract_tab_group,
+                    pci.sign_tab_group,
+                    pci.incept_tab_group,
+                    pci.lender_tab_group,
+                    NVL(pp.document_id,${@base_table_pk}) document_id,
+                    NVL(pp.document_table, 'CON_CONTRACT') document_table,
+                    NVL(
+                    (SELECT
+                        'Y'
+                    FROM
+                        dual
+                    WHERE
+                        EXISTS
+                        (SELECT
+                            1
+                        FROM
+                            con_contract_payment_terms t,
+                            con_contract_cashflow cf
+                        WHERE
+                            t.cashflow_id  =cf.cashflow_id AND
+                            cf.contract_id =${@base_table_pk} AND
+                            t.cdd_item_id  =pci.cdd_item_id AND
+                            'CON_CONTRACT' ='CON_CONTRACT'
+                        )
+                    ),'N') payment_terms_flag,
+                    (select t.confirm_flag from con_contract_payment_t_check t where t.contract_id = ${@base_table_pk} and pci.cdd_item_id = t.cdd_item_id) confirm_flag,
+                    (select t.confirm_note from con_contract_payment_t_check t where t.contract_id = ${@base_table_pk} and pci.cdd_item_id = t.cdd_item_id) confirm_note
+                FROM
+                    (SELECT
+                        pcf.check_id,
+                        pcf.document_id,
+                        pcf.document_table,
+                        pck.cdd_item_id,
+                        pck.send_flag,
+                        pck.paper_required,
+                        pck.attachment_required,
+                        pck.not_applicable
+                    FROM
+                        prj_cdd_item_doc_ref pcf,
+                        prj_cdd_item_check pck
+                    WHERE
+                        pcf.document_table = 'CON_CONTRACT' AND
+                        pcf.document_id    = ${@base_table_pk} AND
+                        pck.check_id       = pcf.check_id
+                    ) pp,
+                    prj_cdd_item pci
+                WHERE
+                    DECODE('CONTRACT', 'PROJECT', pci.project_tab_group, 'CHANCE', pci.chance_tab_group, 'CONTRACT', pci.lender_tab_group, '') =
+                    (SELECT
+                        d.attachment_tab_group
+                    FROM
+                        hls_doc_layout_tab d
+                    WHERE
+                        d.layout_code  = 'CONTRACT_MODIFY' AND
+                        d.base_table   = 'PRJ_CDD_ITEM_DOC_REF' AND
+                        D.ENABLED_FLAG = 'Y' AND
+                        rownum         =1
+                    ) AND
+                    DECODE('CONTRACT', 'PROJECT', pci.project_required_flag, 'CHANCE', pci.chance_required_flag, 'CONTRACT', pci.lender_required_flag, '') = 'Y' AND
+                    DECODE('CONTRACT', 'PROJECT', pci.project_display_flag, 'CHANCE', pci.chance_display_flag, 'CONTRACT', pci.lender_display_flag, '')    = 'Y' AND
+                    pci.cdd_item_id                                                                                                                        = pp.cdd_item_id(+) AND
+                    pci.cdd_list_id                                                                                                                        = (select   t.cdd_list_id from  con_contract t where t.contract_id =${@base_table_pk} ) AND
+                    pci.enabled_flag                                                                                                                       = 'Y'
+                ORDER BY
+                    pci.order_seq
+            ]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+            	BEGIN
+            	    con_contract_pay_t_check_pkg.con_contract_pay_t_check_save(
+            	    				  p_contract_id            =>${@contract_id},
+                                      p_cdd_item_id           =>${@cdd_item_id},
+                                      p_confirm_flag              =>${@confirm_flag},
+                                      p_confirm_note              =>${@confirm_note},
+                                      p_user_id  =>${/session/@user_id});
+            	END;
+        	]]></bm:update-sql>
+            <bm:parameters>
+                <bm:parameter name="cdd_item_id" input="true" inputPath="@cdd_item_id" output="true" outputPath="@cdd_item_id"/>
+                <bm:parameter name="check_id" input="true" inputPath="@check_id" output="true" outputPath="@check_id"/>
+            </bm:parameters>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="cdd_item" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CDD_ITEM"/>
+        <bm:field name="description" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DESCRIPTION"/>
+        <bm:field name="order_seq" databaseType="NUMBER" datatype="java.lang.Long" physicalName="ORDER_SEQ"/>
+        <bm:field name="show_seq" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="SHOW_SEQ"/>
+        <bm:field name="send_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="SEND_FLAG"/>
+        <bm:field name="paper_required" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PAPER_REQUIRED"/>
+        <bm:field name="attachment_required" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="ATTACHMENT_REQUIRED"/>
+        <bm:field name="not_applicable" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="NOT_APPLICABLE"/>
+        <bm:field name="check_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CHECK_ID"/>
+        <bm:field name="cdd_list_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="cdd_list_id"/>
+        <bm:field name="sys_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="SYS_FLAG" prompt="PRJ_CDD_ITEM.SYS_FLAG"/>
+        <bm:field name="note" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="NOTE" prompt="PRJ_CDD_ITEM.NOTE"/>
+        <bm:field name="document_table" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DOCUMENT_TABLE"/>
+        <bm:field name="document_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="DOCUMENT_ID"/>
+        <bm:field name="cdd_item_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CDD_ITEM_ID"/>
+        <bm:field name="chance_required_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CHANCE_REQUIRED_FLAG" prompt="PRJ_CDD_ITEM.CHANCE_REQUIRED_FLAG"/>
+        <bm:field name="chance_display_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CHANCE_DISPLAY_FLAG" prompt="PRJ_CDD_ITEM.CHANCE_DISPLAY_FLAG"/>
+        <bm:field name="project_required_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PROJECT_REQUIRED_FLAG" prompt="PRJ_CDD_ITEM.PROJECT_REQUIRED_FLAG"/>
+        <bm:field name="project_display_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PROJECT_DISPLAY_FLAG" prompt="PRJ_CDD_ITEM.PROJECT_DISPLAY_FLAG"/>
+        <bm:field name="contract_required_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONTRACT_REQUIRED_FLAG" prompt="PRJ_CDD_ITEM.CONTRACT_REQUIRED_FLAG"/>
+        <bm:field name="contract_display_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONTRACT_DISPLAY_FLAG" prompt="PRJ_CDD_ITEM.CONTRACT_DISPLAY_FLAG"/>
+        <bm:field name="sign_required_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="SIGN_REQUIRED_FLAG" prompt="PRJ_CDD_ITEM.SIGN_REQUIRED_FLAG"/>
+        <bm:field name="sign_display_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="SIGN_DISPLAY_FLAG" prompt="PRJ_CDD_ITEM.SIGN_DISPLAY_FLAG"/>
+        <bm:field name="incept_required_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="INCEPT_REQUIRED_FLAG" prompt="PRJ_CDD_ITEM.INCEPT_REQUIRED_FLAG"/>
+        <bm:field name="incept_display_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="INCEPT_DISPLAY_FLAG" prompt="PRJ_CDD_ITEM.INCEPT_DISPLAY_FLAG"/>
+        <bm:field name="lender_required_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="LENDER_REQUIRED_FLAG" prompt="PRJ_CDD_ITEM.LENDER_REQUIRED_FLAG"/>
+        <bm:field name="lender_display_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="LENDER_DISPLAY_FLAG" prompt="PRJ_CDD_ITEM.LENDER_DISPLAY_FLAG"/>
+        <bm:field name="chance_tab_group" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CHANCE_TAB_GROUP" prompt="PRJ_CDD_ITEM.CHANCE_TAB_GROUP"/>
+        <bm:field name="project_tab_group" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PROJECT_TAB_GROUP" prompt="PRJ_CDD_ITEM.PROJECT_TAB_GROUP"/>
+        <bm:field name="contract_tab_group" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONTRACT_TAB_GROUP" prompt="PRJ_CDD_ITEM.CONTRACT_TAB_GROUP"/>
+        <bm:field name="sign_tab_group" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="SIGN_TAB_GROUP" prompt="PRJ_CDD_ITEM.SIGN_TAB_GROUP"/>
+        <bm:field name="incept_tab_group" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="INCEPT_TAB_GROUP" prompt="PRJ_CDD_ITEM.INCEPT_TAB_GROUP"/>
+        <bm:field name="lender_tab_group" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="LENDER_TAB_GROUP" prompt="PRJ_CDD_ITEM.LENDER_TAB_GROUP"/>
+        <bm:field name="payment_terms_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PAYMENT_TERMS_FLAG" prompt="PAYMENT_TERMS_FLAG"/>
+        <bm:field name="confirm_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONFIRM_FLAG" prompt="CONFIRM_FLAG"/>
+        <bm:field name="confirm_note" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONFIRM_NOTE" prompt="CONFIRM_NOTE"/>
+    </bm:fields>
+</bm:model>

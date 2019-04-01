@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <s:server-script import="seal_doc_util.js;jacob/jacob.js"><![CDATA[
+            importPackage(java.io);
+            importPackage(Packages.hls.plugin.docx4j);
+            importPackage(Packages.hls.plugin.jacob.engine);
+            //importPackage(org.apache.tools.zip); /*可以传入参数*/
+            //importPackage(java.util.zip);
+            
+            function writeFile(zos, fn, fp) {
+                var ze = new ZipEntry(fn);
+                //zos.setEncoding("UTF-8");//如果是org.apache.tools.zip需要追加字符集
+                zos.putNextEntry(ze);
+                var fis = new FileInputStream(fp);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    zos.write(b, 0, len);
+                }
+                fis.close();
+            }
+            
+            
+            function transfer(file, os) {
+                var fis = new FileInputStream(file);
+                var b = new java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024 * 64);
+                var len = -1;
+                while ((len = fis.read(b)) != -1) {
+                    os.write(b, 0, len);
+                }
+                fis.close();
+            }
+            
+            
+            function getdate() {
+                var now = new Date()
+                y = now.getFullYear()
+                m = now.getMonth() + 1
+                d = now.getDate()
+                m = m < 10 ? "0" + m : m
+                d = d < 10 ? "0" + d : d
+                return y + "" + m + "" + d
+            }
+            $ctx["__request_type__"] = 'file'; //to indicate this request is not a JSON_REQUEST
+            var resp = $ctx['_instance.javax.servlet.http.HttpServletResponse'];
+            resp.setHeader("Pragma", "No-cache");
+            resp.setHeader("Cache-Control", "no-cache, must-revalidate");
+            var date_str = getdate();
+            var doc_code = '合同文本附件'
+            var type = $ctx.parameter.type;
+            var zip_filename = doc_code + '-' + date_str + ".zip";
+            var file_path;
+            var fnd_atm_flag = $ctx.parameter.fnd_atm_flag;
+            //
+            resp.setDateHeader("Expires", 0);
+            resp.setContentType("application/x-msdownload");
+            
+            try {
+                var attachment_batch_dl = $bm('hls.HLS811.hls_doc_file_templet_get_atm');
+                var result = attachment_batch_dl.queryAsMap({
+                    // content_id: $ctx.parameter.content_id,
+                    //842
+                    // contract_id: $ctx.parameter.contract_id,
+                    //'3597'
+                    document_id: $ctx.parameter.document_id,
+                    document_table: $ctx.parameter.document_table,
+                    batch_flag: $ctx.parameter.batch_flag,
+                    content_id: $ctx.parameter.content_id
+                });
+                var arr = result.getChildren();
+                if (arr.length >= 1) {
+                    if (type == 'SIN') {
+                        //单个下载
+                        var file_name = arr[0].file_name;
+                        if (fnd_atm_flag == 'Y') {
+                            file_path = arr[0].download_file_path;
+                        } else {
+                            file_path = arr[0].download_file_path + file_name;
+                        }
+                        var pe = new PdfConvertEngine($instance('aurora.database.service.IDatabaseServiceFactory'), $instance('uncertain.ocm.IObjectRegistry'), $ctx.getData());
+                        var download_attachment_id = arr[0].download_attachment_id;
+                        var server = jacob_config.jacobUrl + download_attachment_id;
+                        var target_path = jacob_config.target_path;
+                        var url = jacob_config.jacobserviceUrl + '?target_url=' + server + '&target_path=' + target_path;
+                        try {
+                            pe.run(url);
+                        } catch (e) {
+                            raise_app_error('转化PDF失败：' + e);
+                        }
+            
+                        var outputfilepath = file_path + '_pdf';
+                        if (file_name.substring(file_name.length - 4) == '.doc') {
+                            file_name = file_name.substring(0, file_name.length - 4);
+                        } else if (file_name.substring(file_name.length - 5) == '.docx') {
+                            file_name = file_name.substring(0, file_name.length - 5);
+                        }
+                        //催收函打印 加上一个templet_code='COL_LETTER'
+                        var sign_path = null;
+                        println('templet_code :'+arr[0].templet_code);
+                        //if (arr[0].templet_code == 'HY_RELEASR' || arr[0].templet_code == 'HY_PAY_TIME_EX' || arr[0].templet_code == 'HY_EXTHAG_BZSQ' || arr[0].templet_code == 'COL_LETTER') {
+                            sign_path = seal(file_name, outputfilepath);
+                        //} else {
+                            //sign_path = outputfilepath;
+                        //}
+            
+                        resp.setHeader("Content-disposition", "attachment; filename=" + encodeURI(file_name + '.pdf', 'UTF-8'));
+                        var os = resp.getOutputStream();
+                        transfer(sign_path, os);
+                        os.flush();
+                    } else if (type == 'ZIP') {
+                        //打包下载
+                        zip_filename = arr[0].bp_id_tenant_n + '-' + arr[0].contract_number + '-' + arr[0].project_number + ".zip";
+                        resp.setHeader("Content-disposition", "attachment; filename=" + encodeURI(zip_filename, 'UTF-8'));
+                        var zos = new ZipOutputStream(resp.getOutputStream());
+            
+                        //zos.setEncoding("GBK"); //如果是org.apache.tools.zip需要追加字符集
+            
+                        for (var i = 0;i < arr.length;i++) {
+                            var f = arr[i];
+                            var temp_file_name = f.file_name,
+                                temp_file_path;
+                            if (fnd_atm_flag == 'Y') {
+                                temp_file_path = f.download_file_path;
+                            } else {
+                                temp_file_path = f.download_file_path + temp_file_name;
+                            }
+                            if (temp_file_name.substring(temp_file_name.length - 4) == '.doc') {
+                                temp_file_name = temp_file_name.substring(0, temp_file_name.length - 4);
+                            } else if (temp_file_name.substring(temp_file_name.length - 5) == '.docx') {
+                                temp_file_name = temp_file_name.substring(0, temp_file_name.length - 5);
+                            }
+                            // var brwt = new ConvertOutPDF();
+                            // var outputfilepath = brwt.convertPdf(temp_file_path);
+                            var outputfilepath = temp_file_path + '_pdf';
+                            var pe = new PdfConvertEngine($instance('aurora.database.service.IDatabaseServiceFactory'), $instance('uncertain.ocm.IObjectRegistry'), $ctx.getData());
+                            var download_attachment_id = f.download_attachment_id;
+                            var server = jacob_config.jacobUrl + download_attachment_id;
+                            var target_path = jacob_config.target_path;
+                            var url = jacob_config.jacobserviceUrl + '?target_url=' + server + '&target_path=' + target_path;
+                            try {
+                                pe.run(url);
+                            } catch (e) {
+                                raise_app_error('转化PDF失败：' + e);
+                            }
+            
+                            var sign_path = null;
+                            if (f.templet_code == 'HY_RELEASR' || f.templet_code == 'HY_PAY_TIME_EX' || f.templet_code == 'HY_EXTHAG_BZSQ' || arr[0].templet_code == 'COL_LETTER') {
+                                sign_path = seal(file_name, outputfilepath);
+                            } else {
+                                sign_path = outputfilepath;
+                            }
+                            if (sign_path && temp_file_name) {
+                                writeFile(zos, temp_file_name + '.pdf', sign_path);
+                            }
+                        }
+                        zos.close();
+                    }
+                }
+            } catch (e) {
+                println(e);
+                var logger = $logger("server-script");
+                logger.severe(e.message);
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+</a:service>

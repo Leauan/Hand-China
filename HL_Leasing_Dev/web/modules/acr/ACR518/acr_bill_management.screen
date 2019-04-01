@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: LR  
+    $Date: 2013-7-17 上午11:01:11  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="acr518_currency_list"/>
+        <a:model-query fetchAll="true" model="acr.ACR512.acr_invoice_business_type_list" rootPath="acr518_business_type_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="acr518_invoice_readonly_page" url="${/request/@context_path}/modules/cont/CON500/con_contract_update.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <script><![CDATA[
+            function acr518_invoice_query() {
+                $('acr518_invoice_result_ds').query();
+            }
+            
+            function acr518_invoice_reset() {
+                $('acr518_invoice_query_ds').reset();
+            }
+            
+            function acr518_formatMoney(value, record, name) {
+                return Aurora.formatNumber(value);
+            }
+            
+            function acr518_invoice_query_Onupdate(ds, record, name, value, oldVlaue) {
+                if (name == 'document_number_f') {
+                    if (Aurora.isEmpty(record.get('document_number_t'))) {
+                        record.set('document_number_t', value);
+                    }
+                } else if (name == 'project_number_f') {
+                    if (Aurora.isEmpty(record.get('project_number_t'))) {
+                        record.set('project_number_t', value);
+                    }
+                } else if (name == 'invoice_number_f') {
+                    if (Aurora.isEmpty(record.get('invoice_number_t'))) {
+                        record.set('invoice_number_t', value);
+                    }
+                } else if (name == 'contract_number_f') {
+                    if (Aurora.isEmpty(record.get('contract_number_t'))) {
+                        record.set('contract_number_t', value);
+                    }
+                } else if (name == 'invoice_bp_code_f') {
+                    if (Aurora.isEmpty(record.get('invoice_bp_code_t'))) {
+                        record.set('invoice_bp_code_t', value);
+                    }
+                } else if (name == 'total_amount_f') {
+                    if (Aurora.isEmpty(record.get('total_amount_t'))) {
+                        record.set('total_amount_t', value);
+                    }
+                }
+                
+                if(Ext.isEmpty(record.get('project_number_f'))&&Ext.isEmpty(record.get('project_number_t')))
+                {
+                    record.set('query_project_number','');
+                }
+                else
+                {
+                    record.set('query_project_number','Y');
+                }
+                if(Ext.isEmpty(record.get('contract_number_f'))&&Ext.isEmpty(record.get('contract_number_t')))
+                {
+                    record.set('query_contract_number','');
+                }
+                else
+                {
+                    record.set('query_contract_number','Y');
+                }
+            }
+            
+            function acr518_editorFunction(record, name) {
+                var field = record.getField(name);
+                var express_status = record.get('express_status') ;
+                if (express_status == 'DELIVERED' || express_status == 'RECEIVED')
+                {
+                    (function(){field.setRequired(true)}).defer(5);
+                    
+                    if (name == 'express_date') {
+                        return 'acr518_dp_id';
+                    } else if (name == 'express_num') {
+                        return 'acr518_tf_id';
+                    } else if (name == 'express_company') {
+                        return 'acr518_tf_id';
+                    } else if (name == 'express_by_name') {
+                        return 'acr518_lov_id';
+                    } else if (name == 'express_note') {
+                        return 'acr518_tf_id';
+                    }
+                }
+                
+                (function(){field.setRequired(false)}).defer(5);
+                
+                return '';
+            }
+            
+            function acr518_invoice_result_ds_onUpdate(ds, record, name, value, oldValue) {
+                if (name == 'express_status')
+                {
+                    if(value=='UNDELIVERED')
+                    {
+                        record.set('express_date','');
+	                    record.set('express_num','');
+	                    record.set('express_company','');
+	                    record.set('express_by_name','');
+	                    record.set('express_note','');
+                    }
+                }
+            }
+            
+            function acr518_grid_query(reocrd_id, invoice_hd_id, status) {
+                var maintain_type = 'READONLY';
+                var currency_reocrd = $('acr518_invoice_result_ds').findById(reocrd_id);
+                var param = currency_reocrd.data;
+                param['function_code'] = 'ACR518';
+                param['document_id']=invoice_hd_id;
+                param['function_usage']='QUERY';
+                param['maintain_type']=maintain_type;
+                param['url_title']='${l:ACR.INVOICE_DETAIL}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id',param,'acr518_invoice_readonly_page','acr518_invoice_result_ds');
+            }
+            
+            
+            function acr518_document_number_render(value, record, name) {
+                return '<a href="javascript:acr518_grid_query(' + record.id + ',' + record.get('invoice_hd_id') + ',\'' + record.get('invoice_status') + '\');">' + value + '</a>';
+            }
+            
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:dataSets>
+            <a:dataSet id="acr518_currency_ds">
+                <a:datas dataSource="/model/acr518_currency_list"/>
+            </a:dataSet>
+            <a:dataSet id="acr518_business_type_ds">
+                <a:datas dataSource="/model/acr518_business_type_list"/>
+            </a:dataSet>
+            <a:dataSet id="acr518_invoice_kind_ds" lookupCode="ACR510_INVOICE_KIND"/>
+            <a:dataSet id="acr518_express_status_ds" lookupCode="ACR518_EXPRESS_STATUS"/>
+            <a:dataSet id="acr518_invoice_query_ds" autoCreate="true" model="acr.ACR518.acr_bill_management">
+                <a:fields>
+                    <a:field name="currency_name" displayField="currency_name" options="acr518_currency_ds" returnField="currency" valueField="currency_code"/>
+                    <a:field name="invoice_kind_desc" displayField="code_value_name" options="acr518_invoice_kind_ds" returnField="invoice_kind" valueField="code_value"/>
+                    <a:field name="business_type_desc" displayField="business_type_desc" options="acr518_business_type_ds" returnField="business_type" valueField="business_type"/>
+                    <a:field name="created_by_name" lovGridHeight="320" lovHeight="500" lovService="acr.ACR512.acr_invoice_sys_user_lov" lovWidth="500" title="开票人选择">
+                        <a:mapping>
+                            <a:map from="user_id" to="created_by"/>
+                            <a:map from="description" to="created_by_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="confirmed_by_name" lovGridHeight="320" lovHeight="500" lovService="acr.ACR512.acr_invoice_sys_user_lov" lovWidth="500" title="复核人选择">
+                        <a:mapping>
+                            <a:map from="user_id" to="confirmed_by"/>
+                            <a:map from="description" to="confirmed_by_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="invoice_bp_code_f" lovGridHeight="320" lovHeight="480" lovService="acr.ACR512.acr_invoice_bp_master_list" lovWidth="500" title="客户选择">
+                        <a:mapping>
+                            <a:map from="bp_code" to="invoice_bp_code_f"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="invoice_bp_code_t" lovGridHeight="320" lovHeight="480" lovService="acr.ACR512.acr_invoice_bp_master_list" lovWidth="500" title="客户选择">
+                        <a:mapping>
+                            <a:map from="bp_code" to="invoice_bp_code_t"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="project_number_f" lovGridHeight="320" lovHeight="480" lovService="acr.ACR512.acr_invoice_project_list" lovWidth="500" title="项目选择">
+                        <a:mapping>
+                            <a:map from="project_number" to="project_number_f"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="project_number_t" lovGridHeight="320" lovHeight="480" lovService="acr.ACR512.acr_invoice_project_list" lovWidth="500" title="项目选择">
+                        <a:mapping>
+                            <a:map from="project_number" to="project_number_t"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_number_f" lovGridHeight="320" lovHeight="480" lovService="acr.ACR512.acr_invoice_contract_list" lovWidth="500" title="合同选择">
+                        <a:mapping>
+                            <a:map from="contract_number" to="contract_number_f"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_number_t" lovGridHeight="320" lovHeight="480" lovService="acr.ACR512.acr_invoice_contract_list" lovWidth="500" title="合同选择">
+                        <a:mapping>
+                            <a:map from="contract_number" to="contract_number_t"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="received_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="express_status_desc" displayField="code_value_name" options="acr518_express_status_ds" returnField="express_status" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="acr518_invoice_query_Onupdate"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="acr518_invoice_result_ds" autoPageSize="true" model="acr.ACR518.acr_bill_management" queryDataSet="acr518_invoice_query_ds">
+                <a:fields>
+                    <a:field name="express_status_desc" displayField="code_value_name" options="acr518_express_status_ds" returnField="express_status" valueField="code_value"/>
+                    <a:field name="express_by_name" lovGridHeight="320" lovHeight="500" lovService="acr.ACR512.acr_invoice_sys_user_lov" lovWidth="500" title="寄送人选择">
+                        <a:mapping>
+                            <a:map from="user_id" to="express_by"/>
+                            <a:map from="user_name_desc" to="express_by_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="invoice_send_address"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="acr518_invoice_result_ds_onUpdate"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:toolbarButton click="acr518_invoice_query" text="HLS.QUERY"/>
+                <a:toolbarButton click="acr518_invoice_reset" text="HLS.RESET"/>
+                <a:gridButton bind="acr518_bill_management_grid_ds" text="HLS.SAVE" type="save"/>
+            </a:screenTopToolbar>
+            <a:form marginWidth="30" padding="0" title="发票寄送管理">
+                <a:hBox labelSeparator=" ">
+                    <a:textField name="document_number_f" bindTarget="acr518_invoice_query_ds" prompt="HLS.DOCUMENT_NUMBER_FROM" width="135"/>
+                    <div><![CDATA[${l:HLS.DOCUMENT_NUMBER_TO}]]></div>
+                    <a:textField name="document_number_t" bindTarget="acr518_invoice_query_ds" prompt="" width="135"/>
+                    <a:lov name="project_number_f" bindTarget="acr518_invoice_query_ds" prompt="HLS.PROJECT_NUMBER_FROM" width="135"/>
+                    <div><![CDATA[${l:HLS.DOCUMENT_NUMBER_TO}]]></div>
+                    <a:lov name="project_number_t" bindTarget="acr518_invoice_query_ds" prompt="" width="135"/>
+                    <a:comboBox name="business_type_desc" bindTarget="acr518_invoice_query_ds" prompt="HLS.BUSINESS_TYPE_DESC" width="135"/>
+                    <a:comboBox name="currency_name" bindTarget="acr518_invoice_query_ds" prompt="HLS.CURRENCY" width="135"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" ">
+                    <a:textField name="invoice_number_f" bindTarget="acr518_invoice_query_ds" prompt="ACR.INVOICE_NUMBER_FROM" width="135"/>
+                    <div><![CDATA[${l:ACR.INVOICE_NUMBER_TO}]]></div>
+                    <a:textField name="invoice_number_t" bindTarget="acr518_invoice_query_ds" prompt="" width="135"/>
+                    <a:lov name="contract_number_f" bindTarget="acr518_invoice_query_ds" prompt="HLS.CONTRACT_NUMBER_FROM" width="135"/>
+                    <div><![CDATA[${l:HLS.CONTRACT_NUMBER_TO}]]></div>
+                    <a:lov name="contract_number_t" bindTarget="acr518_invoice_query_ds" prompt="" width="135"/>
+                    <a:comboBox name="invoice_kind_desc" bindTarget="acr518_invoice_query_ds" prompt="ACR.INVOICE_KIND" width="135"/>
+                    <a:lov name="created_by_name" bindTarget="acr518_invoice_query_ds" prompt="ACR.CREATED_BY_NAME" width="135"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" ">
+                    <a:datePicker name="invoice_date_f" bindTarget="acr518_invoice_query_ds" prompt="ACR.INVOICE_DATE_FROM" width="135"/>
+                    <div><![CDATA[${l:ACR.INVOICE_DATE_TO}]]></div>
+                    <a:datePicker name="invoice_date_t" bindTarget="acr518_invoice_query_ds" prompt="" width="135"/>
+                    <a:lov name="invoice_bp_code_f" bindTarget="acr518_invoice_query_ds" prompt="HLS.CUSTOMER_NUMBER_FROM" width="135"/>
+                    <div><![CDATA[${l:HLS.CUSTOMER_NUMBER_TO}]]></div>
+                    <a:lov name="invoice_bp_code_t" bindTarget="acr518_invoice_query_ds" prompt="" width="135"/>
+                    <a:textField name="invoice_title" bindTarget="acr518_invoice_query_ds" prompt="ACR.INVOICE_TITLE" width="135"/>
+                    <a:lov name="confirmed_by_name" bindTarget="acr518_invoice_query_ds" prompt="ACR.CHECKER" width="135"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" ">
+                    <a:datePicker name="express_date_f" bindTarget="acr518_invoice_query_ds" prompt="ACR.EXPRESS_DATE_FROM" width="135"/>
+                    <div><![CDATA[${l:ACR.EXPRESS_DATE_TO}]]></div>
+                    <a:datePicker name="express_date_t" bindTarget="acr518_invoice_query_ds" prompt="" width="135"/>
+                    <a:numberField name="total_amount_f" allowFormat="true" bindTarget="acr518_invoice_query_ds" prompt="ACR.TOTAL_AMOUNT_FROM" width="135"/>
+                    <div><![CDATA[${l:ACR.TOTAL_AMOUNT_TO}]]></div>
+                    <a:numberField name="total_amount_t" allowFormat="true" bindTarget="acr518_invoice_query_ds" prompt="" width="135"/>
+                    <a:comboBox name="express_status_desc" bindTarget="acr518_invoice_query_ds" prompt="ACR.EXPRESS_STATUS_NAME" width="135"/>
+                    <a:checkBox name="received_flag" bindTarget="acr518_invoice_query_ds" prompt="ACR.RECEIVED_FLAG"/>
+                </a:hBox>
+            </a:form>
+            <a:grid id="acr518_bill_management_grid_ds" bindTarget="acr518_invoice_result_ds" marginHeight="260" marginWidth="30" navBar="true">
+                <a:toolBar>
+                    <a:button type="excel"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="document_number" lock="true" prompt="HLS.DOCUMENT_NUMBER" renderer="acr518_document_number_render" width="120"/>
+                    <a:column name="invoice_number" prompt="ACR.INVOICE_NUMBER" width="120"/>
+                    <a:column name="invoice_date" prompt="ACR.INVOICE_DATE" width="100"/>
+                    <a:column name="invoice_title" autoAdjust="false" prompt="ACR.INVOICE_TITLE" showTitle="true" width="150"/>
+                    <a:column name="total_amount" align="right" prompt="ACR.TOTAL_AMOUNT" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="currency" prompt="HLS.CURRENCY" width="80"/>
+                    <a:column name="invoice_send_address" editor="acr518_ta_id" prompt="发票寄送地址" width="300"/>
+                    <a:column name="express_status_desc" editor="acr518_cb_id" prompt="ACR.EXPRESS_STATUS_NAME" width="80"/>
+                    <a:column name="express_date" editorFunction="acr518_editorFunction" prompt="ACR.EXPRESS_DATE" renderer="Aurora.formatDate" width="100"/>
+                    <a:column name="express_num" editorFunction="acr518_editorFunction" prompt="ACR.EXPRESS_NUMBER" width="150"/>
+                    <a:column name="express_company" editorFunction="acr518_editorFunction" prompt="ACR.EXPRESS_COMPANY" width="150"/>
+                    <a:column name="express_by_name" autoAdjust="false" editorFunction="acr518_editorFunction" prompt="ACR.SENDER" showTitle="true" width="150"/>
+                    <a:column name="express_note" editorFunction="acr518_editorFunction" prompt="ACR.EXPRESS_NOTE" width="150"/>
+                    <a:column name="business_type_desc" prompt="HLS.BUSINESS_TYPE_DESC" width="100"/>
+                    <a:column name="invoice_kind_desc" prompt="ACR.INVOICE_KIND" width="100"/>
+                    <a:column name="project_name" autoAdjust="false" prompt="HLS.PROJECT_NAME" showTitle="true" width="150"/>
+                    <a:column name="contract_number" prompt="HLS.CONTRACT_NUMBER" width="120"/>
+                    <a:column name="invoice_bp_code" prompt="HLS.CUSTOMER_NUMBER" width="100"/>
+                    <a:column name="created_by_name" autoAdjust="false" prompt="ACR.CREATED_BY_NAME" showTitle="true" width="150"/>
+                    <a:column name="confirmed_by_name" autoAdjust="false" prompt="ACR.CHECKER" showTitle="true" width="150"/>
+                    <a:column name="invoice_bp_name" autoAdjust="false" prompt="HLS.CUSTOMER_NAME" showTitle="true" width="150"/>
+                    <a:column name="project_number" prompt="HLS.PROJECT_NUMBER" width="120"/>
+                    <a:column name="contract_name" autoAdjust="false" prompt="HLS.CONTRACT_NAME" showTitle="true" width="150"/>
+                </a:columns>
+                <a:editors>
+                    <a:comboBox id="acr518_cb_id"/>
+                    <a:textField id="acr518_tf_id"/>
+                    <a:lov id="acr518_lov_id"/>
+                    <a:datePicker id="acr518_dp_id"/>
+                    <a:textArea id="acr518_ta_id" height="60"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

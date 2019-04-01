@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:s="aurora.plugin.script" xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            select * from (
+            ${:@validation_sql}) vv
+               #WHERE_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields><![CDATA[
+    ]]></bm:fields>
+    <bm:features>
+        <s:bm-script><![CDATA[
+            var model = $this.getObjectContext();
+            var para = $ctx.current_parameter || $ctx.parameter;
+            var validation_sql;
+            
+            function get_validation_sql() {
+                var query_validation_sql_bm = $bm('layout.server_layout_lov_validation_config');
+                var config_map = query_validation_sql_bm.queryAsMap(para);
+                var config_map_detail = config_map.getChildren();
+                if (config_map_detail.length != 0) {
+                    validation_sql = config_map_detail[0].validation_sql;
+                    para.validation_sql = validation_sql;
+                }
+                validation_sql = validation_sql.replace(/\$\{@([^\}]*)\}/g, function(a, b) {
+                    return "'" + (para[b] || '') + "'";
+                });
+            }
+            if (para.url) {
+                var url = decodeURIComponent(para.url);
+                // var matches = url.match(/validation_sql=([^&]*)&?(.*$)/);
+                // validation_sql = matches[1];
+                // var para_list = {};
+                var idx = url.indexOf('?');
+                if (idx) {
+                    url = url.substring(idx + 1);
+                }
+                if (url) {
+                    var paras = url.split('&');
+                    for (var i = 0;i < paras.length;i++) {
+                        var p = paras[i].split('=');
+                        para[p[0]] = p[1];
+                    }
+                }
+                get_validation_sql();
+                importClass(Packages.uncertain.composite.CompositeUtil);
+                var query_sql = CompositeUtil.findChild($this.getObjectContext(), "query-sql");
+                query_sql.setText(validation_sql);
+                // if (para.url.indexOf('validation_sql') == -1) {
+                // para.url = String(para.url + '&validation_sql=' + encodeURIComponent(validation_sql));
+                // }
+            } else if (para.validation_sql) {
+                validation_sql = para.validation_sql;
+                validation_sql = validation_sql.replace(/\$\{@([^\}]*)\}/g, function(a, b) {
+                    return "'" + (para[b] || '') + "'";
+                });
+            } else if (!para.validation_sql && !para.url) {
+                get_validation_sql();
+            }
+            validation_sql = validation_sql.replace(/\$\{\/session\/@([^\}]*)\}/g, function(a, b) {
+                return "'" + $ctx.session[b] + "'";
+            });
+            // var dsf = $instance('aurora.database.service.IDatabaseServiceFactory');
+            // var parsedSql = new Packages.aurora.database.ParsedSql(validation_sql);
+            // var sqlServiceContext = new Packages.aurora.database.service.SqlServiceContext.createSqlServiceContext($ctx.getData());
+            // var sqlRunner = new Packages.aurora.database.SqlRunner(sqlServiceContext, parsedSql);
+            // var conn = dsf.getDataSource().getConnection();
+            // var sql = sqlRunner.generateSQL(para.getData());
+            // var ps = conn.prepareCall(sql);
+            // sqlRunner.bindParameters(ps, para.getData());
+            // var rs = ps.executeQuery();
+            // var rsmd = rs.getMetaData();
+            // var count = rsmd.getColumnCount();
+            // var queryfields = new CompositeMap(model.getChild('query-fields'));
+            var dsf = $instance('aurora.database.service.IDatabaseServiceFactory');
+            var conn = dsf.getDataSource().getConnection();
+            var stmt = conn.createStatement();
+            var rs = stmt.executeQuery(validation_sql);
+            var rsmd = rs.getMetaData();
+            var count = rsmd.getColumnCount();
+            var queryfields = new CompositeMap(model.getChild('query-fields'));
+            var temp_num = 0;
+            for (var i = 1;i <= count;i++) {
+                var fname = rsmd.getColumnName(i);
+                var dbtype = rsmd.getColumnTypeName(i)
+                var f = Packages.aurora.bm.Field.createField(fname.toLowerCase());
+                f.setPhysicalName(fname);
+                f.setDatabaseType(dbtype);
+                if (dbtype == 'NUMBER') {
+                    f.setDataType('java.lang.Double');
+                } else if (dbtype == 'VARCHAR2') {
+                    f.setDataType('java.lang.String');
+                } else if (dbtype == 'DATE') {
+                    f.setDataType('java.util.Date');
+                }
+                if ((fname != 'VALUE_CODE' || dbtype != 'NUMBER') && temp_num < 6) {
+                    f.setForDisplay(true);
+                    temp_num = temp_num + 1;
+                }
+                var pCache = $cache('promptCache');
+                var dynamic_lov_para;
+                var str = validation_sql.toLowerCase();
+                var source_value_code = str.match(new RegExp('[\.,\\s]([^.,\\s]*)( as)? ' + 'value_code'));
+                var source_value_name = str.match(new RegExp('[\.,\\s]([^.,\\s]*)( as)? ' + 'value_name'));
+                var source_value_code_display = str.match(new RegExp('[\.,\\s]([^.,\\s]*)( as)? ' + 'value_code_display'));
+                var temp_prompt;
+                if (fname == 'VALUE_CODE') {
+                    if (dbtype != 'NUMBER') {
+                        f.setForQuery(true);
+                    }
+                    if (source_value_code[1]) {
+                        dynamic_lov_para = 'HLS_LOV_PARA.' + source_value_code[1].toUpperCase() + '.' + $session.lang;
+                    }
+                    temp_prompt = pCache.getValue(dynamic_lov_para);
+                    if (temp_prompt) {
+                        f.setPrompt(temp_prompt);
+                    } else {
+                        f.setPrompt('HLS.CODE');
+                    }
+                    f.setDisplayWidth(120);
+                } else if (fname == 'VALUE_NAME') {
+                    f.setForQuery(true);
+                    if (source_value_name[1]) {
+                        dynamic_lov_para = 'HLS_LOV_PARA.' + source_value_name[1].toUpperCase() + '.' + $session.lang;
+                    }
+                    temp_prompt = pCache.getValue(dynamic_lov_para);
+                    if (temp_prompt) {
+                        f.setPrompt(temp_prompt);
+                    } else {
+                        f.setPrompt('HLS.DESCRIPTION');
+                    }
+                    f.setDisplayWidth(250);
+                } else {
+                    f.setDisplayWidth(120);
+                    if (fname == 'VALUE_CODE_DISPLAY') {
+                        if (source_value_code_display[1]) {
+                            dynamic_lov_para = 'HLS_LOV_PARA.' + source_value_code_display[1].toUpperCase() + '.' + $session.lang;
+                        }
+                        temp_prompt = pCache.getValue(dynamic_lov_para);
+                        if (temp_prompt) {
+                            f.setPrompt(temp_prompt);
+                        } else {
+                            f.setPrompt('HLS_LOV_PARA.' + fname);
+                        }
+                        f.setForQuery(true);
+                    } else {
+                        f.setPrompt('HLS_LOV_PARA.' + fname);
+                    }
+                }
+                $this.addField(f);
+                var qf = queryfields.createChildNS('query-field');
+                qf.field = String(fname.toLowerCase());
+                qf.queryoperator = (dbtype == 'NUMBER' ? '=' : 'like');
+            }
+            stmt.close();
+            // ps.close();
+            conn.close();
+            model = $this.getObjectContext();
+            // println(model.toXML());
+        ]]></s:bm-script>
+    </bm:features>
+    <bm:query-fields><![CDATA[
+    ]]></bm:query-fields>
+</bm:model>

@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qm  
+    $Date: 2014-4-18 下午3:54:53  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:e="aurora.service.exception" xmlns:f="aurora.database.features" xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:fields>
+        <bm:field name="contract_id"/>
+        <bm:field name="contract_number"/>
+        <bm:field name="project_number"/>
+        <bm:field name="bp_name"/>
+        <bm:field name="invoice_agent_name"/>
+        <bm:field name="lease_item_amount"/>
+        <bm:field name="total_unrec_principal"/>
+        <bm:field name="count_write_off_flag"/>
+        <bm:field name="is_overtime"/>
+        <bm:field name="is_in_pool"/>
+        <bm:field name="brand_dis"/>
+        <bm:field name="model_dis"/>
+        <bm:field name="series_dis"/>
+        <bm:field name="item_engine_number"/>
+        <bm:field name="item_frame_number"/>
+        <bm:field name="license_number"/>
+        <bm:field name="color_of_apprearance"/>
+        <bm:field name="lease_start_date"/>
+        <bm:field name="lease_end_date"/>
+        <bm:field name="reg_status"/>
+        <bm:field name="reg_status_n"/>
+        <bm:field name="is_overtime_desc"/>
+        <bm:field name="contract_status"/>
+        <bm:field name="inception_of_lease"/>
+        <bm:field name="bp_id_agent_level1"/>
+        <bm:field name="bp_id_agent_level1_n"/>
+        <bm:field name="contract_status_n"/>
+        <bm:field name="id_number"/>
+    </bm:fields>
+    <bm:data-filters>
+        <bm:data-filter name="invoice_agent_id" expression="(t.invoice_agent_id=(select  su.bp_id  from sys_user su where su.bp_category=&apos;AGENT&apos; and su.user_id=${/session/@user_id}) or (select su.bp_category from sys_user su where su.user_id = ${/session/@user_id}) !=&apos;AGENT&apos;)"/>
+        <bm:data-filter enforceOperations="query" expression="t.contract_id in (SELECT cc.contract_id                         FROM prj_quotation               pq,                              hls_product_plan_definition hd,                              prj_project                 pp,                              con_contract                cc                        WHERE pp.project_id = pq.document_id                          AND cc.project_id = pp.project_id                          AND pq.document_category = &apos;PROJECT&apos;                          AND pq.product_plan_id = hd.product_plan_id                    and hd.pledge_flag  =&apos;Y&apos;)"/>
+        <bm:data-filter enforceOperations="query" expression="t.lease_channel=&apos;00&apos;"/>
+    </bm:data-filters>
+    <bm:query-fields>
+        <bm:query-field name="contract_id" queryExpression="t.contract_id=${@contract_id}"/>
+        <bm:query-field name="id_number" queryExpression="t.id_number=${@id_number}"/>
+        <bm:query-field name="invoice_agent_id" queryExpression="t.invoice_agent_id=${@invoice_agent_id}"/>
+        <bm:query-field name="project_number" queryExpression="t.project_number like upper(&apos;%&apos;||${@project_number}||&apos;%&apos;)"/>
+        <bm:query-field name="contract_number" queryExpression="t.contract_number like  (&apos;%&apos;||${@contract_number}||&apos;%&apos;)"/>
+        <bm:query-field name="bp_name" queryExpression="t.bp_name like &apos;%&apos;||${@bp_name}||&apos;%&apos;"/>
+        <bm:query-field name="is_overtime" queryExpression="t.is_overtime=${@is_overtime}"/>
+        <bm:query-field name="contract_status" queryExpression="t.contract_status=${@contract_status}"/>
+        <bm:query-field name="bp_id_agent_level1" queryExpression="t.bp_id_agent_level1 like &apos;%&apos;||${@bp_id_agent_level1}||&apos;%&apos;"/>
+        <bm:query-field name="inception_of_lease" queryExpression="t.inception_of_lease like ${@inception_of_lease}"/>
+        <bm:query-field name="no_exist" queryExpression="((${@no_exist}=&apos;CON_MORTGAGE_REG&apos; AND (t.contract_id in (SELECT cc.contract_id   FROM con_contract cc, CON_CONTRACT_MORTGAGE ccm  WHERE ccm.MORTGAGE_REGISTER_NO IS NULL    AND cc.contract_id = ccm.contract_id(+)))) OR ((${@no_exist}=&apos;CON_MORTGAGE_UNREG&apos;) AND (t.contract_id in (SELECT cc.contract_id   FROM con_contract cc, CON_CONTRACT_UNDO_MORTGAGE ccm  WHERE ccm.MORTGAGE_REGISTER_NO IS NULL    AND cc.contract_id = ccm.contract_id(+))))) "/>
+    </bm:query-fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        t2.contract_id,
+                        t2.contract_number,        --合同号
+                        t2.project_number,         --申请号
+                        t2.bp_id_tenant_n bp_name, --承租人
+                        t2.id_number,
+						t2.reg_status,
+                        t2.reg_status_n,
+                        t2.contract_status,                                            ----合同状态
+                        TO_CHAR(t2.inception_of_lease,'yyyy-mm-dd') inception_of_lease,----起租日
+                        t2.bp_id_agent_level1,                                        -----经销商
+                        (SELECT
+                            hm.bp_name
+                        FROM
+                            hls_bp_master hm
+                        WHERE
+                            hm.bp_id      =t2.bp_id_agent_level1 AND
+                            hm.bp_category='AGENT'
+                        )bp_id_agent_level1_n,
+                        (SELECT
+                            a.invoice_agent_id
+                        FROM
+                            prj_project a
+                        WHERE
+                            a.project_id = t2.project_id AND
+                            rownum       = 1
+                        ) invoice_agent_id,
+                        (SELECT
+                            b.bp_name
+                        FROM
+                            prj_project a,
+                            hls_bp_master b
+                        WHERE
+                            a.project_id       = t2.project_id AND
+                            a.invoice_agent_id = b.bp_id AND
+                            rownum             = 1
+                        ) invoice_agent_name, --代理商
+                        t2.lease_item_amount, --租赁总价款
+                        (SELECT
+                            SUM(NVL(principal, 0) - NVL(received_principal, 0))
+                        FROM
+                            con_contract_cashflow
+                        WHERE
+                            contract_id = t2.contract_id AND
+                            cf_item     = 1 AND
+                            cf_status  <> 'CANCEL'
+                        ) total_unrec_principal, -- 剩余本金总额
+                        (SELECT
+                            COUNT(CC.WRITE_OFF_FLAG)
+                        FROM
+                            con_contract_cashflow cc
+                        WHERE
+                            cc.contract_id    = t2.contract_id AND
+                            cc.write_off_flag = 'FULL' AND
+                            CC.CF_ITEM        = 1
+                        ) count_write_off_flag, --还款期数
+                        (
+                            CASE
+                                WHEN
+                                    (SELECT
+                                            COUNT(*)
+                                        FROM
+                                            con_contract_cashflow cc
+                                        WHERE
+                                            cc.contract_id    = t2.contract_id AND
+                                            cc.write_off_flag = 'FULL' AND
+                                            CC.CF_ITEM        = 1
+                                    )
+                                    > 0
+                                THEN 'Y'
+                                ELSE 'N'
+                            END) AS is_overtime, --是否逾期
+                        (SELECT
+                            v.code_value_name value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code                    = 'FINISH_FLAG' AND
+                            v.code_enabled_flag       = 'Y' AND
+                            v.code_value_enabled_flag = 'Y' AND
+                            v.code_value              = (
+                                CASE
+                                    WHEN
+                                        (SELECT
+                                                COUNT(*)
+                                            FROM
+                                                con_contract_cashflow cc
+                                            WHERE
+                                                cc.contract_id    = t2.contract_id AND
+                                                cc.write_off_flag = 'FULL' AND
+                                                CC.CF_ITEM        = 1
+                                        )
+                                        > 0
+                                    THEN 'Y'
+                                    ELSE 'N'
+                                END)
+                        ) is_overtime_desc,
+                        '' AS is_in_pool, --登记证是否入库
+                        t3.brand_id,
+                        t3.model_id,
+                        t3.series_id,
+                        (SELECT
+                            v.description
+                        FROM
+                            hls_car_brands_vl v
+                        WHERE
+                            v.brand_id = t3.brand_id
+                        ) brand_dis, --品牌
+                        (SELECT v.description FROM hls_car_model_vl v WHERE v.model_id = t3.model_id
+                        ) model_dis, --车型
+                        (SELECT
+                            v.description
+                        FROM
+                            hls_car_series_vl v
+                        WHERE
+                            v.series_id = t3.series_id
+                        ) series_dis,          --车系
+                        t3.item_engine_number, --发动机号
+                        t3.item_frame_number,  --车架号
+                        (SELECT
+                            e.description
+                        FROM
+                            con_contract_lease_item c,
+                            hls_car_brands_vl e
+                        WHERE
+                            c.contract_id = t2.contract_id AND
+                            c.brand_id    = e.brand_id
+                        ) license_number, --车牌号
+                        t3.color_of_apprearance,
+                        TO_CHAR(t2.LEASE_START_DATE,'yyyy-mm-dd') LEASE_START_DATE,
+                        t2.LEASE_END_DATE,
+                        (SELECT
+                            v.code_value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code       = 'CON500_CONTRACT_STATUS' AND
+                            v.code_value = t2.contract_status
+                        ) AS contract_status_n,
+                        t2.lease_channel
+                    FROM
+                        con_contract_item_detail t1,
+                        con_contract_lv t2,
+                        con_contract_lease_item_lv t3
+                    WHERE
+                        t1.contract_lease_item_id = t3.contract_lease_item_id AND
+                        t3.contract_id            = t2.contract_id AND
+                        t2.data_class             = 'NORMAL' AND
+                        T2.contract_status LIKE 'INCEPT'
+                    ) t #WHERE_CLAUSE#
+                ORDER BY
+                    contract_number DESC
+            ]]></bm:query-sql>
+            <bm:parameters>
+                <bm:parameter name="contract_number"/>
+                <bm:parameter name="project_number"/>
+                <bm:parameter name="bp_name"/>
+            </bm:parameters>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+                DECLARE
+                    v_length    NUMBER;
+                    e_frame_err EXCEPTION;
+                BEGIN
+                    v_length    :=LENGTH(${@item_frame_number});
+                    IF v_length != 17 THEN
+                        raise e_frame_err;
+                    END IF;
+                    UPDATE
+                        CON_CONTRACT_ITEM_DETAIL t1
+                    SET
+                        t1.ITEM_FRAME_NUMBER =${@item_frame_number},
+                        t1.ITEM_ENGINE_NUMBER=${@item_engine_number},
+                        t1.key_flag          =${@key_flag},
+                        t1.registration_flag =${@registration_flag},
+                        t1.purchase_flag     =${@purchase_flag},
+                        t1.insurance_flag    =${@insurance_flag},
+                        t1.LAST_UPDATED_BY   =${/session/@user_id},
+                        t1.LAST_UPDATE_DATE  =sysdate
+                    WHERE
+                        t1.ITEM_DETAIL_ID = ${@item_detail_id};
+                EXCEPTION
+                WHEN e_frame_err THEN
+                    sys_raise_app_error_pkg.raise_user_define_error('CON_CONTRACT_ITEM_DETAIL_PKG.FRAME_NUMBER_ERROR', ${/session/@user_id}, '', '');
+                    raise_application_error(sys_raise_app_error_pkg.c_error_number,sys_raise_app_error_pkg.g_err_line_id);
+                END;
+            ]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

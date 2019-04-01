@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author:   
+    $Date: 2014-8-4 下午01:58:31  
+    $Revision: 1.0  
+    $Purpose: 商业伙伴查询
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query model="acr.ACR516.acr_vat_import_batch_id" rootPath="batch_id"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="pageLink_bpQueryScreen_welcome" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="pageLink_ws_details" url="${/request/@context_path}/modules/ebank/EBANK100/ebk_ws_details.screen"/>
+        <a:link id="pageLink_transaction" url="${/request/@context_path}/modules/ebank/EBANK120/csh_transaction_receipt_detail.screen"/>
+        <a:link id="pageLink_write_off_details" url="${/request/@context_path}/modules/ebank/EBANK120/csh_transaction_receipt_write_off_detail.screen"/>
+        <a:link id="pageLink_log_detail" url="${/request/@context_path}/modules/ebank/EBANK120/hls_ebank_agentrequest_log.screen"/>
+        <a:link id="cux_create_link_id" model="ebank.EBANK120.hls_ebank_interface" modelaction="execute"/>
+        <a:link id="cux_write_off_link_id" model="ebank.EBANK120.hls_ebank_interface" modelaction="batch_update"/>
+        <script><![CDATA[
+            function open_bp_modify_win(ds_id, record_id, name) {
+            
+                var record = $(ds_id).findById(record_id);
+                var param = record.data;
+                if (name == 'csh_transaction_num') {
+                    new Aurora.Window({
+                        id: 'transaction_window',
+                        url: $('pageLink_transaction').getUrl() + '?transaction_id=' + param['transaction_id'],
+                        title: '收款明细',
+                        width: 850,
+                        height: 460
+                    });
+                }
+                if (name == 'write_off_amount') {
+                    new Aurora.Window({
+                        id: 'write_off_window',
+                        url: $('pageLink_write_off_details').getUrl() + '?transaction_id=' + param['transaction_id'],
+                        title: '核销明细',
+                        width: 850,
+                        height: 460
+                    });
+                }
+                if (name == 'log_detail') {
+                    new Aurora.Window({
+                        id: 'log_detail_window',
+                        url: $('pageLink_log_detail').getUrl() + '?interface_id=' + param['interface_id'],
+                        title: '日志',
+                        width: 850,
+                        height: 460
+                    });
+                }
+                if (name == 'request_id') {
+                    new Aurora.Window({
+                        id: 'ws_detail_window',
+                        url: $('pageLink_ws_details').getUrl() + '?request_id=' + param['request_id'],
+                        title: '报文明细',
+                        width: 850,
+                        height: 460
+                    });
+                }
+            
+            }
+            
+            //代扣刷新
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_ebank_interface');
+                Aurora.showConfirm('${l:PROMPT}', '是否代扣刷新?', function() {
+                    Aurora.request({
+                        url: $('cux_write_off_link_id').getUrl(),
+                        para: null,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '操作成功',
+                                duration: 2000
+                            });
+                            $(ds_id).query();
+                        },
+                        scope: this
+                    });
+                }, function() {
+                    return;
+                }, null, null);
+            };
+            
+            //扣款
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+            
+            
+               };
+            
+            //收款核销
+            window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_ebank_interface');
+                var records = $(ds_id).getSelected();
+            
+            
+             //   var param = new Object();
+                var datas = [];
+                var data = {};
+            
+                if (records.length == 0) {
+                    Aurora.showInfoMessage('信息', '请至少选择一行！', null, 200, 100);
+                    return;
+                }
+            
+                for (var i = 0;i < records.length;i++) {
+                    if (records[i].get('checked') == 'Y') {
+            
+                        data = {};
+                        data['interface_id'] = records[i].get('interface_id');
+                        datas.push(data);
+            
+                    }
+                }
+            
+                Aurora.showConfirm('${l:PROMPT}', '是否收款核销?', function() {
+                    Aurora.request({
+                        url: $('cux_write_off_link_id').getUrl(),
+                        para: datas,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '操作成功',
+                                duration: 2000
+                            });
+                            $(ds_id).query();
+                        },
+                        scope: this
+                    });
+                }, function() {
+                    return;
+                }, null, null);
+            
+            };
+            
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                if (name == 'trsamt' && value) {
+                    return '<a href="javascript:open_bp_modify_win(\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\')">' + value + '</a>';
+                }
+                if (name == 'csh_transaction_num' && value) {
+                    return '<a href="javascript:open_bp_modify_win(\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\')">' + value + '</a>';
+                }
+                if (name == 'write_off_amount' && value) {
+                    return '<a href="javascript:open_bp_modify_win(\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\')">' + value + '</a>';
+                }
+                if (name == 'log_detail') {
+                    return '<a href="javascript:open_bp_modify_win(\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\')">' + '日志' + '</a>';
+                }
+                if (name == 'request_id' && value) {
+                    return '<a href="javascript:open_bp_modify_win(\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\')">' + '请求&应答' + '</a>';
+                }
+                return '';
+            };
+            
+            
+            window['${/parameter/@layout_code}_on_layout_dynamic_grid_query'] = function(ds, qpara, bp_seq) {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_ebank_interface');
+            
+                if (ds == $(ds_id)) {
+                    aut_authority_list_validate_query(ds, qpara);
+            
+                }
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=EBANK&amp;function_code=EBANK120"/>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

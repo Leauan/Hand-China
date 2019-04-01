@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qianming  
+    $Date: 2014-8-27 下午6:22:32  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" alias="t1">
+    <bm:fields>
+        <bm:field name="transaction_id"/>
+        <bm:field name="contract_number"/>
+        <bm:field name="bp_name"/>
+        <bm:field name="write_off_type_dis"/>
+        <bm:field name="write_off_due_amount"/>
+        <bm:field name="write_off_date"/>
+        <bm:field name="lease_times"/>
+        <bm:field name="description"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+				  SELECT transaction_id,contract_number,bp_name,write_off_type_dis,write_off_due_amount,write_off_date,
+				  lease_times,description
+				  FROM (SELECT t.csh_transaction_id transaction_id,
+                       (SELECT contract_number FROM con_contract WHERE contract_id = t.contract_id) contract_number,
+                       (SELECT a.bp_name
+                          FROM hls_bp_master   a,
+                               con_contract_bp b
+                         WHERE a.bp_id = b.bp_id
+                               AND b.bp_category = 'TENANT'
+                               AND b.contract_id = t.contract_id) bp_name,
+                       (SELECT b.bp_id
+                          FROM con_contract_bp b
+                         WHERE b.bp_category = 'TENANT'
+                               AND b.contract_id = t.contract_id) bp_id,
+                       (SELECT code_value_name
+                          FROM sys_code_values_v
+                         WHERE code = 'CSH513_WRITE_OFF_TYPE'
+                               AND code_value = t.write_off_type) write_off_type_dis,
+                       decode(nvl(t.csh_write_off_amount,0),0,'0.00',to_char(t.csh_write_off_amount,'FM999,999,999.00'))write_off_due_amount,
+                       to_char(t.write_off_date,'yyyy-mm-dd')write_off_date,
+                       t.times lease_times,
+                       t.description
+                  FROM csh_write_off t
+                 WHERE t.write_off_type in ('DEPOSIT_CREDIT','CSH_RETURN')
+                 and t.reversed_flag = 'N'
+                 and t.csh_transaction_id in (select ct.transaction_id from csh_transaction ct where ct.bp_id=${@bp_id})
+                 union
+                 SELECT t.csh_transaction_id transaction_id,
+                       (SELECT contract_number FROM con_contract WHERE contract_id = t.contract_id) contract_number,
+                       (SELECT a.bp_name
+                          FROM hls_bp_master   a,
+                               con_contract_bp b
+                         WHERE a.bp_id = b.bp_id
+                               AND b.bp_category = 'TENANT'
+                               AND b.contract_id = t.contract_id) bp_name,
+                       (SELECT b.bp_id
+                          FROM con_contract_bp b
+                         WHERE b.bp_category = 'TENANT'
+                               AND b.contract_id = t.contract_id) bp_id,
+                       (SELECT code_value_name
+                          FROM sys_code_values_v
+                         WHERE code = 'CSH513_WRITE_OFF_TYPE'
+                               AND code_value = t.write_off_type) write_off_type_dis,
+                       decode(nvl(t.csh_write_off_amount,0),0,'0.00',to_char(t.csh_write_off_amount,'FM999,999,999.00'))write_off_due_amount,
+                       to_char(t.write_off_date,'yyyy-mm-dd')write_off_date,
+                       t.times lease_times,
+                       t.description
+                  FROM csh_write_off t
+                 WHERE t.write_off_type = 'DEPOSIT'
+                 and t.reversed_flag = 'N'
+                 and t.csh_transaction_id in (select ct.transaction_id from csh_transaction ct where ct.bp_id=${@bp_id} and ct.transaction_type = 'DEDUCTION_DEPOSIT')
+                 order by write_off_date desc
+				         ) t1 #WHERE_CLAUSE#
+    		]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields><![CDATA[
+    ]]></bm:query-fields>
+</bm:model>

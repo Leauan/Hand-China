@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-12-10 下午03:41:29  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:e="aurora.service.exception" xmlns:f="aurora.database.features" xmlns:bm="http://www.aurora-framework.org/schema/bm" needAccessControl="false">
+    <!-- <bm:fields>
+<bm:field name="unit_name" databaseType="VARCHAR2" datatype="java.lang.String"/>
+</bm:fields> -->
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+SELECT t1.*
+  FROM (SELECT NULL user_id,
+               NULL employee_id,
+               NULL employee_code,
+               NULL email,
+               -1 * cv.company_id unit_id,
+               cv.company_code unit_code,
+               cv.company_short_name unit_name,
+               NULL NAME,
+               NULL parent_unit_id,
+               NULL position_code,
+               null position_desc,
+               rpad(cv.company_code, 10, '0') || rpad('0', 10, '0') AS seq,
+               null session_id,
+               null checked,
+               null province_description
+          FROM fnd_companies_vl cv
+         WHERE cv.enabled_flag = 'Y'
+        UNION ALL
+        
+        SELECT NULL user_id,
+               NULL employee_id,
+               NULL employee_code,
+               NULL email,
+               u.unit_id,
+               u.unit_code,
+               u.unit_name,
+               NULL NAME,
+               -1 * u.company_id parent_unit_id,
+               NULL position_code,
+               null position_desc,
+               rpad(u.unit_code, 10, '0') || rpad('0', 10, '0') AS seq,
+               null session_id,
+               null checked,
+               null province_description
+          FROM exp_org_unit_v u
+         WHERE u.enabled_flag = 'Y'
+        
+        UNION ALL
+        
+        SELECT s.user_id,
+               null employee_id,
+               null employee_code,
+               null email,
+               NULL unit_id,
+               null unit_code,
+               s.bp_category as unit_name,
+               s.user_name as name,
+               null parent_unit_id,
+               null position_code,
+               s.description as position_desc,
+               null  seq,
+               t.session_id,
+               decode(t.session_id,null,'N','Y') checked,
+               (SELECT p.description
+  FROM fnd_province p
+ WHERE p.province_id = (SELECT h.province_id
+                          FROM hls_bp_master h
+                         WHERE h.bp_id = s.bp_id
+                           AND s.bp_category = 'AGENT' and rownum=1)) province_description
+          FROM sys_user             s,
+          aut_authorized_user_batch_tmp t
+         WHERE  s.user_id = t.user_id(+)
+          and trunc(nvl(s.start_date,sysdate-1)) <= trunc(sysdate)
+         --and trunc(nvl(s.end_date,sysdate+1)) > trunc(sysdate)
+          and t.session_id(+) = ${/session/@session_id}
+           ) t1 #WHERE_CLAUSE# 
+ START WITH parent_unit_id IS NULL
+CONNECT BY t1.parent_unit_id = PRIOR t1.unit_id
+ ORDER BY t1.seq
+
+
+			]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+    			    declare 
+    			      v_count number;
+    				begin
+    				  if ${@checked} = 'Y' then
+    				    begin
+    				      select 1 into v_count from aut_authorized_user_batch_tmp where user_id = ${@user_id} and session_id = ${/session/@session_id};
+    				    exception
+    				      when others then
+    				        INSERT INTO aut_authorized_user_batch_tmp
+						  (session_id,
+						   user_id,
+						   CREATED_BY,
+						   CREATION_DATE,
+						   LAST_UPDATED_BY,
+						   LAST_UPDATE_DATE)
+						VALUES
+						  (${/session/@session_id},
+						   ${@user_id},
+						   ${/session/@user_id},
+						   sysdate,
+						   ${/session/@user_id},
+						   sysdate);
+    				    end;
+    				  end if;
+    				end;
+    			
+    		]]></bm:update-sql>
+        </bm:operation>
+        <bm:operation name="delete">
+            <bm:update-sql><![CDATA[
+    			    declare 
+    			      v_count number;
+    				begin
+    				delete from aut_authorized_user_batch_tmp where  session_id = ${/session/@session_id}; 
+    				  
+    				end;
+    			
+    		]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <e:exception-descriptor-config>
+        <e:exception-descriptor exception="java.sql.SQLException" handleClass="aurora.database.SQLExceptionDescriptor">
+            <e:error-message code="1" message="AUT106.USER_ID_UNIQUE_ERROR"/>
+        </e:exception-descriptor>
+    </e:exception-descriptor-config>
+    <bm:data-filters>
+        <bm:data-filter name="position_desc" expression="(t1.position_desc is not null)"/>
+    </bm:data-filters>
+    <bm:query-fields>
+        <bm:query-field name="unit_name" queryExpression="t1.unit_name =(select v.code_value from sys_code_values_v v where v.code_value_name=${@unit_name} and v.code =&apos;USER_NATURE&apos;)"/>
+        <bm:query-field name="province_description" queryExpression="t1.province_description =${@province_description}"/>
+    </bm:query-fields>
+</bm:model>

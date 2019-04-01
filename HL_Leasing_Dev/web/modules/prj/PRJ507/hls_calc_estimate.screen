@@ -1,0 +1,437 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: xuls  
+    $Date: 2017-2-20 下午4:26:13  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true">
+    <a:init-procedure/>
+    <a:view>
+        <script><![CDATA[
+            window['${/parameter/@layout_code}_on_layout_dynamic_submitsuccess'] = function(ds, record, res) {
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_calc_estimate');
+                if (ds_id) {
+                    record = $(ds_id).getAt(0);
+                    //var ln_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_fin_calculator_ln');
+                    var quotation_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_fin_calculator_hd');
+                    $(quotation_ds_id).setQueryParameter('calc_session_id', $(ds_id).getAt(0).get('calc_session_id'));
+                    //$(ln_ds_id).query();
+                    $(quotation_ds_id).query();
+                }
+                window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+            };
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+                var hls_estimate_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_calc_estimate');
+                if (hls_estimate_ds_id == ds.id) {
+                    if (name == 'product_plan_id') {
+                        var down_payment_ratio = record.get('down_payment_ratio');
+                        var finance_amount = record.get('finance_amount');
+                        record.set('down_payment', '');
+                        record.set('discount', '');
+                        if (down_payment_ratio) {
+                            record.set('down_payment_ratio', down_payment_ratio);
+                        }
+                        if (finance_amount) {
+                            record.set('finance_amount', finance_amount);
+                        }
+                    } else if (name == 'discount_method') {
+                        /* if(value == 'NO_DISCOUNT'){
+                         record.set('discount_limit_flag','');
+                         record.set('discount_limit_flag_n','');
+                         record.getField('discount_limit_flag_n').setReadOnly(true);
+                         }else if(value == 'DISCOUNT'){
+                         record.getField('discount_limit_flag_n').setReadOnly(false);
+                         } */
+                    }
+                    if (name == 'series_id_n') {
+                        record.getField('product_plan_id_n').setLovPara('series_id', record.get('series_id'));
+                    }
+                    if (name == 'discount_method_n') {
+                        record.getField('product_plan_id_n').setLovPara('discount_method', record.get('discount_method'));
+                    }
+                    if (name == 'discount_method') {
+                        record.getField('product_plan_id_n').setLovPara('discount_method', record.get('discount_method'));
+                    }
+                    if (name == 'times') {
+                        record.getField('product_plan_id_n').setLovPara('times', record.get('times'));
+                    }
+                    if (name == 'lease_times') {
+                        var min_dp_ratio = record.get('min_dp_ratio');
+                        var min_dp_ratio_visit = record.get('min_dp_ratio_visit');
+                        var times_limit = record.get('times_limit');
+                        var times_limit_visit = record.get('times_limit_visit');
+                        var finance_amt_max = record.get('finance_amt_max');
+                        var finance_amt_max_visit = record.get('finance_amt_max_visit');
+                        var finance_amount = record.get('finance_amount');
+                        var down_payment_ratio = record.get('down_payment_ratio');
+                        var lease_times_temp = record.get('lease_times_temp');
+                        if (!lease_times_temp) {
+                            record.getField('lease_times').setReadOnly(false);
+                        } else {
+                            record.getField('lease_times').setReadOnly(true);
+                        }
+                        if (Ext.isEmpty(times_limit) && Ext.isEmpty(min_dp_ratio) && Ext.isEmpty(finance_amt_max)) {
+                            record.set('gps_install_flag', 'Y');
+                            record.set('gps_install_flag_n', '是');
+                        } else {
+                            if (Ext.isEmpty(times_limit)) {
+                                times_limit = value;
+                            }
+                            if (Ext.isEmpty(min_dp_ratio)) {
+                                min_dp_ratio = 0;
+                            }
+                            if (Ext.isEmpty(finance_amt_max)) {
+                                finance_amt_max = 999999999999;
+                            }
+                            if (value == times_limit && down_payment_ratio >= min_dp_ratio && finance_amount <= finance_amt_max) {
+                                record.set('gps_install_flag', 'N');
+                                record.set('gps_install_flag_n', '否');
+                            } else {
+                                record.set('gps_install_flag', 'Y');
+                                record.set('gps_install_flag_n', '是');
+                            }
+                        }
+                        if (Ext.isEmpty(times_limit_visit) && Ext.isEmpty(min_dp_ratio_visit) && Ext.isEmpty(finance_amt_max_visit)) {
+                            record.set('visit_flag', 'Y');
+                            record.set('visit_flag_n', '是');
+                        } else {
+                            if (Ext.isEmpty(times_limit_visit)) {
+                                times_limit_visit = value;
+                            }
+                            if (Ext.isEmpty(min_dp_ratio_visit)) {
+                                min_dp_ratio_visit = 0;
+                            }
+                            if (Ext.isEmpty(finance_amt_max_visit)) {
+                                finance_amt_max_visit = 999999999999;
+                            }
+                            if (value == times_limit_visit && down_payment_ratio >= min_dp_ratio_visit && finance_amount <= finance_amt_max_visit) {
+                                record.set('visit_flag', 'N');
+                                record.set('visit_flag_n', '否');
+                            } else {
+                                record.set('visit_flag', 'Y');
+                                record.set('visit_flag_n', '是');
+                            }
+                        }
+                    } else if (name == 'min_dp_ratio' || name == 'min_dp_ratio_visit' || name == 'finance_amt_max_visit' || name == 'finance_amt_max' || name == 'times_limit' || name == 'times_limit_visit') {
+                        var min_dp_ratio = record.get('min_dp_ratio');
+                        var min_dp_ratio_visit = record.get('min_dp_ratio_visit');
+                        var times_limit = record.get('times_limit');
+                        var times_limit_visit = record.get('times_limit_visit');
+                        var finance_amt_max = record.get('finance_amt_max');
+                        var finance_amt_max_visit = record.get('finance_amt_max_visit');
+                        var finance_amount = record.get('finance_amount');
+                        var down_payment_ratio = record.get('down_payment_ratio');
+                        if (Ext.isEmpty(times_limit) && Ext.isEmpty(min_dp_ratio) && Ext.isEmpty(finance_amt_max)) {
+                            record.set('gps_install_flag', 'Y');
+                            record.set('gps_install_flag_n', '是');
+                        } else {
+                            if (Ext.isEmpty(times_limit)) {
+                                times_limit = value;
+                            }
+                            if (Ext.isEmpty(min_dp_ratio)) {
+                                min_dp_ratio = 0;
+                            }
+                            if (Ext.isEmpty(finance_amt_max)) {
+                                finance_amt_max = 999999999999;
+                            }
+                            if (value == times_limit && down_payment_ratio >= min_dp_ratio && finance_amount <= finance_amt_max) {
+                                record.set('gps_install_flag', 'N');
+                                record.set('gps_install_flag_n', '否');
+                            } else {
+                                record.set('gps_install_flag', 'Y');
+                                record.set('gps_install_flag_n', '是');
+                            }
+                        }
+                        if (Ext.isEmpty(times_limit_visit) && Ext.isEmpty(min_dp_ratio_visit) && Ext.isEmpty(finance_amt_max_visit)) {
+                            record.set('visit_flag', 'Y');
+                            record.set('visit_flag_n', '是');
+                        } else {
+                            if (Ext.isEmpty(times_limit_visit)) {
+                                times_limit_visit = value;
+                            }
+                            if (Ext.isEmpty(min_dp_ratio_visit)) {
+                                min_dp_ratio_visit = 0;
+                            }
+                            if (Ext.isEmpty(finance_amt_max_visit)) {
+                                finance_amt_max_visit = 999999999999;
+                            }
+                            if (value == times_limit_visit && down_payment_ratio >= min_dp_ratio_visit && finance_amount <= finance_amt_max_visit) {
+                                record.set('visit_flag', 'N');
+                                record.set('visit_flag_n', '否');
+                            } else {
+                                record.set('visit_flag', 'Y');
+                                record.set('visit_flag_n', '是');
+                            }
+                        }
+            
+                    }
+                    if (name == 'down_payment_ratio') {
+                        var min_dp_ratio = record.get('min_dp_ratio');
+                        var min_dp_ratio_visit = record.get('min_dp_ratio_visit');
+                        var times_limit = record.get('times_limit');
+                        var times_limit_visit = record.get('times_limit_visit');
+                        var finance_amt_max = record.get('finance_amt_max');
+                        var finance_amt_max_visit = record.get('finance_amt_max_visit');
+                        var finance_amount = record.get('finance_amount');
+                        var lease_times = record.get('lease_times');
+                        if (Ext.isEmpty(times_limit) && Ext.isEmpty(min_dp_ratio) && Ext.isEmpty(finance_amt_max)) {
+                            record.set('gps_install_flag', 'Y');
+                            record.set('gps_install_flag_n', '是');
+                        } else {
+                            if (Ext.isEmpty(times_limit)) {
+                                times_limit = lease_times;
+                            }
+                            if (Ext.isEmpty(min_dp_ratio)) {
+                                min_dp_ratio = 0;
+                            }
+                            if (Ext.isEmpty(finance_amt_max)) {
+                                finance_amt_max = 999999999999;
+                            }
+                            if (lease_times == times_limit && value >= min_dp_ratio && finance_amount <= finance_amt_max) {
+                                record.set('gps_install_flag', 'N');
+                                record.set('gps_install_flag_n', '否');
+                            } else {
+                                record.set('gps_install_flag', 'Y');
+                                record.set('gps_install_flag_n', '是');
+                            }
+                        }
+                        if (Ext.isEmpty(times_limit_visit) && Ext.isEmpty(min_dp_ratio_visit) && Ext.isEmpty(finance_amt_max_visit)) {
+                            record.set('visit_flag', 'Y');
+                            record.set('visit_flag_n', '是');
+                        } else {
+                            if (Ext.isEmpty(times_limit_visit)) {
+                                times_limit_visit = lease_times;
+                            }
+                            if (Ext.isEmpty(min_dp_ratio_visit)) {
+                                min_dp_ratio_visit = 0;
+                            }
+                            if (Ext.isEmpty(finance_amt_max_visit)) {
+                                finance_amt_max_visit = 999999999999;
+                            }
+                            if (lease_times == times_limit_visit && value >= min_dp_ratio_visit && finance_amount <= finance_amt_max_visit) {
+                                record.set('visit_flag', 'N');
+                                record.set('visit_flag_n', '否');
+                            } else {
+                                record.set('visit_flag', 'Y');
+                                record.set('visit_flag_n', '是');
+                            }
+                        }
+                    }
+                    if (name == 'deposit_ratio') {
+                        if (value != 0) {
+                            record.getField('deposit_deduction_n').setReadOnly(false);
+                            record.set('deposit_deduction_n', '最后几期租金');
+                            record.set('deposit_deduction', 'K');
+                        } else {
+                            record.getField('deposit_deduction_n').setReadOnly(true);
+                            record.set('deposit_deduction_n', '');
+                            record.set('deposit_deduction', '');
+                        }
+                        var finance_amount = record.get('finance_amount') || 0;
+                        var deposit = parseInt(finance_amount) * parseFloat(value);
+                        record.set('deposit', deposit);
+                    }
+                    if (name == 'down_payment') {
+                        var invoice_price = record.get('invoice_price') || 0;
+                        var insurance_amount = record.get('insurance_amount') || 0;
+                        var purchase_tax = record.get('purchase_tax') || 0;
+                        var plate_price = record.get('plate_price') || 0;
+                        var down_payment_ratio = parseInt(value) / (parseInt(invoice_price) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(plate_price));
+                        var finance_amount = parseInt(invoice_price) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(plate_price) - parseInt(value);
+                        record.set('finance_amount', finance_amount);
+                        record.set('down_payment_ratio', down_payment_ratio);
+                    }
+                    if (name == 'invoice_price') {
+                        var down_payment = record.get('down_payment') || 0;
+                        var insurance_amount = record.get('insurance_amount') || 0;
+                        var purchase_tax = record.get('purchase_tax') || 0;
+                        var plate_price = record.get('plate_price') || 0;
+                        var balloon_ratio = record.get('balloon_ratio') || 0;
+                        var balloon = parseFloat(balloon_ratio) * (parseInt(value) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(plate_price));
+                        record.set('balloon', balloon);
+                        if (down_payment) {
+                            var finance_amount = parseInt(value) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(plate_price) - parseInt(down_payment);
+                            record.set('finance_amount', finance_amount);
+                            var down_payment_ratio = parseInt(down_payment) / (parseInt(value) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(plate_price));
+                            record.set('down_payment_ratio', down_payment_ratio);
+                        }
+                    }
+                    if (name == 'finance_amount') {
+                        var deposit_ratio = record.get('deposit_ratio') || 0;
+                        0
+                        var deposit = parseFloat(deposit_ratio) * parseInt(value);
+                        var lease_charge_ratio = record.get('lease_charge_ratio') || 0;
+                        var lease_charge = parseFloat(lease_charge_ratio) * parseInt(value);
+                        record.set('deposit', deposit);
+                        record.set('lease_charge', lease_charge);
+                        var down_payment_ratio = parseInt(value) / (parseInt(invoice_price) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(plate_price));
+                    }
+                    if (name == 'balloon_ratio') {
+                        var invoice_price = record.get('invoice_price') || 0;
+                        var insurance_amount = record.get('insurance_amount') || 0;
+                        var purchase_tax = record.get('purchase_tax') || 0;
+                        var plate_price = record.get('plate_price') || 0;
+                        var balloon = parseFloat(value) * (parseInt(invoice_price) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(plate_price));
+                        record.set('balloon', balloon);
+                    }
+                    if (name == 'license_fee_flag') {
+                        if (value == 'N') {
+                            record.getField('plate_price').setReadOnly(true);
+                            record.getField('plate_price').setRequired(false);
+                            record.set('plate_price', '');
+                        } else {
+                            record.getField('plate_price').setReadOnly(false);
+                            record.getField('plate_price').setRequired(true);
+                        }
+                    }
+                    if (name == 'insurance_flag') {
+                        if (value == 'N') {
+                            record.getField('insurance_amount').setReadOnly(true);
+                            record.getField('insurance_purchase_n').setReadOnly(true);
+                            record.getField('insurance_amount').setRequired(false);
+                            record.getField('insurance_purchase_n').setRequired(false);
+                            record.set('insurance_purchase_n', '其他');
+                            record.set('insurance_purchase', 'OTHER');
+                            record.set('insurance_amount', '');
+                        } else {
+                            record.getField('insurance_amount').setReadOnly(false);
+                            record.getField('insurance_purchase_n').setReadOnly(false);
+                            record.getField('insurance_amount').setRequired(true);
+                            record.getField('insurance_purchase_n').setRequired(true);
+                        }
+                    }
+                    if (name == 'purchase_tax_flag') {
+                        if (value == 'N') {
+                            record.getField('purchase_tax').setReadOnly(true);
+                            record.getField('purchase_tax').setRequired(false);
+                            record.set('purchase_tax', '');
+                        } else {
+                            record.getField('purchase_tax').setReadOnly(false);
+                            record.getField('purchase_tax').setRequired(true);
+                        }
+                    }
+                    if (name == 'plate_price') {
+                        var invoice_price = record.get('invoice_price') || 0;
+                        var insurance_amount = record.get('insurance_amount') || 0;
+                        var purchase_tax = record.get('purchase_tax') || 0;
+                        var down_payment = record.get('down_payment') || 0;
+                        var balloon_ratio = record.get('balloon_ratio') || 0;
+                        var balloon = parseFloat(balloon_ratio) * (parseInt(invoice_price) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(value));
+                        record.set('balloon', balloon);
+                        var finance_amount = parseInt(invoice_price) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(value) - parseInt(down_payment);
+                        var down_payment_ratio = parseInt(down_payment) / (parseInt(value) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(invoice_price));
+                        record.set('finance_amount', finance_amount);
+                        record.set('down_payment_ratio', down_payment_ratio);
+                    }
+                    if (name == 'purchase_tax') {
+                        var invoice_price = record.get('invoice_price') || 0;
+                        var insurance_amount = record.get('insurance_amount') || 0;
+                        var plate_price = record.get('plate_price') || 0;
+                        var down_payment = record.get('down_payment') || 0;
+                        var balloon_ratio = record.get('balloon_ratio') || 0;
+                        var balloon = parseFloat(balloon_ratio) * (parseInt(invoice_price) + parseInt(insurance_amount) + parseInt(value) + parseInt(plate_price));
+                        record.set('balloon', balloon);
+                        var finance_amount = parseInt(invoice_price) + parseInt(insurance_amount) + parseInt(plate_price) + parseInt(value) - parseInt(down_payment);
+                        var down_payment_ratio = parseInt(down_payment) / (parseInt(value) + parseInt(insurance_amount) + parseInt(plate_price) + parseInt(invoice_price));
+                        record.set('finance_amount', finance_amount);
+                        record.set('down_payment_ratio', down_payment_ratio);
+                    }
+                    if (name == 'insurance_amount') {
+                        var invoice_price = record.get('invoice_price') || 0;
+                        var plate_price = record.get('plate_price') || 0;
+                        var purchase_tax = record.get('purchase_tax') || 0;
+                        var down_payment = record.get('down_payment') || 0;
+                        var balloon_ratio = record.get('balloon_ratio') || 0;
+                        var balloon = parseFloat(balloon_ratio) * (parseInt(invoice_price) + parseInt(value) + parseInt(purchase_tax) + parseInt(plate_price));
+                        record.set('balloon', balloon);
+                        var finance_amount = parseInt(invoice_price) + parseInt(plate_price) + parseInt(purchase_tax) + parseInt(value) - parseInt(down_payment);
+                        var down_payment_ratio = parseInt(down_payment) / (parseInt(value) + parseInt(plate_price) + parseInt(purchase_tax) + parseInt(invoice_price));
+                        record.set('finance_amount', finance_amount);
+                        record.set('down_payment_ratio', down_payment_ratio);
+                    } else if (name == 'lease_charge_ratio') {
+                        var finance_amount = record.get('finance_amount') || 0;
+                        var lease_charge = parseFloat(value) * parseInt(finance_amount)
+                        record.set('lease_charge', lease_charge);
+                    }
+                }
+            
+                // if (ds.fields.down_payment) {
+                    // ds.fields.down_payment.pro.validator = down_payment_validate;
+                // }
+                // //购置价校验
+                // if (ds.fields.invoice_price) {
+                    // ds.fields.invoice_price.pro.validator = invoice_price_validate;
+                // }
+                // //融资额校验
+                // if (ds.fields.finance_amount) {
+                    // ds.fields.finance_amount.pro.validator = finance_amount_validate;
+                // }
+                // //指导价校验
+                // if (ds.fields.guide_price) {
+                    // ds.fields.guide_price.pro.validator = guide_price_validate;
+                // }
+            
+            };
+            
+            function down_payment_validate(record, name, value) {
+                var down_payment_ratio_from = record.get('down_payment_ratio_from') || 0;
+                var down_payment_ratio_to = record.get('down_payment_ratio_to') || 1;
+                var invoice_price = record.get('invoice_price') || 0;
+                var insurance_amount = record.get('insurance_amount') || 0;
+                var purchase_tax = record.get('purchase_tax') || 0;
+                var plate_price = record.get('plate_price') || 0;
+                var down_payment_ratio = parseInt(value) / (parseInt(invoice_price) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(plate_price));
+                if (down_payment_ratio < down_payment_ratio_from || down_payment_ratio > down_payment_ratio_to) {
+                    Aurora.showMessage('提示', '首付比例只能在' + down_payment_ratio_from * 100 + '到' + down_payment_ratio_to * 100 + '之间！');
+                    return '首付比例只能在' + down_payment_ratio_from * 100 + '到' + down_payment_ratio_to * 100 + '之间！';
+                }
+                return true;
+            }
+            
+            function finance_amount_validate(record, name, value) {
+                var finance_amount_from = record.get('finance_amount_from') || 0;
+                var finance_amount_to = record.get('finance_amount_to') || 99999999999;
+                if (value < finance_amount_from || value > finance_amount_to) {
+                    Aurora.showMessage('提示', '融资额超出范围，请重新选择融资方案！');
+                    return '请填写' + finance_amount_from + '到' + finance_amount_to + '之间的数字';
+                }
+                return true;
+            }
+            
+            function invoice_price_validate(record, name, value) {
+                var guide_price = record.get('guide_price') || 9999999999;
+                if (value > guide_price) {
+                    Aurora.showMessage('提示', '购置价不能大于指导价！');
+                    return '购置价不能大于指导价';
+                }
+                return true;
+            }
+            
+            function guide_price_validate(record, name, value) {
+                var invoice_price = record.get('invoice_price') || 0;
+                if (invoice_price > value) {
+                    Aurora.showMessage('提示', '购置价不能大于指导价！');
+                    return '购置价不能大于指导价';
+                }
+                return true;
+            }
+            window['${/parameter/@layout_code}_on_layout_dynamic_submitsuccess'] = function(ds, record, res) {
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var hls_calc_estimate_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_calc_estimate');
+                $(hls_calc_estimate_ds_id).setQueryParameter('calc_session_id', record.get('calc_session_id'));
+                $(hls_calc_estimate_ds_id).query();
+                window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+            };
+            
+            /*查询前调用*/
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_form_query'] = function(ds, qpara, bp_seq) {
+                var hls_calc_estimate_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_calc_estimate');
+                var hls_calc_estimate_rec = $(hls_calc_estimate_ds_id).getAt(0);
+                qpara.calc_session_id = hls_calc_estimate_rec.get('calc_session_id');
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

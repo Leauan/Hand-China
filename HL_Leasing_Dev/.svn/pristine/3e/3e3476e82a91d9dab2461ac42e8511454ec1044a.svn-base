@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: likun  
+    $Date: 2012-7-2 下午04:23:23  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:o="aurora.database.local.oracle" xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="FND_CONCURRENT_REQUEST" defaultOrderBy="request_id desc">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            select *
+			  from 
+			  (
+			  	SELECT t1.request_id,
+			  		   t1.parent_request_id,
+				       t1.request_info_id,
+				       t1.request_code,
+				       t1.request_name,
+				       t1.phase_code,
+				       (SELECT code_value_name
+				          FROM sys_code_values_v
+				         WHERE code = 'FND_CONCURRENT_REQUEST_STATUS'
+				               AND code_value = t1.phase_code) AS phase_code_desc,
+				       t1.status_code,
+				       (SELECT code_value_name
+				          FROM sys_code_values_v
+				         WHERE code = 'FND_CONCURRENT_REQUEST_STATUS'
+				               AND code_value = t1.status_code) AS status_code_desc,
+				       t1.request_parameter,
+				       t1.job_flag,
+				       (decode(job_flag,
+				               'Y',
+				               '是',
+				               '否')) AS job_flag_desc,
+				       t1.job_name,
+				       t1.start_date,
+				       to_char(decode(t1.job_flag,
+				                      'Y',
+				                      nvl(t1.job_start_date,
+                          					t1.start_date),
+				                      t1.start_date),
+				               'yyyy-mm-dd hh24:mi:ss') AS start_date_desc,
+				       t1.end_date,
+				       t1.url,
+				       to_char(decode(t1.job_flag,
+				                      'Y',
+				                      nvl(j.next_run_date,
+				                          t1.end_date),
+				                      t1.end_date),
+				               'yyyy-mm-dd hh24:mi:ss') AS end_date_desc
+				  FROM fnd_concurrent_request t1,
+				       user_scheduler_jobs    j
+				 WHERE EXISTS (SELECT 1
+				          FROM fnd_request_responsibility r
+				         WHERE r.request_info_id = t1.request_info_id
+				               AND (r.role_id = ${/session/@role_id} OR r.role_id IS NULL)
+				               AND (r.user_id = ${/session/@user_id} OR r.user_id IS NULL)
+				               AND (r.company_id = ${/session/@company_id} OR r.company_id IS NULL))
+				       AND j.job_creator(+) = USER
+				       AND j.job_name(+) = t1.job_name
+				 ORDER BY request_id DESC
+			  	
+			  ) 
+			  #WHERE_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="execute">
+            <bm:update-sql><![CDATA[
+                begin
+                fnd_request_pkg.job_execute(p_request_id => ${@request_id},
+                                            p_user_id => ${/session/@user_id});
+                end;
+            ]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:primary-key>
+        <bm:pk-field name="request_id"/>
+    </bm:primary-key>
+    <bm:query-fields>
+        <bm:query-field name="parent_request_id" queryExpression="parent_request_id = ${@parent_request_id}"/>
+        <bm:query-field name="request_id" queryExpression="request_id = ${@request_id}"/>
+        <bm:query-field name="request_info_id" queryExpression="request_info_id = ${@request_info_id}"/>
+        <bm:query-field name="phase_code" queryExpression="phase_code = ${@phase_code}"/>
+        <bm:query-field name="status_code" queryExpression="status_code = ${@status_code}"/>
+        <bm:query-field name="job_flag" queryExpression="job_flag = ${@job_flag}"/>
+    </bm:query-fields>
+</bm:model>

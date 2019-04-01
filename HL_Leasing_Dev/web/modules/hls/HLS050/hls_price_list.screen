@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-2-26 下午2:37:49  
+    $Revision: 1.0  
+    $Purpose: priceListScreen
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query model="basic.sys_session_info" rootPath="priceListScreen_sessionInfo"/>
+    </a:init-procedure>
+    <a:view>
+        <a:screen-include screen="modules/hls/hls_common_javascript.screen"/>
+        <a:link id="pageLink_priceListScreen_welcome" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="pageLink_priceListScreen_set_up" url="${/request/@context_path}/modules/hls/HLS050/hls_fin_calc_config.screen"/>
+        <a:link id="pageLink_priceListScreen_copy" url="${/request/@context_path}/modules/hls/HLS050/hls_price_list_copy.screen"/>
+        <a:link id="hls_price_list_level_define_link" url="${/request/@context_path}/modules/hls/HLS050/hls_price_list_level_define.screen"/>
+        <script><![CDATA[
+            var calc_type_flag = 'N';
+            var record_id = '';
+            
+            function priceListScreen_forward() {
+                history.go(1);
+            }
+            
+            function priceListScreen_back() {
+                history.go(-1);
+            }
+            
+            function priceListScreen_add() {
+                $('priceListScreen_mainDs_grid').showEditorByRecord($('priceListScreen_mainDs').create());
+            }
+            
+            function priceListScreen_clear() {
+                $('priceListScreen_mainDs_grid').clear();
+            }
+            
+            function priceListScreen_query() {
+                $('priceListScreen_mainDs').query();
+            }
+            
+            function priceListScreen_save() {
+                var ds = $('priceListScreen_mainDs');
+                if (ds.validate()) {
+                    ds.submit();
+                }
+            }
+            
+            function priceListScreen_quit() {
+                location.href = $('pageLink_priceListScreen_welcome').getUrl();
+                parent.shMenu('show');
+            }
+            
+            
+            function editFunction_priceListScreen_schedule_name(record, name) {
+                if (record.isNew) {
+                    return 'priceListScreen_mainDs_grid_tf';
+                } else {
+                    return '';
+                }
+            }
+            
+            function priceListScreen_load() {
+                Aurora.request({
+                    url: $('bmLink_priceListScreen_load').getUrl(),
+                    para: {},
+                    success: function(res) {
+                        priceListScreen_query();
+                    },
+                    scope: this
+                });
+            }
+            
+            function on_pricelistscreen_mainds_update(ds, record, name, value, oldvalue) {
+                if (name == 'calc_type') {
+                    if (value != oldvalue) {
+                        calc_type_flag = 'Y';
+                        record_id = record.id;
+                    }
+                }
+            }
+            
+            function editFunction_priceListScreen_price_list(record, name) {
+                if (record.isNew) {
+                    return 'priceListScreen_mainDs_grid_tf';
+                } else {
+                    return '';
+                }
+            }
+            var hls_price_list_record = {};
+            
+            function render_priceListScreen_set_up(value, record, name) {
+                if (!record.isNew) {
+                    hls_price_list_record[record.id + '---' + name] = record;
+                    return '<a href="javascript:winOpen_priceListScreen_set_up(\'' + record.id + '\',\'' + name + '\');">' + '${l:HLS050.LINK.SET_UP}' + '</a>';
+                }
+                return '';
+            }
+            
+            function render_priceListScreen_price_list(value, record, name) {
+                if (!record.isNew) {
+                    hls_price_list_record[record.id + '---' + name] = record;
+                    return '<a href="javascript:winOpen_priceListScreen_set_up(\'' + record.id + '\',\'' + name + '\');">' + value + '</a>';
+                }
+                return value;
+            }
+            
+            function winOpen_priceListScreen_set_up(id, name) {
+                var record = hls_price_list_record[id + '---' + name];
+                var price_list = record.get('price_list'),
+                    calc_type = record.get('calc_type'),
+                    description = record.get('description');
+                if (record.dirty) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.EXECUTE_AFTER_SAVE}');
+                    return;
+                }
+                if (Ext.isEmpty(calc_type)) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS050.ERROR.PLEASE_UPDATE_CALC_TYPE}');
+                    return;
+                }
+                new Aurora.Window({
+                    id: 'hls_fin_calc_config',
+                    url: $('pageLink_priceListScreen_set_up').getUrl(),
+                    params: {
+                        price_list: price_list
+                    },
+                    title: '${l:HLS050.WIN_TITLE.SET_UP}' + '(' + price_list + '-' + description + ')',
+                    fullScreen: true
+                });
+            }
+            
+            function onSubmitSuccess_priceListScreen_mainDs(ds, res) {
+                ds.query(ds.currentPage);
+            }
+            
+            function priceListScreen_copy() {
+                var ds = $('priceListScreen_mainDs');
+                var records = ds.getSelected();
+                if (records.length > 1) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+                if (records.length == 0) {
+                    return;
+                }
+            
+                new Aurora.Window({
+                    id: 'hls_price_list_copy',
+                    url: $('pageLink_priceListScreen_copy').getUrl(),
+                    params: {
+                        price_list: records[0].get('price_list')
+                    },
+                    title: '${l:HLS050.BUTTON.PRICE_LIST_COPY}',
+                    width: 550,
+                    height: 220
+                });
+            
+            }
+            
+            function on_calc_type_display_editor(record, name) {
+                if (Ext.isEmpty(record.get(name)) || (calc_type_flag == 'Y' && record_id == record.id)) {
+                    return 'priceListScreen_mainDs_grid_comboBox';
+                } else {
+                    return '';
+                }
+            }
+            
+            function priceListScreen_level_define() {
+                new Aurora.Window({
+                    id: 'hls_price_list_level_define_win',
+                    url: $('hls_price_list_level_define_link').getUrl(),
+                    params: {
+                        winId: 'hls_price_list_level_define_win'
+                    },
+                    width: 700,
+                    height: 500
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="hls050_usage_ds" lookupCode="HLS050_CALC_USAGE"/>
+            <a:dataSet id="calc_method_ds" fetchAll="true" loadData="true" model="hls.HLS056.hls_fin_calc_method_for_lov"/>
+            <a:dataSet id="calc_type_ds" fetchAll="true" loadData="true" model="hls.HLS057.hls_fin_calc_type_for_lov"/>
+            <a:dataSet id="priceListScreen_mainDs" autoPageSize="true" autoQuery="true" model="hls.HLS050.hls_price_list" pageSize="17" selectable="true">
+                <a:fields>
+                    <a:field name="price_list" required="true" validator="hlsCommon_validateCode"/>
+                    <a:field name="description" required="true"/>
+                    <a:field name="company_name" defaultValue="${/model/priceListScreen_sessionInfo/record/@company_short_name}"/>
+                    <a:field name="authority_group_display" lovGridHeight="340" lovHeight="500" lovService="aut.AUT101.aut_authority_group_for_lov?authority_usage=PRICE_LIST" lovWidth="500" title="AUT_AUTHORITY_GROUP.AUTHORITY_GROUP">
+                        <a:mapping>
+                            <a:map from="authority_group" to="authority_group"/>
+                            <a:map from="description" to="authority_group_display"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="company_id"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="show_column_code" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="show_box" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="calc_method_display" displayField="description" options="calc_method_ds" returnField="calc_method" valueField="calc_method"/>
+                    <a:field name="calc_type_display" displayField="description" options="calc_type_ds" returnField="calc_type" valueField="calc_type"/>
+                    <a:field name="calc_type"/>
+                    <a:field name="calc_usage_desc" displayField="code_value_name" options="hls050_usage_ds" returnField="calc_usage" valueField="code_value"/>
+                    <a:field name="ref_v04"/>
+                    <a:field name="ref_v05"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="onSubmitSuccess_priceListScreen_mainDs"/>
+                    <a:event name="update" handler="on_pricelistscreen_mainds_update"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="priceListScreen_quit" text="HLS.EXIT"/>
+                <a:gridButton click="priceListScreen_query" text="HLS.QUERY"/>
+                <a:gridButton click="priceListScreen_add" text="HLS.NEW"/>
+                <a:gridButton click="priceListScreen_clear" text="HLS.CLEAR"/>
+                <a:gridButton click="priceListScreen_save" text="HLS.SAVE"/>
+                <a:gridButton click="priceListScreen_copy" text="HLS050.BUTTON.PRICE_LIST_COPY"/>
+                <a:gridButton click="priceListScreen_level_define" text="价目表分类定义"/>
+            </a:screenTopToolbar>
+            <a:grid id="priceListScreen_mainDs_grid" bindTarget="priceListScreen_mainDs" marginHeight="110" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="company_name" width="100"/>
+                    <a:column name="price_list" editorFunction="editFunction_priceListScreen_price_list" renderer="render_priceListScreen_price_list" width="150"/>
+                    <a:column name="ref_v05" align="left" editor="priceListScreen_mainDs_ref_v05_tf" prompt="产品代码" width="100"/>
+                    <a:column name="description" editor="priceListScreen_mainDs_grid_tf" width="200"/>
+                    <a:column name="calc_type_display" editorFunction="on_calc_type_display_editor" width="70"/>
+                    <a:column name="calc_usage_desc" editor="priceListScreen_mainDs_grid_comboBox" prompt="RSC_FIVE_CLASS_TARGET.USAGE_TYPE" width="70"/>
+                    <!-- <a:column name="calc_method_display" editor="priceListScreen_mainDs_grid_comboBox" width="100"/> -->
+                    <a:column name="show_column_code" editor="priceListScreen_mainDs_grid_check" width="60"/>
+                    <a:column name="show_box" editor="priceListScreen_mainDs_grid_check" width="60"/>
+                    <a:column name="box_width" align="right" editor="priceListScreen_mainDs_grid_nf_integer" width="60"/>
+                    <a:column name="column_count" align="right" editor="priceListScreen_mainDs_grid_nf_integer" width="60"/>
+                    <a:column name="label_width" align="right" editor="priceListScreen_mainDs_grid_nf_integer" width="60"/>
+                    <a:column name="field_width" align="right" editor="priceListScreen_mainDs_grid_nf_integer" width="60"/>
+                    <a:column name="margin_top" align="right" editor="priceListScreen_mainDs_grid_nf_integer" width="60"/>
+                    <a:column name="order_seq" align="right" editor="priceListScreen_mainDs_grid_nf_integer" width="60"/>
+                    <a:column name="authority_group_display" editor="priceListScreen_mainDs_grid_lov" width="70"/>
+                    <a:column name="enabled_flag" editor="priceListScreen_mainDs_grid_check" width="40"/>
+                    <a:column name="set_up" align="center" prompt="HLS050.WIN_TITLE.SET_UP" renderer="render_priceListScreen_set_up" width="40"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="priceListScreen_mainDs_grid_nf_integer" allowDecimals="false" allowNegative="false"/>
+                    <a:textField id="priceListScreen_mainDs_grid_tf"/>
+                    <a:lov id="priceListScreen_mainDs_grid_lov"/>
+                    <a:checkBox id="priceListScreen_mainDs_grid_check"/>
+                    <a:comboBox id="priceListScreen_mainDs_grid_comboBox"/>
+                    <a:textField id="priceListScreen_mainDs_ref_v04_tf"/>
+                    <a:textField id="priceListScreen_mainDs_ref_v05_tf"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

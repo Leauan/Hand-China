@@ -1,0 +1,368 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-8-15 下午8:09:18  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:s="aurora.plugin.script" xmlns:bm="http://www.aurora-framework.org/schema/bm" defaultOrderBy="v.et_agreement_id desc">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        h.et_agreement_number,
+                        h.et_agreement_id,
+                        b.bp_id,
+                        b.bp_name,
+						b.id_card_no,
+                        b.bp_code,
+                        t.contract_number,
+                        t.contract_name,
+                        (SELECT project_number FROM prj_project WHERE project_id = t.project_id
+                        )project_number,
+                        t.contract_id,
+                        (select 
+  						scv.code_value_name
+	  					from sys_code_values_v scv,con_contract_lease_item ci,hls_product_plan_definition hd
+	  					where scv.code = 'DISCOUNT_METHOD'
+						and scv.code_value_enabled_flag = 'Y'
+						and scv.code_value = hd.discount_method
+						and hd.product_plan_id = ci.product_plan_id
+						and ci.contract_id = t.contract_id) discount_method_n,
+                        t.document_type,
+                        TO_CHAR(t.inception_of_lease,'yyyy-mm-dd') inception_of_lease,
+                        (SELECT
+                            hd.document_type_desc
+                        FROM
+                            hls_document_type_v hd
+                        WHERE
+                            hd.document_type = t.document_type
+                        ) document_type_desc,
+                        h.document_category,
+                        (SELECT
+                            hd.description
+                        FROM
+                            hls_document_category hd
+                        WHERE
+                            hd.document_category = h.document_category
+                        ) document_category_desc,
+                        TO_CHAR(h.creation_date,'YYYY-MM-DD') creation_date,
+                        p.employee_id,
+                        p.project_name,
+                        (SELECT u.name FROM exp_employees u WHERE u.employee_id = p.employee_id
+                        ) employee_name,
+                        t.contract_status,
+                        (SELECT
+                            v.code_value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code       = 'CON500_CONTRACT_STATUS' AND
+                            v.code_value = t.contract_status
+                        ) AS contract_status_desc,
+                        TO_CHAR(h.termination_date,'YYYY-MM-DD') termination_date,
+                        h.status et_agreement_status,
+                        (SELECT
+                            v.code_value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code       = 'CON_ET_STATUS' AND
+                            v.code_value = h.status
+                        ) AS et_agreement_status_desc,
+                        h.document_type et_type,
+                        h.et_profile,
+                        (SELECT
+                            hd.document_type_desc
+                        FROM
+                            hls_document_type_v hd
+                        WHERE
+                            hd.document_type = h.document_type
+                        ) et_type_desc,
+                        (SELECT
+                            cp.description
+                        FROM
+                            con_contract_et_profile cp
+                        WHERE
+                            cp.et_profile = h.et_profile
+                        ) et_profile_desc,
+                        h.ref_n01 et_ratio,
+                        t.company_id,
+                        t.spv_company_id,
+                        (SELECT
+                            DECODE(COUNT(*),0,'否','是')
+                        FROM
+                            con_contract_cashflow f
+                        WHERE
+                            f.contract_id   =t.contract_id AND
+                            f.overdue_status='Y'
+                        ) overdue_status,
+                        (SELECT
+                            TO_CHAR(due_date,'YYYY-MM-DD')
+                        FROM
+                            con_contract tt1,
+                            con_contract_cashflow tt2
+                        WHERE
+                            tt1.contract_id  = tt2.contract_id AND
+                            t.contract_id    = tt1.contract_id AND
+                            tt2.cf_item      = 1 AND
+                            tt2.cf_type      = 1 AND
+                            tt2.times        = tt1.lease_times AND
+                            tt2.cf_direction = 'INFLOW'
+                        ) lease_end_date,
+                        (SELECT
+                            tt3.license_number
+                        FROM
+                            con_contract_lease_item tt1,
+                            con_contract_item_detail tt2,
+                            ast_car_license tt3
+                        WHERE
+                            tt1.contract_id            = t.contract_id AND
+                            tt1.contract_lease_item_id = tt2.contract_lease_item_id AND
+                            tt2.item_detail_id         = tt3.item_detail_id AND
+                            tt1.enabled_flag           = 'Y' AND
+                            tt3.enabled_flag           = 'Y'
+                        )license_number,
+                        (SELECT
+                            a.company_code
+                        FROM
+                            fnd_companies a
+                        WHERE
+                            a.company_id = t.spv_company_id
+                        ) spv_company_code,
+                        (SELECT
+                            COUNT(*)
+                        FROM
+                            con_contract_cashflow h
+                        WHERE
+                            h.contract_id    = t.contract_id AND
+                            h.write_off_flag = 'FULL' AND
+                            h.cf_item        = 1
+                        ) received_times,
+                        (select su.description from sys_user su where su.user_id = p.owner_user_id)owner,
+                        t.lease_times,
+                        trim((TO_CHAR(ROUND(t.int_rate_display,4)*100,'90.00')
+                        ||'%'))int_rate_display,
+                        t.invoice_price,
+                        t.finance_amount,
+                        t.down_payment,
+                        trim((TO_CHAR(ROUND(t.down_payment_ratio,4)*100,'90.00')
+                        ||'%'))down_payment_ratio,
+                        t.deposit,
+                        trim((TO_CHAR(ROUND(t.deposit_ratio,4)*100,'90.00')
+                        ||'%'))deposit_ratio,
+                        t.lease_charge,
+                        trim((TO_CHAR(ROUND(t.lease_charge_ratio,4)*100,'90.00')
+                        ||'%'))lease_charge_ratio,
+                        (SELECT
+                            TO_CHAR(cc.due_date,'yyyy-mm-dd')
+                        FROM
+                            con_contract_cashflow cc
+                        WHERE
+                            cc.contract_id=t.contract_id AND
+                            cc.times      =1 AND
+                            cc.cf_item    =1
+                        )start_due_date,
+                        (SELECT
+                            hls.bp_name
+                        FROM
+                            hls_bp_master hls
+                        WHERE
+                            hls.bp_id=t.bp_id_agent_level1
+                        )bp_agent,
+                        (SELECT
+                            hd.product_name_write
+                        FROM
+                            prj_project_lease_item pi,
+                            hls_product_plan_definition hd
+                        WHERE
+                            pi.project_id     =p.project_id AND
+                            pi.product_plan_id=hd.product_plan_id
+                        )product_name_write,
+                        (SELECT
+                            l.plate_price
+                        FROM
+                            con_contract_lease_item l
+                        WHERE
+                            l.contract_id = t.contract_id
+                        )plate_price,
+                        (SELECT
+                            DECODE(l.insurance_flag,'Y','是','N','否')
+                        FROM
+                            con_contract_lease_item l
+                        WHERE
+                            l.contract_id = t.contract_id
+                        )insurance_flag_n,
+                        (SELECT
+                            l.insurance_amount
+                        FROM
+                            con_contract_lease_item l
+                        WHERE
+                            l.contract_id = t.contract_id
+                        )insurance_amount,
+                        (SELECT
+                            DECODE(l.purchase_tax_flag,'Y','是','N','否')
+                        FROM
+                            con_contract_lease_item l
+                        WHERE
+                            l.contract_id = t.contract_id
+                        )purchase_tax_flag_n,
+                        (SELECT
+                            l.purchase_tax
+                        FROM
+                            con_contract_lease_item l
+                        WHERE
+                            l.contract_id = t.contract_id
+                        )purchase_tax,
+                        (SELECT hls.bp_name FROM hls_bp_master hls WHERE hls.bp_id=146
+                        )bp_name_1,
+                        (SELECT
+                            cl.item_frame_number
+                        FROM
+                            con_contract_lease_item cl
+                        WHERE
+                            cl.contract_id=t.contract_id
+                        )item_frame_number,
+                        (SELECT
+                            h.ref_v04
+                        FROM
+                            hls_lease_products h
+                        WHERE
+                            h.lease_products_code=
+                            (SELECT
+                                cl.item_frame_number
+                            FROM
+                                con_contract_lease_item cl
+                            WHERE
+                                cl.contract_id=t.contract_id
+                            )
+                        )car_description,
+                        (SELECT
+                            h8.description
+                        FROM
+                            hls_division h8
+                        WHERE
+                            h8.enabled_flag = 'Y' AND
+                            p.division      = h8.division
+                        ) division_n,
+                        (SELECT
+                            DECODE(l.license_fee_flag,'Y','是','N','否')
+                        FROM
+                            con_contract_lease_item l
+                        WHERE
+                            l.contract_id = t.contract_id
+                        )license_fee_flag_n,
+                        t.lease_channel
+                    FROM
+                        con_contract_et_hd h,
+                        hls_bp_master b,
+                        con_contract t,
+                        prj_project p
+                    WHERE
+                        h.contract_id  = t.contract_id(+) AND
+                        t.bp_id_tenant = b.bp_id(+) AND
+                        t.project_id   = p.project_id(+)
+                    ) v #WHERE_CLAUSE# #ORDER_BY_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:features>
+        <s:bm-script><![CDATA[
+            var cx = Packages.aurora.javascript.Context.getCurrentContext();
+            Packages.aurora.plugin.script.engine.ScriptImportor.defineExternScript(cx, this, $ctx.getData(), "aut_authority_bm_validate.js");
+        ]]></s:bm-script>
+    </bm:features>
+    <bm:fields>
+        <bm:field name="et_agreement_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="et_agreement_id"/>
+        <bm:field name="et_agreement_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="et_agreement_number"/>
+        <bm:field name="bp_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="bp_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="bp_name"/>
+        <bm:field name="bp_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="bp_code"/>
+        <bm:field name="contract_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="contract_id"/>
+        <bm:field name="contract_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="contract_name"/>
+        <bm:field name="contract_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="contract_number"/>
+        <bm:field name="creation_date" databaseType="DATE" datatype="java.util.Date" physicalName="creation_date"/>
+        <bm:field name="employee_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="EMPLOYEE_ID"/>
+        <bm:field name="employee_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="employee_name"/>
+        <bm:field name="contract_status" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="contract_status"/>
+        <bm:field name="termination_date" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="termination_date"/>
+        <bm:field name="et_agreement_status" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="et_agreement_status"/>
+        <bm:field name="et_agreement_status_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="et_agreement_status_desc"/>
+        <bm:field name="et_profile_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="et_profile_desc"/>
+        <bm:field name="document_type_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="document_type_desc"/>
+        <bm:field name="et_profile" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="et_profile"/>
+        <bm:field name="document_type" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="document_type"/>
+        <bm:field name="contract_status_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="contract_status_desc"/>
+        <bm:field name="project_name"/>
+        <bm:field name="document_category"/>
+        <bm:field name="document_category_desc"/>
+        <bm:field name="et_type"/>
+        <bm:field name="et_type_desc"/>
+        <bm:field name="inception_of_lease"/>
+        <bm:field name="et_ratio"/>
+        <bm:field name="company_id"/>
+        <bm:field name="spv_company_id"/>
+        <bm:field name="spv_company_code"/>
+        <bm:field name="lease_end_date"/>
+        <bm:field name="license_number"/>
+        <bm:field name="project_number"/>
+        <bm:field name="overdue_status"/>
+        <bm:field name="received_times"/>
+        <bm:field name="owner"/>
+        <bm:field name="start_due_date"/>
+        <bm:field name="bp_agent"/>
+        <bm:field name="car_description"/>
+        <bm:field name="item_frame_number"/>
+        <bm:field name="division_n"/>
+        <bm:field name="bp_name_1"/>
+        <bm:field name="product_name_write"/>
+        <bm:field name="lease_times"/>
+        <bm:field name="int_rate_display"/>
+        <bm:field name="invoice_price"/>
+        <bm:field name="finance_amount"/>
+        <bm:field name="down_payment"/>
+        <bm:field name="down_payment_ratio"/>
+        <bm:field name="deposit_ratio"/>
+        <bm:field name="deposit"/>
+        <bm:field name="lease_charge_ratio"/>
+        <bm:field name="lease_charge"/>
+        <bm:field name="license_fee_flag_n"/>
+        <bm:field name="plate_price"/>
+        <bm:field name="insurance_flag_n"/>
+        <bm:field name="insurance_amount"/>
+        <bm:field name="purchase_tax_flag_n"/>
+        <bm:field name="purchase_tax"/>
+        <bm:field name="discount_method_n"/>
+		<bm:field  name="id_card_no"/>
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field field="et_agreement_id" queryOperator="="/>
+        <bm:query-field field="et_agreement_number" queryExpression="upper(v.et_agreement_number) like &apos;%&apos; || upper(${@et_agreement_number}) || &apos;%&apos;"/>
+        <bm:query-field field="bp_id" queryOperator="="/>
+		<bm:query-field field="id_card_no" queryOperator="="/>
+        <bm:query-field name="guarantor_id" queryExpression="exists (select 1 from con_contract_bp where contract_id = v.contract_id and bp_id = ${@guarantor_id} and bp_category = &apos;GUARANTOR&apos;)"/>
+        <bm:query-field name="contract_number" queryExpression="upper(v.contract_number) like &apos;%&apos;||upper(${@contract_number})||&apos;%&apos;"/>
+        <bm:query-field name="contract_name" queryExpression="upper(v.contract_name) like &apos;%&apos;||upper(${@contract_name})||&apos;%&apos;"/>
+        <bm:query-field name="project_number" queryExpression="upper(v.project_number) like &apos;%&apos;||upper(${@project_number})||&apos;%&apos;"/>
+        <bm:query-field name="license_number" datatype="java.lang.String" queryexpression="upper(v.license_number) like &apos;%&apos; || upper(${@license_number}) || &apos;%&apos;"/>
+        <bm:query-field field="et_agreement_status" queryOperator="="/>
+        <bm:query-field name="termination_date_from" queryExpression="v.termination_date &gt;= ${@termination_date_from}"/>
+        <bm:query-field name="termination_date_to" queryExpression="v.termination_date &lt;= ${@termination_date_to}"/>
+        <bm:query-field name="date_from" datatype="java.lang.String" queryexpression="v.inception_of_lease &gt;= ${@date_from}"/>
+        <bm:query-field name="date_to" datatype="java.lang.String" queryexpression="v.inception_of_lease &lt;= ${@date_to}"/>
+        <bm:query-field name="lease_end_date_from" datatype="java.lang.String" queryexpression="v.lease_end_date &gt;= ${@lease_end_date_from}"/>
+        <bm:query-field name="lease_end_date_to" datatype="java.lang.String" queryexpression="v.lease_end_date &lt;= ${@lease_end_date_to}"/>
+        <bm:query-field name="creation_date_from" datatype="java.lang.String" queryexpression="v.creation_date &gt;= ${@creation_date_from}"/>
+        <bm:query-field name="creation_date_to" datatype="java.lang.String" queryexpression="v.creation_date &lt;= ${@creation_date_to}"/>
+        <!--<bm:query-field name="status_filter" queryExpression="${@status_filter}=&apos;Y&apos;and v.et_agreement_status in (&apos;NEW&apos;,&apos;SUBMIT&apos;,&apos;REJECT&apos;)"/>-->
+        <bm:query-field name="status_filter" queryExpression="${@status_filter}=&apos;Y&apos;and v.et_agreement_status in (&apos;APPROVED&apos;,&apos;FINISH&apos;,&apos;SUBMIT&apos;,&apos;REJECT&apos;,&apos;COMPLETE&apos;,&apos;CANCEL&apos;)"/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="v.et_agreement_status IN (&apos;NEW&apos;,&apos;FINISH&apos;,&apos;APPROVED&apos;,&apos;COMPLETE&apos;,&apos;DELETE&apos;,&apos;SUBMIT&apos;,&apos;PRINTED&apos;,&apos;REJECT&apos;,&apos;CANCEL&apos;)"/>
+        <bm:data-filter enforceOperations="query" expression="v.et_type IN (&apos;ET&apos;)"/>
+        <bm:data-filter enforceOperations="query" expression="v.lease_channel=&apos;00&apos;"/>
+    </bm:data-filters>
+</bm:model>

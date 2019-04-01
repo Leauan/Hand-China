@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Feng  
+    $Date: 2013-10-25 下午4:38:37  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="gld.GLD533.get_system_currentDate" rootPath="gld533_get_sysdate"/>
+        <a:model-query fetchAll="true" model="gld.GLD330.set_of_books" rootPath="gld330_get_set_of_books"/>
+        <a:model-query fetchAll="true" model="gld.GLD330.period_name" rootPath="gld330_get_period_name"/>
+        <a:model-query fetchAll="true" model="gld.GLD330.responsibility_center" rootPath="gld330_get_resp_center"/>
+        <a:model-query fetchAll="true" model="gld.GLD330.frs_reports_columns" rootPath="gld330_frs_reports_columns"/>
+        <a:model-query fetchAll="true" model="gld.GLD330.frs_reports_headers" rootPath="gld330_frs_report_name"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="sys_service_welcome_link" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="gld330_generate_link" model="gld.GLD330.initialize_generate" modelaction="execute"/>
+        <a:link id="gld_finance_report_show_link" url="${/request/@context_path}/modules/gld/GLD330/gld_finance_report_for_show.screen"/>
+        <script><![CDATA[
+            function onCloseCreate() {
+                location.href = $('sys_service_welcome_link').getUrl();
+            }
+            function GLD330_generate() {
+                if ($('gld330_report_create_ds').validate())
+                {
+                	var data = $('gld330_report_create_ds').getAt(0);
+                	Aurora.request({
+                        url: $('gld330_generate_link').getUrl(),
+                        para: {
+                            report_id: data.get('report_id'),
+                            company_id:data.get('company_id'),
+                            responsbility_center_id:data.get('responsbility_center_id'),
+                            period_name:data.get('period_name')
+                        },
+                        success: function(args) { 
+                            location.href = $('gld_finance_report_show_link').getUrl() + '?report_id='+$('gld330_report_create_ds').getAt(0).get('report_id')+'&generation_id='+args.result.generation_id+'&period_name='+$('gld330_report_create_ds').getAt(0).get('period_name');
+                        },
+                        scope: this
+                    });
+                } else {
+                    
+                }  
+            }
+            function GLD330_print()
+            {
+               debugger;
+               var record = $('gld330_report_create_ds').getCurrentRecord();
+               var report_name = record.get('report_name');
+               if (record.dirty)
+               {
+                   Aurora.showMessage('${l:PROMPT}', '请重新运行');
+               }
+               if (typeof(report_name)=='undefined')
+               {
+                   Aurora.showMessage('${l:PROMPT}', '请选择报表编号');
+               }
+               else if(report_name == 'BalanceSheet')
+               {
+                   birturl = '${/request/@context_path}/preview?__report=reports/camc_fin_balance_sheet.rptdesign&__format=xls&generation_id='+${/parameter/@generation_id};               
+                   window.open(birturl); 
+               }
+               else if(report_name == 'IncomeStatement')  	
+               {
+                   birturl = '${/request/@context_path}/preview?__report=reports/camc_fin_profit.rptdesign&__format=xls&generation_id='+${/parameter/@generation_id};               
+                   window.open(birturl); 
+               }	    	
+            }
+            function onBlur(cmp) {
+                var record = cmp.record;
+                var company_id = record.get('company_id');
+                var responsbility_center = record.getMeta().getField('responsbility_center');
+                var period_name = record.getMeta().getField('period_name');
+                if (company_id != undefined && company_id != null && company_id != '') {
+                    var url1 = 'gld.GLD130.fnd_responsibility_centers_vl';
+                    var url2 = 'gld.GLD130.gld_period_all_v';
+                    responsbility_center.setLovService(url1);
+                    var mapping1 = [{
+                        from: "responsibility_center_id",
+                        to: "responsbility_center_id"
+                    }, {
+                        from: "responsibility_center_name",
+                        to: "responsbility_center"
+                    }];
+                    var mapping2 = [{
+                        from: "period_name",
+                        to: "period_name"
+                    }];
+                    responsbility_center.setLovPara('company_id', company_id);
+                    responsbility_center.setMapping(mapping1);
+                    period_name.setLovService(url2);
+                    period_name.setLovPara('company_id', company_id);
+                    period_name.setMapping(mapping2);
+                    period_name.setReadOnly(false);
+                    //period_name.setLovPara('period_year', '${/model/gld533_get_sysdate/record/@year}');
+                    responsbility_center.setReadOnly(false);
+                } else {
+                    record.set('responsbility_center', null);
+                    record.set('period_name', null);
+                    responsbility_center.setReadOnly(true);
+                    period_name.setReadOnly(true);
+                }
+            }
+            
+            
+            window.onload = function() {
+               // var company_type = '${/model/gld330_get_set_of_books/record/@company_type}';
+              // if (company_type == 2) {
+                    ds = $('gld330_report_create_ds').getAt(0);
+                    ds.set('company_id', '${/session/@company_id}');
+                    ds.set('company_name', '${/model/gld330_get_set_of_books/record/@company_short_name}');
+                    ds.set('responsbility_center_id','${/model/gld330_get_resp_center/record/@responsibility_center_id}');
+                    ds.set('responsbility_center','${/model/gld330_get_resp_center/record/@responsibility_center_name}');
+                    ds.set('period_name','${/parameter/@period_name}');
+                    var company_name = ds.getMeta().getField('company_name');
+                    var responsbility_center = ds.getMeta().getField('responsbility_center');
+                    var period_name = ds.getMeta().getField('period_name');
+                    //company_name.setReadOnly(true);
+                    var url1 = 'gld.GLD130.fnd_responsibility_centers_vl';
+                    var url2 = 'gld.GLD130.gld_period_all_v';
+                    responsbility_center.setLovService(url1);
+                    var mapping1 = [{
+                        from: "responsibility_center_id",
+                        to: "responsbility_center_id"
+                    }, {
+                        from: "responsibility_center_name",
+                        to: "responsbility_center"
+                    }];
+                    var mapping2 = [{
+                        from: "period_name",
+                        to: "period_name"
+                    }];
+                    responsbility_center.setLovPara('company_id', '${/session/@company_id}');
+                    responsbility_center.setMapping(mapping1);
+                    period_name.setLovService(url2);
+                    period_name.setLovPara('company_id', '${/session/@company_id}');
+                    period_name.setMapping(mapping2);
+                    period_name.setReadOnly(false);
+                    //period_name.setLovPara('period_year', '${/model/gld533_get_sysdate/record/@year}');
+                    responsbility_center.setReadOnly(false);
+                    period_name.setReadOnly(false);
+               // }
+            };
+
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="gld330_report_create_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="set_of_books_code" defaultValue="${/model/gld330_get_set_of_books/record/@set_of_books_code}"/>
+                    <a:field name="set_of_books_name" defaultValue="${/model/gld330_get_set_of_books/record/@set_of_books_name}"/>
+                    <a:field name="report_name" defaultValue="${/model/gld330_frs_report_name/record/@report_name}" lovGridHeight="320" lovHeight="440" lovService="gld.GLD330.frs_reports_headers_lov" lovWidth="480" required="true" title="报表选择">
+                        <a:mapping>
+                            <a:map from="report_name" to="report_name"/>
+                            <a:map from="report_id" to="report_id"/>
+                            <a:map from="report_description" to="report_description"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="report_id" defaultValue="${/parameter/@report_id}"/>
+                    <a:field name="report_description" defaultValue="${/model/gld330_frs_report_name/record/@report_description}"/>
+                    <a:field name="company_name" lovGridHeight="320" lovHeight="440" lovService="zjwfl.zj_wfl_workflow_companies_vl_lov" lovWidth="480" required="true" title="公司选择">
+                        <a:mapping>
+                            <a:map from="company_id" to="company_id"/>
+                            <a:map from="company_code" to="company_code"/>
+                            <a:map from="company_short_name" to="company_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="responsbility_center" lovGridHeight="320" lovHeight="440" lovWidth="480" readOnly="true" required="true" title="责任中心">
+                        <a:mapping>
+                            <a:map from="" to=""/>
+                            <a:map from="" to=""/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="period_name" autoComplete="true" lovGridHeight="320" lovHeight="440" lovWidth="480" readOnly="true" required="true" title="期间选择">
+                        <a:mapping>
+                            <a:map from="" to=""/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="gld330_query" autoCreate="true">
+                <a:fields>
+                    <a:field name="generation_id" defaultValue="${/parameter/@generation_id}"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="gld330_report_show_ds" autoQuery="true" fetchAll="true" model="gld.GLD330.frs_reports_fields" queryUrl="${/request/@context_path}/autocrud/gld.GLD330.frs_reports_fields/query?generation_id=${/parameter/@generation_id}"><![CDATA[
+            ]]></a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="onCloseCreate" text="退出"/>
+                <a:gridButton click="GLD330_generate" text="运行"/>
+                <a:gridButton click="GLD330_print" text="打印"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelSeparator=" " labelWidth="100" marginWidth="30" title=" ">
+                <a:textField name="set_of_books_code" bindTarget="gld330_report_create_ds" prompt="帐套" readOnly="true"/>
+                <a:textField name="set_of_books_name" bindTarget="gld330_report_create_ds" prompt="描述" readOnly="true"/>
+                <a:lov name="report_name" bindTarget="gld330_report_create_ds" prompt="报表编号"/>
+                <a:textField name="report_description" bindTarget="gld330_report_create_ds" prompt="报表名称" readOnly="true"/>
+            </a:form>
+            <a:form id="domain_form" column="3" labelSeparator=" " labelWidth="100" marginWidth="30" title="参数指定">
+                <a:lov name="company_name" bindTarget="gld330_report_create_ds" prompt="公司">
+                    <a:events>
+                        <a:event name="blur" handler="onBlur"/>
+                        <a:event name="commit" handler="onBlur"/>
+                    </a:events>
+                </a:lov>
+                <a:lov name="responsbility_center" bindTarget="gld330_report_create_ds" prompt="责任中心" readOnly="true"/>
+                <a:lov name="period_name" bindTarget="gld330_report_create_ds" prompt="期间" readOnly="true"/>
+            </a:form>
+            <a:grid id="gld330_report_show_id" bindTarget="gld330_report_show_ds" marginHeight="265" marginWidth="30">
+                <a:toolBar>
+                    <a:button type="excel"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="line_description" prompt="项目" width="200"/>
+                    <a:column name="line_num" prompt="行次"/>
+                    <a:placeHolder id="dynamicLineColumn_id"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+    <a:view-config>
+        <c:create-config source="/model/gld330_frs_reports_columns" targetId="dynamicLineColumn_id">
+            <p:loop source="/model/gld330_frs_reports_columns">
+                <c:process-config>
+                    <a:column name="column_${@no}" align="right" prompt="${@description}" renderer="Aurora.formatMoney"/>
+                </c:process-config>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

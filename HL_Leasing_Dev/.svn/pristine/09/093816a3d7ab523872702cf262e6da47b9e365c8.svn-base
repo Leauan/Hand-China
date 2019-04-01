@@ -1,0 +1,153 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zengyuxuan
+    $Date: 2016-11-16 上午10:30:00  
+    $Revision: 1.0  
+    $Purpose: 产品方案定义
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure><![CDATA[
+	]]></a:init-procedure>
+    <a:view>
+        <a:link id="get_period_name_id" model="csh.CSH511.csh_transaction_get_period_name" modelaction="query"/>
+        <a:link id="get_new_journal_num_link_id" model="hls.HLS530.get_new_journal_number" modelaction="update"/>
+        <a:link id="get_document_type_id" model="csh.CSH511.get_document_type" modelaction="update"/>
+        <script><![CDATA[
+
+        window['${/parameter/@layout_code}_on_layout_dynamic_before_submit'] = function(ds, record) {
+                var journal_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_journal_header');
+                var detail_ds_id = get_dsid_by_tabcode_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'JE_LN', 'hls_journal_detail');
+                var journal_record = $(journal_ds_id).getAt(0);
+                var je_records = $(detail_ds_id).getAll();
+                var sum_dr = 0;
+                var sum_cr = 0;
+                for (var i=0;i<je_records.length;i++){
+                    var je_record = je_records[i];
+                    if(!isNaN(je_record.get('amount_dr'))){
+                    	sum_dr = (Number(sum_dr) + Number(je_record.get('amount_dr'))).toFixed(2);
+                    }
+                    if(!isNaN(je_record.get('amount_cr'))){
+                    	sum_cr = (Number(sum_cr) + Number(je_record.get('amount_cr'))).toFixed(2);
+                    }
+                }
+                var check_flag = false;
+                if((sum_dr != sum_cr)&&(sum_dr != 0)){
+                    Aurora.showMessage('提示','借贷总额必须相等');
+                    window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    return false;
+                }else{
+                if (journal_record.get('journal_num')) {
+                    return true;
+                }
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                Aurora.request({
+                    url: $('get_new_journal_num_link_id').getUrl(),
+                    para: {
+                        document_category: '${/parameter/@document_category}',
+                        document_type: record.get('document_type')
+                    },
+                    success: function(res) {
+                        var document_number = res.result.document_number;
+                        journal_record.set('journal_num', document_number);
+                        check_flag = true;
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    error: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    failure: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    sync: true,
+                    scope: this
+                });
+                return check_flag;
+                }
+            
+            };
+            
+             window['${/parameter/@layout_code}_on_layout_dynamic_submitsuccess'] = function(ds, record, res, bp_seq) {
+                window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                var detail1_ds_id = get_dsid_by_tabcode_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'JE_LN_REF1', 'hls_journal_detail');
+                var header_ds_id = get_dsid_by_tabcode_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'JE_HD', 'hls_journal_header');
+                $(detail1_ds_id).query();
+                var header_ds_record = $(header_ds_id).getAt(0);
+                var document_type = header_ds_record.get('document_type');
+                var journal_num = header_ds_record.get('journal_num');
+                if (!header_ds_record.get('post_gl_status')){
+                	header_ds_record.set('post_gl_status', 'N');
+                }
+                header_ds_record.set('reversed_flag', 'N');
+            
+                if (name = 'document_type') {
+                    Aurora.request({
+                        url: $('get_document_type_id').getUrl(),
+                        para: {
+                            document_type: document_type,
+                            //journal_header_id: '${/parameter/@journal_header_id}',
+                            journal_num: journal_num
+                        },
+                        success: periodname,
+                        scope: this
+                    });
+                }
+            };
+            
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+                if(name=='journal_date'){  
+                    var journal_date = record.get('journal_date');
+                	journal_date = Aurora.formatDate(journal_date);
+                	Aurora.request({
+                    url: $('get_period_name_id').getUrl(),
+                    para: {
+                        p_date: journal_date
+                    },
+                    success: periodname,
+                    scope: this
+                });
+                }else if(name=='amount_dr'){
+                    record.set('amount_fuc_dr',value);
+                }else if(name=='amount_cr'){
+                    record.set('amount_fuc_cr',value);
+                }
+            };
+            
+            function periodname(res) {
+                var journal_ds_id1 = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_journal_header');
+                var journal_record1 = $(journal_ds_id1).getAt(0);
+                if (res) {
+                    var period_name = res.result.record.period_name;
+                    var period_year = res.result.record.period_year;
+                    var period_num = res.result.record.period_name.substring(5, 7);
+                    var internal_period_num = res.result.record.internal_period_num;
+                    var period_set_code = res.result.record.period_set_code;
+                    journal_record1.set('period_name', period_name);
+                    journal_record1.set('period_year', period_year);
+                    journal_record1.set('period_num', period_num);
+                    journal_record1.set('internal_period_num', internal_period_num);
+                    journal_record1.set('period_set_code', period_set_code);
+                }
+            }
+            
+             window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_form_add_and_load'] = function(ds, record, config_records, bp_seq) {
+            	var bp_info_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_journal_header');
+                record.set('je_company_id', 1);
+                record.set('je_company_id_n', '宏菱租赁');
+                record.set('currency_code', 'CNY');
+                record.set('currency_code_n', '人民币');
+                // record.set('je_transaction_code', 'MANUAL');
+                // record.set('je_transaction_code_n', '手工生成');
+                //record.set('post_gl_status', 'N');
+		if(!record.get('post_gl_status')){
+                    
+                	record.set('post_gl_status', 'N');
+                }
+                record.set('exchange_rate', 1);
+                record.set('reversed_flag', 'N');
+                record.set('source_table', 'hls_journal_header');
+                record.set('company_id', 1);
+             };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

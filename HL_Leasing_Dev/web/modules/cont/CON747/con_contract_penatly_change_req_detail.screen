@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-12-20 下午03:30:10  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootPath="sysdate_rp"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="penatly_link" url="${/request/@context_path}/modules/cont/CON747/con_contract_penatly_submit.svc"/>
+        <a:link id="con_contract_rent_dun_link" url="${/request/@context_path}/modules/cont/CON747/con_contract_rent_dun_query.screen"/>
+        <a:link id="attachment_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <script><![CDATA[
+            function req_detail_close() {
+                $('penalty_change_window').close();
+            }
+            
+            function on_change_req_line_query(ds, qpara) {
+                var bp_id = '${/parameter/@bp_id}';
+                if (bp_id) {
+                    qpara['bp_id'] = bp_id;
+                }
+            }
+            
+            function con_change_req_line_ds_update(ds, record, name, value, oldvalue) {
+                //debugger;
+                var derate_amount = 0;
+                var derate_amount_total = 0;
+                var records = ds.getAll();
+                var record_form = $('con_contract_penatly_change_req_detail_header_ds').getAt(0);
+                if (name == 'derate_amount') {
+                    var derate_amount = record.get('derate_amount');
+                    var unreceived_amount = record.get('unreceived_amount');
+                    af_amount = unreceived_amount - derate_amount;
+                    if (af_amount < 0) {
+                        Aurora.showConfirm('${l:HLS.PROMPT}', '减免后的应收金额小于零,请确认!', function() {
+                            record.set('af_amount', af_amount);
+                            $('con_change_req_line_ds').select(record);
+                            return;
+                        }, function() {
+                            record.set('derate_amount', '');
+                            $('con_change_req_line_ds').unSelect(record);
+                            return;
+                        });
+                    } else {
+                        record.set('af_amount', af_amount);
+                        //当减免金额为 0 是不需要选择这条记录
+                        if (derate_amount != 0) {
+                            $('con_change_req_line_ds').select(record);
+                        } else {
+                            $('con_change_req_line_ds').unSelect(record);
+                        }
+                    }
+            
+                }
+            
+                for (var i = 0;i < records.length;i++) {
+                    var derate_amount = records[i].get('derate_amount') || 0;
+                    derate_amount_total = derate_amount_total + derate_amount;
+                }
+                record_form.set('derate_amount_total', derate_amount_total);
+            }
+            //附件上传的按钮
+            
+            function attachment_uploadFile() {
+                var record = $('con_contract_penatly_change_req_detail_header_ds').getCurrentRecord();
+                //debugger;
+                if (!record.get('change_req_id')) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先保存！');
+                    return;
+                }
+                var url = $('attachment_uploadFile_id').getUrl() + '?table_name=CON_CONTRACT_CHANGE_REQ&header_id=' + record.get('change_req_id');
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'uploadFile_id',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {});
+            }
+            //保存按钮
+            
+            function req_head_save() {
+                var record = $('con_contract_penatly_change_req_detail_header_ds').getCurrentRecord();
+                if (!record.get('change_reason')) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '变更原因不能为空!');
+                    return;
+                }
+                Aurora.Masker.mask($('penalty_change_window').wrap, '${HLS.EXECUTING}');
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/cont.CON747.con_contract_penatly_req_header_save/update',
+                    para: {
+                        change_req_id: record.get('change_req_id'),
+                        contract_id: record.get('contract_id'),
+                        change_reason: record.get('change_reason')
+                    },
+                    success: function(res) {
+            
+                        record.set('change_req_id', res.result.change_req_id);
+                        //debugger;
+                        var lines_record = $('con_change_req_line_ds').getSelected();
+                        if (lines_record.length) {
+                            var ds = $('con_contract_penatly_change_req_detail_header_ds');
+                            var datas = ds.getJsonData(false);
+                            Aurora.request({
+                                url: $('penatly_link').getUrl(),
+                                para: datas,
+                                //sync: true,
+                                success: function() {
+                                    Aurora.Masker.unmask($('penalty_change_window').wrap);
+                                    $('con_change_req_line_ds').query();
+                                    Aurora.showMessage('${l:HLS.PROMPT}', '保存成功');
+                                },
+                                failure: function() {
+                                    Aurora.Masker.unmask($('penalty_change_window').wrap);
+                                },
+                                error: function() {
+                                    Aurora.Masker.unmask($('penalty_change_window').wrap);
+                                }
+                            });
+                        }
+                        Aurora.Masker.unmask($('penalty_change_window').wrap);
+                    },
+                    failure: function() {
+                        Aurora.Masker.unmask($('penalty_change_window').wrap);
+                    },
+                    error: function() {
+                        Aurora.Masker.unmask($('penalty_change_window').wrap);
+                    }
+                });
+            }
+            
+            function req_detail_approve() {
+                Aurora.showConfirm('${l:HLS.PROMPT}', '${l:HLS.ARE_YOU_SURE_TO_SUBMIT}', con_change_req_approve, function() {
+                    return;
+                });
+            }
+            
+            function con_change_req_approve() {
+                var record = $('con_contract_penatly_change_req_detail_header_ds').getCurrentRecord();
+                //debugger;
+                if (!record.get('change_req_id')) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先保存！');
+                    req_head_save();
+                    return;
+                }
+                var derate_amount_total = record.get('derate_amount_total') || 0;
+                if (derate_amount_total <= 0) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '减免总金额必须大于0！');
+                    return;
+                }
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/cont.CON747.con_contract_penatly_submit/execute',
+                    para: {
+                        change_req_id: record.get('change_req_id')
+                    },
+                    success: function(res) {
+                        //Aurora.showMessage('${l:HLS.PROMPT}', '提交成功!');
+                        Aurora.Masker.unmask($('penalty_change_window').wrap);
+                        parent.Aurora.SideBar.enable = true;
+                        parent.Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 2000
+                        });
+                        $('penalty_change_window').close();
+                    },
+                    failure: function() {
+                        Aurora.Masker.unmask($('penalty_change_window').wrap);
+                    },
+                    error: function() {
+                        Aurora.Masker.unmask($('penalty_change_window').wrap);
+                    }
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="con_contract_penatly_change_req_detail_header_ds" autoQuery="true" model="cont.CON747.con_contract_penalty_head_query" queryUrl="${/request/@context_path}/autocrud/cont.CON747.con_contract_penalty_head_query/query?contract_id=${/parameter/@contract_id}" submitUrl="${/request/@context_path}/modules/cont/CON747/con_contract_penatly_submit.svc">
+                <a:fields>
+                    <a:field name="contract_number"/>
+                    <a:field name="contract_name"/>
+                    <a:field name="project_number"/>
+                    <a:field name="bp_name"/>
+                    <a:field name="inception_of_lease"/>
+                    <a:field name="received_times"/>
+                    <a:field name="overdue_status"/>
+                    <a:field name="overdue_amount"/>
+                    <a:field name="last_calc_date" defaultValue="${/model/sysdate_rp/record/@now_time}" readOnly="true"/>
+                    <a:field name="change_reason" required="true"/>
+                    <a:field name="derate_amount_total" readOnly="true"/>
+                    <a:field name="change_req_id"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con_change_req_line_ds" autoQuery="true" bindName="line_result" bindTarget="con_contract_penatly_change_req_detail_header_ds" model="cont.CON747.con_contract_penatly_change_req_detail_line" pageSize="50" selectable="true">
+                <a:fields>
+                    <a:field name="cashflow_id"/>
+                    <a:field name="contract_id" defaultValue="${/parameter/@contract_id}"/>
+                    <a:field name="change_penalty_amount"/>
+                    <a:field name="times"/>
+                    <a:field name="due_date"/>
+                    <a:field name="cf_item_desc"/>
+                    <a:field name="due_amount"/>
+                    <a:field name="received_amount"/>
+                    <a:field name="unreceived_amount"/>
+                    <a:field name="derate_amount"/>
+                    <a:field name="af_amount"/>
+                    <a:field name="derate_amount_total"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="con_change_req_line_ds_update"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="req_detail_close" text="HLS.BACK"/>
+                <a:gridButton click="req_head_save" text="保存"/>
+                <a:gridButton click="req_detail_approve" text="HLS.SUBMIT"/>
+                <a:gridButton click="attachment_uploadFile" text="附件上传"/>
+            </a:screenTopToolbar>
+            <a:form column="1" title="罚息免除申请维护">
+                <a:box column="3" labelWidth="100">
+                    <a:textField name="contract_number" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="合同编号" readOnly="true" width="150"/>
+                    <a:textField name="contract_name" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="合同名称" readOnly="true" width="150"/>
+                    <a:textField name="project_number" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="HLS.PROJECT_NUMBER" readOnly="true" width="150"/>
+                    <a:textField name="bp_name" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="承租人名称" readOnly="true" width="150"/>
+                    <a:datePicker name="inception_of_lease" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="起租日" readOnly="true" width="150"/>
+                    <a:textField name="received_times" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="已还款期数" readOnly="true" width="150"/>
+                    <a:textField name="overdue_status" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="是否逾期" readOnly="true" width="150"/>
+                    <!--  <a:textField name="overdue_amount" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="逾期租金" readOnly="true" width="150"/>
+                    -->
+                    <a:numberField name="penalty_overdue_amount" allowDecimals="true" allowFormat="true" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="罚息总计" readOnly="true" width="150"/>
+                    <a:datePicker name="last_calc_date" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="CON747.LAST_CALC_DATE" readOnly="true" width="150"/>
+                </a:box>
+                <a:hBox column="3" labelWidth="100">
+                    <a:numberField name="derate_amount_total" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="减免总金额" width="150"/>
+                </a:hBox>
+                <a:box column="3" labelWidth="100">
+                    <a:textArea name="change_reason" bindTarget="con_contract_penatly_change_req_detail_header_ds" colspan="3" prompt="免除原因" width="666"/>
+                </a:box>
+            </a:form>
+            <a:grid bindTarget="con_change_req_line_ds" marginHeight="330" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="times" prompt="HLS.TIMES" width="80"/>
+                    <a:column name="due_date" prompt="计划付款日期" renderer="Aurora.formatDate" width="150"/>
+                    <a:column name="cf_item_desc" prompt="HLS.CF_ITEM_DESC" width="150"/>
+                    <a:column name="due_amount" align="right" prompt="CON305.ACC_AMOUNT" renderer="Aurora.formatMoney" width="150"/>
+                    <a:column name="received_amount" align="right" prompt="已收金额" renderer="Aurora.formatMoney" width="150"/>
+                    <a:column name="unreceived_amount" align="right" prompt="未收金额" renderer="Aurora.formatMoney" width="150"/>
+                    <a:column name="derate_amount" editor="line_nf" prompt="减免金额" renderer="Aurora.formatMoney" width="150"/>
+                    <a:column name="af_amount" prompt="减免后应收金额" renderer="Aurora.formatMoney" width="150"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="line_nf" allowDecimals="true" allowFormat="true" allowNegative="false"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-5-13 下午2:37:49  
+    $Revision: 1.0  
+    $Purpose: bpQueryScreen
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure><![CDATA[
+    ]]></a:init-procedure>
+    <a:view>
+        <a:link id="pageLink_bpQueryScreen_welcome" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="pageLink_bpQueryScreen_bp_maintain" url="${/request/@context_path}/modules/hls/HLS211/hls_bp_master_details_update.screen"/>
+        <script><![CDATA[
+        
+        function bpQueryScreen_forward() {
+            history.go(1);
+        }
+        
+        function bpQueryScreen_back() {
+            history.go(-1);
+        }
+        
+        
+        function bpQueryScreen_query() {
+            $('bpQueryDs').query();
+        }
+        
+        function bpQueryScreen_quit() {
+            location.href = $('pageLink_bpQueryScreen_welcome').getUrl();
+            parent.shMenu('show');
+        }
+        
+        function construct_from_to()
+        {
+            var config=[
+            	'bp_code',
+            	'bp_code_desc',
+            	'search_term_1',
+            	'search_term_2'
+            ];
+            var pattern=['_from','_to'];
+            var obj={};
+            for(var i=0,j=config.length;i<j;i++)
+            {
+                for(var m=0,n=pattern.length;m<n;m++)
+                {
+                    obj[config[i]+pattern[m]]=config[i]+pattern[n-1-m];
+                }
+            }
+            return obj;
+        }
+        
+        function onUpdate_para_bpQueryDs(ds,record,name,value,oldvalue)
+        {
+            var from_to=construct_from_to();
+            var opposite_name=from_to[name];
+            if(!Ext.isEmpty(opposite_name))
+            {
+                var opposite_value=record.get(opposite_name);
+                if(!Ext.isEmpty(value)&&Ext.isEmpty(opposite_value))
+                {
+                    record.set(opposite_name,value);
+                }
+            }
+               
+        }
+        
+        function winOpen_bpMaintainScreen(bp_id)
+        {
+            var win=new Aurora.Window({
+                id: 'hls_bp_master_details_update',
+                url: $('pageLink_bpQueryScreen_bp_maintain').getUrl(),
+                params:{
+                	bp_id:bp_id,
+                	winId:'hls_bp_master_details_update'
+                },
+                title: '${l:HLS212.BP_MASTER_MAINTAIN}',
+                fullScreen:true
+            });
+            win.on('close',function(){
+                $('bpQueryDs').query();
+            });
+        }
+        
+        function bpQueryScreen_bpMaintain()
+        {
+            var record=$('bpQueryDs').getCurrentRecord();
+            var bp_id=record.get('bp_id');
+            winOpen_bpMaintainScreen(bp_id);
+        }
+        
+        function render_bpQueryDs_grid(value, record, name)
+        {
+            if(name=='bp_code')
+            {
+                var bp_id=record.get('bp_id');
+                if(!Ext.isEmpty(bp_id)&&!Ext.isEmpty(value))
+                {
+                    return '<a href="javascript:winOpen_bpMaintainScreen(' + bp_id + ');">' + value + '</a>';
+                }
+            }
+            return '';
+        }
+        
+        
+            
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="bpClassDs" lookupCode="HLS211_BP_CLASS"/>
+            <a:dataSet id="para_bpQueryDs" model="hls.HLS212.hls_bp_master_all_data_v">
+                <a:fields>
+                    <a:field name="bp_class_desc"/>
+                    <a:field name="bp_class" displayField="code_value" options="bpClassDs" returnField="bp_class_desc" valueField="code_value_name"/>
+                    <a:field name="bp_type_desc"/>
+                    <a:field name="bp_type" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_type_v_for_lov?enabled_flag=Y" lovWidth="500" prompt="HLS_BP_TYPE.BP_TYPE" title="HLS_BP_TYPE.BP_TYPE">
+                        <a:mapping>
+                            <a:map from="description" to="bp_type_desc"/>
+                            <a:map from="bp_type" to="bp_type"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_code_from" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code_from"/>
+                            <a:map from="bp_name" to="bp_code_desc_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_code_to" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code_to"/>
+                            <a:map from="bp_name" to="bp_code_desc_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_para_bpQueryDs"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="bpQueryDs" autoQuery="true" model="hls.HLS212.hls_bp_master_all_data_v" pageSize="15" queryDataSet="para_bpQueryDs" selectable="true" selectionModel="single"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="bpQueryScreen_back" text="HLS.BACK"/>
+                <a:gridButton click="bpQueryScreen_forward" text="HLS.FORWARD"/>
+                <a:gridButton click="bpQueryScreen_quit" text="HLS.EXIT"/>
+                <a:gridButton click="bpQueryScreen_query" text="HLS.QUERY"/>
+                <a:gridButton click="bpQueryScreen_bpMaintain" text="HLS212.BUTTON.MAINTAIN"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="120" marginWidth="30" title=" ">
+                <a:lov name="bp_type" bindTarget="para_bpQueryDs" prompt="HLS_BP_TYPE.BP_TYPE"/>
+                <a:textField name="bp_type_desc" bindTarget="para_bpQueryDs" prompt="HLS212.BP_TYPE_DESC" readOnly="true"/>
+                <a:comboBox name="bp_class" bindTarget="para_bpQueryDs" prompt="HLS_BP_MASTER.BP_CLASS"/>
+                <a:textField name="bp_class_desc" bindTarget="para_bpQueryDs" prompt="HLS212.BP_TYPE_DESC" readOnly="true"/>
+                <a:lov name="bp_code_from" bindTarget="para_bpQueryDs" prompt="HLS212.BP_MASTER_FROM"/>
+                <a:textField name="bp_code_desc_from" bindTarget="para_bpQueryDs" prompt="HLS.BP_NAME" readOnly="true"/>
+                <a:lov name="bp_code_to" bindTarget="para_bpQueryDs" prompt="HLS212.BP_MASTER_TO"/>
+                <a:textField name="bp_code_desc_to" bindTarget="para_bpQueryDs" prompt="HLS.BP_NAME" readOnly="true"/>
+                <a:textField name="search_term_1_from" bindTarget="para_bpQueryDs" prompt="HLS212.SEARCH_TERM_1_FROM"/>
+                <a:textField name="search_term_1_to" bindTarget="para_bpQueryDs" prompt="HLS212.SEARCH_TERM_1_TO"/>
+                <a:numberField name="search_term_2_from" allowDecimals="false" bindTarget="para_bpQueryDs" prompt="HLS212.SEARCH_TERM_2_FROM"/>
+                <a:numberField name="search_term_2_to" allowDecimals="false" bindTarget="para_bpQueryDs" prompt="HLS212.SEARCH_TERM_2_TO"/>
+                <a:checkBox name="enabled_flag" bindTarget="para_bpQueryDs"/>
+            </a:form>
+            <a:grid id="bpQueryDs_grid" bindTarget="bpQueryDs" marginHeight="250" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="bp_code" renderer="render_bpQueryDs_grid" width="180"/>
+                    <a:column name="bp_name" width="250"/>
+                    <a:column name="bp_class_desc" width="120"/>
+                    <a:column name="bp_type_desc" width="120"/>
+                    <a:column name="bp_category_desc" width="120"/>
+                    <a:column name="search_term_1" width="120"/>
+                    <a:column name="search_term_2" width="120"/>
+                    <a:column name="enabled_flag" width="60"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="bpQueryDs_grid_tf"/>
+                    <a:textField id="bpQueryDs_grid_tf_upper" maxLength="6" typeCase="upper"/>
+                    <a:lov id="bpQueryDs_grid_lov"/>
+                    <a:checkBox id="bpQueryDs_grid_check"/>
+                    <a:comboBox id="bpQueryDs_grid_comboBox"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

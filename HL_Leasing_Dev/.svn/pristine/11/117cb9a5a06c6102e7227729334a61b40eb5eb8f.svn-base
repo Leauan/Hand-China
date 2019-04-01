@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:ns1="aurora.application.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <s:server-script import="app/app_login_check.js"><![CDATA[
+            function lov_query() {
+                var contract_details;
+                var con_lease_details;
+                try {
+                    var contract_bm = $bm('app.lov.app_contract_info');
+                    var con_lease_bm = $bm('app.lov.app_leases_info');
+            
+                    var contract_map = contract_bm.queryAsMap({
+                        'contract_id': $ctx.parameter.contract_id,
+                    });
+                    var con_lease_map = con_lease_bm.queryAsMap({
+                        'contract_id': $ctx.parameter.contract_id,
+                    });
+                    contract_details = contract_map.getChildren();
+                    con_lease_details = con_lease_map.getChildren();
+                    $ctx.parameter.return_status = 'S';
+                    $ctx.parameter.return_message = '执行成功';
+                } catch (e) {
+                    $ctx.success = "true";
+                    $ctx.parameter.return_status = 'E';
+                    $ctx.parameter.return_message = String(e);
+                }
+            
+            
+                var result = {
+                    result: $ctx.parameter.return_status,
+                    message: $ctx.parameter.return_message,
+                    contract_list: [],
+                    con_lease_list: []
+                };
+            
+                var contract_list = result.contract_list;
+                var con_lease_list = result.con_lease_list;
+            
+                if (contract_details) {
+                    for (var j = 0;j < contract_details.length;j++) {
+                        var contract_detail = contract_details[j];
+                        contract_list.push({
+                            "finance_amount": contract_detail.finance_amount,
+                            "total_rental": contract_detail.total_rental,
+                            "lease_times": contract_detail.lease_times,
+                            "bank_name": contract_detail.bank_name,
+                            "dd_bank_account_name": contract_detail.dd_bank_account_name,
+                            "dd_bank_account_num": contract_detail.dd_bank_account_num
+                        });
+                    }
+                }
+                if (con_lease_details) {
+                    for (var m = 0;m < con_lease_details.length;m++) {
+                        var con_lease_detail = con_lease_details[m];
+                        con_lease_list.push({
+                            "brand_id_n": con_lease_detail.brand_id_n,
+                            "ms_info": con_lease_detail.ms_info,
+                            "color_of_apprearance": con_lease_detail.color_of_apprearance,
+                            "item_frame_number": con_lease_detail.item_frame_number,
+                            "item_engine_number": con_lease_detail.item_engine_number,
+                            "license_number": con_lease_detail.license_number
+                        });
+                    }
+                }
+                $ctx.parameter.json = JSON.stringify(result);
+            }
+            
+            if ($ctx.parameter.return_status != 'E'&& $ctx.parameter.return_status != 'TIMEOUT') {
+                lov_query();
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:service-output output="/parameter/@json"/>
+</a:service>

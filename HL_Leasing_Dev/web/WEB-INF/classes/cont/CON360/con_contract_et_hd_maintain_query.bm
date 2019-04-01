@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-8-15 下午8:09:18  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:s="aurora.plugin.script" xmlns:bm="http://www.aurora-framework.org/schema/bm" needAccessControl="false">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[select * from (select h.et_agreement_number,
+       h.et_agreement_id,     
+       b.bp_name,
+       b.bp_code,
+       t.contract_number,
+       t.contract_name,
+       t.contract_id,
+       t.document_type,
+       to_char(t.inception_of_lease,'yyyy-mm-dd') inception_of_lease,
+       (select hd.document_type_desc from hls_document_type_v hd where hd.document_type = t.document_type) document_type_desc,
+       t.document_category,
+       (select hd.description from hls_document_category hd where hd.document_category = t.document_category) document_category_desc,
+       h.creation_date,
+       p.employee_id,
+       p.project_name,
+       (select u.name from exp_employees u where u.employee_id = p.employee_id) employee_name,
+       t.contract_status,
+       (select v.code_value_name
+          from sys_code_values_v v
+         where v.code = 'CON500_CONTRACT_STATUS'
+           and v.code_value = t.contract_status) as contract_status_desc,
+       h.termination_date,
+       h.status et_agreement_status,
+       (select v.code_value_name
+          from sys_code_values_v v
+         where v.code = 'CON_ET_STATUS'
+           and v.code_value = h.status) as et_agreement_status_desc,
+       h.document_type et_type,
+       h.et_profile,    
+       (select hd.document_type_desc from hls_document_type_v hd where hd.document_type = h.document_type) et_type_desc,
+       (select cp.description from con_contract_et_profile cp where cp.et_profile = h.et_profile)  et_profile_desc,
+       h.ref_n01 et_ratio
+  from con_contract_et_hd h, hls_bp_master b, con_contract t, prj_project p
+ where h.contract_id = t.contract_id(+)
+   and t.bp_id_tenant = b.bp_id(+)
+   and t.project_id = p.project_id(+)
+   ) v #WHERE_CLAUSE#]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:features>
+        <s:bm-script><![CDATA[
+            var cx = Packages.aurora.javascript.Context.getCurrentContext();
+            Packages.aurora.plugin.script.engine.ScriptImportor.defineExternScript(cx, this, $ctx.getData(), "aut_authority_bm_validate.js");
+        ]]></s:bm-script>
+    </bm:features>
+    <bm:fields>
+        <bm:field name="et_agreement_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="et_agreement_id"/>
+        <bm:field name="et_agreement_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="et_agreement_number"/>
+        <bm:field name="bp_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="bp_name"/>
+        <bm:field name="bp_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="bp_code"/>
+        <bm:field name="contract_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="contract_id"/>
+        <bm:field name="contract_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="contract_name"/>
+        <bm:field name="contract_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="contract_number"/>
+        <bm:field name="creation_date" databaseType="DATE" datatype="java.util.Date" physicalName="creation_date"/>
+        <bm:field name="employee_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="EMPLOYEE_ID"/>
+        <bm:field name="employee_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="employee_name"/>
+        <bm:field name="contract_status" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="contract_status"/>
+        <bm:field name="termination_date" databaseType="DATE" datatype="java.util.Date" physicalName="termination_date"/>
+        <bm:field name="et_agreement_status" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="et_agreement_status"/>
+        <bm:field name="et_agreement_status_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="et_agreement_status_desc"/>
+        <bm:field name="et_profile_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="et_profile_desc"/>
+        <bm:field name="document_type_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="document_type_desc"/>
+        <bm:field name="et_profile" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="et_profile"/>
+        <bm:field name="document_type" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="document_type"/>
+        <bm:field name="contract_status_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="contract_status_desc"/>
+        <bm:field name="project_name"/>
+        <bm:field name="document_category"/>
+        <bm:field name="document_category_desc"/>
+        <bm:field name="et_type"/>
+        <bm:field name="et_type_desc"/>
+        <bm:field name="inception_of_lease"/>
+        <bm:field name="et_ratio"/>
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field field="bp_code" queryOperator="="/>
+        <bm:query-field name="contract_number" queryExpression="v.contract_number like &apos;%&apos;||${@contract_number}||&apos;%&apos;"/>
+        <bm:query-field name="termination_date_from" queryExpression="v.termination_date &gt;= to_date(${@termination_date_from},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="termination_date_to" queryExpression="v.termination_date &lt;= to_date(${@termination_date_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="et_agreement_number" queryExpression="v.et_agreement_number like &apos;%&apos;||${@et_agreement_number}||&apos;%&apos;"/>
+        <bm:query-field name="et_agreement_status" queryExpression="v.et_agreement_status = ${@et_agreement_status}"/>
+        <bm:query-field field="et_agreement_id" queryOperator="="/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="v.et_agreement_status is not null and v.et_agreement_status not in (&apos;CANCEL&apos;)"/>
+        <bm:data-filter enforceOperations="query" expression="v.et_type IN (&apos;AD&apos;)"/>
+    </bm:data-filters>
+</bm:model>

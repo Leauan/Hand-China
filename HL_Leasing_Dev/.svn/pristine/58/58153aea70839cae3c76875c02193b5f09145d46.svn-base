@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangyu  
+    $Date: 2014-11-10 上午10:24:30  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="CSH_OFFSET">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+				SELECT *
+            FROM (
+                  SELECT t1.OFFSET_ID,t1.CONTRACT_ID,t1.deposit,t1.lease_charge,t1.consulting_service,t1.DOWN_PAYMENT,t1.first_rent,t1.OFFSET_AMOUNT,t1.DOWNPAY_PROOF,t1.JOURNAL_DATE,(
+                      SELECT bp_name
+                      FROM con_contract_v
+                      WHERE contract_id = t1.contract_id
+                    ) AS bp_name,(
+                      SELECT hbm.bp_name
+                      FROM hls_bp_master hbm,con_contract_bp ccb
+                      WHERE ccb.contract_id = t1.contract_id
+                      AND ccb.bp_id = hbm.bp_id
+                      and ccb.bp_category = 'VENDER' 
+                      and ccb.enabled_flag = 'Y'
+                    ) AS bp_vender,(
+                      SELECT contract_status_desc
+                      FROM con_contract_v
+                      WHERE contract_id = t1.contract_id
+                    ) AS contract_status_desc,(
+                      SELECT lease_item_amount
+                      FROM con_contract_v
+                      WHERE contract_id = t1.contract_id
+                    ) AS lease_item_amount,(
+                      SELECT contract_number
+                      FROM con_contract_v
+                      WHERE contract_id = t1.contract_id
+                    ) AS contract_number,
+                    t1.company_id,
+                    (select journal_num from hls_journal_header where source_table = 'CSH_OFFSET' and source_id = t1.OFFSET_ID)as subsystem_journal,
+                    (select code_value from sys_code_values_v where code='HLS_REVERSED_FLAG' and code_value=t1.reversed_flag) as reversed_flag
+                  FROM CSH_OFFSET t1
+                ) v #WHERE_CLAUSE#
+                #ORDER_BY_CLAUSE#
+			]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:data-filters>
+        <bm:data-filter name="company_id" enforceOperations="query" expression="company_id=${/session/@company_id}"/>
+        <bm:data-filter name="reversed_flag" enforceOperations="query" expression="reversed_flag=&apos;N&apos;"/>
+    </bm:data-filters>
+    <bm:query-fields>
+        <bm:query-field name="bp_name" queryExpression="v.bp_name = ${@bp_name}"/>
+        <bm:query-field name="contract_number" queryExpression="v.contract_number = ${@contract_number}"/>
+        <bm:query-field name="journal_date_from" datatype="java.util.Date" queryExpression="v.journal_date &gt;= ${@journal_date_from}"/>
+        <bm:query-field name="journal_date_to" datatype="java.util.Date" queryExpression="v.journal_date &lt;= ${@journal_date_to}"/>
+    </bm:query-fields>
+</bm:model>

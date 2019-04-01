@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hp  
+    $Date: 2013-11-12 下午06:18:44  
+    $Revision: 1.0  
+    $Purpose: 方案管理费
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            
+            	select dense_rank() over(partition by ln.calc_session_id order by to_number(ln.times)) row_num,
+					       ln.calc_line_id,
+					       ln.calc_session_id,
+					       to_char(ln.net_lease_mgt_fee,'FM99,999,999,990.00')net_lease_mgt_fee,
+					       ln.times,
+					       hd.lease_mgt_fee_rule,
+					       (select v.code_value_name
+					          from sys_code_values_v v
+					         where v.code = 'HLS500_MGT_FEE_RULE'
+					           and v.code_value = hd.lease_mgt_fee_rule) lease_mgt_fee_rule_desc,
+					       to_char(decode(hd.lease_mgt_fee_rule,
+					                      'NET_FINANCE_AMOUNT',
+					                      ln.net_lease_mgt_fee / hd.finance_amount,
+					                      'OUTSTANDING_PRINCIPAL',
+					                      ln.net_lease_mgt_fee / ln.outstanding_rental_tax_incld,
+					                      0) * 100,
+					               'FM990.0099') || '%' lease_mgt_fee_rule_ratio
+					  from hls_fin_calculator_ln ln, hls_fin_calculator_hd hd
+					where ln.calc_session_id = hd.calc_session_id
+					   and ln.calc_session_id in
+					       (select pq.calc_session_id
+					          from prj_quotation pq
+					         where pq.document_category = 'PROJECT'
+					           and pq.document_id = ${@project_id}
+					           and pq.internal_confirm = 'Y'
+					           and pq.external_confirm = 'Y'
+					           and pq.enabled_flag = 'Y')
+					   and nvl(ln.net_lease_mgt_fee,0)!=0
+					 order by calc_session_id, to_number(ln.times) asc
+
+            
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

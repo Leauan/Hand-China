@@ -1,0 +1,363 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="pageLink_assign_link_node" url="${/request/@context_path}/modules/zjwfl/ZJWFL1080/zj_wfl_workflow_assign_link_node.screen"/>
+        <a:link id="pageLink_rule_assign" url="${/request/@context_path}/modules/zjwfl/ZJWFL1080/zj_wfl_business_rule_assigns.screen"/>
+        <a:link id="pageLink_rule_parameters_link" url="${/request/@context_path}/modules/zjwfl/ZJWFL1080/zj_wfl_workflow_node_rule_high_parameters.screen"/>
+        <script><![CDATA[
+            function onIndexChance_nodeAssignDs(ds, record) {
+                if (record.get('node_type') == "SUB_PROCESS") {
+                    Ext.get('nodeAssignTab').setDisplayed(false);
+                } else {
+                    var node_id = record.get('node_id');
+                    var company_id = '${/parameter/@company_id}';
+            
+                    Ext.get('nodeAssignTab').setDisplayed(true);
+            
+                    //审批人
+                    var approverDs = $('nodeApproverDs');
+            
+                    //approverDs.setQueryParameter('assign_source_type', 'NODE_APPROVER');
+                    approverDs.setQueryParameter('assign_source_id', node_id);
+                    approverDs.setQueryParameter('company_id', company_id);
+                    approverDs.query();
+            
+                    //通知人
+                    /* var noticerDs = $('nodeNoticerDs');
+                     noticerDs.setQueryParameter('assign_source_type', 'NODE_NOTICE');
+                     noticerDs.setQueryParameter('assign_source_id', node_id);
+                     noticerDs.setQueryParameter('company_id', company_id);
+                     noticerDs.query(); */
+                }
+            }
+            
+            function onUpdate_nodeApproverDs(ds, record, name, value, oldvalue) {
+                if (name == 'approval_rule') {
+                    record.set('parameter_value_id1', null);
+                    record.set('parameter_value_code1', null);
+                    record.set('parameter_value_desc1', null);
+                }
+            }
+            
+            function onUpdate_nodeNoticerDs(ds, record, name, value, oldvalue) {
+                if (name == 'approval_rule') {
+                    record.set('parameter_value_id1', null);
+                    record.set('parameter_value_code1', null);
+                    record.set('parameter_value_desc1', null);
+                } else if (name == 'notify_type') {
+                    if (record.get('notify_template_id')) {
+                        record.set('notify_template_id', '');
+                        record.set('notify_template_code', '');
+                        record.set('notify_template_desc', '');
+                    }
+                }
+            }
+            
+            function onAdd_nodeNoticerDs(ds, record, index) {
+                record.set('company_id', '${/parameter/@company_id}');
+                record.set('assign_source_id', $('nodeAssignDs').getCurrentRecord().get('node_id'));
+                record.set('assign_source_type', 'NODE_NOTICE');
+                record.set('sequence_num', 1);
+            
+            }
+            
+            function onAdd_nodeApproverDs(ds, record, index) {
+                record.set('company_id', '${/parameter/@company_id}');
+                record.set('assign_source_id', $('nodeAssignDs').getCurrentRecord().get('node_id'));
+                record.set('assign_source_type', 'NODE_APPROVER');
+                var node_type = $('nodeAssignDs').getCurrentRecord().get('node_type');
+                if (node_type == 'START_NODE' || node_type == 'END_NODE') {
+                    record.set('assign_source_type', 'NODE_NOTICE');
+                    record.getField('assign_source_type').setReadOnly(true);
+                }
+            }
+            
+            function onload_node_approveds(ds){
+                var rs = ds.getAll();
+                var node_type = $('nodeAssignDs').getCurrentRecord().get('node_type');
+                for (var i=0;i<rs.length;i++){
+                    if (node_type == 'START_NODE' || node_type == 'END_NODE') {
+                    rs[i].set('assign_source_type', 'NODE_NOTICE');
+                    rs[i].getField('assign_source_type').setReadOnly(true);
+                }
+                }
+            }
+            
+            function refreshDs(ds) {
+                ds.query(ds.currentPage);
+            }
+            
+            function onSubmitSuccess_nodeApproverDs(ds, res) {
+                refreshDs(ds);
+            }
+            
+            function onSubmitSuccess_nodeNoticerDs(ds, res) {
+                refreshDs(ds);
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="notify_type_display_ds" lookupCode="ZJ_WFL_NOTIFY_TYPE"/>
+            <a:dataSet id="nodeAssignDs" autoQuery="true" model="zjwfl.zj_wfl_workflow_node" pageSize="100" queryUrl="${/request/@context_path}/autocrud/zjwfl.zj_wfl_workflow_node/query?workflow_id=${/parameter/@workflow_id}">
+                <a:events>
+                    <a:event name="indexchange" handler="onIndexChance_nodeAssignDs"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="nodeApproverDs" model="zjwfl.ZJWFL1080.zj_wfl_workflow_assign_rule" selectable="true">
+                <a:fields>
+                    <a:field name="sequence_num" required="true"/>
+                    <a:field name="approval_rule" lovGridHeight="300" lovHeight="450" lovService="zjwfl.zj_wfl_workflow_rules_lov?approver_flag=Y" lovWidth="550" required="true" title="审批规则">
+                        <a:mapping>
+                            <a:map from="rule_code" to="approval_rule"/>
+                            <a:map from="description" to="approval_rule_desc"/>
+                            <a:map from="parameter_1_type" to="parameter_type"/>
+                            <a:map from="parameter_1_url" to="parameter_url"/>
+                            <a:map from="need_high" to="need_high"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="parameter_value_code1" lovGridHeight="300" lovHeight="450" lovWidth="550" required="true" title="审批人">
+                        <a:mapping>
+                            <a:map from="code" to="parameter_value_code1"/>
+                            <a:map from="id" to="parameter_value_id1"/>
+                            <a:map from="description" to="parameter_value_desc1"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="assign_source_type" checkedValue="NODE_NOTICE" defaultValue="NODE_APPROVER" uncheckedValue="NODE_APPROVER"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="onSubmitSuccess_nodeApproverDs"/>
+                    <a:event name="update" handler="onUpdate_nodeApproverDs"/>
+                    <a:event name="load" handler="onload_node_approveds"/>
+                    <a:event name="add" handler="onAdd_nodeApproverDs"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="nodeNoticerDs" model="zjwfl.ZJWFL1080.zj_wfl_workflow_assign_rule" selectable="true">
+                <a:fields>
+                    <a:field name="notify_template_code" lovGridHeight="300" lovHeight="450" lovService="zjwfl.ZJWFL1090.zj_sys_notify_template_lov?workflow_id=${/parameter/@workflow_id}" lovWidth="550" title="通知模板">
+                        <a:mapping>
+                            <a:map from="notify_template_id" to="notify_template_id"/>
+                            <a:map from="notify_template_code" to="notify_template_code"/>
+                            <a:map from="notify_template_desc" to="notify_template_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="approval_rule" lovGridHeight="300" lovHeight="450" lovService="zjwfl.zj_wfl_workflow_rules_lov?notice_flag=Y" lovWidth="550" required="true" title="审批规则">
+                        <a:mapping>
+                            <a:map from="rule_code" to="approval_rule"/>
+                            <a:map from="description" to="approval_rule_desc"/>
+                            <a:map from="parameter_1_type" to="parameter_type"/>
+                            <a:map from="parameter_1_url" to="parameter_url"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="parameter_value_code1" lovGridHeight="300" lovHeight="450" lovWidth="550" required="true" title="审批人">
+                        <a:mapping>
+                            <a:map from="code" to="parameter_value_code1"/>
+                            <a:map from="id" to="parameter_value_id1"/>
+                            <a:map from="description" to="parameter_value_desc1"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="notify_type_display" displayField="code_value_name" options="notify_type_display_ds" required="true" returnField="notify_type" valueField="code_value"/>
+                    <a:field name="notify_type"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="onSubmitSuccess_nodeNoticerDs"/>
+                    <a:event name="update" handler="onUpdate_nodeNoticerDs"/>
+                    <a:event name="add" handler="onAdd_nodeNoticerDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <script><![CDATA[
+        	
+            function winOpen_link_node_assign(workflow_id, company_id) {
+                new Aurora.Window({
+                    id: 'zj_wfl_workflow_assign_link_node_window',
+                    url: $('pageLink_assign_link_node').getUrl(),
+                    params:{
+                    	company_id:company_id,
+                    	workflow_id:workflow_id
+                    },
+                    title: '链接节点审批人定义',
+                    fullScreen: true
+                });
+            }
+            
+            function render_nodeAssignDs_grid(value, record, name) {
+                if(name=='link_node')
+                {
+                    if (record.get('node_type') == "SUB_PROCESS")
+	                {
+	                    return '<a href="javascript:winOpen_link_node_assign(' + record.get('link_workflow_id') + ',' + '${/parameter/@company_id}' + ')">链接流程</a>';
+	                }
+	                return '';
+                }
+                return '';
+            }
+            
+            ]]></script>
+            <a:grid id="nodeAssignDs_grid" bindTarget="nodeAssignDs" marginHeight="325" marginWidth="60" navBar="true">
+                <a:columns>
+                    <a:column name="sequence_num" align="right" prompt="序号" width="50"/>
+                    <a:column name="node_desc" prompt="节点描述" width="200"/>
+                    <a:column name="node_type_desc" prompt="节点类型" width="150"/>
+                    <a:column name="approval_type_desc" prompt="审批规则" width="150"/>
+                    <a:column name="can_no_approver_flag_desc" prompt="是否允许无审批人" width="150"/>
+                    <a:column name="mail_flag_desc" prompt="是否发送邮件" width="150"/>
+                    <a:column name="link_node" align="center" prompt="链接流程" renderer="render_nodeAssignDs_grid" width="100"/>
+                </a:columns>
+            </a:grid>
+            <script><![CDATA[
+                function winOpen_rule_assign(assign_rule_id) {
+                    var win = new Aurora.Window({
+                        id: 'zj_wfl_business_rule_assigns_win',
+                        url: $('pageLink_rule_assign').getUrl(),
+                        params: {
+                            workflow_id: '${/parameter/@workflow_id}',
+                            assign_rule_id: assign_rule_id
+                        },
+                        title: '规则定义',
+                        height: 350,
+                        width: 600
+                    });
+                    win.on('close', function() {
+                        refreshDs($('nodeApproverDs'));
+                        refreshDs($('nodeNoticerDs'));
+                    });
+                }
+                
+                
+                function render_rule_count_info(value, record, name) {
+                    if (!record.isNew) {
+                        return '<a href="javascript:winOpen_rule_assign(' + record.get('assign_rule_id') + ')">' + value + '</a>';
+                    }
+                    return '';
+                }
+                
+                
+                function handleField_parameter_value_code1(grid, record, name) {
+                    var field = record.getField('parameter_value_code1');
+                    var parameter_type = record.get('parameter_type'); //参数类型
+                
+                    if (parameter_type == 'SELECT') {
+                        field.setRequired(true);
+                        var node_record = $('nodeAssignDs').getCurrentRecord();
+                        field.setLovService(record.get('parameter_url'));
+                        field.setLovPara('company_id', '${/parameter/@company_id}');
+                        field.setLovPara('node_id',node_record.get('node_id'));
+                        field.setLovPara('workflow_id','${/parameter/@workflow_id}');
+                
+                        return grid + '_lov';
+                    } else if (parameter_type == 'INPUT') {
+                        field.setRequired(true);
+                        return grid + '_tf';
+                    } else {
+                        field.setRequired(false);
+                        return '';
+                    }
+                }
+                
+                function editorFun_nodeApproverDs_grid(record, name) {
+                    if (name == 'parameter_value_code1') {
+                        return handleField_parameter_value_code1('nodeApproverDs_grid', record, name);
+                    }
+                    return '';
+                }
+                
+                function editorFun_nodeNoticerDs_grid(record, name) {
+                    if (name == 'parameter_value_code1') {
+                        return handleField_parameter_value_code1('nodeNoticerDs_grid', record, name);
+                    }
+                    return '';
+                }
+                
+                function on_nodeNoticerDs_grid_lov_focus(object) {
+                    var display_name = object.binder.name,
+                        record = object.record || object.binder.ds.create();
+                    if (display_name == 'notify_template_code') {
+                        record.getField('notify_template_code').setLovPara('notify_type', record.get('notify_type'));
+                    }
+                }
+                function winOpen_rule_high_parameter(assign_rule_id,approval_rule) {
+                    var node_record = $('nodeAssignDs').getCurrentRecord();
+                    var win = new Aurora.Window({
+                        id: 'zj_wfl_business_rule_assigns_win',
+                        url: $('pageLink_rule_parameters_link').getUrl(),
+                        params: {
+                            workflow_id: '${/parameter/@workflow_id}',
+                            assign_rule_id: assign_rule_id,
+                            node_id	: node_record.get('node_id'),
+                            company_id :'${/parameter/@company_id}',
+                            rule_code : approval_rule
+                        },
+                        title: '高级参数定义',
+                        height: 350,
+                        width: 300
+                    });
+                }
+                function high_parameter_render(value,record,name){
+                    var approval_rule = record.get('approval_rule');
+                    if (record.get('need_high')){
+                        return '<a href="javascript:winOpen_rule_high_parameter(' + record.get('assign_rule_id')+',\''+approval_rule+ '\')">' + '高级参数' + '</a>';
+                    }
+                    return '';
+                }
+            ]]></script>
+            <a:tabPanel id="nodeAssignTab" height="255" marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="审批人" width="100">
+                        <a:grid id="nodeApproverDs_grid" bindTarget="nodeApproverDs" height="225" marginWidth="60" navBar="true">
+                            <a:toolBar>
+                                <a:button type="add"/>
+                                <a:button type="save"/>
+                                <a:button type="delete"/>
+                            </a:toolBar>
+                            <a:columns>
+                                <a:column name="assign_source_type" editor="zjwfl1080_checked" prompt="仅通知"/>
+                                <a:column name="sequence_num" editor="nodeApproverDs_grid_nf_integer" prompt="审批人顺序" width="100"/>
+                                <a:column name="approval_rule" editor="nodeApproverDs_grid_lov" prompt="审批规则" width="250"/>
+                                <a:column name="approval_rule_desc" prompt="规则描述" width="200"/>
+                                <a:column name="parameter_value_code1" editorFunction="editorFun_nodeApproverDs_grid" prompt="审批人" width="200"/>
+                                <a:column name="parameter_value_desc1" prompt="描述" width="200"/>
+                                <a:column name="rule_count_info" prompt="业务规则" renderer="render_rule_count_info" width="100"/>
+                                <a:column name="high" prompt="高级参数" renderer="high_parameter_render"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:numberField id="nodeApproverDs_grid_nf_integer" allowDecimals="false" allowNegative="false"/>
+                                <a:lov id="nodeApproverDs_grid_lov"/>
+                                <a:textField id="nodeApproverDs_grid_tf"/>
+                                <a:checkBox id="zjwfl1080_checked"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                    <!-- <a:tab prompt="通知人" width="100">
+                        <a:grid id="nodeNoticerDs_grid" bindTarget="nodeNoticerDs" height="225" marginWidth="60" navBar="true">
+                            <a:toolBar>
+                                <a:button type="add"/>
+                                <a:button type="save"/>
+                                <a:button type="delete"/>
+                            </a:toolBar>
+                            <a:columns>
+                                <a:column name="approval_rule" editor="nodeNoticerDs_grid_lov" prompt="通知规则" width="150"/>
+                                <a:column name="approval_rule_desc" prompt="规则描述" width="200"/>
+                                <a:column name="parameter_value_code1" editorFunction="editorFun_nodeNoticerDs_grid" prompt="通知人" width="150"/>
+                                <a:column name="parameter_value_desc1" prompt="描述" width="200"/>
+                                <a:column name="notify_type_display" editor="nodeNoticerDs_grid_cb" prompt="通知类型" width="80"/>
+                                <a:column name="notify_template_code" editor="nodeNoticerDs_grid_lov" prompt="消息模板代码" width="200"/>
+                                <a:column name="notify_template_desc" prompt="消息模板描述" width="250"/>
+                                <a:column name="rule_count_info" prompt="业务规则" renderer="render_rule_count_info" width="100"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:lov id="nodeNoticerDs_grid_lov">
+                                    <a:events>
+                                        <a:event name="focus" handler="on_nodeNoticerDs_grid_lov_focus"/>
+                                    </a:events>
+                                </a:lov>
+                                <a:textField id="nodeNoticerDs_grid_tf"/>
+                                <a:comboBox id="nodeNoticerDs_grid_cb"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab> -->
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

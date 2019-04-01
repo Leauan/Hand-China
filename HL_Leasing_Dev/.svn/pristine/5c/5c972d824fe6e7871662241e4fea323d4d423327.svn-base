@@ -1,0 +1,366 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-12-10 上午09:49:24  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:view>
+        <a:link id="aut_authorize_user_batch_fix_link" url="${/request/@context_path}/modules/aut/AUT106/aut_authorize_user_batch_fix.screen"/>
+        <a:link id="aut_owner_user_batch_fix_link" url="${/request/@context_path}/modules/aut/AUT106/aut_owner_user_batch_fix.screen"/>
+        <a:link id="aut_position_batch_fix_link" url="${/request/@context_path}/modules/aut/AUT106/aut_position_batch_fix.screen"/>
+        <a:link id="aut_owner_user_batch_save_link" url="${/request/@context_path}/modules/aut/AUT106/aut_owner_user_batch_save.svc"/>
+        <a:link id="aut_owner_user_tmp_init_link" model="aut.AUT109.aut_owner_user_tmp_init" modelaction="update"/>
+        <a:link id="aut_authorize_user_save_link" url="${/request/@context_path}/modules/aut/AUT106/aut_authorize_user.svc"/>
+        <script><![CDATA[
+        
+         function query_aut_authorize_user_batch_fix_ds() {
+            
+                $('aut_authorize_user_batch_fix_ds').query();
+            }
+            
+            
+            function aut_trx_fix_detail_renderer(value, record, name) {
+                return '<a href="javascript:fixed_user_win()">'+'${l:AUT106.DETAIL}'+'</a>';
+            }
+            
+            function aut_trx_fix_position_detail_renderer(value, record, name) {
+                return '<a href="javascript:fixed_position_win()">' + '${l:AUT106.DETAIL}' + '</a>';
+            }
+            //获取authorized_user_id
+            
+            function get_user_id() {
+                var sys_user_record = $('sys_user_ds').getCurrentRecord();
+                if (sys_user_record) {
+                    if (sys_user_record.get('authorized_user_id')) {
+                        return sys_user_record.get('authorized_user_id');
+                    }
+                    return '';
+                }
+                return '';
+            }
+            
+             function get_exists_user_flag() {
+                var sys_user_record = $('aut_authorize_user_batch_fix_ds').getSelected();
+            alert(sys_user_record.length);
+                if (sys_user_record.length > 0) {
+            
+                    return 'Y';
+                }
+                return 'N';
+            }
+            
+            function fixed_user_win() {
+                new Aurora.Window({
+                    id: 'fixed_user_win',
+                    url: $('aut_owner_user_batch_fix_link').getUrl(),
+                    title: '${l:AUT106.ADD_FIX_PERSON}',
+                    width: 480,
+                    height: 500
+                });
+            }
+            
+             function fixed_position_win() {
+                new Aurora.Window({
+                    id: 'fixed_position_win',
+                    url: $('aut_position_batch_fix_link').getUrl(),
+                    title: '指定固定岗位',
+                    width: 800,
+                    height: 500
+                });
+            }
+            
+             function get_authorize_user() {
+                 debugger;
+                var records = $('aut_authorize_user_batch_fix_ds').getSelected();
+                for (var i = 0;i < records.length;i++) {
+                    if(records[i].get('user_id')) {
+            
+                        return 'Y';
+                    }
+                }
+                return 'N';
+            }
+            
+            function authorize_user_save() {
+                var datas = [];
+                var records = $('aut_authorize_user_batch_fix_ds').getSelected();
+                for (var i = 0;i < records.length;i++) {
+            
+                    if (records[i].get('user_id')) {
+                        var obj = {};
+                        obj['checked'] = 'Y';
+                        obj['user_id'] = records[i].get('user_id');
+                        obj['_status'] = 'update';
+                        datas[i] = obj;
+            
+                    }
+                    else{
+                        var obj = {};
+                        obj['checked'] = 'N';
+                        obj['user_id'] = records[i].get('user_id');
+                        obj['_status'] = 'update';
+                        datas[i] = obj;
+            
+                    }
+                }
+                Aurora.request({
+                    url: $('aut_authorize_user_save_link').getUrl(),
+                    para: datas,
+                    success: function(res) {
+                        $('aut_trx_category_ds').submitSelected($('aut_owner_user_batch_save_link').getUrl());
+                    },
+                    scope: this
+                });
+            
+            }
+            //提交
+            
+            function aut_owner_user_batch_authorize_confirm() {
+                //单据所有者
+                 // var authorized_user_id = get_user_id();
+                //校验单据所有者是否已选
+                //   var authorized_user_flag = get_exists_user_flag();
+                var authorized_user_flag = get_authorize_user();
+                if (authorized_user_flag != 'Y') {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:AUT106.CHOOSE_TRX_USER}');
+                    return;
+                }
+            
+                //授权对象
+                var aut_trx_person = $('aut_trx_person_ds').getCurrentRecord();
+            
+                //授权业务类别
+                var aut_trx_category_select_ds = $('aut_trx_category_ds').getSelected();
+                
+                if (aut_trx_category_select_ds.length == 0) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:AUT106.CHOOSE_CATEGORY}');
+                    return ;
+                }
+              //  if (authorized_user_id) {
+           
+                    for (var i = 0;i < aut_trx_category_select_ds.length;i++) {
+                       // aut_trx_category_select_ds[i].set('authorized_user_id', authorized_user_id);
+                        aut_trx_category_select_ds[i].set('own_user', aut_trx_person.get('own_user'));
+                        aut_trx_category_select_ds[i].set('parent_user', aut_trx_person.get('parent_user'));
+                        aut_trx_category_select_ds[i].set('unit_chief_user', aut_trx_person.get('unit_chief_user'));
+                        aut_trx_category_select_ds[i].set('fixed_position_flag', aut_trx_person.get('fixed_position_flag'));
+                        aut_trx_category_select_ds[i].set('fixed_user', aut_trx_person.get('fixed_user'));
+                        aut_trx_category_select_ds[i].set('parent_recursion', aut_trx_person.get('parent_recursion'));
+                    }
+                    Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+                    authorize_user_save();
+                //    $('aut_trx_category_ds').submitSelected($('aut_owner_user_batch_save_link').getUrl());
+            
+                // } else {
+                    // Aurora.showMessage('${l:HLS.PROMPT}', '${l:AUT106.CHOOSE_TRX_USER}');
+                // }
+            }
+            
+            function aut_trx_category_ds_submitsuccess(ds) {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            
+            function aut_trx_category_ds_submitfailed(ds) {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+             function aut_woner_user_batch_fix_ef(record, name) {
+                if (record.isNew) {
+                    return 'aut_authorize_user_batch_fix_lov';
+                } else {
+                    return '';
+                }
+            }
+            
+            function aut106_specify_select(ds, record) {
+            
+                record.dirty = true;
+                record.set('checked', 'Y');
+            
+            }
+            
+            function aut106_specify_unselect(ds, record) {
+                record.dirty = true;
+                record.set('checked', 'N');
+            }
+            
+            function aut106_specify_approver_load(ds) {
+                var rs = ds.getAll();
+                for (var i = 0;i < rs.length;i++) {
+                    var checked = rs[i].get('checked');
+                    if (checked == 'Y') {
+                        ds.select(rs[i]);
+                    }
+                }
+                load_flag = 'N';
+            }
+            
+            function aut106_save() {
+                $('aut_authorize_user_batch_fix_ds').submit();
+            }
+            
+            function aut106_specify_submit_sucess() {
+                confirm_flag = 'Y';
+                // $('fixed_user_win').close();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="user_natrue_ds" lookupCode="USER_NATURE"/>
+            <a:dataSet id="aut_authorize_user_batch_fix_query_ds">
+                <a:fields>
+                    <a:field name="unit_name" displayField="code_value_name" options="user_natrue_ds" returnField="unit_name" valueField="code_value_name"/>
+                    <a:field name="province_description" lovGridHeight="350" lovHeight="500" lovService="aut.AUT106.fnd_province" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="description" to="province_description"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="sys_user_ds" autoCreate="true">
+                <a:fields>
+                    <!--  <a:field name="authorized_user_desc" lovGridHeight="300" lovHeight="450" lovService="basic.sys_user_for_lov" lovWidth="500" prompt="AUT106.ACR.OWNER_USER_NAME" required="true" title="AUT106.CHOOSE_USER">
+                        <a:mapping>
+                            <a:map from="description" to="authorized_user_desc"/>
+                            <a:map from="employee_name" to="authorized_employee_name"/>
+                            <a:map from="user_id" to="authorized_user_id"/>
+                        </a:mapping>
+                    </a:field> -->
+                    <a:field name="batch_detail"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="aut_trx_category_ds" autoQuery="true" fetchAll="true" model="aut.AUT103.aut_trx_category_v" pageSize="" selectable="true">
+                <a:events>
+                    <a:event name="submitsuccess" handler="aut_trx_category_ds_submitsuccess"/>
+                    <a:event name="submitfailed" handler="aut_trx_category_ds_submitfailed"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="aut_trx_person_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="own_user" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="parent_user" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="parent_recursion" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="unit_chief_user" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="fixed_user" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <!--  <a:field name="fixed_position_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/> -->
+                    <a:field name="own_user_desc" defaultValue="自己"/>
+                    <a:field name="parent_user_desc" defaultValue="上级岗位树"/>
+                    <a:field name="unit_chief_user_desc" defaultValue="主管"/>
+                    <a:field name="fixed_user_desc" defaultValue="固定人"/>
+                    <a:field name="fix_detail" defaultValue="详细"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="aut_authorize_user_batch_fix_ds" autoQuery="true" fetchAll="true" model="aut.AUT106.aut_authorize_user_batch_tmp2" queryDataSet="aut_authorize_user_batch_fix_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="user_id"/>
+                    <a:field name="employee_name" prompt="HLS.EMPLOYEE_NAME"/>
+                    <a:field name="employee_code" prompt="HLS.EMPLOYEE_CODE"/>
+                    <a:field name="authorized_user_desc" prompt="HLS.DESCRIPTION"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="aut_owner_user_batch_authorize_confirm" text="HLS.CONFIRM"/>
+                <a:gridButton click="query_aut_authorize_user_batch_fix_ds" text="查询"/>
+            </a:screenTopToolbar>
+            <a:form column="2" labelWidth="100" marginWidth="100" title="查询条件">
+                <!--  <a:lov name="authorized_user_desc" bindTarget="sys_user_ds"/> -->
+                <a:comboBox name="unit_name" bindTarget="aut_authorize_user_batch_fix_query_ds" prompt="用户性质"/>
+                <a:lov name="province_description" bindTarget="aut_authorize_user_batch_fix_query_ds" prompt="经销商的省份"/>
+            </a:form>
+            <a:hBox>
+                <a:fieldSet marginHeight="180" style="padding:15px;" title="单据所有者">
+                    <!-- <a:treeGrid bindTarget="aut_authorize_user_batch_fix_ds" idField="unit_id" marginHeight="220" parentField="parent_unit_id" sequenceField="seq" showCheckBox="true"  width="440"> -->
+                    <a:grid bindTarget="aut_authorize_user_batch_fix_ds" marginHeight="200" width="400">
+                        <a:columns>
+                            <!-- <a:column name="unit_name" width="150"/> -->
+                            <a:column name="name" prompt="用户名" width="100"/>
+                            <a:column name="position_desc" prompt="描述" width="170"/>
+                        </a:columns>
+                    </a:grid>
+                    <!--  </a:treeGrid> -->
+                </a:fieldSet>
+                <a:fieldSet marginHeight="220" style="padding:15px;" title="AUT106.DOCUMENT_CATEGORY">
+                    <a:grid bindTarget="aut_trx_category_ds" marginHeight="270" width="400">
+                        <a:columns>
+                            <a:column name="trx_category" prompt="AUT106.DOCUMENT_CATEGORY" width="120"/>
+                            <a:column name="trx_category_desc" prompt="AUT106.DOCUMENT_CATEGORY_DESC" width="150"/>
+                        </a:columns>
+                    </a:grid>
+                </a:fieldSet>
+                <a:fieldSet marginHeight="220" showBorder="false" style="padding:15px;" title="AUT106.TRX_USER_ID">
+                    <table cellpadding="8" cellspacing="0">
+                        <tr>
+                            <td>
+                                <a:checkBox name="own_user" bindTarget="aut_trx_person_ds" prompt=""/>
+                            </td>
+                            <td width="150">
+                                <a:label name="own_user_desc" bindTarget="aut_trx_person_ds"/>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <a:checkBox name="parent_user" bindTarget="aut_trx_person_ds" prompt=""/>
+                            </td>
+                            <td width="150">
+                                <a:label name="parent_user_desc" bindTarget="aut_trx_person_ds"/>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <a:checkBox name="unit_chief_user" bindTarget="aut_trx_person_ds" prompt=""/>
+                            </td>
+                            <td width="150">
+                                <a:label name="unit_chief_user_desc" bindTarget="aut_trx_person_ds"/>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <a:checkBox name="fixed_user" bindTarget="aut_trx_person_ds" prompt=""/>
+                            </td>
+                            <td>
+                                <a:box column="2">
+                                    <a:label name="fixed_user_desc" bindTarget="aut_trx_person_ds" style="width:48px"/>
+                                    <a:label name="fix_detail" bindTarget="aut_trx_person_ds" renderer="aut_trx_fix_detail_renderer" style="width:48px"/>
+                                </a:box>
+                            </td>
+                        </tr>
+                        <!-- <tr>
+                            <td>
+                                <a:checkBox name="fixed_position_flag" bindTarget="aut_trx_person_ds" prompt=""/>
+                            </td>
+                            <td>
+                                <a:box column="2">
+                                    <a:label name="fixed_position_desc" bindTarget="aut_trx_person_ds" style="width:48px"/>
+                                    <a:label name="fix_position_detail" bindTarget="aut_trx_person_ds" renderer="aut_trx_fix_position_detail_renderer" style="width:48px"/>
+                                </a:box>
+                            </td>
+                        </tr> -->
+                    </table>
+                </a:fieldSet>
+            </a:hBox>
+        </a:screenBody>
+        <!--  <script><![CDATA[
+        	//初始化临时表中数据
+        	Aurora.onReady(function(){
+        	    Aurora.Masker.mask(Ext.getBody(),'${l:HLS.EXECUTING}');
+        	    Aurora.request({
+        	        url:$('aut_owner_user_tmp_init_link').getUrl(),
+        	        success:function(){
+        	            Aurora.Masker.unmask(Ext.getBody());
+        	        },
+        	        failure:function(){
+        	            Aurora.Masker.unmask(Ext.getBody());
+        	        },
+        	        error:function(){
+        	          Aurora.Masker.unmask(Ext.getBody());  
+        	        },
+        	        scope:this
+        	    }
+        	    );
+        	});
+        ]]></script> -->
+    </a:view>
+</a:screen>

@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ZLF  
+    $Date: 2014-10-20 下午01:54:29  
+    $Revision: 1.0  
+    $Purpose: 合同维护入口界面
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:view>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="con_contract_modify_link" url="${/request/@context_path}/modules/cont/CON501N/con_contract_modify.screen"/>
+        <a:link id="prj_project_query_link_id" url="${/request/@context_path}/modules/prj/PRJ500/prj_project_create_tree.screen"/>
+        <a:link id="car_modify_mananger_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain_manager.screen"/>
+        <a:link id="car_modify_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain.screen"/>
+        <a:link id="reject_reason_link" url="${/request/@context_path}/modules/cont/CON501N/con_contract_reject_reason.screen"/>
+        <script><![CDATA[
+    	
+    	function open_contract_win(record_id,ds_id){
+    	    var record=$(ds_id).findById(record_id);
+    	    var maintain_type = 'QUERY';
+   			 if (record.get('project_document_type') == 'PRJ') {
+	    	    var param = record.data;
+	    	    	param['document_id'] = record.get('project_id');
+	                param['function_code'] = 'PRJ600Q';
+	                param['function_usage'] = 'QUERY';
+	                param['maintain_type'] = maintain_type;
+	                param['layout_debugger_flag'] = 'Y';
+	                param['url_title'] = '${l:HLS.PROJECT_MAITAIN}';
+	            	hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'prj_project_query_link_id',ds_id);
+   			 } else if (record.get('project_document_type') == 'CARLS') {
+                    if (record.get('lease_channel') == '02') {
+                        //管理人员
+                        param = record.data;
+                        param['document_id'] = record.get('project_id');
+                        param['function_code'] = 'PRJ502D';
+                        param['function_usage'] = 'QUERY';
+                        param['maintain_type'] = maintain_type;
+                        param['layout_debugger_flag'] = 'Y';
+                        param['document_type']=record.get('project_document_type');
+                        param['url_title'] = '${l:HLS.PROJECT_MAITAIN}';
+                        hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'car_modify_mananger_link', 'projectQueryScreen_mainDs');
+                    } else {
+                        param = record.data;
+                        param['document_id'] = record.get('project_id');
+                        param['function_code'] = 'PRJ502D';
+                        param['function_usage'] = 'QUERY';
+                        param['maintain_type'] = maintain_type;
+                        param['layout_debugger_flag'] = 'Y';
+                        param['document_type']=record.get('project_document_type');
+                        param['url_title'] = '${l:HLS.PROJECT_MAITAIN}';
+                        hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'car_modify_link', 'projectQueryScreen_mainDs');
+                    }
+                }
+    	}
+    
+    	//合同维护
+    	window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function() {
+				var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract');
+				if($(ds_id).getSelected().length != 1) {
+				    Aurora.showMessage('提示','请选择一行数据！');
+				    return;
+				}
+				var record = $(ds_id).getSelected()[0];
+				var param = record.data;
+    	    	param['document_id'] = record.get('contract_id');
+                param['function_code'] = 'CON501D';
+                param['function_usage'] = 'MODIFY';
+                param['maintain_type'] = 'UPDATE';
+                 param['layout_debugger_flag'] = 'Y';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+            	hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_modify_link',ds_id);		
+            };
+        
+        	function winOpen_reject_reason(contract_id) {
+                var win = new Aurora.Window({
+                    id: 'reject_reason_id',
+                    params: {
+                        contract_id: contract_id,
+                        winId: 'reject_reason_id'
+                    },
+                    url: $('reject_reason_link').getUrl(),
+                    title: '被拒原因',
+                    width: 600,
+                    height: 430,
+                    draggable: true
+                });
+                
+            }
+           
+    	//申请编号超链接
+		window['${/parameter/@layout_code}_dynamic_link_renderer']=function(value,record,name,config_record){
+		  	if(name=='reject_info') {
+		  	    if(record.get('con_maintain_flag')=='N') {
+		  	    	return '<a href="javascript:winOpen_reject_reason(' + record.get('contract_id') +')">查看被拒原因</a>';
+		  	    }else {
+		  	        return '';
+		  	    }
+		  	}
+		  	
+		    if(name=='project_id_c' && value){
+		        return '<a href="javascript:open_contract_win(\''+record.id+'\',\''+record.ds.id+'\')">'+value+'</a>';
+		    }
+		    //拒绝回来的合同显示红色
+		    if(name=='contract_number' &&record.get('con_maintain_flag') =='N'){
+		        return '<font color="red">'+value+'</font> ';
+		    }
+		    return value;
+		};
+		window['${/parameter/@layout_code}_on_layout_dynamic_grid_query'] = function(ds, qpara, bp_seq) {      
+                 var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract');
+                
+                 if(ds==$(ds_id)){
+                aut_authority_list_validate_query(ds, qpara);
+        
+                 }
+               };
+	]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=CONTRACT&amp;function_code=CON501"/>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

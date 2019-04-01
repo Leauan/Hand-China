@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: DJ  
+    $Date: 2013-4-1 下午2:37:49  
+    $Revision: 1.0  
+    $Purpose: 指标值维护
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="pageLink_targetScreen_welcome" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="pageLink_targetScreen_target_value" url="${/request/@context_path}/modules/fnd/FND712/fnd_score_target_value.screen"/>
+        <a:link id="pageLink_targetScreen_from_sql_link" url="${/request/@context_path}/modules/fnd/FND712/fnd_score_target_maintain_from_sql_lov.screen"/>
+        <script><![CDATA[
+            function targetScreen_query() {
+                $('targetScreenDs').query();
+            }
+            
+            function targetScreen_add() {
+                $('targetScreenDs_grid').showEditorByRecord($('targetScreenDs').create());
+            }
+            
+            function targetScreen_remove() {
+                $('targetScreenDs_grid').remove();
+            }
+            
+            function targetScreen_save() {
+                var ds = $('targetScreenDs');
+                if (ds.validate()) {
+                    ds.submit();
+                }
+            }
+            
+            function targetScreen_quit() {
+                location.href = $('pageLink_targetScreen_welcome').getUrl();
+                parent.shMenu('show');
+            }
+            
+            
+            
+            function editFunction_targetScreen_score_target_code(record, name) {
+                if (record.isNew) {
+                    return 'targetScreenDs_grid_tf_upper';
+                } else {
+                    return '';
+                }
+            }
+            
+            function editFunction_targetScreen_tab_col_desc(record, name) {
+                if (record.get('data_value_from') == 'TABLE_COLUMN') {
+                    var field = record.getField(name);
+                    field.setRequired(true);
+                    var target_type_code = record.get('target_type_code');
+                    if (!Ext.isEmpty(target_type_code)) {
+                        field.setLovPara('target_type_code', target_type_code);
+                    } else {
+                        field.setLovPara('target_type_code', '');
+                    }
+            
+                    return 'targetScreenDs_grid_lov';
+                } else {
+            
+                    record.getField(name).setRequired(false);
+                    return '';
+                }
+            
+            }
+            
+            function editFunction_targetScreen_from_sql(record, name) {
+                if (record.get('data_value_from') == 'SQL') {
+                    var field = record.getField(name);
+                    field.setRequired(true);
+                    return 'targetScreenDs_grid_lov';
+                } else {
+                    record.getField(name).setRequired(false);
+                    return '';
+                }
+            
+            }
+            
+            function editFunction_targetScreen_target_value_type_display(record, name) {
+                if (!record.isNew) {
+                    return '';
+                }
+                if (record.get('summary_flag') == 'N') {
+                    record.getField(name).setRequired(true);
+                    return 'targetScreenDs_grid_comb';
+                } else {
+                    record.getField(name).setRequired(false);
+                    return '';
+                }
+            }
+            
+            function editFunction_targetScreen_data_value_from_display(record, name) {
+                if (record.get('summary_flag') == 'N') {
+                    record.getField(name).setRequired(true);
+                    return 'targetScreenDs_grid_comb';
+                } else {
+                    record.getField(name).setRequired(false);
+                    return '';
+                }
+            }
+            
+            function editFunction_targetScreen_summary_flag(record, name) {
+                if (record.isNew) {
+                    return 'targetScreenDs_grid_check';
+                }
+                return '';
+            }
+            
+            function editFunction_targetScreen_target_type_name(record, name) {
+                if (record.isNew) {
+                    return 'targetScreenDs_grid_lov';
+                } else {
+                    return '';
+                }
+            }
+            
+            
+            function render_targetScreen_target_value(value, record, name) {
+                if (!record.isNew) {
+                    if (record.dirty) {
+                        return '';
+                    }
+                    if (record.get('summary_flag') == 'Y') {
+                        return '';
+                    }
+                    return '<a href="javascript:winOpen_targetScreen_target_value(' + record.get('score_target_id') + ',\'' + record.get('target_value_type') + '\');">' + '${l:FND711.LINK.TARGET_VALUE}' + '</a>';
+                }
+                return '';
+            }
+            
+            
+            function winOpen_targetScreen_target_value(score_target_id, target_value_type) {
+                new Aurora.Window({
+                    id: 'fnd_score_target_value',
+                    url: $('pageLink_targetScreen_target_value').getUrl(),
+                    params: {
+                        score_target_id: score_target_id,
+                        target_value_type: target_value_type
+                    },
+                    title: '${l:FND711.WIN_TITLE.TARGET_VALUE}',
+                    height: 470,
+                    width: 780
+                });
+            }
+            
+            function onUpdate_targetScreenDs(ds, record, name, value, oldValue) {
+                if (name == 'data_value_from') {
+                    //维护方式不是表字段值，那么清空表字段下拉框
+                    if (value != 'TABLE_COLUMN') {
+                        record.set('tab_col_desc', '');
+                        record.set('from_table', '');
+                        record.set('from_column', '');
+                    }
+                }
+            
+                if (name == 'summary_flag') {
+                    //是汇总类型那么清空指标值类型
+                    if (value == 'Y') {
+                        record.set('target_value_type_display', '');
+                        record.set('target_value_type', '');
+            
+                        record.set('data_value_from_display', '');
+                        record.set('data_value_from', '');
+            
+                    }
+                }
+            
+            
+            }
+            
+            function onSubmitSuccess_targetScreenDs(ds, res) {
+                ds.query(ds.currentPage);
+            }
+            
+            function targetScreenDs_grid_gridcellclick(grid, row, name, record) {
+                record.getField('from_sql').setLovUrl($('pageLink_targetScreen_from_sql_link').getUrl() + '?record_id=' + record.id);
+            }
+            
+            function targetScreenDs_grid_from_sql_render(value, record, name) {
+                if (record.get('data_value_from') == 'SQL') {
+                    return value;
+                } else {
+                    return '';
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="targetScreen_maintainMethodDs" lookupCode="FND_SCORE_TARGET_DATA_VALUE_FROM"/>
+            <a:dataSet id="targetScreen_valueTypeDs" lookupCode="FND_SCORE_TARGET_VALUE_TYPE"/>
+            <a:dataSet id="summary_flag_ds" lookupCode="SUMMARY_FLAG_OPTIONS"/>
+            <a:dataSet id="targetScreen_paraDs" autoCreate="true" model="fnd.FND712.fnd_score_target">
+                <a:fields>
+                    <a:field name="target_type_name" lovGridHeight="300" lovHeight="500" lovService="fnd.FND711.fnd_score_target_type_for_lov" lovWidth="600" title="FND712.FND_SCORE_TARGET.TARGET_TYPE_CODE">
+                        <a:mapping>
+                            <a:map from="target_type_name" to="target_type_name"/>
+                            <a:map from="target_type_code" to="target_type_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="summary_flag_desc" displayField="code_value_name" options="summary_flag_ds" prompt="HLS.SUMMARY_FLAG" returnField="summary_flag" valueField="code_value"/>
+                    <!-- <a:field name="summary_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/> -->
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="targetScreenDs" autoPageSize="true" autoQuery="true" model="fnd.FND712.fnd_score_target" queryDataSet="targetScreen_paraDs" selectable="true">
+                <a:fields>
+                    <a:field name="target_type_name" lovGridHeight="300" lovHeight="500" lovService="fnd.FND711.fnd_score_target_type_for_lov" lovWidth="600" required="true" title="FND712.FND_SCORE_TARGET.TARGET_TYPE_CODE">
+                        <a:mapping>
+                            <a:map from="target_type_name" to="target_type_name"/>
+                            <a:map from="target_type_code" to="target_type_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="summary_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="data_value_from_display" displayField="code_value_name" options="targetScreen_maintainMethodDs" returnField="data_value_from" valueField="code_value"/>
+                    <a:field name="target_value_type_display" displayField="code_value_name" options="targetScreen_valueTypeDs" returnField="target_value_type" valueField="code_value"/>
+                    <a:field name="score_target_name" required="true"/>
+                    <a:field name="score_target_code" required="true"/>
+                    <a:field name="data_value_from"/>
+                    <a:field name="tab_col_desc" lovGridHeight="300" lovHeight="500" lovService="fnd.FND711.fnd_score_target_type_colum_v_for_lov" lovWidth="600" title="表字段">
+                        <a:mapping>
+                            <a:map from="tab_col_desc" to="tab_col_desc"/>
+                            <a:map from="table_name" to="from_table"/>
+                            <a:map from="table_column" to="from_column"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="from_sql" lovHeight="430" lovWidth="580" title="FND712.FND_SCORE_TARGET.FROM_SQL"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_targetScreenDs"/>
+                    <a:event name="submitsuccess" handler="onSubmitSuccess_targetScreenDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="targetScreen_quit" text="HLS.EXIT"/>
+                <a:gridButton click="targetScreen_query" text="HLS.QUERY"/>
+                <a:gridButton click="targetScreen_add" text="HLS.NEW"/>
+                <a:gridButton click="targetScreen_remove" text="HLS.REMOVE"/>
+                <a:gridButton click="targetScreen_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:form column="4" title="HLS.QUERY_TITLE">
+                <a:textField name="score_target_code" bindTarget="targetScreen_paraDs" typeCase="upper"/>
+                <a:textField name="score_target_name" bindTarget="targetScreen_paraDs"/>
+                <a:lov name="target_type_name" bindTarget="targetScreen_paraDs"/>
+                <a:comboBox name="summary_flag_desc" bindTarget="targetScreen_paraDs"/>
+                <!-- <a:checkBox name="summary_flag" bindTarget="targetScreen_paraDs"/> -->
+            </a:form>
+            <a:grid id="targetScreenDs_grid" bindTarget="targetScreenDs" marginHeight="180" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="score_target_code" editorFunction="editFunction_targetScreen_score_target_code" width="120"/>
+                    <a:column name="score_target_name" editor="targetScreenDs_grid_tf" width="120"/>
+                    <a:column name="target_type_name" editorFunction="editFunction_targetScreen_target_type_name" prompt="FND712.FND_SCORE_TARGET.TARGET_TYPE_CODE" width="120"/>
+                    <a:column name="summary_flag" editorFunction="editFunction_targetScreen_summary_flag" width="60"/>
+                    <a:column name="data_value_from_display" editorFunction="editFunction_targetScreen_data_value_from_display" prompt="FND712.FND_SCORE_TARGET.DATA_VALUE_FROM" width="100"/>
+                    <a:column name="tab_col_desc" editorFunction="editFunction_targetScreen_tab_col_desc" prompt="表字段" width="100"/>
+                    <a:column name="from_sql" editorFunction="editFunction_targetScreen_from_sql" prompt="sql" renderer="targetScreenDs_grid_from_sql_render" width="100"/>
+                    <a:column name="target_value_type_display" align="center" editorFunction="editFunction_targetScreen_target_value_type_display" prompt="FND712.FND_SCORE_TARGET.TARGET_VALUE_TYPE" width="100"/>
+                    <a:column name="target_value" align="center" prompt="FND711.WIN_TITLE.TARGET_VALUE" renderer="render_targetScreen_target_value" width="100"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="targetScreenDs_grid_tf_upper" typeCase="upper"/>
+                    <a:checkBox id="targetScreenDs_grid_check"/>
+                    <a:textField id="targetScreenDs_grid_tf"/>
+                    <a:comboBox id="targetScreenDs_grid_comb"/>
+                    <a:lov id="targetScreenDs_grid_lov"/>
+                </a:editors>
+                <a:events>
+                    <a:event name="cellclick" handler="targetScreenDs_grid_gridcellclick"/>
+                </a:events>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

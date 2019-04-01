@@ -1,0 +1,352 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-5-13 上午11:10:33  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.enabled_flag=&apos;Y&apos;" fetchAll="true" model="basic.csh_payment_method_for_lov" rootPath="payment_method_path"/>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="currency"/>
+        <a:model-query defaultWhereClause="t.code = &apos;CSH511_TRANSACTION_TYPE&apos; and t.code_value in (&apos;RECEIPT&apos;,&apos;ADVANCE_RECEIPT&apos;)" fetchAll="true" model="sys.sys_code_values_v" rootPath="transaction_type"/>
+        <a:model-query defaultWhereClause="t.code = &apos;CSH510_RETURN_SELECT&apos; and t.code_value not in (&apos;RETURN&apos;)" fetchAll="true" model="sys.sys_code_values_v" rootPath="returned_flag_rp"/>
+        <a:model-query defaultWhereClause="t.code = &apos;CSH510_REVERSE_SELECT&apos; and t.code_value not in (&apos;R&apos;)" fetchAll="true" model="sys.sys_code_values_v" rootPath="reversed_flag_rp"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="sys_service_welcome_link" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="csh_transaction_receipt_update_link" url="${/request/@context_path}/modules/csh/CSH510/csh_transaction_receipt_update.screen"/>
+        <a:link id="csh_transaction_receipt_maintain_post_link" url="${/request/@context_path}/modules/csh/CSH510/csh_transaction_receipt_update.screen"/>
+        <!-- <a:link id="csh_transaction_receipt_maintain_post_link" url="${/request/@context_path}/modules/csh/CSH510/csh_transaction_receipt_post_query.screen"/> -->
+        <script><![CDATA[
+         //锁表
+            
+            function lock_current_window() {
+                Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+            }
+            
+            //解锁
+            
+            function unlock_current_window() {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            
+            function dateValidator(record, name, value) { //日期校验方法
+                if (name == 'transaction_date_from' || name == 'transaction_date_to') {
+                    var start_date = Aurora.formatDate(record.get('transaction_date_from'));
+                    var end_date = Aurora.formatDate(record.get('transaction_date_to'));
+                    if ( !! end_date) { //由于结束日期非必填，只有在结束日期填了才进行比较
+                        if (!compareDate(start_date, end_date)) {
+                            return '${l:CSH510.CSH_RECEIPT_DATE_CHECK}'; //校验不通过返回字符串
+                        }
+                    }
+                    return true; //校验通过返回true
+                }
+            }
+            
+            function compareDate(start, end) {
+                if (start > end) {
+                    return false;
+                }
+                return true;
+            }
+            
+            function csh510_receipt_query() {
+                var record = $('csh_transaction_receipt_maintain_query_ds').getAt(0);
+                var dirty_flag = 'N';
+                for (var name in record.data) {
+                    var value = record.get(name);
+                    if (value != 'undefined' && value != null && value != '') {
+                        dirty_flag = 'Y';
+                    }
+                }
+                if (dirty_flag == 'N') {
+                    Aurora.showConfirm('${l:PROMPT}', '${l:CSH510.CSH_RECEIPT_QUERY_INFORMATION}', function() {
+                        return;
+                    }, function() {
+                        $('csh_transaction_receipt_maintain_result_ds').query();
+                    }, null, null);
+                } else {
+                    $('csh_transaction_receipt_maintain_result_ds').query();
+                }
+            }
+            
+            function csh510_receipt_reset() {
+                $('csh_transaction_receipt_maintain_query_ds').reset();
+            }
+            
+            function csh510_receipt_back() {
+                history.go(-1);
+            }
+            
+            function csh510_receipt_forward() {
+                history.go(1);
+            }
+            
+            function csh510_receipt_quit() {
+                location.href = $('sys_service_welcome_link').getUrl();
+                parent.shMenu('show');
+            }
+            
+            function seedetail_transaction_num(value, record, name) {
+                if (record.get('transaction_id')) {
+                    var url;
+                    if (record.get('posted_flag') == 'N') {
+                        url = $('csh_transaction_receipt_maintain_post_link').getUrl() + '?transaction_id=' + record.get('transaction_id');
+                    } /*else*/else if(record.get('posted_flag') == 'Y') {
+                        url = $('csh_transaction_receipt_update_link').getUrl() + '?transaction_id=' + record.get('transaction_id');
+                    }else{return value;}
+                    return '<a href="javascript:openWindow(\'' + url + '\');">' + value + '</a>';
+                }
+            }
+            
+            function openWindow(url) {
+                new Aurora.Window({
+                    id: 'csh_transaction_receipt_link_winid',
+                    params: {
+                        winId: 'csh_transaction_receipt_link_winid'
+                    },
+                    url: url,
+                    title: '${l:CSH510.CSH_RECEIPT_UPDATE}',
+                    fullScreen: true
+                });
+            }
+            
+            function construct_from_to() {
+                var config = ['transaction_num', 'bank_slip_num', 'transaction_amount', 'currency_code', 'bank_account_code'];
+                var pattern = ['_from', '_to'];
+                var obj = {};
+                for (var i = 0,
+                    j = config.length;i < j;i++) {
+                    for (var m = 0,
+                        n = pattern.length;m < n;m++) {
+                        obj[config[i] + pattern[m]] = config[i] + pattern[n - 1 - m];
+                    }
+                }
+                return obj;
+            }
+            
+            function csh510_receipt_maintain_update(ds, record, name, value, oldvalue) {
+                var from_to = construct_from_to();
+                var opposite_name = from_to[name];
+                if (!Ext.isEmpty(opposite_name)) {
+                    var opposite_value = record.get(opposite_name);
+                    if (!Ext.isEmpty(value) && Ext.isEmpty(opposite_value)) {
+                        record.set(opposite_name, value);
+                    }
+                }
+            }
+            
+            function csh510_receipt_remove() {
+                var records = $('csh_transaction_receipt_maintain_result_ds').getSelected();
+                if (!records.length) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+                var saveData = [];
+                for (var i = 0;i < records.length;i++) {
+                    records[i].set('_status', 'delete');
+                    saveData.push(records[i].data);
+                }
+                Aurora.showConfirm('${l:PROMPT}', '${l:HLS.DELETE_CONFIRM}', function() {
+                    Aurora.Masker.mask(Ext.getBody(), '${l:HLS.DELETING}');
+                    Aurora.request({
+                        url: '${/request/@context_path}/autocrud/csh.CSH510.csh_transaction_delete/batch_update',
+                        para: saveData,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                duration: 2000
+                            });
+                            csh510_delete_remove(records);
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                }, function() {
+                    return;
+                }, null, null);
+            }
+            
+            function csh510_delete_remove(records) {
+                while (records[0]) {
+                    $('csh_transaction_receipt_maintain_result_ds').removeLocal(records[0]);
+                }
+            }
+            
+            function csh510_receipt(){
+                Aurora.showConfirm('${l:PROMPT}', '非财务人员请勿操作!', function() {
+                var records = $('csh_transaction_receipt_maintain_result_ds').getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '请选择1条数据！');
+                    return;
+                }
+                if (records[0].get('transaction_id')) {
+                    var url;
+                    if (records[0].get('posted_flag') == 'N') {
+                        url = $('csh_transaction_receipt_maintain_post_link').getUrl() + '?transaction_id=' + records[0].get('transaction_id')+'&claim=F';
+                    } else {
+                        Aurora.showMessage('${l:PROMPT}', '该单据已经被认领，无需再次认领！');
+                        return;
+                    }
+                    openWindow(url);
+                }
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="payment_method_ds">
+                <a:datas dataSource="/model/payment_method_path"/>
+            </a:dataSet>
+            <a:dataSet id="receipt_type_ds" lookupCode="RECEIPT_TYPE"/>
+            <a:dataSet id="currency_ds">
+                <a:datas dataSource="/model/currency"/>
+            </a:dataSet>
+            <a:dataSet id="transaction_type_ds">
+                <a:datas dataSource="/model/transaction_type"/>
+            </a:dataSet>
+            <!-- <a:dataSet id="transaction_type_ds" lookupCode="CSH511_TRANSACTION_TYPE"/> -->
+            <a:dataSet id="posted_flag_ds" lookupCode="CSH510_POST_SELECT"/>
+            <!-- 去掉退款事务 -->
+            <a:dataSet id="returned_flag_ds">
+                <a:datas dataSource="/model/returned_flag_rp"/>
+            </a:dataSet>
+            <!-- 去掉反冲事务 -->
+            <a:dataSet id="reversed_flag_ds">
+                <a:datas dataSource="/model/reversed_flag_rp"/>
+            </a:dataSet>
+            <a:dataSet id="csh_transaction_receipt_maintain_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="payment_method_display" displayField="description" options="payment_method_ds" returnField="payment_method_id" valueField="payment_method_id"/>
+                    <a:field name="bp_name_from" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov" lovWidth="500" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id_from"/>
+                            <a:map from="bp_name" to="bp_name_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_id_from"/>
+                    <a:field name="bp_name_to" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov" lovWidth="500" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id_to"/>
+                            <a:map from="bp_name" to="bp_name_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_id_to"/>
+                    <a:field name="transaction_num_from"/>
+                    <a:field name="transaction_num_to"/>
+                    <a:field name="bank_slip_num_from"/>
+                    <a:field name="bank_slip_num_to"/>
+                    <a:field name="transaction_date_from" validator="dateValidator"/>
+                    <a:field name="transaction_date_to" validator="dateValidator"/>
+                    <a:field name="bank_account_code" autoCompleteField="bank_account_num" lovGridHeight="350" lovHeight="550" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_code" to="bank_account_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_account_code_from" autoCompleteField="bank_account_num" lovGridHeight="350" lovHeight="550" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_code" to="bank_account_code_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bank_account_from_id"/>
+                    <a:field name="bank_account_code_to" autoComplete="true" autoCompleteField="bank_account_num" lovGridHeight="350" lovHeight="550" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="580" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_code" to="bank_account_code_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="transaction_amount_from"/>
+                    <a:field name="transaction_amount_to"/>
+                    <a:field name="posted_flag_display" displayField="code_value_name" options="posted_flag_ds" returnField="posted_flag" valueField="code_value"/>
+                    <a:field name="posted_flag"/>
+                    <a:field name="returned_flag_display" displayField="code_value_name" options="returned_flag_ds" returnField="returned_flag" valueField="code_value"/>
+                    <a:field name="reversed_flag_display" displayField="code_value_name" options="reversed_flag_ds" returnField="reversed_flag" valueField="code_value"/>
+                    <a:field name="period_name" lovGridHeight="300" lovHeight="500" lovService="gld.gld_period_lov" lovWidth="500" title="GLD_PERIODS.PERIOD_NAME">
+                        <a:mapping>
+                            <a:map from="period_name" to="period_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="user_desc" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="basic.sys_user_for_lov" lovWidth="500" prompt="AUT_TRX_USER_AUTHORIZE.USER_ID" title="员工选择">
+                        <a:mapping>
+                            <a:map from="description" to="user_desc"/>
+                            <a:map from="user_id" to="user_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="transaction_type_display" displayField="code_value_name" options="transaction_type_ds" returnField="transaction_type" valueField="code_value"/>
+                    <a:field name="currency_name_from_display" displayField="currency_name" options="currency_ds" returnField="currency_code_from" valueField="currency_code"/>
+                    <a:field name="currency_code_from"/>
+                    <a:field name="currency_name_to_display" displayField="currency_name" options="currency_ds" returnField="currency_code_to" valueField="currency_code"/>
+                    <a:field name="currency_code_to"/>
+                    <a:field name="transaction_type" defaultValue="RECEIPT"/>
+                    <a:field name="transaction_category" defaultValue="BUSINESS"/>
+                    <a:field name="write_off_flag"/>
+                    <a:field name="not_reversed_flag_r" defaultValue="NOT"/>
+                    <a:field name="receipt_type"/>
+                    <a:field name="receipt_type_des" displayField="code_value_name" options="receipt_type_ds" returnField="receipt_type" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="csh510_receipt_maintain_update"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="csh_transaction_receipt_maintain_result_ds" autoPageSize="true" autoQuery="true" model="csh.CSH510.csh_transaction_miantain_query" queryDataSet="csh_transaction_receipt_maintain_query_ds" selectable="true"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <!-- <a:gridButton click="csh510_receipt_back" text="HLS.BACK"/>
+                <a:gridButton click="csh510_receipt_forward" text="HLS.FORWARD"/> -->
+                <a:gridButton click="csh510_receipt_quit" text="HLS.EXIT"/>
+                <a:gridButton click="csh510_receipt_query" text="HLS.QUERY"/>
+                <a:gridButton click="csh510_receipt_reset" text="HLS.RESET"/>
+                <a:gridButton click="csh510_receipt_remove" text="HLS.REMOVE"/>
+                <!-- <a:gridButton click="csh510_receipt" text="财务认领"/> -->
+            </a:screenTopToolbar>
+            <a:form bindTarget="csh_transaction_receipt_maintain_query_ds" column="4" labelWidth="130" marginWidth="30" title="CSH510.CSH_RECEIPT_UPDATE">
+                <a:datePicker name="transaction_date_from" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="CSH510.CSH_TRANSACTION.TRANSACTION_DATE_FROM"/>
+                <a:datePicker name="transaction_date_to" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="CSH510.CSH_TRANSACTION.TRANSACTION_DATE_TO"/>
+                <a:textField name="transaction_num_from" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="CSH510.CSH_TRANSACTION.TRANSACTION_NUM_FROM"/>
+                <a:textField name="transaction_num_to" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="CSH510.CSH_TRANSACTION.TRANSACTION_NUM_TO"/>
+                <a:lov name="bp_name_from" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="HLS.OBJECT_CODE_FROM"/>
+                <a:lov name="bp_name_to" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="HLS.OBJECT_CODE_TO"/>
+                <a:textField name="bank_slip_num_from" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="CSH510.CSH_TRANSACTION.BANK_SLIP_NUM_FROM"/>
+                <a:textField name="bank_slip_num_to" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="CSH510.CSH_TRANSACTION.BANK_SLIP_NUM_TO"/>
+                <a:numberField name="transaction_amount_from" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="CSH510.CSH_TRANSACTION.TRANSACTION_AMOUNT_FROM"/>
+                <a:numberField name="transaction_amount_to" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="CSH510.CSH_TRANSACTION.TRANSACTION_AMOUNT_TO"/>
+                <a:comboBox name="posted_flag_display" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="CSH510.CSH_TRANSACTION.POSTED_FLAG_CHOOSE"/>
+                <a:comboBox name="payment_method_display" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="HLS.PAYMENT_METHOD"/>
+                <a:lov name="bank_account_code" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="银行账户"/>
+                <a:lov name="period_name" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="GLD_PERIODS.PERIOD_NAME"/>
+                <a:comboBox name="returned_flag_display" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="CSH510.CSH_TRANSACTION.RETURNED_FLAG_CHOOSE"/>
+                <a:comboBox name="receipt_type_des" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="收款类型"/>
+                <!-- <a:comboBox name="transaction_type_display" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="CSH510.CSH_RECEIPT_CATEGORY"/> -->
+                <!-- <a:comboBox name="reversed_flag_display" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="CSH510.CSH_TRANSACTION.REVERSED_FLAG_CHOOSE"/> -->
+                <!-- <a:lov name="user_desc" bindTarget="csh_transaction_receipt_maintain_query_ds" prompt="HLS.DOCUMENT_CREATED_BY"/> -->
+            </a:form>
+            <a:grid id="csh_transaction_receipt_maintain_grid_ds" bindTarget="csh_transaction_receipt_maintain_result_ds" marginHeight="260" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="transaction_num" prompt="CSH511.CSH_TRANSACTION.TRANSACTION_NUM" renderer="seedetail_transaction_num" width="110"/>
+                    <a:column name="receipt_type_des" align="center" prompt="收款类型" width="100"/>
+                    <a:column name="transaction_date" renderer="Aurora.formatDate"/>
+                    <!-- <a:column name="currency_name"/> -->
+                    <a:column name="contract_number" prompt="合同编号"/>
+                    <a:column name="transaction_amount" renderer="Aurora.formatMoney"/>
+                    <a:column name="description" prompt="备注"/>
+                    <a:column name="posted_flag" prompt="过账标志"/>
+                    <a:column name="bank_account_code"/>
+                    <a:column name="bank_account_name"/>
+                    <a:column name="bank_account_num"/>
+                    <a:column name="bp_name"/>
+                    <a:column name="bp_category_display"/>
+                    <a:column name="bank_slip_num" prompt="银行凭证号"/>
+                    <a:column name="returned_amount" prompt="HLS.RETURNED_AMOUNT"/>
+                    <a:column name="write_off_amount" prompt="HLS.WRITEOFF_AMOUNT"/>
+                    <a:column name="user_desc" prompt="HLS.DOCUMENT_CREATED_BY"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

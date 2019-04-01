@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hand  
+    $Date: 2013-1-8 上午09:42:18  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="fnd.fnd_uom_codes_vl" rootPath="uom_codes"/>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="currency"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="pawn_upload_tab_link" url="${/request/@context_path}/modules/fnd/HLS201/hls_pawn_upload_tab.screen"/>
+        <script><![CDATA[
+            function back() {
+
+                history.go(-1);
+            }
+            function enAbleTab(){
+                var tab=$('main_tab');
+                var record = $('pawn_ds').getCurrentRecord();
+                var pawn_id = record.get('pawn_id');
+                tab.items[1].ref =$('pawn_upload_tab_link').getUrl()+'?pawn_id='+pawn_id;
+            }
+            
+            function add_pawn() {
+                $('pawn_ds').submit();
+            }
+            
+            function attachment_link(value, record, name) {
+                if (value != null) {
+                    var link = '${/request/@context_path}/atm_download.svc?attachment_id=';
+                    var str = value.split(';;');
+                    var url = '';
+                    for (var i = 0;i < str.length;i++) {
+                        var temp = str[i].split('--');
+                        if (!Aurora.isEmpty(temp[0])) {
+                            url = url + '<a href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                        }
+                    }
+                    return url;
+            
+                }
+            }
+            var wd;
+            
+            function saveFile() {
+                $('file_result_ds').submit();
+            }
+            
+            function reload() {
+                $('file_result_ds').query();
+            }
+            
+            function submitMSG() {
+                Aurora.showMessage('提示信息', '保存成功！');
+            }
+            
+            function attachmentLink(value, record, name) {
+                //var pkvalue = record.get('cus_upload_id');
+                //var url = '<img src="../../images/upload.png" alt="附件上传" onclick="url_link('+pkvalue+')"/>&nbsp;&nbsp;&nbsp;';
+            
+                if (typeof(value) == 'undefined' && Ext.isEmpty(value)) {
+                    //return url;
+                    return '';
+                } else {
+                    //return url + value;
+                    var link = '${/request/@context_path}/atm_download.svc?attachment_id=';
+                    var str = value.split(';;');
+                    var url = '';
+                    for (var i = 0;i < str.length;i++) {
+                        var temp = str[i].split('--');
+                        if (!Aurora.isEmpty(temp[0])) {
+                            url = url + '<a href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                        }
+                    }
+                    return url;
+                }
+            }
+            
+            function url_link(pkvalue) {
+                var url = '${/request/@context_path}/hls_upload_for_attachment_view.screen?sourcetype=hls_pawn_upload&pkvalue=' + pkvalue;
+                wd = new Aurora.Window({
+                    id: 'attachment_up_window',
+                    url: url,
+                    title: '附件上传',
+                    height: 350,
+                    width: 850
+                });
+            }
+            
+            function attachmentUpload(value, record, name) {
+                var p_pkvalue = record.get('pawn_upload_id');
+            
+                return "<A href='javascript:url_link(" + p_pkvalue + ")'>附件上传</A>";
+            }
+            
+            function dateValidator(record, name, value) {
+                if (name == 'start_date' || name == 'end_date') {
+                    var start_date = record.get('start_date');
+                    var end_date = record.get('end_date');
+                    if (typeof(end_date) != 'undefined' && !Ext.isEmpty(end_date)) {
+                        if (!compareDate(start_date, end_date)) {
+                            return '开始时间不能大于结束时间';
+                        }
+                    }
+                    return true;
+                }
+            }
+            
+            function compareDate(start, end) {
+                if (start.getTime() > end.getTime()) {
+                    return false;
+                }
+                return true;
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="file_result_ds" autoQuery="true" fetchAll="true" model="fnd.fnd_atm_attachment" queryUrl="${/request/@context_path}/autocrud/fnd.fnd_atm_attachment/query?table_name=hls_pawn">
+                <a:fields>
+                    <a:field name="submit_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="submitMSG"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="pawn_stat_ds" lookupCode="HLS_PAWN_STATUS"><![CDATA[
+            ]]></a:dataSet>
+            <a:dataSet id="uom_codes_ds">
+                <a:datas dataSource="/model/uom_codes"/>
+            </a:dataSet>
+            <a:dataSet id="currency_ds">
+                <a:datas dataSource="/model/currency"/>
+            </a:dataSet>
+            <a:dataSet id="pawn_ds" autoCreate="true" model="hls.HLS209.hls_pawns" submitUrl="${/request/@context_path}/modules/fnd/HLS201/hls_pawn.svc?update">
+                <a:fields>
+                    <a:field name="uom_name" displayField="description_text" options="uom_codes_ds" returnField="uom" valueField="uom_code"/>
+                    <a:field name="customer_id"/>
+                    <a:field name="currency_name" displayField="currency_name" options="currency_ds" returnField="currency" valueField="currency_code"/>
+                    <a:field name="customer_name" lovHeight="600" lovService="hls.HLS209.hls_partner_lov" lovWidth="500" title="抵押人查询">
+                        <a:mapping>
+                            <a:map from="customer_id" to="customer_id"/>
+                            <a:map from="customer_name" to="customer_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="start_date" validator="dateValidator"/>
+                    <a:field name="end_date" validator="dateValidator"/>
+                    <a:field name="lease_contract_id"/>
+                    <a:field name="lease_contract_code" lovHeight="600" lovService="hls_prj.hls_prj_contract_hds_for_lov" lovWidth="500" title="租赁合同查询">
+                        <a:mapping>
+                            <a:map from="contract_hds_id" to="lease_contract_id"/>
+                            <a:map from="contract_number" to="lease_contract_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="pawn_status_des" displayField="code_value_name" options="pawn_stat_ds" returnField="pawn_status" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="enAbleTab"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:tabPanel id="main_tab" height="600" width="1000">
+                <a:tabs width="990">
+                    <a:tab prompt="抵押物信息" width="110">
+                        <a:form title="基本信息" width="990">
+                            <a:hBox labelWidth="100">
+                                <a:textField name="pawn_name" bindTarget="pawn_ds" prompt="抵押物名称"/>
+                                <a:textField name="pawn_contract_no" bindTarget="pawn_ds" prompt="抵押合同编号"/>
+                                <a:lov name="lease_contract_code" bindTarget="pawn_ds" prompt="租赁合同编号"/>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:lov name="customer_name" bindTarget="pawn_ds" prompt="抵押人"/>
+                                <a:textField name="pawn_register_no" bindTarget="pawn_ds" prompt="抵押登记证号"/>
+                                <a:textField name="pawn_registed_dept" bindTarget="pawn_ds" prompt="登记部门"/>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:numberField name="quantity" allowDecimals="false" bindTarget="pawn_ds" prompt="抵押物数量"/>
+                                <a:comboBox name="uom_name" bindTarget="pawn_ds" prompt="单位"/>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:numberField name="pawn_value" allowFormat="true" bindTarget="pawn_ds" prompt="价值"/>
+                                <a:comboBox name="currency_name" bindTarget="pawn_ds" prompt="币种"/>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:textField name="estate_license_code" bindTarget="pawn_ds" prompt="房产证号"/>
+                                <a:hBox labelWidth="97">
+                                    <a:numberField name="housing_area" bindTarget="pawn_ds" prompt="房屋面积" width="100"/>
+                                    <span><![CDATA[平方米]]></span>
+                                </a:hBox>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:textField name="land_certificate_code" bindTarget="pawn_ds" prompt="土地证号"/>
+                                <a:hBox labelWidth="97">
+                                    <a:numberField name="land_area" bindTarget="pawn_ds" prompt="土地面积" width="100"/>
+                                    <span><![CDATA[平方米]]></span>
+                                </a:hBox>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:datePicker name="start_date" bindTarget="pawn_ds" prompt="抵押日期从"/>
+                                <a:datePicker name="end_date" bindTarget="pawn_ds" prompt="抵押日期到"/>
+                                <a:comboBox name="pawn_status_des" bindTarget="pawn_ds" prompt="抵押物状态"/>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:textField name="pawn_location" bindTarget="pawn_ds" prompt="房屋坐落" width="410"/>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:textField name="pawn_ownership" bindTarget="pawn_ds" prompt="物权所属" width="410"/>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:textField name="pawn_occupied" bindTarget="pawn_ds" prompt="占管状况" width="410"/>
+                            </a:hBox>
+                            <a:hBox labelWidth="100">
+                                <a:textField name="note" bindTarget="pawn_ds" prompt="备注" width="410"/>
+                            </a:hBox>
+                        </a:form>
+                        <a:hBox>
+                            <a:button click="add_pawn" text="保存"/>
+                            <a:button click="back" text="返回"/>
+                        </a:hBox>
+                    </a:tab>
+                    <a:tab prompt="附件" ref="" width="110"><![CDATA[
+                    ]]></a:tab>
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-2-5 上午10:07:29  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" customizationEnabled="true" trace="true">
+    <a:init-procedure outputPath="/parameter" participants="aurora.service.exception.ExceptionHandler">
+        <a:model-query model="rsc.RSC302.rsc_get_fnd_interface_header_id" rootPath="header"/>
+        <a:import-excel header_id="${/model/header/record/@header_id}" separator="," status_field="/parameter/@ImportSuccess" template_code="FIN_PRJ_IMPORT" user_id="${/session/@user_id}"/>
+        <a:model-query defaultWhereClause="header_id=${/model/header/record/@header_id} and TEMPLATE_CODE = &apos;FIN_PRJ_IMPORT&apos;" model="rsc.RSC302.rsc_fin_statement_import_get_status" rootPath="status"/>
+        <!-- <a:model-query fetchAll="true" model="rsc.RSC303.rsc_fin_statement_prj_tmp_lns_datasource" rootPath="/model/datasource"/>
+        <a:model-query fetchAll="true" model="rsc.RSC303.rsc_fin_statement_prj_tmp_lns_result" rootPath="/model/lns"/> -->
+        <a:model-execute model="rsc.RSC303.rsc_fin_statement_prj_ipt"/>
+        <a:model-query fetchAll="true" model="rsc.RSC303.rsc_fin_statement_prj_tmp_lns_columns" rootPath="/model/columns"/>
+        <p:exception-handles>
+            <p:catch Exception="*">
+                <p:action name="HandleException"/>
+                <p:action name="CreateErrorResponse"/>
+            </p:catch>
+        </p:exception-handles>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="rsc_fin_statement_prj_ipt_id" url="${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_ipt.svc"/>
+        <a:link id="rsc_fin_statement_prj_id" url="${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_all_query.screen"/>
+        <a:link id="rsc_fin_statement_prj_error" url="${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_error.screen"/>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <script><![CDATA[
+            function loadComplete() {
+                Aurora.Masker.mask(Ext.getBody(), '${l:BEING_IMPLEMENTED}');
+                if ('${/model/status/record/@status}' == 'NEW') {
+                    var param = {};
+                    var errorData = "";
+                    var importFlag = true;
+                    param['header_id'] = '${/model/header/record/@header_id}';
+                    param['fin_statement_templet_id'] = '${/parameter/@fin_statement_templet_id}';
+                    if (importFlag) {
+                        Aurora.request({
+                            url: $('rsc_fin_statement_prj_ipt_id').getUrl(),
+                            para: param,
+                            success: function() {
+                                //$('temp_interface_1_ds').setQueryParameter('fin_statement_type', record.get('employee_id'));
+                                $('temp_interface_1_ds').query();
+                                $('temp_interface_2_ds').query();
+                                $('temp_interface_3_ds').query();
+                                $('temp_interface_4_ds').query();
+                                Aurora.Masker.unmask(Ext.getBody());
+                                parent.Aurora.Masker.unmask(parent._input_window.body);
+                            },
+                            scope: this
+                        });
+                    } else {
+                        errorData = errorData.substr(0, errorData.length - 1);
+                        Aurora.showMessage('${l:PROMPT}', '${l:VERIFY_INFORMATION}');
+                        parent.Aurora.Masker.unmask(parent._input_window.body);
+                    }
+                }
+            
+            }
+            
+            function saveBtn() {
+                $('saveBtn_id').disable();
+                Aurora.Masker.mask(Ext.getBody(), '${l:BEING_IMPLEMENTED}');
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/rsc.RSC303.rsc_fin_statement_prj_data_load/update',
+                    para: {
+                        _status: 'update',
+                        fin_statement_templet_id: '${/parameter/@fin_statement_templet_id}',
+                        bp_id: '${/parameter/@bp_id}',
+                        unit_code: '${/parameter/@unit_code}',
+                        currency_code: '${/parameter/@currency_code}'
+                    },
+                    success: function(args) {
+                        var record = args.result;
+                        if (record.error_flag == 'Y') {
+                            new Aurora.window({
+                                id: 'rsc_fin_statement_prj_error_winid',
+                                url: $('rsc_fin_statement_prj_error').getUrl(),
+                                params: {
+                                    fin_statement_templet_id: '${/parameter/@fin_statement_templet_id}',
+                                    winid: 'rsc_fin_statement_prj_error_winid'
+                                },
+                                fullScreen: true,
+                                draggable: true
+                            });
+                        } else {
+                            parent.Aurora.SideBar.enable = true;
+                            parent.Aurora.SideBar.show({
+                                msg: '${l:IMPORT_WAS_SUCCESSFUL}',
+                                duration: 2000
+                            });
+                        }
+                        parent._input_window.close();
+                    },
+                    error: function() {
+                        $('temp_interface_1_ds').query();
+                        $('temp_interface_2_ds').query();
+                        $('temp_interface_3_ds').query();
+                        $('temp_interface_4_ds').query();
+                        $('saveBtn_id').enable();
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    failure: function() {
+                        $('temp_interface_1_ds').query();
+                        $('temp_interface_2_ds').query();
+                        $('temp_interface_3_ds').query();
+                        $('temp_interface_4_ds').query();
+                        $('saveBtn_id').enable();
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    scope: this
+                });
+            }
+            
+            function backBtn() {
+                parent._input_window.close();
+            }
+            
+            function temp_interface_process(datas) {
+                for (var i = 0;i < datas.length;i++) {
+                    var temp_data = datas[i];
+                    for (var name in temp_data.data) {
+                        temp_data.data[name] = isNaN(temp_data.data[name]) == true || name == 'line_number' ? temp_data.data[name] : Aurora.formatMoney(temp_data.data[name]);
+                    }
+                }
+                return datas;
+            }
+            Aurora.onReady(function() {
+                parent.Aurora.Masker.unmask(parent._input_window.body);
+            });
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="temp_interface_1_ds" autoPageSize="true" autoQuery="true" processFunction="temp_interface_process" queryUrl="${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_import_last_query.svc?fin_statement_type=1"/>
+            <a:dataSet id="temp_interface_2_ds" autoPageSize="true" autoQuery="true" processFunction="temp_interface_process" queryUrl="${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_import_last_query.svc?fin_statement_type=2"/>
+            <a:dataSet id="temp_interface_3_ds" autoPageSize="true" autoQuery="true" processFunction="temp_interface_process" queryUrl="${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_import_last_query.svc?fin_statement_type=3"/>
+            <a:dataSet id="temp_interface_4_ds" autoPageSize="true" autoQuery="true" processFunction="temp_interface_process" queryUrl="${/request/@context_path}/modules/rsc/RSC303/rsc_fin_statement_prj_import_last_query.svc?fin_statement_type=4"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:tabPanel marginHeight="100" marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="RSC_FIN_STATEMENT_TMPLT_HDS.BALANCE_SHEET" width="110">
+                        <a:grid bindTarget="temp_interface_1_ds" marginHeight="150" marginWidth="50" navBar="true">
+                            <a:columns>
+                                <a:placeHolder id="object_ds1"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab prompt="RSC_FIN_STATEMENT_TMPLT_HDS.PROFIT_STATEMENT" width="110">
+                        <a:grid bindTarget="temp_interface_2_ds" marginHeight="150" marginWidth="50" navBar="true">
+                            <a:columns>
+                                <a:placeHolder id="object_ds2"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab prompt="RSC_FIN_STATEMENT_TMPLT_HDS.CASH_FLOW_STATEMENT" width="110">
+                        <a:grid bindTarget="temp_interface_3_ds" marginHeight="150" marginWidth="50" navBar="true">
+                            <a:columns>
+                                <a:placeHolder id="object_ds3"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab prompt="RSC_FIN_STATEMENT_TMPLT_HDS.SUPPLEMENTARY" width="110">
+                        <a:grid bindTarget="temp_interface_4_ds" marginHeight="150" marginWidth="50" navBar="true">
+                            <a:columns>
+                                <a:placeHolder id="object_ds4"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+            </a:tabPanel>
+            <a:hBox>
+                <a:button id="saveBtn_id" click="saveBtn" text="DETERMINING_IMPORT"/>
+                <a:button click="backBtn" text="HLS.BACK"/>
+            </a:hBox>
+        </a:screenBody>
+        <script><![CDATA[
+	  		//loadComplete();
+	  	]]></script>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="object_ds1">
+            <p:loop source="/model/columns">
+                <c:process-config>
+                    <a:column name="${@column_name}" align="${@column_align}" prompt="${@field_description}" width="${@field_width}"/>
+                </c:process-config>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="object_ds2">
+            <p:loop source="/model/columns">
+                <c:process-config>
+                    <a:column name="${@column_name}" align="${@column_align}" prompt="${@field_description}" width="${@field_width}"/>
+                </c:process-config>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="object_ds3">
+            <p:loop source="/model/columns">
+                <c:process-config>
+                    <a:column name="${@column_name}" align="${@column_align}" prompt="${@field_description}" width="${@field_width}"/>
+                </c:process-config>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="object_ds4">
+            <p:loop source="/model/columns">
+                <c:process-config>
+                    <a:column name="${@column_name}" align="${@column_align}" prompt="${@field_description}" width="${@field_width}"/>
+                </c:process-config>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

@@ -1,0 +1,317 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-6-24 下午1:29:07  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="enabled_flag=&apos;Y&apos;" fetchAll="true" model="basic.hls_document_type_v" rootPath="document_type"/>
+        <a:model-query defaultWhereClause="enabled_flag=&apos;Y&apos;" fetchAll="true" model="hls.HLS002.hls_document_category" rootPath="document_category"/>
+        <a:model-query fetchAll="true" model="cont.CON701.con_contract_et_profile" rootPath="et_profile"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_adv_settle_create_link" url="${/request/@context_path}/modules/cont/CON701/con_early_termination_create.screen"/>
+        <a:link id="rpt_report_sheet_query" url="${/request/@context_path}/modules/psr/psr_report_test.svc"/>
+        <!--未签章screen-->
+        <a:link id="con_contract_no_sign_print_link_id" url="${/request/@context_path}/modules/cont/CON761/con_contract_teminate_print.screen"/>
+        <!---签章screen-->
+        <a:link id="con_contract_signed_print_link_id" url="${/request/@context_path}/modules/csh/CSH506/csh_payment_print_word.svc"/>
+        <a:link id="con_contract_dowload_uploadfile" url="${/request/@context_path}/modules/cont/CON580/con_other_content_print.svc"/>
+        <!--  获取合同打印路径的js -->
+        <script src="${/request/@context_path}/modules/cont/CON504/javascripts/contract_print_path.js"/>
+        <a:link id="con_contract_due_date_link" model="cont.CON701.con_contract_due_date" modelaction="query"/>
+        <script><![CDATA[
+            function contractQueryScreen_forward() {
+                history.go(1);
+            }
+            
+            function contractQueryScreen_back() {
+                history.go(-1);
+            }
+            
+            function contractQueryScreen_query() {
+                $('contractQueryScreen_mainDs').query();
+            }
+            
+            function contractQueryScreen_reset() {
+                $('contractQueryScreen_paraDs').reset();
+            }
+            
+            function contractQueryScreen_refresh() {
+                var ds = $('contractQueryScreen_mainDs');
+                ds.query(ds.currentPage);
+            }
+            
+            function contractQueryScreen_add() {
+                var records = $('contractQueryScreen_mainDs').getSelected();
+                var record = records[0],
+                    contract_id = record.get('contract_id');
+                var win = new Aurora.Window({
+                    id: 'con_contract_adv_settle_create_window',
+                    url: $('con_contract_adv_settle_create_link').getUrl(),
+                    params: {
+                        winId: 'con_contract_adv_settle_create_window'
+                    },
+                    title: '提前结清创建',
+                    fullScreen: true
+                });
+                win.on('close', function() {
+                    $('contractQueryScreen_mainDs').query();
+                });
+            }
+            
+            function onUpdate_early_termination(dataSet, record, name, value) {
+                if (name == 'termination_date' && record.get('termination_date')) {
+                    var termination_date = Aurora.formatDate(value);
+                    var contract_id = $('contractQueryScreen_mainDs').getSelected()[0].get('contract_id');
+                    Aurora.request({
+                        url: $('con_contract_termination_date_check_link').getUrl(),
+                        para: {
+                            contract_id: contract_id,
+                            termination_date: termination_date
+                        },
+                        success: function(args) { //debugger;
+                            var check_flag = args.result.check_flag;
+                            if (check_flag == 'N') {
+                                $('contractQueryScreen_mainDs').getAt(0).set('termination_date', null);
+                                Aurora.showMessage('提示', '提前结清日不在预定规则内(当前日期和下次支付日期之间)');
+                            }
+                        },
+                        scope: this
+                    });
+                }
+            }
+            
+            // function con701_print_finish(){
+            // debugger;
+            // con761_print('ABNORMAL_FINISH','非正常结清用表单','CONTRACT_ABNORMAL_FINISH',1403);
+            // }
+            
+            // function con701_print_transfer(){
+            // con761_print('FINISH','交接单','CONTRACT_ABNORMAL_TRANSFER',1345);
+            // }
+            
+            // function con701_print_stop(){
+            // con761_print('FINISH','合同终止协议','CONTRACT_ABNORMAL_STOP',1323);
+            // }
+            
+            // //模板，名称，基表名(虚拟节点)，模板id
+            // function con761_print(p_clause_usage,p_content_number,p_table_name,p_templet_id) {
+            // //debugger;
+            // var ds = $('contractQueryScreen_mainDs');
+            // records = ds.getSelected();
+            
+            // if (records.length != 1) {
+            // Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+            // } else {
+            // var record = records[0];
+            // Aurora.showConfirm('提示', '确定打印选中项？', function() {
+            // Aurora.Masker.mask(Ext.getBody(), '正在生成');
+            // var contract_id = record.get('contract_id');
+            // var clause_usage = p_clause_usage;
+            // var templt_name = 'yonda_other_contract.xml';
+            // var content_number = p_content_number;
+            // var templet_id=p_templet_id;
+            // var pdf_key_path = get_pdf_key_path();
+            // var spv_company_code = record.get('spv_company_code');
+            // var doc_name = get_doc_path()+'OTHER_CONTRACT_CONTENT/';
+            // var company_id = record.get('company_id');
+            // //不用于合同文本打印功能的文本，虚拟的表名
+            // var other_contract_content_flag = 'Y';
+            // var table_name = p_table_name;
+            // var table_pk_id = record.get('contract_id');
+            // //不用于合同文本打印功能的文本，虚拟的表名
+            // //未审批通过的打印出来未盖章合同
+            // var link = $('con_contract_no_sign_print_link_id').getUrl();
+            // var url = link + '?templt_name=' + templt_name + '&content_number=' + content_number + '&contract_id=' + contract_id + '&clause_usage=' + clause_usage + '&templet_id='+templet_id + '&company_id=' + company_id + '&pdf_key_path=' + pdf_key_path + '&spv_company_code=' + spv_company_code + '&doc_name=' + doc_name + '&other_contract_content_flag=' + other_contract_content_flag + '&table_name=' + table_name + '&table_pk_id=' + table_pk_id;
+            // var form = document.createElement("form");
+            // form.target = "word_export_window";
+            // form.method = "post";
+            // form.action = url;
+            // var iframe = Ext.get('word_export_window') || new Ext.Template('<iframe id ="word_export_window" name="word_export_window" style="position:absolute;left:-10000px;top:-10000px;width:1px;height:1px;display:none"></iframe>').insertFirst(document.body, {}, true);
+            // document.body.appendChild(form);
+            // form.submit();
+            // Ext.fly(form).remove();
+            // setTimeout(function() {
+            // Aurora.Masker.unmask(Ext.getBody());
+            // }, 1500);
+            
+            // });
+            // }
+            
+            // }
+            
+            function unlock_current_window() {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            //add by liukang
+            //应张文要求 提前结清日要大于 合同核销的最大日期
+            // function check_termination_date(ds, record, name, value) {
+                // debugger;
+                // var et_ds = $('contractQueryScreen_mainDs'),
+                    // et_record = et_ds.getAt(0);
+                // var contract_id = et_record.get('contract_id');
+                
+                
+                // var termination_date = Aurora.formatDate(record.get('termination_date'));
+                // if (name == 'termination_date') {
+                    // Aurora.request({
+                        // url: $('con_contract_due_date_link').getUrl(),
+                        // para: {
+                            // contract_id: contract_id,
+                            // termination_date:termination_date
+                        // },
+                        // success: function(res) {
+                            // unlock_current_window();
+                        // },
+                        // failure: function() {
+                            // unlock_current_window();
+                        // },
+                        // error: function() {
+                            // unlock_current_window();
+                        // },
+                        // scope: this
+                    // });
+                // }
+            // }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=CONTRACT&amp;function_code=CON701"/>
+        <a:dataSets>
+            <a:dataSet id="yes_or_no_ds" lookupCode="YES_NO"/>
+            <a:dataSet id="document_type_ds">
+                <a:datas dataSource="/model/document_type"/>
+            </a:dataSet>
+            <a:dataSet id="document_type_for_et_ds">
+                <a:datas dataSource="/model/document_type_for_et"/>
+            </a:dataSet>
+            <a:dataSet id="document_category_ds">
+                <a:datas dataSource="/model/document_category"/>
+            </a:dataSet>
+            <a:dataSet id="et_profile_ds">
+                <a:datas dataSource="/model/et_profile"/>
+            </a:dataSet>
+            <a:dataSet id="contractQueryScreen_paraDs">
+                <a:fields>
+                    <a:field name="document_type_desc" displayField="document_type_desc" options="document_type_ds" returnField="document_type" valueField="document_type"/>
+                    <a:field name="document_category_desc" displayField="description" options="document_category_ds" returnField="document_category" valueField="document_category"/>
+                    <a:field name="employee_id"/>
+                    <a:field name="employee_code" lovGridHeight="300" lovHeight="450" lovService="basic.hls_salesman_assign_v_for_lov" lovWidth="500" title="PRJ501.PRJ_contract.EMPLOYEE_NAME">
+                        <a:mapping>
+                            <a:map from="employee_id" to="employee_id"/>
+                            <a:map from="employee_name" to="employee_name"/>
+                            <a:map from="employee_code" to="employee_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="contract_number" typeCase="upper"/>
+                    <a:field name="date_from"/>
+                    <a:field name="date_to"/>
+                    <a:field name="bp_id_tenant"/>
+                    <a:field name="bp_name" lovGridHeight="330" lovHeight="470" lovLabelWidth="120" lovService="cont.CON701.hls_bp_master_v_all_lov?bp_category=TENANT" lovWidth="700" title="承租人">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id_tenant"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="project_number" title="申请编号" typeCase="upper"/>
+                    <a:field name="user_desc" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="basic.sys_user_for_lov" lovWidth="500" prompt="AUT_TRX_USER_AUTHORIZE.USER_ID" title="员工选择">
+                        <a:mapping>
+                            <a:map from="description" to="user_desc"/>
+                            <a:map from="user_id" to="user_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <!-- <a:field name="guarantor_id"/> -->
+                    <!-- <a:field name="guarantor_name" lovGridHeight="330" lovHeight="470" lovLabelWidth="120" lovService="cont.CON701.hls_bp_master_v_all_lov?bp_category=GUARANTOR" lovWidth="700" title="担保人">
+                        <a:mapping>
+                            <a:map from="bp_id" to="guarantor_id"/>
+                            <a:map from="bp_name" to="guarantor_name"/>
+                        </a:mapping>
+                    </a:field> -->
+                    <a:field name="overdue_status"/>
+                    <a:field name="overdue_status_desc" displayField="code_value_name" options="yes_or_no_ds" returnField="overdue_status" valueField="code_value"/>
+                    <!-- <a:field name="unit_id"/> -->
+                    <!-- <a:field name="unit_id_n" lovGridHeight="300" lovHeight="450" lovService="cont.CON701.exp_org_unit_vl" lovWidth="600" title="部门">
+                        <a:mapping>
+                            <a:map from="unit_id" to="unit_id"/>
+                            <a:map from="description" to="unit_id_n"/>
+                        </a:mapping>
+                    </a:field> -->
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="contractQueryScreen_mainDs" autoQuery="true" model="cont.CON701.con_early_termination_query" pageSize="14" queryDataSet="contractQueryScreen_paraDs" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="et_type_dis" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="cont.CON701.hls_document_type_for_et_lov" lovWidth="500" prompt="提前结清类型" readOnly="true" required="true">
+                        <a:mapping>
+                            <a:map from="document_type" to="et_type"/>
+                            <a:map from="document_type_desc" to="et_type_dis"/>
+                        </a:mapping>
+                    </a:field>
+                    <!--  <a:field name="et_profile"/>
+                    <a:field name="et_profile_desc" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="cont.CON701.con_contract_et_profile" lovWidth="500" prompt="提前结清规则" required="true">
+                        <a:mapping>
+                            <a:map from="description" to="et_profile_desc"/>
+                            <a:map from="et_profile" to="et_profile"/>
+                        </a:mapping>
+                    </a:field> -->
+                    <a:field name="termination_date" datatype="date" required="true"/>
+                    <a:field name="overdue_status" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="trial" checkedValue="Y" uncheckedValue="N"/>
+                    <a:field name="car_in_date"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="query" handler="aut_authority_list_validate_query"/>
+                    <!-- <a:event name="update" handler="check_termination_date"/> -->
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="contractQueryScreen_query" text="HLS.QUERY"/>
+                <a:gridButton click="contractQueryScreen_reset" text="HLS.RESET"/>
+                <a:gridButton click="contractQueryScreen_add" text="HLS.CREATE"/>
+                <!-- <a:gridButton click="con701_print_finish" text="非正常结清用表单打印"/>
+                <a:gridButton click="con701_print_transfer" text="交接单打印"/>
+                <a:gridButton click="con701_print_stop" text="合同终止协议打印"/> -->
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="100" marginWidth="30" title="HLS.QUERY_TITLE">
+                <a:textField name="contract_number" bindTarget="contractQueryScreen_paraDs" prompt="合同编号"/>
+                <a:textField name="project_number" bindTarget="contractQueryScreen_paraDs" prompt="申请编号"/>
+                <a:textField name="contract_name" bindTarget="contractQueryScreen_paraDs" prompt="合同名称"/>
+                <a:comboBox name="overdue_status_desc" bindTarget="contractQueryScreen_paraDs" prompt="是否逾期"/>
+                <a:lov name="bp_name" bindTarget="contractQueryScreen_paraDs" prompt="承租人"/>
+                <a:textField name="received_times" bindTarget="contractQueryScreen_paraDs" prompt="已还款期数"/>
+                <!-- <a:lov name="guarantor_name" bindTarget="contractQueryScreen_paraDs" prompt="担保人"/>
+                <a:lov name="unit_id_n" bindTarget="contractQueryScreen_paraDs" prompt="所属部门"/>
+                <a:textField name="license_number" bindTarget="contractQueryScreen_paraDs" prompt="车牌号" typeCase="upper"/> -->
+                <a:datePicker name="date_from" bindTarget="contractQueryScreen_paraDs" prompt="起租日期从"/>
+                <a:datePicker name="date_to" bindTarget="contractQueryScreen_paraDs" prompt="起租日期到"/>
+                <a:datePicker name="lease_end_date_from" bindTarget="contractQueryScreen_paraDs" prompt="结束日期从"/>
+                <a:datePicker name="lease_end_date_to" bindTarget="contractQueryScreen_paraDs" prompt="结束日期到"/>
+            </a:form>
+            <a:grid id="contractQueryScreen_mainDs_grid" bindTarget="contractQueryScreen_mainDs" marginHeight="200" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" lock="true" prompt="合同编号" width="120"/>
+                    <a:column name="contract_name" prompt="合同名称" showTitle="true" width="220"/>
+                    <a:column name="project_number" align="center" prompt="申请编号" width="120"/>
+                    <a:column name="bp_name" prompt="承租人名称" showTitle="true" width="100"/>
+                    <a:column name="received_times" prompt="已还款期数" showTitle="true" width="120"/>
+                    <!-- <a:column name="unit_id_n" prompt="所属部门" showTitle="true" width="110"/> -->
+                    <a:column name="contract_status_n" align="center" prompt="合同状态" width="100"/>
+                    <a:column name="inception_of_lease" align="center" prompt="起租日期" width="100"/>
+                    <a:column name="lease_end_date" align="center" prompt="结束日期" width="100"/>
+                    <!-- <a:column name="license_number" align="center" prompt="车牌号" width="80"/> -->
+                    <a:column name="overdue_status" align="center" prompt="是否逾期" width="100"/>
+                    <!-- <a:column name="et_profile_desc" editor="con701_lov_id" prompt="提前结清规则" width="120"/> -->
+                    <!-- <a:column name="trial" align="center" editor="cb_id" prompt="试算标志" width="100"/> -->
+                    <a:column name="owner" align="center" prompt="经销商" width="100"/>
+                </a:columns>
+                <a:editors>
+                    <a:lov id="con701_lov_id"/>
+                    <a:checkBox id="cb_id"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

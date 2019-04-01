@@ -1,0 +1,614 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Mouse Chow  
+    $Date: 2012-12-23 下午03:45:59  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <model-execute autoCount="false" model="hls_prj.hls_prj_reload_tmp" rootPath="reload_tmp"/>
+        <model-query model="lch.LCH501.lch_lease_chance_hds_quote_query" rootPath="quote"/>
+    </a:init-procedure>
+    <a:view package="aurora.ui.std" template="default">
+        <script><![CDATA[
+            var change_flag = 0;
+            var process_id = 0;
+            
+            function remove_tmp() {
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/hls_prj.hls_prj_reload_tmp/execute',
+                    para: {},
+                    success: function(args) {},
+                    scope: this
+                });
+            }
+            
+            function get_year_interest_rate() {
+                var record = $('hls_lease_requisition_ds').getAt(0);
+                var downpay_amount = record.get("downpay_amount");
+                var sale_amount = record.get("sale_amount");
+                var periods_count = record.get('periods_count');
+                var poundage_flag = 'N';
+                if (periods_count && downpay_amount && sale_amount) {
+                    Aurora.request({
+                        url: '${/request/@context_path}/autocrud/hls_prj.hls_prj_get_year_interest_rate/execute',
+                        para: {
+                            company_id: '${/session/@company_id}',
+                            downpay_amount: downpay_amount,
+                            sale_amount: sale_amount,
+                            poundage_flag: poundage_flag,
+                            periods_count: periods_count
+                        },
+                        success: function(args) {
+                            var percent_vl = args.result.year_interest_rate;
+                            record.set('interest_rate', percent_vl);
+                        },
+                        scope: this
+                    });
+                }
+            
+            
+            }
+            
+            function onUpdate(ds, record, name, value) {
+            
+                if (name == "sale_amount") {
+                    var downpay_amount = record.get('downpay_amount');
+                    var sale_amount_nf = $('sale_amount_nf')
+                    if ($("hls_prj_finance_amount_temp_ds").getAll().length > 0) {
+                        remove_tmp();
+                        $("hls_prj_finance_amount_temp_ds").query();
+                        record.set("lease_amt_sum", null);
+                    }
+                    change_flag = 1;
+                    if (downpay_amount && value) {
+                        if (value <= downpay_amount) {
+                            Aurora.showErrorMessage('错误操作', '销售金额应大于首付金额');
+                        }
+                        record.set("financing_amount", (value - downpay_amount));
+                        Aurora.request({
+                            url: '${/request/@context_path}/autocrud/hls_prj.hls_prj_get_downpay_rate/execute',
+                            para: {
+                                downpay_amount: downpay_amount,
+                                sale_amount: value
+                            },
+                            success: function(args) {
+                                var percent_vl = args.result.downpay_rate;
+                                if (percent_vl == 0) {
+                                    $('downpay_rate_nf').setValue(0, true);
+                                } else {
+            
+                                    var downpay_rate_val = percent_vl / 100
+                                    var downpay_rate_vl = downpay_rate_val.toFixed(2)
+                                    record.set("downpay_rate_disp", percent_vl);
+                                    record.set("downpay_rate", downpay_rate_vl);
+                                }
+            
+                            },
+                            scope: this
+                        });
+                    }
+                }
+            
+            
+                if (name == "downpay_amount") {
+                    var sale_amount = record.get("sale_amount");
+                    change_flag = 1;
+                    if (value && sale_amount) {
+                        if (value >= sale_amount) {
+                            Aurora.showErrorMessage('错误操作', '首付金额应小于销售金额');
+                            return false;
+                        }
+                        record.set("financing_amount", (sale_amount - value));
+                        Aurora.request({
+                            url: '${/request/@context_path}/autocrud/hls_prj.hls_prj_get_downpay_rate/execute',
+                            para: {
+                                downpay_amount: value,
+                                sale_amount: sale_amount
+                            },
+                            success: function(args) {
+                                var percent_vl = args.result.downpay_rate;
+                                if (percent_vl == 0) {
+                                    $('downpay_rate_nf').setValue(0, true);
+                                } else {
+                                    var downpay_rate_val = percent_vl / 100
+                                    var downpay_rate_vl = downpay_rate_val.toFixed(2)
+                                    record.set("downpay_rate_disp", percent_vl);
+                                    record.set("downpay_rate", downpay_rate_vl);
+                                }
+                            },
+                            scope: this
+                        });
+                    }
+                    if ($("hls_prj_finance_amount_temp_ds").getAll().length > 0) {
+                        remove_tmp();
+                        $("hls_prj_finance_amount_temp_ds").query();
+                        record.set("lease_amt_sum", null);
+                    }
+                }
+            
+                if (name == "lease_start_date") {
+                    var payment_start_date_vl = record.get("payment_start_date");
+                    var payment_start_date = record.getMeta().getField('payment_start_date');
+                    change_flag = 1;
+                    if (value) {
+                        payment_start_date.setRequired(true);
+                        payment_start_date.setReadOnly(false);
+                    }
+                    if (typeof(value) != 'undefined' && !Ext.isEmpty(payment_start_date_vl)) {
+                        if (!compareDate(value, payment_start_date_vl)) {
+                            Aurora.showErrorMessage('错误信息', '起租日不能大于支付开始日');
+                            return false;
+                        }
+                    }
+                    if ($("hls_prj_finance_amount_temp_ds").getAll().length > 0) {
+                        remove_tmp();
+                        $("hls_prj_finance_amount_temp_ds").query();
+                        record.set("lease_amt_sum", null);
+                    }
+                }
+            
+                if (name == "payment_start_date") {
+                    var lease_start_date = record.get("lease_start_date");
+                    change_flag = 1;
+                    if (typeof(value) != 'undefined' && !Ext.isEmpty(lease_start_date)) {
+                        if (!compareDate(lease_start_date, value)) {
+                            Aurora.showErrorMessage('错误信息', '起租日不能大于支付开始日');
+                            return false;
+                        }
+                    }
+                    if ($("hls_prj_finance_amount_temp_ds").getAll().length > 0) {
+                        remove_tmp();
+                        $("hls_prj_finance_amount_temp_ds").query();
+                        record.set("lease_amt_sum", null);
+                    }
+                }
+            
+                if (name == "periods_count") {
+                    change_flag = 1;
+                    record.set("payment_times", value);
+                    if ($("hls_prj_finance_amount_temp_ds").getAll().length > 0) {
+                        remove_tmp();
+                        $("hls_prj_finance_amount_temp_ds").query();
+                        record.set("lease_amt_sum", null);
+                    }
+                }
+            
+                if (name == "interest_rate") {
+                    change_flag == 1;
+                    if ($("hls_prj_finance_amount_temp_ds").getAll().length > 0) {
+                        remove_tmp();
+                        $("hls_prj_finance_amount_temp_ds").query();
+                        record.set("lease_amt_sum", null);
+                    }
+                }
+            
+                if (name == "fixed_flag") {
+                    if ($("hls_prj_finance_amount_temp_ds").getAll().length > 0) {
+                        $("hls_prj_finance_amount_temp_ds").query();
+                    }
+            
+                }
+            
+                if (name == "payment_type") {
+                    change_flag = 1;
+                }
+            }
+            
+            
+            
+            function payment_amount_editer_fun(record, name) {
+                var rcd = $('hls_lease_requisition_ds').getAt(0);
+                var fixed_flag = rcd.get("fixed_flag");
+                if (fixed_flag == "Y" && name == "payment_amount" && change_flag == 0) {
+                    return 'payment_amount_nf';
+                } else {
+                    return '';
+                }
+            }
+            
+            function select_record(dataSet, record) {
+                var rcd = $('hls_lease_requisition_ds').getAt(0);
+                var fixed_flag = rcd.get("fixed_flag");
+                var length = dataSet.getAll().length;
+                var last_record = dataSet.getAt(length - 1);
+            
+                if (fixed_flag == "Y") {
+                    var fixed_flag_tmp = record.get("fixed_flag");
+                    if (last_record == record) {
+                        dataSet.unSelect(record);
+                        Aurora.showMessage("提示信息", "最后一期不能修改");
+                        return false;
+                    }
+                    record.getMeta().getField("payment_amount").setReadOnly(false);
+                }
+            
+            }
+            
+            function unSelect_record(dataSet, record) {
+                record.getMeta().getField("payment_amount").setReadOnly(true);
+            }
+            
+            
+            
+            function payment_amount_editer_fun(record, name) {
+                var rcd = $('hls_lease_requisition_ds').getAt(0);
+                var fixed_flag = rcd.get("fixed_flag");
+                if (fixed_flag == "Y" && name == "payment_amount" && change_flag == 0) {
+                    return 'payment_amount_nf';
+                } else {
+                    return '';
+                }
+            }
+            
+            
+            function pre_calculate_lease_amount() {
+                Aurora.Masker.mask(Ext.getBody(), '数据处理中');
+                var ds = $('hls_lease_requisition_ds');
+                var record = ds.getAt(0);
+                var fixed_flag = record.get("fixed_flag");
+                var records = $('hls_prj_finance_amount_temp_ds').getSelected();
+                var data = $('hls_prj_finance_amount_temp_ds').getJsonData(true);
+                var sale_amount = record.get("sale_amount");
+                var downpay_amount = record.get("downpay_amount");
+                var lease_start_date = record.get("lease_start_date");
+                var payment_start_date = record.get('payment_start_date');
+                var periods_count = record.get('periods_count');
+                var interest_rate = record.get('interest_rate');
+                var financing_amount = record.get("financing_amount");
+                var hls_prj_finance_amount_temp_ds = $('hls_prj_finance_amount_temp_ds')
+                if (!sale_amount) {
+                    Aurora.showMessage("提示信息", "销售金额不能为空");
+                    Aurora.Masker.unmask(Ext.getBody());
+                    return false;
+                }
+                if (!downpay_amount) {
+                    Aurora.showMessage("提示信息", "首付金额不能为空");
+                    Aurora.Masker.unmask(Ext.getBody());
+                    return false;
+                }
+                if (!lease_start_date) {
+                    Aurora.showMessage("提示信息", "起租日不能为空");
+                    Aurora.Masker.unmask(Ext.getBody());
+                    return false;
+                }
+                if (!payment_start_date) {
+                    Aurora.showMessage("提示信息", "支付开始日不能为空");
+                    Aurora.Masker.unmask(Ext.getBody());
+                    return false;
+                }
+                if (lease_start_date > payment_start_date) {
+                    Aurora.showMessage("提示信息", "支付开始日应小于开始支付日");
+                    Aurora.Masker.unmask(Ext.getBody());
+                    return false;
+                }
+                if (!periods_count) {
+                    Aurora.showMessage("提示信息", "租赁期数不能为空");
+                    Aurora.Masker.unmask(Ext.getBody());
+                    return false;
+                }
+                if (periods_count <= 1) {
+                    Aurora.showMessage("提示信息", "租赁周期必须大于1");
+                    Aurora.Masker.unmask(Ext.getBody());
+                    return false
+                }
+            
+                if (!financing_amount) {
+                    Aurora.showMessage("提示信息", "销售金额应大于首付金额");
+                    Aurora.Masker.unmask(Ext.getBody());
+                    return false
+                }
+            
+                if (fixed_flag == "Y" && records.length >= 1) {
+                    Aurora.request({
+                        url: '${/request/@context_path}/autocrud/hls_prj.hls_prj_adjust_schedule/batch_update',
+                        para: data,
+                        success: function(args) {
+                            trial_calc();
+                        },
+                        scope: this
+                    });
+                } else {
+                    trial_calc();
+                }
+                change_flag = 0;
+                setTimeout(function() {
+                    Aurora.Masker.unmask(Ext.getBody());
+                }, 1000);
+            }
+            
+            function trial_calc() {
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/lch.LCH502.lch_get_process_id/query',
+                    para: {},
+                    success: function(args) {
+                        if ($('hls_lease_requisition_ds').getAt(0).get('version_desc') == 'OLD') {
+                            process_id = args.result.record.process_id;
+                            if (process_id) {
+                                var ds = $('hls_lease_requisition_ds');
+                                var record = ds.getAt(0);
+                                var session_id = process_id;
+                                var sale_amount = record.get("sale_amount");
+                                var downpay_amount = record.get("downpay_amount");;
+                                var lease_start_date = record.get("lease_start_date");
+                                var payment_start_date = record.get('payment_start_date');
+                                var periods_count = record.get('periods_count');
+                                var payment_type = record.get("payment_type");
+                                var fixed_flag = record.get("fixed_flag");
+                                var interest_rate = record.get('interest_rate');
+                                var company_id = '${/session/@company_id}';
+                                var user_id = '${/session/@user_id}';
+                                Aurora.request({
+                                    url: '${/request/@context_path}/autocrud/db.hls_prj_lease_requisition_pkg.lease_trial_calc_beta/execute',
+                                    para: {
+                                        session_id: session_id,
+                                        sale_amount: sale_amount,
+                                        downpay_amount: downpay_amount,
+                                        lease_start_date: lease_start_date,
+                                        payment_start_date: payment_start_date,
+                                        periods_count: periods_count,
+                                        payment_type: payment_type,
+                                        fixed_flag: fixed_flag,
+                                        interest_rate: interest_rate,
+                                        company_id: company_id,
+                                        user_id: user_id
+                                    },
+                                    success: function(args) {
+                                        var p_total_amount = args.result.p_total_amount;
+                                        record.set('lease_amt_sum', p_total_amount);
+                                        var trial_calc_ds = $('hls_prj_finance_amount_temp_ds');
+                                        trial_calc_ds.setQueryUrl('${/request/@context_path}/autocrud/hls_prj.hls_prj_finance_amount_temp_for_maintain/query?ORDER_FIELD=period_number&process_id=' + process_id);
+                                        saveHeader();
+                                    },
+                                    scope: this
+                                });
+                            }
+                        } else if ($('hls_lease_requisition_ds').getAt(0).get('version_desc') == 'NEW') {
+                            process_id = args.result.record.process_id;
+                            if (process_id) {
+                                var ds = $('hls_lease_requisition_ds');
+                                var record = ds.getAt(0);
+                                var sales_amount = record.get('sale_amount');
+                                var lease_principal = record.get('financing_amount');
+                                var year_rate = parseFloat(record.get('interest_rate')) / 100;
+                                var lease_startdate = record.get('lease_start_date');
+                                var pay_startdate = record.get('payment_start_date');
+                                var period_number = record.get('periods_count');
+                                var first_payment = record.get('downpay_amount');
+                                var rtnway = 1;
+                                var roundcalcflag = record.get('payment_type') == 'Y' ? 2 : 1;
+                                var interest_rate = record.get('interest_rate');
+                                Aurora.request({
+                                    url: '${/request/@context_path}/autocrud/db.hls_lease_calculation_init_pkg.lease_calculation/execute',
+                                    para: {
+                                        sales_amount: sales_amount,
+                                        lease_principal: lease_principal,
+                                        year_rate: year_rate,
+                                        lease_startdate: lease_startdate,
+                                        pay_startdate: pay_startdate,
+                                        period_number: period_number,
+                                        first_payment: first_payment,
+                                        rtnway: rtnway,
+                                        roundcalcflag: roundcalcflag,
+                                        interest_rate: interest_rate,
+                                        process_id: process_id
+                                    },
+                                    success: function(args) {
+                                        var p_total_amount = args.result.p_total_amount;
+                                        record.set('lease_amt_sum', p_total_amount);
+                                        var trial_calc_ds = $('hls_prj_finance_amount_temp_ds');
+                                        trial_calc_ds.setQueryUrl('${/request/@context_path}/autocrud/hls_prj.hls_prj_finance_amount_temp_for_maintain/query?ORDER_FIELD=period_number&process_id=' + process_id);
+                                        saveHeader();
+                                    },
+                                    scope: this
+                                });
+                            }
+                        }
+                    }
+                });
+            }
+            
+            function saveHeader() {
+                $('hls_lease_requisition_ds').getAt(0).data['process_id'] = process_id;
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/lch.LCH502.lch_lease_chance_rent_calc/insert',
+                    para: $('hls_lease_requisition_ds').getAt(0).data,
+                    success: function() {
+                        saveLine();
+                    }
+                });
+            }
+            
+            function saveLine() {
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/db.ord_calculate_irr_pkg.create_hls_prj_finance_amt_gj/execute',
+                    para: {
+                        process_id: process_id
+                    },
+                    success: function() {
+                        $('hls_lease_requisition_ds').getAt(0).set('version_num', process_id);
+                        var trial_calc_ds = $('hls_prj_finance_amount_temp_ds');
+                        trial_calc_ds.query();
+                    }
+                });
+            }
+            
+            function resetForm() {
+                $('hls_lease_requisition_ds').reset();
+                remove_tmp();
+                $("hls_prj_finance_amount_temp_ds").query();
+            
+            }
+            
+            function get_total_payment_amt() {
+                var ds = $('hls_lease_requisition_ds');
+                var record = ds.getAt(0);
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/hls_prj.hls_prj_get_total_payment_amt_tmp/execute',
+                    para: {},
+                    success: function(args) {
+                        var p_amount = args.result.p_amount;
+                        record.set("lease_amt_sum", p_amount);
+                    },
+                    failure: function(args) {},
+                    scope: this
+                });
+            }
+            
+            function compareDate(start, end) {
+                if (start > end) {
+                    return false;
+                }
+                return true;
+            }
+            
+            function keep_data() {
+                var hls_lease_requisition_ds = $('hls_lease_requisition_ds')
+                var recd = hls_lease_requisition_ds.getAt(0);
+                var fixed_flag = recd.get("fixed_flag");
+                var hls_prj_finance_amount_temp_ds = $('hls_prj_finance_amount_temp_ds');
+                if (fixed_flag == 'Y') {
+                    for (var i = 0;i < hls_prj_finance_amount_temp_ds.getAll().length;i++) {
+                        var record = hls_prj_finance_amount_temp_ds.getAt(i);
+                        var fixed_flag = record.get("fixed_flag");
+                        if (fixed_flag == "N") {
+                            hls_prj_finance_amount_temp_ds.select(record);
+                        }
+                    }
+                }
+            
+            }
+            
+            function numberRenderer(value, record, name) {
+                return Aurora.formatNumber(value, 2);
+            }
+            
+            function select_function(record) {
+                var hls_lease_requisition_ds = $('hls_lease_requisition_ds');
+                recd = hls_lease_requisition_ds.getAt(0);
+                fixed_flag = recd.get('fixed_flag');
+                if (fixed_flag == "N") {
+                    return false;
+                }
+                return true;
+            }
+            
+            function initFun() {
+                var saleAmount = parseFloat('${/model/quote/record/@assets_amount}');
+                var downpayAmount = parseFloat('${/model/quote/record/@down_payment}');
+                var leasePeriods = parseFloat('${/model/quote/record/@lease_period}');
+            
+                var headRecord = $('hls_lease_requisition_ds').getAt(0);
+                headRecord.set('sale_amount', saleAmount);
+                headRecord.set('downpay_amount', downpayAmount);
+                headRecord.set('periods_count', leasePeriods);
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="hls_cal_method_ds">
+                <a:datas>
+                    <a:record name="等额本息,调首期" value="NEW"/>
+                    <a:record name="等额本息,调末期" value="OLD"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="hls_lease_requisition_ds" autoCreate="true" model="prj.hls_prj_lease_requisition_for_maintain">
+                <a:fields>
+                    <a:field name="process_id"/>
+                    <a:field name="lease_chance_id" defaultValue="${/parameter/@lease_chance_id}"/>
+                    <a:field name="sale_amount" required="true"/>
+                    <a:field name="downpay_amount" required="true"/>
+                    <a:field name="lease_start_date" dataType="date" required="true"/>
+                    <a:field name="payment_start_date" dataType="date" readOnly="true"/>
+                    <a:field name="periods_count" required="true"/>
+                    <a:field name="financing_amount" readOnly="true"/>
+                    <a:field name="downpay_rate" readOnly="true"/>
+                    <a:field name="downpay_rate_disp" readOnly="true"/>
+                    <a:field name="interest_rate" required="true"/>
+                    <a:field name="payment_times" readOnly="true"/>
+                    <a:field name="signed_payment_amount" readOnly="true"/>
+                    <a:field name="lease_amt_sum" readOnly="true"/>
+                    <a:field name="payment_type" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="fixed_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="cal_method_disp" defaultValue="等额本息,调末期" displayField="name" options="hls_cal_method_ds" returnField="version_desc" valueField="value"/>
+                    <a:field name="version_desc" defaultValue="OLD"/>
+                    <a:field name="version_num" prompt="版本号" readOnly="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="hls_lease_payment_schedule_ds" model="prj.hls_prj_lease_payment_schedule_for_maintain">
+                <a:fields>
+                    <a:field name="payment_date" dataType="date"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="hls_prj_finance_amount_temp_ds" autoQuery="true" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/prj.hls_prj_finance_amount_temp_for_maintain/query?ORDER_FIELD=period_number&amp;process_id=-1" selectFunction="select_function" selectable="true">
+                <a:fields>
+                    <a:field name="payment_date" dataType="date"/>
+                    <a:field name="payment_amount" readOnly="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="select" handler="select_record"/>
+                    <a:event name="unselect" handler="unSelect_record"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form LabelAlign="left" LabelWidth="90" column="4" title="HLS_LEASE_REQUISITION.LEASE_INFO" width="960">
+                <a:numberField name="sale_amount" id="sale_amount_nf" allowFormat="true" allowNegative="false" bindTarget="hls_lease_requisition_ds" decimalPrecision="2" prompt="HLS_LEASE_REQUISITION.SALE_AMOUNT" width="120"/>
+                <a:numberField name="downpay_amount" allowFormat="true" allowNegative="false" bindTarget="hls_lease_requisition_ds" decimalPrecision="2" prompt="HLS_LEASE_REQUISITION.DOWNPAY_AMOUNT" width="120"/>
+                <a:numberField name="downpay_rate_disp" id="downpay_rate_nf" bindTarget="hls_lease_requisition_ds" decimalPrecision="2" prompt="HLS_LEASE_REQUISITION.DOWNPAY_RATE" width="120"/>
+                <a:numberField name="financing_amount" allowFormat="true" allowNegative="false" bindTarget="hls_lease_requisition_ds" decimalPrecision="2" prompt="HLS_LEASE_REQUISITION.FINANCING_AMOUNT" width="120"/>
+                <a:datePicker name="lease_start_date" bindTarget="hls_lease_requisition_ds" prompt="起租日" width="120"/>
+                <a:datePicker name="payment_start_date" bindTarget="hls_lease_requisition_ds" prompt="支付日" width="120"/>
+                <a:numberField name="interest_rate" allowNegative="false" bindTarget="hls_lease_requisition_ds" decimalPrecision="2" prompt="年利率(%)" width="120"/>
+                <a:numberField name="periods_count" allowDecimals="false" allowNegative="false" bindTarget="hls_lease_requisition_ds" prompt="HLS_LEASE_REQUISITION.PERIODS_COUNT" width="120"/>
+                <a:textField name="version_num" bindTarget="hls_lease_requisition_ds" width="120"/>
+            </a:form>
+            <a:hBox labelWidth="100">
+                <a:checkBox name="payment_type" bindTarget="hls_lease_requisition_ds" prompt="百元取整"><![CDATA[
+                    
+                ]]></a:checkBox>
+                <a:checkBox name="fixed_flag" bindTarget="hls_lease_requisition_ds" prompt="HLS_LEASE_REQUISITION.FIXED_FLAG"><![CDATA[
+                    
+                ]]></a:checkBox>
+                <a:comboBox name="cal_method_disp" bindTarget="hls_lease_requisition_ds" prompt="计算引擎" width="162"/>
+                <a:hBox style="padding-left:150px;">
+                    <a:button click="pre_calculate_lease_amount" text="HLS_LEASE_PAYMENT_SCHEDULE.PRE_CALCULATE_LEASE_AMT"/>
+                    <a:button click="resetForm" text="HLS.CLEAR"/>
+                </a:hBox>
+            </a:hBox>
+            <a:form LabelAlign="left" LabelWidth="100" column="1" title="HLS_LEASE_REQUISITION.LEASE_PAYMENT_SCHEDULE" width="960">
+                <a:grid id="hls_prj_finance_amount_temp_grid" bindTarget="hls_prj_finance_amount_temp_ds" height="375" width="930">
+                    <a:toolBar>
+                        <a:button prompt="PROMPT.EXPORT_EXCEL" type="excel"/>
+                    </a:toolBar>
+                    <a:columns>
+                        <a:column name="period_number" align="center" prompt="支付期" width="60"/>
+                        <a:column name="payment_date" prompt="HLS_LEASE_PAYMENT_SCHEDULE.PAYMENT_DATE" renderer="Aurora.formatDate" width="100"/>
+                        <a:column name="payment_amount" align="right" editor="payment_amount_nf" prompt="HLS_LEASE_PAYMENT_SCHEDULE.PAYMENT_AMOUNT" renderer="numberRenderer" width="130"/>
+                        <a:column name="principal_amount" align="right" prompt="HLS_LEASE_PAYMENT_SCHEDULE.PRINCIPAL_AMOUNT" renderer="numberRenderer" width="130"/>
+                        <a:column name="interest_amount" align="right" prompt="HLS_LEASE_PAYMENT_SCHEDULE.INTEREST_AMOUNT" renderer="numberRenderer" width="130"/>
+                        <a:column name="principal_balance" align="right" prompt="HLS_LEASE_PAYMENT_SCHEDULE.PRINCIPAL_BALANCE" renderer="numberRenderer" width="130"/>
+                        <a:column name="vat_payamt" align="right" prompt="租金税额"/>
+                        <a:column name="vat_principal" align="right" prompt="本金税额"/>
+                        <a:column name="vat_interest" align="right" prompt="利息税额"/>
+                        <a:column name="interest_after_tax" align="right" prompt="税后利息"/>
+                    </a:columns>
+                    <a:editors>
+                        <a:numberField id="payment_amount_nf" allowDecimals="true" allowFormat="true" allowNegative="false" decimalPrecision="2"/>
+                    </a:editors>
+                    <a:events>
+                        <a:event name="render" handler="keep_data"/>
+                    </a:events>
+                </a:grid>
+            </a:form>
+        </a:screenBody>
+        <script><![CDATA[
+        	
+        		initFun();
+        	
+        ]]></script>
+    </a:view>
+</a:screen>

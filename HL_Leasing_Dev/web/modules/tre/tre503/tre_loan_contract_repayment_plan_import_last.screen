@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-8-8 下午12:53:49  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query model="hls.HLS500.hls_fin_get_fnd_itfc_header_id" rootPath="header"/>
+        <a:import-excel header_id="${/model/header/record/@header_id}" separator="," status_field="/parameter/@ImportSuccess" template_code="TRE_LOAN_REPLAYMENT_PLAN" user_id="${/session/@user_id}"/>
+        <a:model-update model="tre.tre503.tre_replayment_plan_import_line_execute"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="tre_loan_contract_replayment_plan_data_load_link_id" model="tre.tre503.tre_loan_contract_replayment_plan_data_load" modelaction="update"/>
+        <a:link id="tre_repayment_plan_import_error_link" url="${/request/@context_path}/modules/tre/tre503/tre_loan_contract_plan_import_error.screen"/>
+        <script><![CDATA[
+            var ignore_warning_flag = 'N',
+                warning_flag = 'N';
+            
+            function lock_import_last_window() {
+                parent.$A.Masker.mask(parent._input_window.body, '${l:HLS.IMPORTING}');
+            }
+            
+            function unlock_import_last_window() {
+                parent.$A.Masker.unmask(parent._input_window.body);
+            }
+            Aurora.onReady(function() {
+                var import_message = '${/parameter/@import_message}';
+                unlock_import_last_window();
+                if (import_message == 0) {
+                    return;
+                } else if (import_message == -2) {
+                    warning_flag = 'Y';
+                    tre_repayment_plan_import_error_win();
+                } else {
+                    $('tre_repayment_plan_import_btn').setVisible(false);
+                    tre_repayment_plan_import_error_win();
+                }
+            });
+            
+            function tre_repayment_plan_import_close() {
+                parent._input_window.close();
+            }
+            
+            function final_import_confirm() {
+                Aurora.request({
+                    url: $('tre_loan_contract_replayment_plan_data_load_link_id').getUrl(),
+                    para: {
+                        batch_id: '${/model/header/record/@header_id}',
+                        ignore_warning_flag: ignore_warning_flag,
+                        validate_source: '${/parameter/@validate_source}',
+                        loan_contract_id: '${/parameter/@loan_contract_id}'
+                    },
+                    success: function(res) {
+                        unlock_import_last_window();
+                        var confirm_message = res.result.confirm_message;
+                        if (confirm_message == 0) {
+                            var ds = parent.$('${/parameter/@dsid}');
+                            ds.setQueryParameter('loan_contract_id', '${/parameter/@loan_contract_id}');
+                            ds.query();
+                            parent.Aurora.SideBar.enable = true;
+                            parent.Aurora.SideBar.show({
+                                msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                duration: 2000
+                            });
+                            tre_repayment_plan_import_close();
+                        } else {
+                            if (confirm_message == -2 && ignore_warning_flag == 'N') {
+                                ignore_warning_flag = 'Y';
+                                tre_repayment_plan_import_error_win();
+            
+                            } else if (confirm_message == -1) {
+                                tre_repayment_plan_import_error_win();
+                                $('tre_repayment_plan_import_btn').setVisible(false);
+                            }
+                        }
+                    },
+                    failure: function() {
+                        unlock_import_last_window();
+                    },
+                    error: function() {
+                        unlock_import_last_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            function tre_repayment_plan_import_confirm() {
+                if (warning_flag == 'Y') {
+                    Aurora.showConfirm('${l:HLS.PROMPT}', '${l:TRE503.WARNING_TIPS}', function() {
+                        lock_import_last_window();
+                        ignore_warning_flag = 'Y';
+                        final_import_confirm();
+                    });
+                } else {
+                    lock_import_last_window();
+                    final_import_confirm();
+                }
+            
+            }
+            
+            function on_plan_itfc_times_renderer(value, record, name) {
+                return parseFloat(value).toFixed(0);
+            }
+            
+            //新增返回按钮
+            
+            
+            function tre_repayment_plan_import_back() {
+                parent._input_window.close();
+            }
+            
+            //错误或警告则弹出错误页面
+            
+            
+            function tre_repayment_plan_import_error_win() {
+                var winid = 'tre_repayment_plan_import_error_win';
+                new Aurora.Window({
+                    id: 'tre_repayment_plan_import_error_win',
+                    url: $('tre_repayment_plan_import_error_link').getUrl(),
+                    params: {
+                        'winid': winid
+                    },
+                    width: 600,
+                    heght: 500
+            
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="tre_import_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="batch_id" defaultValue="${/model/header/record/@header_id}"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="tre_loan_contract_itfc_ds" autoQuery="true" model="tre.tre503.tre_loan_contract_itfc" queryDataSet="tre_import_query_ds"/>
+            <a:dataSet id="tre_loan_con_repay_plan_itfc_ds" autoQuery="true" model="tre.tre503.tre_loan_con_repay_plan_itfc" queryDataSet="tre_import_query_ds"/>
+        </a:dataSets>
+        <a:screenBody>
+            <div id="success_message_div_id">
+                <a:screenTopToolbar>
+                    <a:gridButton click="tre_repayment_plan_import_back" text="HLS.BACK"/>
+                    <a:gridButton id="tre_repayment_plan_import_btn" click="tre_repayment_plan_import_confirm" text="HLS.CONFIRM"/>
+                </a:screenTopToolbar>
+                <a:form column="3" labelWidth="100" title=" " width="1000">
+                    <a:numberField name="total_repayment" allowFormat="true" allowNegative="false" bindTarget="tre_loan_contract_itfc_ds" prompt="TRE503.AMOUNT" readonly="true"/>
+                    <a:numberField name="total_interest" allowFormat="true" allowNegative="false" bindTarget="tre_loan_contract_itfc_ds" prompt="TRE503.TOTAL_INTEREST" readonly="true"/>
+                    <a:numberField name="total_fee" allowFormat="true" allowNegative="false" bindTarget="tre_loan_contract_itfc_ds" prompt="TRE503.TOTAL_FEE" readonly="true"/>
+                    <a:numberField name="total_fee_pv" allowFormat="true" allowNegative="false" bindTarget="tre_loan_contract_itfc_ds" prompt="TRE503.TOTAL_FEE_PV" readonly="true"/>
+                    <a:numberField name="net_finance_amount" allowFormat="true" allowNegative="false" bindTarget="tre_loan_contract_itfc_ds" prompt="TRE503.NET_FINANCE_AMOUNT" readonly="true"/>
+                    <a:numberField name="interest_margin" allowFormat="true" allowNegative="false" bindTarget="tre_loan_contract_itfc_ds" prompt="TRE503.INTEREST_MARGIN" readonly="true"/>
+                </a:form>
+                <a:grid id="success_message_grid_id" bindTarget="tre_loan_con_repay_plan_itfc_ds" height="320" navBar="true" width="1000">
+                    <a:columns>
+                        <a:column name="con_contract_number" prompt="TRE503.CONTRACT_NUMBER"/>
+                        <a:column name="repayment_type" prompt="TRE503.REPAYMENT_TYPE"/>
+                        <a:column name="times" prompt="HLS.PERIOD_NUMBER" renderer="on_plan_itfc_times_renderer"/>
+                        <a:column name="rental" prompt="TRE503.RENTAL"/>
+                        <a:column name="deposit_date" prompt="TRE503.DEPOSIT_DATE" renderer="Aurora.formatDate"/>
+                        <a:column name="maturity_date" prompt="TRE503.MATURITY_DATE" renderer="Aurora.formatDate"/>
+                        <a:column name="repayment_date" prompt="TRE503.REPAYMENT_DATE" renderer="Aurora.formatDate"/>
+                        <a:column name="expire_date" prompt="TRE503.EXPIRE_DATE" renderer="Aurora.formatDate"/>
+                        <a:column name="discount_days" prompt="TRE503.DISCOUNT_DAYS" renderer="Aurora.formatNumber"/>
+                        <a:column name="amount" prompt="TRE503.AMOUNT" renderer="Aurora.formatNumber"/>
+                        <a:column name="principal" prompt="TRE503.PRINCIPAL" renderer="Aurora.formatNumber"/>
+                        <a:column name="interest" prompt="TRE502.REPAYMENT_INTEREST" renderer="Aurora.formatNumber"/>
+                        <a:column name="amount_implicit_rt" prompt="TRE503.AMOUNT_IMPLICIT_RT" renderer="Aurora.formatNumber"/>
+                        <a:column name="factoring_fee" prompt="TRE503.FACTORING_FEE" renderer="Aurora.formatNumber"/>
+                        <a:column name="factoring_fee_pv" prompt="TRE503.TOTAL_FEE_PV" renderer="Aurora.formatNumber"/>
+                        <a:column name="residue_rental" prompt="TRE503.RESIDUE_RENTAL" renderer="Aurora.formatNumber"/>
+                    </a:columns>
+                </a:grid>
+            </div>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hand  
+    $Date: 2013-1-9 下午02:01:53  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="currency"/>
+        <a:model-query fetchAll="true" model="basic.fnd_uom_codes_vl_for_lov" rootPath="uom_codes"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+        	function mortgage_create_save(){
+        	    $('mortgage_create_save').disable();
+        	    $('hls_mortgage_create_ds').submit();
+        	}
+        	function submitsuccess(ds, res){
+        	    $('mortgage_create_save').enable();
+        	}
+        	function mortgage_create_create(){
+        	    $('hls_mortgage_create_ds').reset();
+        	}
+        	function mortgage_create_back(){
+        	    $('hls_mortgage_result_ds').query();
+        	    $('hls_mortgage_create_winId').close();
+        	}
+        	
+        	var MortgageAssetTypeController = {
+        	    types : ['house','land','stock','equipment'],
+        	    house : ['estate_license_code','housing_area','use','construction_date','building_structure'],
+        	    land : ['land_certificate_code','land_area','land_use_rights_type','land_use_rights_start_date','usable_period','construction_area','status_of_land_use'],
+        	    stock : ['company_name_stock','stock_name','stock_code','stock_amount','stock_ratio','fair_value','appraise_date','total_value','bvps'],
+        	    equipment : ['equipment_type','pattern','specification'],
+        		clearData : function(type){
+        		    var fields = this[type] || [],
+        		    	rd = $('hls_mortgage_create_ds').getAt(0);
+        		    for(var i=0, len=fields.length; i<len; i++ ){
+        		        rd.set(fields[i],'');
+        		    }
+        		},
+        		show : function(type, deeps){
+        		    if(typeof type == 'string'){
+	        		    type = type.toLowerCase();
+        		    }else{
+        		        type = 'none';
+        		    }
+        		    for(var i=0, len=this.types.length; i<len; i++){
+        		        var t = this.types[i];
+        		        if(type==t){
+        		            Ext.fly(type+'Addition').setStyle({display:'block'});
+        		        }else{
+        		            if(deeps){
+        		               this.clearData(t); 
+        		            }
+        		            Ext.fly(t+'Addition').setStyle({display:'none'});
+        		        }
+        		    }
+        		}
+        	};
+        	
+        	function mortgageUpdate(ds, record, name, value, oldvalue){
+        	    var field;
+        	    if(name=='mortgage_asset_detail'){
+        	        var ast_classfication = record.get('mortgage_ast_classfication');
+        	        var type = ast_classfication == 'MOVABLE_PROPERTY_M'? 'equipment' : value;
+        	        MortgageAssetTypeController.show(type,true);
+        	    }else if(name=='mortgage_type' && value != oldvalue){
+                    field = record.getField('mortgage_ast_classfication_desc');
+                    if(value=='MORTGAGE'){
+                        field.setOptions('asset_mortgage_ds');
+                    }else{
+                        field.setOptions('asset_pledge_ds');
+                    }
+                    
+                    record.set('mortgage_ast_classfication','');
+                    record.set('mortgage_ast_classfication_desc','');
+                    
+                    record.set('mortgage_asset_detail','');
+                    record.set('mortgage_asset_detail_desc','');
+                    
+                    MortgageAssetTypeController.show('none',true);
+                }else if(name=='mortgage_ast_classfication' && value != oldvalue){
+                    field = record.getField('mortgage_asset_detail_desc');
+                    //field.setReadOnly(false);
+                    if(value=='RIGHT_P'){
+                        field.setOptions('asset_detail_right_p_ds');
+                    }else if(value=='MOVABLE_PROPERTY_M'){
+                        field.setOptions('asset_detail_movable_property_m_ds');
+                    }else if(value=='IMMOVABLE_PROPERTY_M'){
+                        field.setOptions('asset_detail_immovable_property_m_ds');
+                    }else{
+                        field.setOptions('');
+                    }
+                    
+                    record.set('mortgage_asset_detail','');
+                    record.set('mortgage_asset_detail_desc','');
+                    
+                    MortgageAssetTypeController.show('none',true);
+                }
+        	}
+        	
+        	Aurora.onReady(function(){
+    	        var types = ['house','land','stock','equipment'];
+    	        for(var i=0, len=types.length; i<len; i++){
+    	            Ext.fly(types[i]+'Addition').setStyle({display:'none'});
+    	        }
+        	});
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="currency_ds">
+                <a:datas dataSource="/model/currency"/>
+            </a:dataSet>
+            <a:dataSet id="uom_name_ds">
+                <a:datas dataSource="/model/uom_codes"/>
+            </a:dataSet>
+            <a:dataSet id="hls_mortgage_create_ds" autoCreate="true" model="hls.HLS209.hls_mortgage">
+                <a:fields>
+                    <a:field name="mortgage_code" readOnly="true"/>
+                    <a:field name="mortgage_type_desc" displayField="code_value_name" options="mortgage_type_ds" returnField="mortgage_type" valueField="code_value"/>
+                    <a:field name="mortgage_ast_classfication_desc" displayField="code_value_name" returnField="mortgage_ast_classfication" valueField="code_value"/>
+                    <a:field name="mortgage_asset_detail_desc" displayField="code_value_name" returnField="mortgage_asset_detail" valueField="code_value"/>
+                    <a:field name="mortgage_status_desc" displayField="code_value_name" options="mortgage_status_ds" returnField="mortgage_status" valueField="code_value"/>
+                    <a:field name="uom_name" displayField="description_text" options="uom_name_ds" returnField="uom" valueField="uom_code"/>
+                    <a:field name="currency_name" displayField="currency_name" options="currency_ds" returnField="currency" valueField="currency_code"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="project_id"/>
+                    <a:field name="project_number" lovGridHeight="300" lovHeight="450" lovService="prj.PRJ501.prj_project_for_lov" lovWidth="600">
+                        <a:mapping>
+                            <a:map from="project_id" to="project_id"/>
+                            <a:map from="project_number" to="project_number"/>
+                            <a:map from="project_name" to="project_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="project_name" readOnly="true"/>
+                    <a:field name="bp_id_mortgagor"/>
+                    <a:field name="mortgagor_name" fetchRemote="false" lovGridHeight="300" lovHeight="450" lovService="basic.hls_bp_master_v_for_lov?bp_category=PLEDGER" lovWidth="600" title="HLS209.MORTGAGER_QUERY">
+                        <a:mapping>
+                            <a:map from="bp_name" to="mortgagor_name"/>
+                            <a:map from="bp_id" to="bp_id_mortgagor"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_id_evaluator"/>
+                    <a:field name="evaluator_name" fetchRemote="false" lovGridHeight="300" lovHeight="450" lovService="basic.hls_bp_master_v_for_lov?bp_category=EVALUATOR" lovWidth="600" title="HLS209.EVALUATOR_QUERY">
+                        <a:mapping>
+                            <a:map from="bp_name" to="evaluator_name"/>
+                            <a:map from="bp_id" to="bp_id_evaluator"/>
+                        </a:mapping>
+                    </a:field>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="mortgageUpdate"/>
+                    <a:event name="submitsuccess" handler="submitsuccess"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton id="mortgage_create_save" click="mortgage_create_save" text="HLS.SAVE"/>
+                <a:gridButton click="mortgage_create_create" text="PROMPT.CLEAR"/>
+                <a:gridButton click="mortgage_create_back" text="HLS.BACK"/>
+            </a:screenTopToolbar>
+            <a:form column="1" labelWidth="200" title="HLS209.FORM.MORTGAGE_DETAIL" width="1100">
+                <a:box column="4" labelWidth="120">
+                    <a:textField name="mortgage_code" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.MORTGAGE_CODE"/>
+                    <a:comboBox name="mortgage_type_desc" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.MORTGAGE_TYPE"/>
+                    <a:comboBox name="mortgage_ast_classfication_desc" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.MORTGAGE_AST_CLASSFICATION"/>
+                    <a:comboBox name="mortgage_asset_detail_desc" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.MORTGAGE_AST_CLASSFICATION"/>
+                </a:box>
+                <a:box column="4" labelWidth="120">
+                    <a:textField name="mortgage_name" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.MORTGAGE_NAME"/>
+                    <a:textField name="mortgage_contract_no" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.MORTGAGE_CONTRACT_NO"/>
+                    <a:lov name="project_number" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.PROJECT_ID"/>
+                    <a:textField name="project_name" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.PROJECT_NAME"/>
+                </a:box>
+                <a:box column="4" labelWidth="120">
+                    <a:textField name="mortgage_register_no" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.MORTGAGE_REGISTER_NO"/>
+                    <a:textField name="mortgage_registed_dept" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.MORTGAGE_REGISTED_DEPT"/>
+                    <a:lov name="mortgagor_name" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.BP_ID_MORTGAGOR"/>
+                    <a:numberField name="value" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.VALUE"/>
+                </a:box>
+                <a:box column="4" labelWidth="120">
+                    <a:comboBox name="currency_name" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.CURRENCY"/>
+                    <a:comboBox name="uom_name" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.UOM"/>
+                    <a:numberField name="quantity" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.QUANTITY"/>
+                    <a:comboBox name="mortgage_status_desc" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.MORTGAGE_STATUS"/>
+                </a:box>
+                <a:box column="4" labelWidth="120">
+                    <a:datePicker name="start_date" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.START_DATE"/>
+                    <a:datePicker name="end_date" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.END_DATE"/>
+                    <a:lov name="evaluator_name" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.BP_ID_EVALUATOR"/>
+                    <a:textField name="ownership" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.OWNERSHIP"/>
+                </a:box>
+                <a:box column="4" labelWidth="115">
+                    <a:textField name="occupied" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.OCCUPIED"/>
+                    <a:textField name="location" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.LOCATION"/>
+                    <a:checkBox name="enabled_flag" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.ENABLED_FLAG"/>
+                </a:box>
+                <div>
+                    <div id="houseAddition">
+                        <a:box column="4" labelWidth="115">
+                            <a:textField name="estate_license_code" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.ESTATE_LICENSE_CODE"/>
+                            <a:numberField name="housing_area" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.HOUSING_AREA"/>
+                            <a:textField name="use" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.USE"/>
+                            <a:datePicker name="construction_date" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.CONSTRUCTION_DATE"/>
+                            <a:textField name="building_structure" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.BUILDING_STRUCTURE"/>
+                        </a:box>
+                    </div>
+                    <div id="landAddition">
+                        <a:box column="4" labelWidth="115">
+                            <a:textField name="land_certificate_code" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.LAND_CERTIFICATE_CODE"/>
+                            <a:numberField name="land_area" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.LAND_AREA"/>
+                            <a:textField name="land_use_rights_type" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.LAND_USE_RIGHTS_TYPE"/>
+                            <a:datePicker name="land_use_rights_start_date" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.LAND_USE_RIGHTS_START_DATE"/>
+                            <a:numberField name="usable_period" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.USABLE_PERIOD"/>
+                            <a:numberField name="construction_area" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.CONSTRUCTION_AREA"/>
+                            <a:textField name="status_of_land_use" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.STATUS_OF_LAND_USE"/>
+                        </a:box>
+                    </div>
+                    <div id="stockAddition">
+                        <a:box column="4" labelWidth="115">
+                            <a:textField name="company_name_stock" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.COMPANY_NAME_STOCK"/>
+                            <a:textField name="stock_name" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.STOCK_NAME"/>
+                            <a:textField name="stock_code" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.STOCK_CODE"/>
+                            <a:numberField name="stock_amount" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.STOCK_AMOUNT"/>
+                            <a:numberField name="stock_ratio" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.STOCK_RATIO"/>
+                            <a:numberField name="fair_value" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.FAIR_VALUE"/>
+                            <a:datePicker name="appraise_date" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.APPRAISE_DATE"/>
+                            <a:numberField name="total_value" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.TOTAL_VALUE"/>
+                            <a:numberField name="bvps" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.BVPS"/>
+                        </a:box>
+                    </div>
+                    <div id="equipmentAddition">
+                        <a:box column="4" labelWidth="115">
+                            <a:textField name="equipment_type" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.EQUIPMENT_TYPE"/>
+                            <a:textField name="pattern" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.PATTERN"/>
+                            <a:textField name="specification" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.SPECIFICATION"/>
+                        </a:box>
+                    </div>
+                </div>
+                <a:box column="4" labelWidth="115">
+                    <a:textField name="note" bindTarget="hls_mortgage_create_ds" prompt="HLS_MORTGAGE.NOTE"/>
+                </a:box>
+            </a:form>
+        </a:screenBody>
+    </a:view>
+</a:screen>

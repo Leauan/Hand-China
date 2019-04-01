@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ZLF  
+    $Date: 2014-11-4 下午5:45:35  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure><![CDATA[
+		
+	]]></a:init-procedure>
+    <a:view>
+        <a:link id="special_retail_submit_link" model="prj.PRJ801.prj_project_special_retail_submit" modelaction="execute"/>
+        <a:link id="special_retail_query_link" url="${/request/@context_path}/modules/prj/PRJ802/prj_project_special_retail_query.screen"/>
+        <script><![CDATA[
+    		function prj801_save() {
+    		    $('prj_project_special_retail_ds').submit();
+    		}
+    		
+    		function prj801_submit() {
+    		    var record = $('prj_project_special_retail_ds').getCurrentRecord();
+    		    var special_retail_id = record.get('special_retail_id');
+    		    if (Aurora.isEmpty(special_retail_id)) {
+    		       Aurora.showMessage('提示','请先保存!');
+    		       return;
+    		    }
+    		    Aurora.showConfirm('提示','您确认提交吗？',function(){
+    		       Aurora.request({
+    		           url:$('special_retail_submit_link').getUrl(),
+    		           para:{
+    		               special_retail_id:record.get('special_retail_id')
+    		           },
+    		            success: function() {
+                            Aurora.SideBar.show({
+                                msg: '提交成功',
+                                duration: 2000
+                            });
+                            Aurora.go($('special_retail_query_link').getUrl());
+                        }
+    		       });
+    		    });
+    		}
+    		
+    		function prj801_reset() {
+    		    $('prj_project_special_retail_ds').reset();
+    		}
+    		
+    		function submitsuccessHandler(ds,res) {
+    		    var record = $('prj_project_special_retail_ds').getCurrentRecord();
+    		    record.set('special_retail_id',res.result.record['special_retail_id']);
+    		}
+    		
+    		function changeHandler(th, val, oldVal) {
+                if (th == $('brand_dis_id')) {
+                    $('prj_project_special_retail_ds').getCurrentRecord().set('series_dis', '');
+                    $('prj_project_special_retail_ds').getCurrentRecord().set('series_id', '');
+                    $('prj_project_special_retail_ds').getCurrentRecord().set('model_dis', '');
+                    $('prj_project_special_retail_ds').getCurrentRecord().set('model_id', '');
+                } else if (th == $('series_dis_id')) {
+                    $('prj_project_special_retail_ds').getCurrentRecord().set('model_dis', '');
+                    $('prj_project_special_retail_ds').getCurrentRecord().set('model_id', '');
+                }
+            }
+            
+            function updateHandler(ds, rec, name, val, oldVal) {
+                if (name == 'brand_id') {
+                    $('car_series_ds').setQueryParameter('brand_id', $('prj_project_special_retail_ds').getCurrentRecord().get('brand_id'));
+                    $('car_series_ds').query();
+                } else if (name == 'series_id') {
+                    $('car_model_ds').setQueryParameter('brand_id', $('prj_project_special_retail_ds').getCurrentRecord().get('brand_id'));
+                    $('car_model_ds').setQueryParameter('series_id', $('prj_project_special_retail_ds').getCurrentRecord().get('series_id'));
+                    $('car_model_ds').query();
+                }
+            }
+    	]]></script>
+        <a:dataSets>
+            <a:dataSet id="car_brands_ds" fetchAll="true" loadData="true" model="hls.HLS222.hls_car_brands"/>
+            <a:dataSet id="car_series_ds" fetchAll="true" model="hls.HLS222.hls_car_series"/>
+            <a:dataSet id="car_model_ds" fetchAll="true" model="hls.HLS222.hls_car_model"/>
+            <a:dataSet id="special_category_ds" fetchAll="true" loadData="true" lookupCode="PRJ801_SPECIAL_RETAIL_CATEGORY"/>
+            <a:dataSet id="special_retail_status" fetchAll="true" loadData="true" lookupCode="PRJ801_SPECIAL_RETAIL_STATUS"/>
+            <a:dataSet id="prj_project_special_retail_ds" autoCreate="true" model="prj.PRJ801.prj_special_retail">
+                <a:fields>
+                    <a:field name="special_retail_id"/>
+                    <a:field name="special_retail_number" readOnly="true"/>
+                    <a:field name="user_id" readOnly="true"/>
+                    <a:field name="customer_name" required="true"/>
+                    <a:field name="years_of_application" required="true"/>
+                    <a:field name="product_name" required="true"/>
+                    <a:field name="brand_id"/>
+                    <a:field name="brand_dis" displayField="brand_dis" options="car_brands_ds" required="true" returnField="brand_id" valueField="brand_id"/>
+                    <a:field name="series_id"/>
+                    <a:field name="series_dis" displayField="series_dis" options="car_series_ds" required="true" returnField="series_id" valueField="series_id"/>
+                    <a:field name="model_id"/>
+                    <a:field name="model_dis" displayField="model_dis" options="car_model_ds" required="true" returnField="model_id" valueField="model_id"/>
+                    <a:field name="risk_open" required="true"/>
+                    <a:field name="special_category"/>
+                    <a:field name="special_category_des" displayField="code_value_name" options="special_category_ds" required="true" returnField="special_category" valueField="code_value"/>
+                    <a:field name="status" defaultValue="NEW"/>
+                    <a:field name="status_des" defaultValue="新建" displayField="code_value_name" options="special_retail_status" readOnly="true" required="true" returnField="status" valueField="code_value"/>
+                    <a:field name="description"/>
+                    <a:field name="special_content" required="true"/>
+                    <a:field name="apply_reason" required="true"/>
+                    <a:field name="document_category" defaultValue="CONTRACT"/>
+                    <a:field name="document_type" defaultValue="SPECIAL_APPROVAL"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="updateHandler"/>
+                    <a:event name="submitsuccess" handler="submitsuccessHandler"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="prj801_save" text="保存"/>
+                <a:gridButton click="prj801_submit" text="提交"/>
+            </a:screenTopToolbar>
+            <a:form column="1" title="单据信息" width="1000">
+                <a:hBox>
+                    <a:textField name="special_retail_number" bindTarget="prj_project_special_retail_ds" prompt="申请编号"/>
+                    <a:textField name="user_id" bindTarget="prj_project_special_retail_ds" prompt="申请人"/>
+                    <a:textField name="customer_name" bindTarget="prj_project_special_retail_ds" prompt="客户名称"/>
+                    <a:textField name="years_of_application" bindTarget="prj_project_special_retail_ds" prompt="申请年限"/>
+                </a:hBox>
+                <a:hBox>
+                    <a:textField name="product_name" bindTarget="prj_project_special_retail_ds" prompt="产品名称"/>
+                    <a:comboBox name="brand_dis" id="brand_dis_id" bindTarget="prj_project_special_retail_ds" prompt="品牌">
+                        <a:events>
+                            <a:event name="change" handler="changeHandler"/>
+                        </a:events>
+                    </a:comboBox>
+                    <a:comboBox name="series_dis" id="series_dis_id" bindTarget="prj_project_special_retail_ds" prompt="车系">
+                        <a:events>
+                            <a:event name="change" handler="changeHandler"/>
+                        </a:events>
+                    </a:comboBox>
+                    <a:comboBox name="model_dis" id="model_dis_id" bindTarget="prj_project_special_retail_ds" prompt="车型"/>
+                </a:hBox>
+                <a:hBox>
+                    <a:textField name="risk_open" bindTarget="prj_project_special_retail_ds" prompt="风险敞口"/>
+                    <a:comboBox name="special_category_des" bindTarget="prj_project_special_retail_ds" prompt="特批类型"/>
+                    <a:comboBox name="status_des" bindTarget="prj_project_special_retail_ds" prompt="状态"/>
+                </a:hBox>
+                <a:hBox labelWidth="120">
+                    <a:textField name="description" bindTarget="prj_project_special_retail_ds" prompt="其他（具体说明）" width="572"/>
+                </a:hBox>
+            </a:form>
+            <a:hBox labelWidth="100" marginWidth="250">
+                <a:textArea name="special_content" bindTarget="prj_project_special_retail_ds" height="150" prompt="特批内容" width="700"/>
+            </a:hBox>
+            <a:hBox labelWidth="100" marginWidth="250">
+                <a:textArea name="apply_reason" bindTarget="prj_project_special_retail_ds" height="150" prompt="申请理由" width="700"/>
+            </a:hBox>
+        </a:screenBody>
+    </a:view>
+</a:screen>

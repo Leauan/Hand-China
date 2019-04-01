@@ -1,0 +1,640 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure/>
+    <a:view>
+        <style><![CDATA[
+        .align-right .item-numberField{
+                        text-align:left;
+                    }
+        ]]></style>
+        <script src="${/request/@context_path}/javascripts/finereport.js"/>
+        <script><![CDATA[
+            var g_status3;
+            //发票打印号
+            var prtbatchNo;
+            
+            function query() {
+                $('inv_rental_invoice_result_ds').query();
+                g_status3 = $('inv_rental_invoice_query_ds').getCurrentRecord().get('status3');
+                var s = document.getElementById('invoice_end_nodiv');
+                if (g_status3 == '3') {
+                    s.style.display = "none";
+                } else if (g_status3 != '3') {
+                    s.style.display = "block";
+                }
+            }
+            
+            function reset() {
+                $('inv_rental_invoice_query_ds').reset();
+            }
+            
+            function numberRenderer(value, record, name) {
+                return Aurora.formatNumber(value, 2);
+            }
+            
+            ////获得当前日期和最大发票号
+            
+            function reInit() {
+                $('inv_rental_invoice_init_ds').query();
+            }
+            
+            function onInitDsLoad(ds) {
+                var record = ds.getCurrentRecord();
+                var batchexecdt = record.get('batchexecdt');
+                //设置开票日期
+                record.set('receiptdate', batchexecdt);
+            
+                var invoiceNo = record.get('invoiceno') || "";
+                var invoiceNoA = "";
+                var invoiceNoB = "";
+                if ( !! invoiceNo) {
+                    for (var i = 0;i < invoiceNo.length;i++) {
+                        var temp = invoiceNo.substring(i, i + 1);
+                        var re = /^[0-9]+\.?[0-9]*$/; //判断字符串是否为数字   /^[1-9]+[0-9]*]*$/
+                        if (!re.test(temp)) { //不是数字
+                            invoiceNoA = invoiceNoA + temp;
+                            temp = "";
+                        } else {
+                            invoiceNoB = invoiceNoB + temp;
+                            temp = "";
+                        }
+                    }
+                    var length = invoiceNoB.length;
+                    invoiceNoB = (parseInt(invoiceNoB, 10) + 1) + "";
+                    length = length - invoiceNoB.length;
+                    for (i = 0;i < length;i++) {
+                        invoiceNoB = '0' + invoiceNoB;
+                    }
+            
+                    record.set('invoice_begin_noa', invoiceNoA);
+                    record.set('invoice_begin_nob', invoiceNoB);
+                }
+            }
+            //复核
+            
+            function submitReception() {
+                var records = $('inv_rental_invoice_result_ds').getSelected();
+            
+                if (records.length < 1) {
+                    Aurora.showMessage('${l:JAVASCRIPT_MESSAGE}', '${l:INV_RENTAL_INVOICE.NO_SELECTED}');
+                    return;
+                }
+            
+                //第一个选中行的 开票状态
+                var receiptrcvstatus = records[0].get('receiptrcvstatus');
+                for (var i = 0;i < records.length;i++) {
+                    //当前行的 开票状态
+                    var receiptrcvstatusCur = records[i].get('receiptrcvstatus');
+                    if (receiptrcvstatus != receiptrcvstatusCur) {
+                        Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE001}');
+                        return;
+                    }
+                    if (receiptrcvstatus == 2 || receiptrcvstatus == 3) {
+                        Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE002}');
+                        return;
+                    }
+                }
+                
+                var cf = Aurora.showConfirm('${l:JAVASCRIPT_MESSAGE}', '${l:INV_RENTAL_INVOICE.MESSAGE003}', function() {
+                    cf.close();
+                    var url = '${/request/@context_path}/autocrud/hclc.inv.inv_rental_invoice_review/batch_update';
+                    Aurora.request({
+                        url:url,
+                        para:$('inv_rental_invoice_result_ds').getJsonData(true),
+                        success:function(){
+                            Aurora.showMessage('${l:JAVASCRIPT_MESSAGE}','复核成功！',function(){
+                                $('inv_rental_invoice_result_ds').query($('inv_rental_invoice_result_ds').currentPage);
+                            });
+                        },
+                        scope:this
+                    });
+                    //$('inv_rental_invoice_result_ds').submitSelected(url);
+                });
+            }
+            
+            function cancelReception() {
+                var records = $('inv_rental_invoice_result_ds').getSelected();
+            
+                if (records.length < 1) {
+                    Aurora.showMessage('${l:JAVASCRIPT_MESSAGE}', '${l:INV_RENTAL_INVOICE.NO_SELECTED}');
+                    return;
+                }
+            
+                //第一个选中行的 开票状态
+                var receiptrcvstatus = records[0].get('receiptrcvstatus');
+                for (var i = 0;i < records.length;i++) {
+                    //当前行的 开票状态
+                    var receiptrcvstatusCur = records[i].get('receiptrcvstatus');
+                    if (receiptrcvstatus != receiptrcvstatusCur) {
+                        Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE001}');
+                        return;
+                    }
+                    if (receiptrcvstatus == 1) {
+                        Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE004}');
+                        return;
+                    }
+                    if (receiptrcvstatus == 3) {
+                        Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE005}');
+                        return;
+                    }
+                }
+                var cf = Aurora.showConfirm('${l:JAVASCRIPT_MESSAGE}', '${l:INV_RENTAL_INVOICE.MESSAGE006}', function() {
+                    cf.close();
+                    var url = '${/request/@context_path}/autocrud/hclc.inv.inv_rental_invoice_review_cancel/batch_update';
+                    Aurora.request({
+                        url:url,
+                        para:$('inv_rental_invoice_result_ds').getJsonData(true),
+                        success:function(){
+                            $('inv_rental_invoice_result_ds').query($('inv_rental_invoice_result_ds').currentPage);
+                        },
+                        scope:this
+                    });
+                    //$('inv_rental_invoice_result_ds').submitSelected(url);
+                });
+            }
+            
+            //打印取消
+            
+            function printInvoiceCancel() {
+                var records = $('inv_rental_invoice_result_ds').getSelected();
+            
+                if (records.length < 1) {
+                    Aurora.showMessage('${l:JAVASCRIPT_MESSAGE}', '${l:INV_RENTAL_INVOICE.NO_SELECTED}');
+                    return;
+                }
+            
+                //第一个选中行的 开票状态
+                var receiptrcvstatus = records[0].get('receiptrcvstatus');
+                for (var i = 0;i < records.length;i++) {
+                    //当前行的 开票状态
+                    var receiptrcvstatusCur = records[i].get('receiptrcvstatus');
+                    if (receiptrcvstatus != receiptrcvstatusCur) {
+                        Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE001}');
+                        return;
+                    }
+                    if (receiptrcvstatus != 3) {
+                        Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE007}');
+                        return;
+                    }
+                }
+                var selectedRecords = $('inv_rental_invoice_result_ds').getJsonData(true);
+                var cf = Aurora.showConfirm('${l:JAVASCRIPT_MESSAGE}', '${l:INV_RENTAL_INVOICE.MESSAGE008}', function() {
+                    cf.close();
+                    var url = 'inv_rental_invoice_print_cancel.svc';
+                    Aurora.request({
+                        url: url,
+                        para: selectedRecords,
+                        success: function(data) {
+                            var sw = Aurora.showMessage('${l:JAVASCRIPT_MESSAGE}', '${l:INV_RENTAL_INVOICE.MESSAGE009}', function() {
+                                sw.close();
+                                $('inv_rental_invoice_result_ds').query($('inv_rental_invoice_result_ds').currentPage);
+                            });
+                        },
+                        scope: this
+                    });
+            
+                    //$('inv_rental_invoice_result_ds').submitSelected(url);
+                });
+            }
+            
+            //打印发票
+            
+            function printInvoice() {
+                var records = $('inv_rental_invoice_result_ds').getSelected();
+            
+                if (records.length < 1) {
+                    Aurora.showMessage('${l:JAVASCRIPT_MESSAGE}', '${l:INV_RENTAL_INVOICE.NO_SELECTED}');
+                    return;
+                }
+            
+                //第一个选中行的 开票状态
+                var receiptrcvstatus = records[0].get('receiptrcvstatus');
+                for (var i = 0;i < records.length;i++) {
+                    //当前行的 开票状态
+                    var receiptrcvstatusCur = records[i].get('receiptrcvstatus');
+                    if (receiptrcvstatus != receiptrcvstatusCur) {
+                        Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE001}');
+                        return;
+                    }
+                    if (receiptrcvstatus == 1) {
+                        Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE010}');
+                        return;
+                    }
+                    if (receiptrcvstatus == 3) {
+                        Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE011}');
+                        return;
+                    }
+                }
+            
+                if (!checkDate()) {
+                    return;
+                }
+                if (!checkInvoice()) {
+                    return;
+                }
+            
+                //提前还款
+                if (g_status3 == '3') {
+                    midWayPrintInvoice();
+                    return;
+                }
+            
+                //
+                var record = $('inv_rental_invoice_init_ds').getCurrentRecord();
+                var invoiceBgnNoA = record.get("invoice_begin_noa") || "";
+                var invoiceBgnNoB = record.get("invoice_begin_nob");
+                var invoiceEndNo = record.get("invoice_end_no") || "";
+                var invoiceBgnNo = "";
+            
+            
+                //当打印结束号为空，若勾选的对象数量为n，则所有勾选对象作为处理对象,打印结束号 = 打印起始号 + n-1
+                if (!invoiceEndNo) {
+                    invoiceEndNo = (parseInt(invoiceBgnNoB, 10) + records.length - 1) + "";
+                }
+            
+                //打印发票的数量
+                var invoiceCount = records.length > (Number(invoiceEndNo) - Number(invoiceBgnNoB) + 1) ? (Number(invoiceEndNo) - Number(invoiceBgnNoB) + 1) : records.length;
+            
+                var length = invoiceBgnNoB.length - (parseInt(invoiceEndNo, 10) + "").length;
+                if (length < 0) {
+                    Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE012}');
+                    return;
+                }
+                invoiceEndNo = (parseInt(invoiceBgnNoB, 10) + invoiceCount - 1) + "";
+                debugger;
+                for (i = 0;i < length;i++) {
+                    invoiceEndNo = '0' + invoiceEndNo;
+                }
+                Aurora.showMessage('${l:JAVASCRIPT_MESSAGE}', '${l:INV_RENTAL_INVOICE.MESSAGE013}' + invoiceBgnNoA + invoiceBgnNoB + "，" + "${l:INV_RENTAL_INVOICE.MESSAGE014}" + invoiceBgnNoA + invoiceEndNo, function() {
+                    setTimeout(function() {
+                        Aurora.showMessage('${l:JAVASCRIPT_MESSAGE}', '${l:INV_RENTAL_INVOICE.MESSAGE015}' + invoiceCount + '${l:INV_RENTAL_INVOICE.MESSAGE016}', function() {
+                            var cf = Aurora.showConfirm('${l:JAVASCRIPT_MESSAGE}', '${l:INV_RENTAL_INVOICE.MESSAGE017}', function() {
+                                cf.close();
+                                record.set('invoice_end_no', invoiceEndNo);
+                                $('invoice_number_ds').submit();
+                            });
+                        });
+                    }, 10);
+                });
+            }
+            
+            /*提前还款*/
+            
+            function midWayPrintInvoice() {
+                //var record = $('inv_rental_invoice_init_ds').getCurrentRecord();
+                var cf = Aurora.showConfirm('${l:JAVASCRIPT_MESSAGE}', '${l:INV_RENTAL_INVOICE.MESSAGE017}', function() {
+                    cf.close();
+                    //record.set('invoice_end_no',invoiceEndNo);
+                    $('invoice_number_ds').submit();
+                });
+            }
+            
+            function onInvoiceNoReceived(ds, data) {
+                debugger;
+                var records = $('inv_rental_invoice_result_ds').getJsonData(true);
+            
+            
+                var record = $('inv_rental_invoice_init_ds').getCurrentRecord();
+                var invoiceBgnNoA = record.get("invoice_begin_noa") || "";
+                var invoiceBgnNoB = record.get("invoice_begin_nob");
+                var invoiceEndNo = record.get("invoice_end_no") || "";
+                //var invoiceBgnNo = "";
+                prtbatchNo = data.result.print_invoice_no;
+            
+                //打印发票的数量
+                var invoiceCount = records.length > (Number(invoiceEndNo) - Number(invoiceBgnNoB) + 1) ? (Number(invoiceEndNo) - Number(invoiceBgnNoB) + 1) : records.length;
+            
+                var length = invoiceBgnNoB.length - (parseInt(invoiceEndNo, 10) + "").length;
+                var newRecords = records.slice(0);
+                var receiptrcvdt = record.get('receiptdate');
+            
+                //提前还款
+                if (g_status3 == '3') {
+                    var dataset = $('inv_rental_invoice_result_ds');
+                    //dataset.setSubmitUrl='inv_rental_midway_invoice_print.svc'
+                    dataset.setSubmitParameter('print_invoice_no', data.result.print_invoice_no);
+                    dataset.setSubmitParameter('receiptrcvdt', receiptrcvdt);
+                    dataset.setSubmitParameter('invoice_no_a', invoiceBgnNoA);
+                    dataset.setSubmitParameter('invoice_no_b', invoiceBgnNoB);
+                    dataset.submitSelected('inv_rental_midway_invoice_print.svc');
+                    return;
+                }
+            	invoiceBgnNoB = parseInt(invoiceBgnNoB, 10)+"";
+                for (var i = 0;i < invoiceCount;i++) {
+                    for (var j = 0;j < length;j++) {
+                        invoiceBgnNoB = '0' + invoiceBgnNoB;
+                    }
+                    newRecords[i].invoice_no = invoiceBgnNoA + invoiceBgnNoB;
+                    newRecords[i].print_invoice_no = data.result.print_invoice_no;
+                    newRecords[i].receiptrcvdt = receiptrcvdt;
+                    invoiceBgnNoB = (parseInt(invoiceBgnNoB, 10) + 1) + "";
+                }
+            
+                for (i = invoiceCount;i < newRecords.length;i++) {
+                    newRecords.pop();
+                }
+            
+                Aurora.request({
+                    url: 'inv_rental_invoice_print.svc',
+                    para: newRecords,
+                    success: function(cc) {
+                        //Aurora.showMessage('${l:JAVASCRIPT_MESSAGE}', '打印操作成功(写入数据库，但还未调用打印机实行打印操作)');
+                        show(data.result.print_invoice_no);
+                        $('inv_rental_invoice_result_ds').query($('inv_rental_invoice_result_ds').currentPage);
+                    },
+                    scope: this
+                });
+            
+            
+            }
+            
+            //检查打印开始号和结束号（长度，数字）
+            
+            function checkInvoice() {
+                var ds = $('inv_rental_invoice_init_ds');
+                var record = ds.getCurrentRecord();
+                var invoiceBgnNoA = record.get('invoice_begin_noa');
+                var invoiceBgnNoB = record.get('invoice_begin_nob');
+                var invoiceEndNo = record.get('invoice_end_no');
+                var re = /^[A-Za-z]+$/; //
+                if (!re.test(invoiceBgnNoA)&&invoiceBgnNoA!="") {
+                    Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE018}',function(){
+                        $('invoice_begin_noa').focus();
+                    });
+                    return false;
+                }
+                if (invoiceBgnNoB && isNaN(invoiceBgnNoB)) {
+                    Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE019}',function(){
+                        $('invoice_begin_nob').focus();
+                    });
+                    return false;
+                }
+                if (invoiceEndNo && isNaN(invoiceEndNo)) {
+                    Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE019}',function(){
+                        $('invoice_end_no').focus();
+                    });
+                    return false;
+                }
+                if (!invoiceBgnNoB) {
+                    Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE020}',function(){
+                        $('invoice_begin_nob').focus();
+                    });
+                    return false;
+                }
+                if ( !! invoiceEndNo) {
+                    //开始号应小于结束号
+                    invoiceBgnNoB = invoiceBgnNoB + "";
+                    invoiceEndNo = invoiceEndNo + "";
+                    if (parseInt(invoiceBgnNoB, 10) > parseInt(invoiceEndNo, 10)) {
+                        Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE021}');
+                        return false;
+                    }
+            
+                    //打印开始号和打印结束号长度应相同！
+                    if (invoiceBgnNoB.length != invoiceEndNo.length) {
+                        Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE022}');
+                        return false;
+                    }
+                }
+            
+                return true;
+            }
+            
+            function checkDate() {
+                debugger;
+                //开票日期不能为空
+                var ds = $('inv_rental_invoice_init_ds');
+                var record = ds.getCurrentRecord();
+                var receiptdate = record.get('receiptdate');
+                if (!receiptdate) {
+                    Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE023}');
+                    return false;
+                }
+            
+                //开票日期不能大于当前系统日期
+                var receiptdateStr = Aurora.formatDate(receiptdate);
+                var batchexecdt = Aurora.formatDate(record.get('batchexecdt'));
+                if (receiptdateStr > batchexecdt) {
+                    Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE024}');
+                    return false;
+                }
+            
+                //开票日期在未关账月内
+                var monthlyym = Aurora.formatDate(record.get('monthlyym'));
+                if (receiptdateStr < monthlyym) {
+                    Aurora.showErrorMessage('${l:JAVASCRIPT_ERROR}', '${l:INV_RENTAL_INVOICE.MESSAGE025}');
+                    return false;
+                }
+                return true;
+            
+            }
+            
+            function onSubmitSuccess(ds,data) {
+                    show(data.result.print_invoice_no);
+                    ds.query(ds.currentPage);
+            }
+            
+            function onReusltLoad() {
+                reInit();
+            }
+            
+            function remarkEditorFunction(record, name) {
+                if (record.get('receiptrcvstatus') == 1) {
+                    return 'remark_tf';
+                }
+                return '';
+            }
+            
+            function printInv() {
+                //打印发票
+                var obj = new FineReport();
+                obj.ReportTemplate = "PCR003.cpt";
+            
+            
+                obj.setParameter("format", "excel"); //输出Excel
+                obj.openReport();
+                //window.open('${/request/@context_path}/preview?__asattachment=true&__format=pdf&__report=modules/hclc/report/RG05.rptdesign&PrtbatchNo='+prtbatchNo);
+                //alert('${/request/@context_path}/output?__report=modules/hclc/report/RG05.rptdesign&PrtbatchNo='+prtbatchNo);
+                //window.open('${/request/@context_path}/output?__report=modules/hclc/report/RG05.rptdesign&PrtbatchNo=' + prtbatchNo);
+                //var cf = Aurora.showConfirm();
+            }
+            
+            function printReport() {
+                var record = $('inv_rental_invoice_query_ds').getCurrentRecord();
+                var recduedt_begin = record.get('recduedt_begin')||'';
+                var recduedt_end = record.get('recduedt_end')||'';
+                var dealercd = record.get('dealercd')||'';
+                var customername = record.get('customername') || '';
+                var contractno = record.get('contractno');
+                var times = record.get('times')||'';
+                var serialno = record.get('serialno')||'';
+                var receiptrcvstatus = record.get('receiptrcvstatus')||'';
+                var cf = Aurora.showConfirm('${l:JAVASCRIPT_MESSAGE}', '是否开始打印报表？', function() {
+                    //debugger;
+                    var obj = new FineReport();
+                    obj.ReportTemplate = "PGR002.cpt";
+                    if (recduedt_begin) {
+                        recduedt_begin = recduedt_begin.format('yyyy/mm/dd');
+                    }
+                    if (recduedt_begin) {
+                        recduedt_end = recduedt_end.format('yyyy/mm/dd');
+                    }
+                    if (!dealercd) {
+                        dealercd = "";
+                    }
+                    if (!customername) {
+                        customername = "";
+                    }
+                    if (!contractno) {
+                        contractno = "";
+                    }
+                    if (!times) {
+                        times = "";
+                    }
+                    if (!serialno) {
+                        serialno = "";
+                    }
+                    if (!receiptrcvstatus) {
+                        receiptrcvstatus = "";
+                    }
+            
+            
+                    obj.setParameter("DateFrom", recduedt_begin); //传入实际的参数值
+                    obj.setParameter("DateTo", recduedt_end); //传入实际的参数值
+                    obj.setParameter("DealerCD", dealercd); //传入实际的参数值
+                    obj.setParameter("ContractNo", contractno); //传入实际的参数值
+                    obj.setParameter("CustomerName", customername); //传入实际的参数值
+                    obj.setParameter("SerialNo", serialno); //传入实际的参数值
+                    obj.setParameter("Status", receiptrcvstatus); //传入实际的参数值
+                    obj.setParameter("TIMES", times);
+            
+                    obj.setParameter("format", "excel"); //输出Excel
+                    obj.openReport();
+                    cf.close();
+                });
+            }
+            
+            function show(PRTBATCHNO) {
+                var ret2 = PRTBATCHNO;
+                //弹出一个showModalDialog,并以returnValue来获取返回值
+                var url = "inv_rental_invoice_print.screen?prtbatchno="+ret2;
+                var sFeatures = "dialogHeight:250px;dialogWidth:500px;dialogTop:200px;dialogLeft:200px;center:yes;resizabel:yes";
+                //window.open(url);
+                var returnValue = window.showModalDialog(url, "", sFeatures);
+                return true;
+            }
+            
+            ]]></script>
+        <a:dataSets>
+            <a:dataSet id="invoice_number_ds" submitUrl="${/request/@context_path}/autocrud/hclc.inv.inv_rental_invoice_number/execute">
+                <a:events>
+                    <a:event name="submitsuccess" handler="onInvoiceNoReceived"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="hclc_receiptrcv_type_ds" lookupCode="HCLC_ReceiptRcvType"/>
+            <a:dataSet id="receiptrcv_status_ds" lookupCode="HCLC_ReceiptRcvStatus_1"/>
+            <a:dataSet id="inv_rental_invoice_query_ds" model="hclc.inv.inv_rental_invoice">
+                <a:fields>
+                    <a:field name="dealercd" lovUrl="../sys_dealer_lov.screen" lovWidth="700" lovgridheight="300" lovheight="500" title="LOV_SCREEN_HCLC_DEALER_QUERY">
+                        <mapping>
+                            <map from="dealercd" to="dealercd"/>
+                        </mapping>
+                    </a:field>
+                    <!--hclc.lov.sys_customer_lov?_queryorderby=dealercd,branchcd,customercd-->
+                    <a:field name="customername" fetchRemote="false" lovGridHeight="300" lovHeight="500" lovService="hclc.rcp.rcp_scbc_receipt_update_have_viracct_lov" lovWidth="780" lovlabelwidth="100" title="LOV_CUSTOMER_CHOICE">
+                        <mapping>
+                            <map from="customercd" to="customercd"/>
+                            <map from="customername" to="customername"/>
+                        </mapping>
+                    </a:field>
+                    <a:field name="contractno" lovGridHeight="300" lovHeight="500" lovService="hclc.lov.sys_contract_lov" lovWidth="730" lovlabelwidth="100" title="LOV_CONTRACT_CHOICE">
+                        <mapping>
+                            <map from="contractno" to="contractno"/>
+                        </mapping>
+                    </a:field>
+                    <a:field name="status3"/>
+                    <a:field name="receiptrcv_type_dis" defaultValue="${l:EOSBizdict.businID.HCLC_ReceiptRcvType.1}" displayField="code_value_name" options="hclc_receiptrcv_type_ds" returnField="status3" valueField="code_value_id"/>
+                    <a:field name="status3" defaultValue="1"/>
+                    <a:field name="receiptrcvstatus_dis" defaultValue="${l:EOSBizdict.businID.HCLC_ReceiptRcvStatus_1.1}" displayField="code_value_name" options="receiptrcv_status_ds" returnField="receiptrcvstatus" valueField="code_value_id"/>
+                    <a:field name="receiptrcvstatus" defaultValue="1"/>
+                </a:fields>
+                <a:events><![CDATA[
+                ]]></a:events>
+            </a:dataSet>
+            <a:dataSet id="inv_rental_invoice_result_ds" model="hclc.inv.inv_rental_invoice" queryDataSet="inv_rental_invoice_query_ds" selectable="true">
+                <a:events>
+                    <a:event name="submitsuccess" handler="onSubmitSuccess"/>
+                    <a:event name="load" handler="onReusltLoad"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="inv_rental_invoice_init_ds" autoCreate="true" loadData="true" model="hclc.inv.inv_rental_invoice_init">
+                <a:events>
+                    <a:event name="load" handler="onInitDsLoad"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form column="3" labelWidth="100" title="HCLC_QUERY_CONDITION">
+                <a:hBox labelWidth="100" padding="0" prompt="INV_RENTAL_INVOICE.RECDUEDT">
+                    <a:datePicker name="recduedt_begin" bindTarget="inv_rental_invoice_query_ds" width="100"/>
+                    <span><![CDATA[~]]></span>
+                    <a:datePicker name="recduedt_end" bindTarget="inv_rental_invoice_query_ds" width="100"/>
+                </a:hBox>
+                <a:lov name="dealercd" bindTarget="inv_rental_invoice_query_ds" prompt="LD007.DEALER_CODE" width="100"/>
+                <a:lov name="customername" bindTarget="inv_rental_invoice_query_ds" prompt="LM005.CUSTOMER_NAME" width="100"/>
+                <a:lov name="contractno" bindTarget="inv_rental_invoice_query_ds" prompt="LD007.CONTRACT_NO" width="100"/>
+                <a:numberField name="times" allowDecimals="false" allowNegative="false" bindTarget="inv_rental_invoice_query_ds" prompt="LD018.TIMES" width="100"/>
+                <a:comboBox name="receiptrcv_type_dis" bindTarget="inv_rental_invoice_query_ds" prompt="LD040.INVOICECHARACTER" width="100"/>
+                <a:textField name="serialno" bindTarget="inv_rental_invoice_query_ds" prompt="LD007.SERIALNO" width="100"/>
+                <a:textField name="receiptno" bindTarget="inv_rental_invoice_query_ds" prompt="LD040.INVOICENO" width="100"/>
+                <a:comboBox name="receiptrcvstatus_dis" bindTarget="inv_rental_invoice_query_ds" prompt="LD040.INVOICESTATUS" width="100"/>
+            </a:form>
+            <a:hBox>
+                <a:button click="query" text="HAP_QUERY"/>
+                <a:button click="reset" text="HAP_RESET"/>
+            </a:hBox>
+            <!---->
+            <a:grid bindTarget="inv_rental_invoice_result_ds" height="260" navBar="true" width="780">
+                <a:columns>
+                    <a:column name="dealercd" prompt="LD007.DEALER_CODE" width="65"/>
+                    <a:column name="dealernamedesp" prompt="LD007.DEALER_NAME" width="65"/>
+                    <a:column name="customername" prompt="LM005.CUSTOMER_NAME" width="50"/>
+                    <a:column name="serialno" prompt="LD007.SERIALNO" width="75"/>
+                    <a:column name="status1" prompt="INV_RENTAL_INVOICE.TYPE" width="45"/>
+                    <a:column name="times" align="right" prompt="LD018.TIMES" width="30"/>
+                    <a:column name="recdate" prompt="LD018.RECDATE" renderer="Aurora.formatDate" width="70"/>
+                    <a:column name="rccamt" align="right" prompt="INV_RENTAL_INVOICE.RCCAMT" renderer="numberRenderer" width="80"/>
+                    <a:column name="status2" prompt="LD040.INVOICESTATUS" width="60"/>
+                    <a:column name="receiptrcvdt" prompt="LD040.ISSUEDATE" renderer="Aurora.formatDate" width="65"/>
+                    <a:column name="receiptno" prompt="LD040.INVOICENO" width="60"/>
+                    <a:column name="remark" editorFunction="remarkEditorFunction" prompt="LD040.REMARK" width="65"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="remark_tf"/>
+                </a:editors>
+            </a:grid>
+            <a:switch test="/parameter/@operatortype">
+                <a:case value="ISSUE">
+                    <a:form>
+                        <a:hBox labelWidth="100">
+                            <a:datePicker name="receiptdate" id="receiptdate" bindTarget="inv_rental_invoice_init_ds" prompt="LD040.ISSUEDATE" width="90"/>
+                            <a:textField name="invoice_begin_noa" id="invoice_begin_noa" bindTarget="inv_rental_invoice_init_ds" prompt="INV_RENTAL_INVOICE.INVOICE_BEGIN_NO" width="80"/>
+                            <span><![CDATA[~]]></span>
+                            <a:textField name="invoice_begin_nob" id="invoice_begin_nob" align="left" allowDecimals="false" allowNegative="false" bindTarget="inv_rental_invoice_init_ds" className="align-right" width="80"/>
+                            <a:hBox id="invoice_end_nodiv" labelWidth="100" style="display:block">
+                                <a:textField name="invoice_end_no" id="invoice_end_no" align="left" allowDecimals="false" allowNegative="false" bindTarget="inv_rental_invoice_init_ds" className="align-right" prompt="INV_RENTAL_INVOICE.INVOICE_END_NO" width="80"/>
+                            </a:hBox>
+                        </a:hBox>
+                    </a:form>
+                    <a:hBox>
+                        <a:button click="submitReception" text="INV_RENTAL_INVOICE.RECEPTION"/>
+                        <a:button click="cancelReception" text="INV_RENTAL_INVOICE.CANCEL_RECEPTION"/>
+                        <a:button click="printReport" text="INV_RENTAL_INVOICE.PRINT_REPORT"/>
+                        <a:button click="printInvoice" text="INV_RENTAL_INVOICE.PRINT_INVOICE"/>
+                        <a:button click="printInvoiceCancel" text="INV_RENTAL_INVOICE.PRINT_INVOICE_CANCEL"/>
+                    </a:hBox>
+                </a:case>
+            </a:switch>
+        </a:screenBody>
+    </a:view>
+</a:screen>

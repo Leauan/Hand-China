@@ -1,0 +1,147 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-11-24 下午06:06:45  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:o="aurora.database.local.oracle" xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" baseTable="YONDA_DOCUMENT_LEND_RECORD_HD" needAccessControl="false">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    t1.*
+                FROM
+                    (SELECT
+                    	(SELECT ast.license_number
+          FROM con_contract_lease_item  item,
+               con_contract_item_detail detail,
+               ast_car_license          ast
+         WHERE item.contract_lease_item_id = detail.contract_lease_item_id
+               AND item.contract_id = v.contract_id
+               AND ast.item_detail_id = detail.item_detail_id
+               AND ast.enabled_flag = 'Y') license_number,
+                        v.contract_id,
+                        v.contract_number,
+                        v.contract_name,
+                        l.lend_header_id,
+                        l.borrower_name,
+                        l.borrower_phone,
+                        l.borrower_date,
+                        l.lender_name,
+                        v.lease_channel_desc,
+                        v.bp_name,
+                        l.ref_v01,
+                        l.status,
+                        (SELECT
+                            scv.code_value_name
+                        FROM
+                            Sys_Code_Values_v scv
+                        WHERE
+                            scv.code='PRJ501_PRJ_STATUS' AND
+                            l.status=SCV.code_value
+                        ) status_desc,
+                        (SELECT
+                            t.description
+                        FROM
+                            hls_bp_type t
+                        WHERE
+                            t.bp_type =
+                            (SELECT m.bp_type FROM hls_bp_master m WHERE m.bp_id = v.bp_id_tenant
+                            )
+                        ) bp_type_desc,
+			l.ref_d01,
+			(case when exists (select 1 from yonda_document_lend_record_ln a where a.return_date is null and a.lend_header_id = l.lend_header_id) then 'N' else 'Y' end) return_flag
+                    FROM
+                        con_contract_v v,
+                        (SELECT
+                            hd.lend_header_id,
+                            hd.borrower_name,
+                            hd.borrower_phone,
+                            hd.borrower_date,
+                            hd.lender_name,
+                            hd.creation_date,
+                            ln.contract_id,
+                            hd.ref_v01,
+                            hd.status,
+			    ln.ref_d01
+                        FROM
+                            yonda_document_lend_record_ln ln,
+                            yonda_document_lend_record_hd hd
+                        WHERE
+                            hd.lend_header_id = ln.lend_header_id
+                        GROUP BY
+                            hd.lend_header_id,
+                            hd.borrower_name,
+                            hd.borrower_phone,
+                            hd.borrower_date,
+                            hd.lender_name,
+                            hd.creation_date,
+                            ln.contract_id,
+                            hd.ref_v01,
+                            hd.status,
+                            ln.ref_d01
+                        ) l
+                    WHERE
+                        v.contract_id = l.contract_id
+                    ORDER BY
+                        l.borrower_date DESC
+                    ) t1 #WHERE_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+        <bm:operation name="execute">
+            <bm:update-sql><![CDATA[
+            	DECLARE
+            	    v_record_id NUMBER;
+            	BEGIN
+            	    con_contract_pkg.document_lend_record_submit
+            	    (
+            	        p_lend_header_id => ${@lend_header_id}, p_user_id => ${/session/@user_id}
+            	    )
+            	    ;
+            	END;
+        	]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="lend_header_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="LEND_HEADER_ID" prompt="YONDA_DOCUMENT_LEND_RECORD_HD.LEND_HEADER_ID"/>
+        <bm:field name="borrower_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="BORROWER_NAME" prompt="YONDA_DOCUMENT_LEND_RECORD_HD.BORROWER_NAME"/>
+        <bm:field name="borrower_phone" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="BORROWER_PHONE" prompt="YONDA_DOCUMENT_LEND_RECORD_HD.BORROWER_PHONE"/>
+        <bm:field name="borrower_date" databaseType="DATE" datatype="java.util.Date" physicalName="BORROWER_DATE" prompt="YONDA_DOCUMENT_LEND_RECORD_HD.BORROWER_DATE"/>
+        <bm:field name="lender_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="LENDER_NAME" prompt="YONDA_DOCUMENT_LEND_RECORD_HD.LENDER_NAME"/>
+        <bm:field name="contract_number" forInsert="false" forUpdate="false"/>
+        <bm:field name="contract_id" forInsert="false" forUpdate="false"/>
+        <bm:field name="contract_name" forInsert="false" forUpdate="false"/>
+        <bm:field name="lease_channel_desc" forInsert="false" forUpdate="false"/>
+        <bm:field name="bp_type_desc" forInsert="false" forUpdate="false"/>
+        <bm:field name="bp_name" forInsert="false" forUpdate="false"/>
+        <bm:field name="status" forInsert="false" forUpdate="false"/>
+        <bm:field name="status_desc" forInsert="false" forUpdate="false"/>
+        <bm:field name="ref_v01" databaseType="VARCHAR2" datatype="java.lang.String" forInsert="true" forUpdate="true"/>
+        <bm:field name="license_number" databaseType="VARCHAR2" datatype="java.lang.String" forInsert="false" forUpdate="false"/>
+	<bm:field name="return_flag" forInsert="false" forUpdate="false"/>
+    </bm:fields>
+    <bm:features>
+        <f:standard-who/>
+        <o:sequence-pk sequenceName="yonda_document_lend_hd_s"/>
+    </bm:features>
+    <bm:primary-key>
+        <bm:pk-field name="lend_header_id"/>
+    </bm:primary-key>
+    <bm:query-fields>
+        <bm:query-field name="license_number" queryExpression="upper(t1.license_number) like &apos;%&apos; || upper(${@license_number}) || &apos;%&apos;"/>
+        <bm:query-field name="bp_id_gua" queryExpression="exists (select 1 from con_contract_bp cbp where cbp.bp_id = ${@bp_id_gua} and cbp.bp_category=&apos;GUARANTOR&apos; and cbp.contract_id = t1.contract_id)"/>
+        <bm:query-field field="status" queryOperator="="/>
+        <bm:query-field field="lend_header_id" queryOperator="="/>
+        <bm:query-field field="lender_name" queryOperator="like"/>
+        <bm:query-field field="contract_number" queryOperator="like"/>
+        <bm:query-field field="contract_name" queryOperator="like"/>
+        <bm:query-field field="borrower_name" queryOperator="like"/>
+        <bm:query-field field="bp_name" queryOperator="like"/>
+        <bm:query-field name="borrow_date_from" queryExpression="t1.borrower_date &gt;= to_date(${@borrow_date_from},&apos;yyyy-mm-dd&apos;) "/>
+        <bm:query-field name="borrow_date_to" queryExpression="t1.borrower_date &lt;= to_date(${@borrow_date_to},&apos;yyyy-mm-dd&apos;)"/>
+	<bm:query-field name="ref_d01_from" queryExpression="t1.ref_d01 &gt;= to_date(${@ref_d01_from},&apos;yyyy-mm-dd&apos;) "/>
+	<bm:query-field name="ref_d01_to" queryExpression="t1.ref_d01 &lt;= to_date(${@ref_d01_to},&apos;yyyy-mm-dd&apos;) "/>
+	<bm:query-field field="return_flag" queryOperator="="/>
+    </bm:query-fields>
+</bm:model>

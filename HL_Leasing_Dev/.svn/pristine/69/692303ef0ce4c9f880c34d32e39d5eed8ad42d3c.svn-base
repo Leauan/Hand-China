@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Think  
+    $Date: 2016-9-3 下午4:26:43  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.contract_id = ${/parameter/@contract_id}" fetchAll="true" model="cont.CON632.con_ast_car_gps_lv" rootPath="con_car_gps_path"/>
+        <s:server-script import="con_print_path.js"><![CDATA[
+            set_parameter_file_path();
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="${/parameter/@layout_code}_con_contract_gps_link" url="${/request/@context_path}/modules/gps/con_contract_gps_send.screen"/>
+        <a:link id="${/parameter/@layout_code}_con_contract_gps_link_id" model="cont.CON632S.con632s_gps_address" modelaction="query"/>
+        <a:link id="${/parameter/@layout_code}_con632_cdd_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <!--打印时使用-->
+        <a:link id="${/parameter/@layout_code}_hls_doc_file_content_link_id" model="cont.CON632C.con632_hls_doc_file_content" modelaction="update"/>
+        <a:link id="${/parameter/@layout_code}_hls_doc_file_batch_create_print_link_id" url="${/request/@context_path}/modules/cont/CON632C/hls_doc_file_batch_create.svc"/>
+        <a:link id="${/parameter/@layout_code}_hls_doc_batch_download_pdf_print_link_id" url="${/request/@context_path}/modules/cont/CON632C/hls_doc_batch_download_pdf.svc"/>
+        <!--其他url-->
+        <a:link id="${/parameter/@layout_code}_car_modify_special_link" url="${/request/@context_path}/modules/prj/PRJ500N/prj_project_create_special.screen"/>
+        <a:link id="${/parameter/@layout_code}_con_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="${/parameter/@layout_code}_con_contract_cashflow_id" url="${/request/@context_path}/modules/cont/CON632/con_contract_cashflow.screen"/>
+        <a:link id="${/parameter/@layout_code}_prj500_cdd_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="${/parameter/@layout_code}_prj500_cdd_downloadFile_id" url="${/request/@context_path}/downloadFile.screen"/>
+        <script><![CDATA[
+            function check_releated_layout(releated_table) {
+                var str = '${/parameter/@layout_code}';
+                if (str.indexOf(releated_table) >= 0) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                //alert('GPS定位');
+                var win = new Aurora.Window({
+                    url: $('${/parameter/@layout_code}_con_contract_gps_link').getUrl(),
+                    title: '实时定位',
+                    params: {
+                        contract_id: '${/parameter/@contract_id}',
+                        gps_provider: '${/model/con_car_gps_path/record/@gps_provider}',
+                        winid: '${/parameter/@layout_code}_con_contract_gps_send_address_win_link_winid'
+                    },
+                    id: '${/parameter/@layout_code}_con_contract_gps_send_address_win_link_winid',
+                    width: 600,
+                    height: 400
+                });
+                win.on('close', function() {
+                    Aurora.request({
+                        url: $('${/parameter/@layout_code}_con_contract_gps_link_id').getUrl(),
+                        para: {
+                            contract_id: '${/parameter/@contract_id}'
+                        },
+                        success: function(rsc) {
+                            debugger;
+                            var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_collection_tool');
+                            var record = $(ds_id).getCurrentRecord();
+                            //alert(rsc.result.record.address)
+                            record.set('last_location_add', rsc.result.record.address);
+                        }
+                    });
+                });
+            };
+            if (check_releated_layout('COL_CAR_ACCEPT') || check_releated_layout('COL_CAR_REGIST') || check_releated_layout('COL_CAR_ASSIGN')) {
+                zjwfl5110_ApproveChecker_add('zjwfl5110_submit', function(type) {
+                    debugger;
+                    if (type == 'agree') {
+                        var submit_wfl_flag = 'N';
+                        if ('${/parameter/@layout_code}' == 'COL_CAR_REGIST') {
+                            var root_ds_1 = $(get_dsid_by_tabcode_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'F_COLLECT_SUC', 'con_collection_tool'));
+                            var code = root_ds_1.getCurrentRecord();
+                            debugger;
+                        } else {
+                            var root_ds_1 = $('${/parameter/@layout_code}_virtual_ds');
+                        }
+                        if (root_ds_1.validate()) {
+                            submit_wfl_flag = 'Y';
+                            //提交先保存
+                            window['${/parameter/@layout_code}_SAVE_LAYOUT_DYNAMIC_CLICK']();
+                            //设置提交字段为Y
+                        }
+                        if (submit_wfl_flag == 'Y') {
+                            return true;
+                        } else {
+                            submit_wfl_flag = 'N';
+                            return false;
+                        }
+                    } else {
+                        return true;
+                    }
+                });
+            }
+            
+            //忽略保存校验方法
+            window['${/parameter/@layout_code}_ignore_required_before_save'] = function() {
+                window['${/parameter/@layout_code}_not_ignore_required_flag'] = false;
+            };
+            
+            
+            //处理附件上传
+            window['${/parameter/@layout_code}_con632_cdd_attachtment_upload'] = function(head_id, table_name) {
+                var url = $('${/parameter/@layout_code}_con632_cdd_uploadFile_id').getUrl() + '?table_name=' + table_name + '&header_id=' + head_id;
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: '${/parameter/@layout_code}_con_cdd_uploadFile_screen_id',
+                    width: 850,
+                    height: 400
+                });
+            };
+            //渲染函数
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                var link_function = '';
+                if (check_releated_layout('COL_CAR_REGIST')) {
+                    if (name == 'car_pic') {
+                        link_function = '${/parameter/@layout_code}_con632_cdd_attachtment_upload';
+                        return '<a href="javascript:window[\'' + link_function + '\'](\'' + '${/parameter/@collection_id}' + '\',\'' + 'CON_COLLECTION_TOOL' + '\');">' + config_record.get('prompt') + '</a>';
+                    }
+                    if (name == 'cdd_item') {
+                        if (record.get('car_reg_id')) {
+                            link_function = '${/parameter/@layout_code}_con632_cdd_attachtment_upload';
+                            return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.get('car_reg_id') + '\',\'' + 'CON_COLLECTION_CAR_REG' + '\');">' + config_record.get('prompt') + '</a>';
+                        }
+                    }
+                }
+                //收车工作流审批
+                if (check_releated_layout('COL_CAR_QUERY_WFL') || check_releated_layout('COL_CAR_ASSIGN')) {
+                    if (name == 'project_number') {
+                        return '<a href="javascript:open_project_Window(\'' + record.id + '\',\'' + record.ds.id + '\');">' + value + '</a>';
+                    } else if (name == 'attachment') {
+                        link_function = '${/parameter/@layout_code}_prj500_cdd_attachtment_upload';
+                        return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                    } else if (name == 'attach_file_name') {
+                        //附件名称
+                        if (value != null) {
+                            var link = '${/request/@context_path}/atm_download.svc?attachment_id=';
+                            var str = value.split(';;');
+                            var url = '';
+                            for (var i = 0;i < str.length;i++) {
+                                var temp = str[i].split('--');
+                                if (!Aurora.isEmpty(temp[0])) {
+            
+                                    var file_suffix = temp[0].substr(temp[0].lastIndexOf('.') + 1).toUpperCase();
+                                    if (file_suffix == 'BMP' || file_suffix == 'JPG' || file_suffix == 'JPEG' || file_suffix == 'PNG' || file_suffix == 'GIF') {
+                                        url = url + '<a ref="img" href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                                    } else {
+                                        url = url + '<a href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                                    }
+                                }
+                            }
+                            return url;
+                        }
+                        //逾期信息
+                    } else if (name == 'due_times') {
+                        link_function = '${/parameter/@layout_code}_overdue_cashflow';
+                        return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + record.ds.id + '\');">' + value + '</a>';
+                    }
+                }
+            }
+            //dataset字段跟新事件
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+                if (check_releated_layout('COL_CAR_REGIST')) {
+                    if (name == 'col_arrive_add_a') {
+                        record.set('col_arrive_add_b', record.get('col_arrive_add_a'));
+                    }
+                    if (name == 'col_commission_rate_a') {
+                        record.set('commission_a', record.get('sy_amount') * value);
+                    }
+            
+                }
+                if (check_releated_layout('COL_CAR_ASSIGN')) {
+                    if (name == 'whether_the_location') {
+                        if (value == 'N') {
+                            record.getField('last_location_add').setRequired(false);
+                            record.getField('last_location_add').setReadOnly(true);
+                        }
+                        if (value == 'Y') {
+                            record.getField('last_location_add').setReadOnly(false);
+                            record.getField('last_location_add').setRequired(false);
+                        }
+            
+                    }
+                }
+                if (check_releated_layout('COL_CAR_ACCEPT')) {
+                    if (name == 'collect_person_phone') {
+                        var re = /^([0-9]{11})?$/;
+                        if (!re.test(value)) {
+                            Aurora.showMessage('${l:HLS.PROMPT}', '手机号码不合法!');
+                            //record.set('collect_person_phone', '');
+                        }
+                    }
+                }
+            }
+            //收车委托授权书打印
+            window['${/parameter/@layout_code}_user_button4_layout_dynamic_click'] = function() {
+                if (check_releated_layout('COL_CAR_ACCEPT')) {
+                    var content_id;
+                    Aurora.request({
+                        url: $('${/parameter/@layout_code}_hls_doc_file_content_link_id').getUrl(),
+                        para: {
+                            content_id: content_id,
+                            document_table: 'CON_COLLECTION_TOOL',
+                            document_id: '${/parameter/@collection_id}',
+                            temp_code: 'COL_CAR'
+                        },
+                        success: function(rsc) {
+                            Aurora.request({
+                                url: $('${/parameter/@layout_code}_hls_doc_file_batch_create_print_link_id').getUrl(),
+                                para: {
+                                    document_id: '${/parameter/@collection_id}',
+                                    document_table: 'CON_COLLECTION_TOOL',
+                                    batch_flag: 'Y',
+                                    source_type: 'COMMON'
+                                },
+                                success: function(res) {
+                                    var url_l = $('${/parameter/@layout_code}_hls_doc_batch_download_pdf_print_link_id').getUrl() + '?content_id=' + rsc.result.content_id + '&download_file_flag=Y&file_path=${/parameter/@file_path}&source_type=COMMON&type=SIN&fnd_atm_flag=Y';
+                                    window.open(href = url_l, target = "_self");
+                                }
+            
+                            });
+                        }
+                    });
+                }
+            }
+            
+            //附件上传
+            window['${/parameter/@layout_code}_prj500_cdd_attachtment_upload'] = function(ds_id, id, name, query_only) {
+                var record = $(ds_id).findById(id);
+                debugger;
+                if (record.get('check_id')) {
+                    var url;
+                    if (query_only == 'Y') {
+                        url = $('${/parameter/@layout_code}_prj500_cdd_downloadFile_id').getUrl() + '?table_name=PRJ_CDD_ITEM_CHECK&header_id=' + record.get('check_id');
+                    } else {
+                        url = $('${/parameter/@layout_code}_prj500_cdd_uploadFile_id').getUrl() + '?table_name=PRJ_CDD_ITEM_CHECK&header_id=' + record.get('check_id');
+                    }
+                    var win = new Aurora.Window({
+                        url: url,
+                        title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                        id: '${/parameter/@layout_code}${/parameter/@tree_code}_prj500_cdd_uploadFile_screen_id',
+                        width: 850,
+                        height: 400
+                    });
+            
+                    win.on('close', function() {
+                        record.ds.query();
+                    });
+                } else {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先保存!');
+                }
+            };
+            
+            function open_project_Window(record_id, ds_id) {
+                var record = $(ds_id).findById(record_id);
+                var maintain_type = 'QUERY';
+                var param = {};
+                param['company_id'] = record.get('company_id');
+                param['project_id'] = record.get('project_id');
+                param['function_code'] = 'PRJ502D';
+                param['function_usage'] = 'QUERY';
+                param['bp_class'] = record.get('bp_class');
+                param['maintain_type'] = maintain_type;
+                /* param['window_open_flag'] = 'Y';
+                 param['show_history_flag'] = 'Y'; */
+                param['url_title'] = '${l:HLS.PROJECT_MAITAIN}';
+                hls_doc_get_layout_code('${/parameter/@layout_code}_con_get_layout_code_link_id', param, '${/parameter/@layout_code}_car_modify_special_link', ds_id, '${/parameter/@layout_code}');
+            }
+            
+            //打开现金流逾期信息
+            window['${/parameter/@layout_code}_overdue_cashflow'] = function(record_id, ds_id) {
+                var win = new Aurora.Window({
+                    url: $('${/parameter/@layout_code}_con_contract_cashflow_id').getUrl(),
+                    title: '逾期状态',
+                    params: {
+                        contract_id: '${/parameter/@contract_id}',
+                        winid: '${/parameter/@layout_code}_con_contract_cashflow_winid'
+                    },
+                    id: '${/parameter/@layout_code}_con_contract_cashflow_winid',
+                    width: 1100,
+                    height: 400
+                });
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

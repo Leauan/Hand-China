@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="csh570_vat_process_link" model="csh.CSH570.risk_vat_insert" modelaction="execute"/>
+        <script><![CDATA[
+    		function csh570_vat_back() {
+    		    $('csh570_vat_win_id').close();
+    		}
+    		function csh570_vat_process() {
+    		    var record = $('csh570_vat_ds').getAt(0);
+    		    var vat = record.get('vat')||0;
+    		    var left_amount = record.get('left_amount');
+    		    if (!vat || vat<=0) {
+    		        Aurora.showMessage('提示', '风险金税金必须大于0');
+    		        return;
+    		    }
+    		    if (vat>left_amount){
+    		        Aurora.showMessage('提示', '风险金税金不能超过风险金余额');
+    		        return; 
+    		    }
+    		    Aurora.showConfirm('${l:PROMPT}', '是否确认？', function() {
+    		        Aurora.Masker.mask($('${/parameter/@winId}').wrap, '${l:HLS.EXECUTING}');
+    		        Aurora.request({
+    		            url: $('csh570_vat_process_link').getUrl(),
+    		            para: {
+    		                'vat': vat
+    		            },
+    		            success: function() {
+    		                Aurora.SideBar.show({
+    		                    msg: '${l:HLS.SUBMIT_SUCCESS}',
+    		                    duration: 2000
+    		                });
+    		                Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+    		                Aurora.showMessage('提示','操作成功',function(){
+    		                   csh570_reload(); 
+    		                });
+    		                //csh570_vat_back();
+    		            },
+    		            failure: function() {
+    		                Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+    		            },
+    		            error: function() {
+    		                Aurora.Masker.unmask($('${/parameter/@winId}').wrap);
+    		            },
+    		            scope: this
+    		        });
+    		    });
+    		}
+		]]></script>
+        <a:dataSets>
+            <a:dataSet id="csh570_vat_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="left_amount" defaultValue="${/parameter/@left_amount}" readOnly="true"/>
+                    <a:field name="vat" required="true"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="csh570_vat_back" text="HLS.BACK"/>
+                <a:gridButton click="csh570_vat_process" text="确认"/>
+            </a:screenTopToolbar>
+            <a:form column="2" title="风险金税金录入">
+                <a:numberField name="left_amount" bindTarget="csh570_vat_ds" prompt="风险金余额"/>
+                <a:numberField name="vat" allowDecimals="true" allowFormat="true" allowNegative="false" bindTarget="csh570_vat_ds" prompt="风险金税金"/>
+            </a:form>
+        </a:screenBody>
+    </a:view>
+</a:screen>

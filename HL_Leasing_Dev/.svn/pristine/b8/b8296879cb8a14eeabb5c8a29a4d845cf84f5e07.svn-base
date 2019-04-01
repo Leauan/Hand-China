@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-9-22 下午03:19:19  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:view>
+        <a:link id="prj_quotation_split_from_ratio_link_id" url="${/request/@context_path}/modules/prj/PRJ511/prj_quotation_split_from_ratio.svc"/>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <script><![CDATA[
+            function sumFunction(datas, name) {
+                if (name == 'split_seq') {
+                    return '<font>' + '${l:HLS.TOTAL}' + '</font>';
+                }
+                var sum = 0;
+                for (var i = 0;i < datas.length;i++) {
+                    var r = datas[i];
+                    var d = r.get(name);
+                    var n = parseFloat(d);
+                    if (!isNaN(n)) {
+                        sum = plus(sum, n);
+                    }
+                }
+                var total = (typeof(sum) == 'undefined' ? '' : parseFloat(sum));
+                return '<font>' + Aurora.formatMoney(total) + '</font>';
+            }
+            
+            function on_split_detail_line_add(ds) {
+                var record = ds.getCurrentRecord(),
+                    head_record = $('prj_project_quotation_split_detail_head_ds').getAt(0);
+                record.set('down_payment', 0);
+                record.set('split_calc_session_id', head_record.get('calc_session_id'));
+                record.set('split_seq', mul(record.ds['currentIndex'], record.ds['currentPage']));
+            }
+            
+            function on_quotation_split_load(ds) {
+                var records = ds.getAll();
+                for (var i = 0;i < records.length;i++) {
+                    var record = records[i];
+                    record.set('amount_precision', -2);
+                    record.set('ratio_precision', 4);
+                }
+            }
+            
+            function check_split_ratio(sum) {
+                if (sum != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:PRJ511.PRJ_QUOTATION_SPLIT_RATION_BE_100}');
+                    return;
+                }
+            }
+            
+            function exchance_amount_precision(amount) {
+                var head_record = $('prj_project_quotation_split_detail_head_ds').getAt(0),
+                    amount_precision = head_record.get('amount_precision');
+                var return_amount;
+                if (amount_precision < 0) {
+                    amount_precision = Math.pow(10, head_record.get('amount_precision') * -1);
+                    return_amount = mul(div(amount, amount_precision).toFixed(0), amount_precision);
+                } else {
+                    return_amount = parseFloat(amount.toFixed(amount_precision));
+                }
+                return return_amount;
+            }
+            
+            function prj511_calc_amount_from_ratio(from_auto) {
+                if ($('prj_project_quotation_split_detail_head_ds').validate()) {
+                    var records = $('prj_project_quotation_split_detail_line_ds').getAll(),
+                        head_record = $('prj_project_quotation_split_detail_head_ds').getAt(0);
+                    var sum = 0,
+                        record, split_ratio;
+                    for (var m = 0;m < records.length;m++) {
+                        record = records[m];
+                        split_ratio = record.get('split_ratio');
+                        if (!Ext.isEmpty(split_ratio)) {
+                            sum = plus(sum, split_ratio);
+                        }
+                    }
+                    if (from_auto == false) {
+                        check_split_ratio(sum);
+                    }
+                    for (var i = 0;i < records.length;i++) {
+                        record = records[i];
+                        split_ratio = record.get('split_ratio');
+                        if (!Ext.isEmpty(split_ratio)) {
+                            record.set('lease_item_amount', exchance_amount_precision(mul(split_ratio, head_record.get('lease_item_amount'))));
+                            record.set('down_payment', exchance_amount_precision(mul(split_ratio, head_record.get('down_payment'))));
+                            record.set('down_payment_ratio', div(record.get('down_payment'), record.get('lease_item_amount')));
+                            record.set('finance_amount', exchance_amount_precision(minus(record.get('lease_item_amount'), record.get('down_payment'))));
+                        }
+                    }
+                }
+            }
+            
+            function exchange_split_ratio(ration) {
+                var head_record = $('prj_project_quotation_split_detail_head_ds').getAt(0),
+                    ratio_precision = head_record.get('ratio_precision');
+                return parseFloat(ration.toFixed(ratio_precision));
+            }
+            
+            function prj511_calc_split_ratio_from_amount(from_auto) {
+                if ($('prj_project_quotation_split_detail_head_ds').validate()) {
+                    var records = $('prj_project_quotation_split_detail_line_ds').getAll(),
+                        head_record = $('prj_project_quotation_split_detail_head_ds').getAt(0);
+                    var sum = 0,
+                        record, lease_item_amount, down_payment;
+                    for (var i = 0;i < records.length;i++) {
+                        record = records[i];
+                        lease_item_amount = record.get('lease_item_amount');
+                        if (!Ext.isEmpty(lease_item_amount)) {
+                            record.set('split_ratio', exchange_split_ratio(div(record.get('lease_item_amount'), head_record.get('lease_item_amount'))));
+                            sum = plus(sum, record.get('split_ratio'));
+                        }
+                    }
+                    if (from_auto == false) {
+                        check_split_ratio(sum);
+                    }
+                }
+            }
+            
+            function prj511_auto_adjust_amount() {
+                if ($('prj_project_quotation_split_detail_head_ds').validate()) {
+                    var records = $('prj_project_quotation_split_detail_line_ds').getAll(),
+                        head_record = $('prj_project_quotation_split_detail_head_ds').getAt(0);
+                    var sum_lease_item_amount = 0,
+                        sum_down_payment = 0,
+                        record, lease_item_amount, down_payment, length = records.length,
+                        head_lease_item_amount = head_record.get('lease_item_amount'),
+                        head_down_payment = head_record.get('down_payment'),
+                        split_seq = 0;
+                    for (var j = 0;j < length;j++) {
+                        record = records[j];
+                        if (Ext.isEmpty(record.get('lease_item_amount')) || Ext.isEmpty(record.get('down_payment'))) {
+                            Aurora.showMessage('${l:PROMPT}', '${l:PRJ511.PLEASE_UPDATE_DATA_THEN_ADJUST}');
+                            return;
+                        }
+                        if (record.get('split_seq') > split_seq) {
+                            split_seq = record.get('split_seq');
+                        }
+                    }
+                    for (var i = 0;i < length;i++) {
+                        record = records[i];
+                        lease_item_amount = record.get('lease_item_amount');
+                        down_payment = record.get('down_payment');
+                        if (!Ext.isEmpty(lease_item_amount) && record.get('split_seq') < split_seq) {
+                            sum_lease_item_amount = plus(sum_lease_item_amount, lease_item_amount);
+                            sum_down_payment = plus(sum_down_payment, down_payment);
+                        }
+                        if (record.get('split_seq') == split_seq) {
+                            sum_lease_item_amount = minus(head_lease_item_amount, sum_lease_item_amount);
+                            sum_down_payment = minus(head_down_payment, sum_down_payment);
+                            if (sum_lease_item_amount != 0) {
+                                record.set('lease_item_amount', sum_lease_item_amount);
+                            }
+                            if (sum_down_payment != 0) {
+                                record.set('down_payment', sum_down_payment);
+                            }
+                        }
+                    }
+                    prj511_calc_split_ratio_from_amount();
+                    prj511_calc_amount_from_ratio();
+                }
+            }
+            
+            function prj511_execute_split() {
+                if ($('prj_project_quotation_split_detail_head_ds').validate()&&$('prj_project_quotation_split_detail_line_ds').validate()) {
+                    Aurora.Masker.mask($('prj_project_quotation_split_detail_winid').wrap, '正在执行...');
+                    var head_record = $('prj_project_quotation_split_detail_head_ds').getAt(0);
+                    head_record.set('document_id', '${/parameter/@project_id}');
+                    head_record.set('original_lease_item_amount', head_record.get('lease_item_amount'));
+                    head_record.set('original_down_payment', head_record.get('down_payment'));
+                    head_record.set('original_finance_amount', head_record.get('finance_amount'));
+                    head_record.set('document_id', '${/parameter/@project_id}');
+                    var records = $('prj_project_quotation_split_detail_line_ds').getAll();
+                    var param = head_record.data;
+                    var sum_finance_amount = 0;
+                    param['details'] = [];
+                    for (var i = 0;i < records.length;i++) {
+                        var record = records[i];
+                        sum_finance_amount = plus(sum_finance_amount, record.get('finance_amount'));
+                        record.set('_status', 'update');
+                        param['details'].push(record.data);
+                    }
+                    if (sum_finance_amount < head_record.get('finance_amount')) {
+                        Aurora.showConfirm('${l:PROMPT}', '${l:PRJ511.SPLIT_AMOUNT_LESS_THAN_PROJECT}', function (){
+                            execute_finally(param);
+                        }, function() {
+                            Aurora.Masker.unmask($('prj_project_quotation_split_detail_winid').wrap);
+                            return;
+                        }, null, null);
+                    } else {
+                        execute_finally(param);
+                    }
+                }
+            }
+            
+            function execute_finally(param) {
+                Aurora.request({
+                    url: $('prj_quotation_split_from_ratio_link_id').getUrl(),
+                    para: param,
+                    success: function(res) {
+                        Aurora.Masker.unmask($('prj_project_quotation_split_detail_winid').wrap);
+                        parent.Aurora.SideBar.show({
+                            msg: '${l:HLS.SUBMIT_SUCCESS}',
+                            duration: 4000
+                        });
+                        $('prj_project_quotation_split_ds').reset();
+                        $('prj_project_quotation_split_detail_winid').close();
+                    },
+                    failure: function() {
+                        Aurora.Masker.unmask($('prj_project_quotation_split_detail_winid').wrap);
+                    },
+                    error: function() {
+                        Aurora.Masker.unmask($('prj_project_quotation_split_detail_winid').wrap);
+                    },
+                    scope: this
+                });
+            }
+            
+            function split_detail_grid_renderer(value, record, name) {
+                var head_record = $('prj_project_quotation_split_detail_head_ds').getAt(0);
+                if (name == 'down_payment_ratio') {
+                    if (!Ext.isEmpty(value)) {
+                        return Aurora.formatNumber(value, 6).replace(/0*$/g, '').replace(/\.$/, '');
+                    }
+                }
+            }
+            
+            function on_split_detail_line_update(ds, record, name, value, oldvalue) {
+                if (name == 'lease_item_amount' || name == 'down_payment') {
+                    var finance_amount,down_payment_ratio;
+                    if (name == 'lease_item_amount') {
+                        finance_amount = minus(value, record.get('down_payment'));
+                        down_payment_ratio=div(record.get('down_payment'),value);
+                    } else if (name == 'down_payment') {
+                        finance_amount = minus(record.get('lease_item_amount'), value);
+                        down_payment_ratio=div(value,record.get('lease_item_amount'));
+                    }
+                    if (finance_amount < 0) {
+                        finance_amount = '';
+                        Aurora.showMessage('${l:PROMPT}', '${l:PRJ511.FINANCE_AMOUNT_NOT_NEG}');
+                    }
+                    record.set('finance_amount', finance_amount);
+                    record.set('down_payment_ratio', down_payment_ratio);
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="prj_project_quotation_split_detail_head_ds" loadData="true" model="prj.PRJ511.prj_project_split_quotation">
+                <a:fields>
+                    <a:field name="project_name" readOnly="true"/>
+                    <a:field name="lease_item_amount" readOnly="true"/>
+                    <a:field name="down_payment" readOnly="true"/>
+                    <a:field name="amount_precision" required="true"/>
+                    <a:field name="ratio_precision" required="true"/>
+                    <a:field name="down_payment_ratio" readOnly="true"/>
+                    <a:field name="finance_amount" readOnly="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="on_quotation_split_load"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="prj_project_quotation_split_detail_line_ds" model="prj.PRJ511.hls_fin_calculator_split" selectable="true">
+                <a:fields>
+                    <a:field name="split_seq" required="true"/>
+                    <a:field name="split_ratio" required="true"/>
+                    <a:field name="lease_item_amount" required="true"/>
+                    <a:field name="down_payment" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="on_split_detail_line_add"/>
+                    <a:event name="update" handler="on_split_detail_line_update"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar style="width:982px">
+                <a:gridButton click="prj511_calc_amount_from_ratio" text="PRJ511.CALC_AMOUNT_FROM_RATIO"/>
+                <a:gridButton click="prj511_calc_split_ratio_from_amount" text="PRJ511.CALC_RATIO_FROM_AMOUNT"/>
+                <a:gridButton click="prj511_auto_adjust_amount" text="PRJ511.AUTO_ADJUST_PENNY"/>
+                <a:gridButton click="prj511_execute_split" style="margin-left:30px" text="PRJ511.EXECUTE_SPLIT"/>
+            </a:screenTopToolbar>
+            <a:form column="2" labelWidth="120" title="PRJ511.PRJ_QUOTATION_SPLIT" width="987">
+                <a:textField name="project_name" bindTarget="prj_project_quotation_split_detail_head_ds" prompt="HLS.PROJECT_NUMBER" width="250"/>
+                <a:numberField name="amount_precision" allowDecimals="false" bindTarget="prj_project_quotation_split_detail_head_ds" prompt="PRJ511.AMOUNT_PRECISION"/>
+                <a:numberField name="lease_item_amount" allowFormat="true" bindTarget="prj_project_quotation_split_detail_head_ds" prompt="PRJ511.HLS_FIN_CALCULATOR_SPLIT.LEASE_ITEM_AMOUNT" width="250"/>
+                <a:numberField name="ratio_precision" allowDecimals="false" allowNegative="false" bindTarget="prj_project_quotation_split_detail_head_ds" prompt="PRJ511.RATION_PRECISION"/>
+                <a:numberField name="down_payment" allowFormat="true" bindTarget="prj_project_quotation_split_detail_head_ds" prompt="HLS.DOWN_PAYMENT" width="250"/>
+                <a:percentField name="down_payment_ratio" bindTarget="prj_project_quotation_split_detail_head_ds" prompt="HLS.DOWN_PAYMENT_RATION"/>
+                <a:numberField name="finance_amount" allowFormat="true" bindTarget="prj_project_quotation_split_detail_head_ds" prompt="HLS.FINANCE_AMOUNT" width="250"/>
+            </a:form>
+            <a:grid id="prj_project_quotation_split_detail_grid_id" bindTarget="prj_project_quotation_split_detail_line_ds" marginHeight="300" marginWidth="350" navBar="true">
+                <a:toolBar>
+                    <a:button type="add"/>
+                    <a:button type="clear"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="split_seq" align="right" editor="split_detail_grid_nf_id" footerRenderer="sumFunction"/>
+                    <a:column name="split_ratio" align="right" editor="split_detail_grid_pf_id" footerRenderer="sumFunction"/>
+                    <a:column name="lease_item_amount" align="right" editor="split_detail_grid_nf_id" footerRenderer="sumFunction" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="down_payment" align="right" editor="split_detail_grid_nf_id" footerRenderer="sumFunction" renderer="Aurora.formatMoney" width="120"/>
+                    <a:column name="down_payment_ratio" align="right" renderer="split_detail_grid_renderer"/>
+                    <a:column name="finance_amount" align="right" footerRenderer="sumFunction" renderer="Aurora.formatMoney" width="120"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="split_detail_grid_nf_id" allowNegative="false"/>
+                    <a:percentField id="split_detail_grid_pf_id" allowNegative="false"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

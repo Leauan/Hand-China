@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-8-15 下午8:09:18  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:s="aurora.plugin.script" xmlns:bm="http://www.aurora-framework.org/schema/bm" needAccessControl="false">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        t.contract_id,
+                        t.company_id,
+                        t.business_type,
+                        t.contract_number,
+                        t.contract_name,
+                        t.document_type,
+                        dt.document_type_desc,
+                        t.document_category,
+                        dt.document_category_desc,
+                        t.bp_id_tenant,
+                        b.bp_name,
+                        b.bp_code,
+                        p.project_name,
+                        p.project_number,
+                        t.license_number,
+                        t.lease_end_date,
+                        t.unit_id_n,
+                        t.unit_id,
+                        TO_CHAR(t.inception_of_lease,'yyyy-mm-dd') inception_of_lease,
+                        p.employee_id,
+                        (SELECT u.name FROM exp_employees u WHERE u.employee_id=p.employee_id
+                        )employee_name,
+                        t.contract_status,
+                        (SELECT
+                            v.code_value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code       = 'CON500_CONTRACT_STATUS' AND
+                            v.code_value = t.contract_status
+                        ) AS status_desc,
+                        (SELECT
+                            DECODE(COUNT(*),0,'N','Y')
+                        FROM
+                            con_contract_cashflow f
+                        WHERE
+                            f.contract_id   =t.contract_id AND
+                            f.overdue_status='Y'
+                        ) overdue_status,
+                        'ET' et_type,
+                        '提前结清' et_type_dis,
+                        t.early_termination_profile,
+                        t.contract_status_n,
+                        t.spv_company_id,
+                        (SELECT
+                            a.company_code
+                        FROM
+                            fnd_companies a
+                        WHERE
+                            a.company_id = t.spv_company_id
+                        ) spv_company_code,
+                        (SELECT
+                            COUNT(*)
+                        FROM
+                            con_contract_cashflow h
+                        WHERE
+                            h.contract_id    = t.contract_id AND
+                            h.write_off_flag = 'FULL' AND
+                            h.cf_item        = 1
+                        ) received_times,
+                        TO_CHAR(cce.termination_date,'yyyy-mm-dd')termination_date,
+                        cce.et_profile,
+                        (SELECT
+                            p.description
+                        FROM
+                            con_contract_et_profile p
+                        WHERE
+                            p.et_profile = cce.et_profile
+                        )et_profile_desc
+                    FROM
+                        con_contract_et_hd cce,
+                        con_contract_lv t,
+                        prj_project p,
+                        hls_bp_master b,
+                        hls_document_type_v dt
+                    WHERE
+                        cce.contract_id     = t.contract_id AND
+                        cce.et_agreement_id = ${/parameter/@et_agreement_id} AND
+                        t.project_id        = p.project_id(+) AND
+                        t.bp_id_tenant      = b.bp_id(+) AND
+                        t.data_class        ='NORMAL' AND
+                        t.contract_id       = ${@contract_id} AND
+                        dt.document_type(+) = t.document_type
+                    ) v
+            ]]></bm:query-sql>
+            <bm:parameters>
+                <bm:parameter name="contract_id"/>
+                <bm:parameter name="et_agreement_id"/>
+            </bm:parameters>
+        </bm:operation>
+    </bm:operations>
+    <!-- <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="v.et_type IN (&apos;ET&apos;)"/>
+    </bm:data-filters> -->
+</bm:model>

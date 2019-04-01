@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qm  
+    $Date: 2014-4-18 下午3:54:53  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:e="aurora.service.exception" xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="CON_CONTRACT_ITEM_V">
+    <bm:fields>
+        <bm:field name="company_id"/>
+        <bm:field name="project_id"/>
+        <bm:field name="document_type"/>
+        <bm:field name="document_category"/>
+        <bm:field name="contract_id"/>
+        <bm:field name="contract_lease_item_id"/>
+        <bm:field name="item_detail_id"/>
+        <bm:field name="brand_id"/>
+        <bm:field name="brand_dis"/>
+        <bm:field name="series_id"/>
+        <bm:field name="series_dis"/>
+        <bm:field name="model_id"/>
+        <bm:field name="model_dis"/>
+        <bm:field name="contract_name"/>
+        <bm:field name="contract_number"/>
+        <bm:field name="color_of_apprearance"/>
+        <bm:field name="color_of_decoration"/>
+        <bm:field name="item_frame_number"/>
+        <bm:field name="item_engine_number"/>
+        <bm:field name="purchase_tax"/>
+        <bm:field name="purchase_fee"/>
+        <bm:field name="badge_price"/>
+        <bm:field name="badge_license_fee"/>
+        <bm:field name="insurance_price"/>
+        <bm:field name="badge_fee"/>
+        <bm:field name="gps_fee"/>
+        <bm:field name="key_flag"/>
+        <bm:field name="registration_flag"/>
+        <bm:field name="purchase_flag"/>
+        <bm:field name="insurance_flag"/>
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field field="series_id" queryOperator="="/>
+        <bm:query-field field="model_id" queryOperator="="/>
+        <bm:query-field field="brand_id" queryOperator="="/>
+        <bm:query-field name="contract_number" queryExpression="contract_number like &apos;%&apos;|| ${@contract_number} || &apos;%&apos;"/>
+        <bm:query-field name="item_frame_number" queryExpression="item_frame_number like &apos;%&apos;||${@item_frame_number}||&apos;%&apos;"/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="company_id = ${/session/@company_id}"/>
+    </bm:data-filters>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+					select * from (
+						select c.company_id,
+                 c.project_id,
+                 c.document_type, -- 合同类型
+                 c.document_category, -- 合同类别
+                 c.contract_id, -- 合同ID
+                 c2.contract_lease_item_id, -- 合同租赁物汇总ID
+                 c3.item_detail_id, -- 合同租赁物详细信息ID
+          
+                 c2.brand  brand_id, --品牌ID
+                 c2.series series_id, --车系ID
+                 c2.model  model_id, --车型ID
+                
+                 f1.description_text brand_dis,
+                 f2.description_text series_dis,
+                 f3.description_text model_dis,
+          
+                 c.contract_name, -- 合同名称
+                 c.contract_number, --合同编号
+                 c2.color_of_apprearance, -- 外饰颜色
+                 c2.color_of_decoration, --内饰颜色
+                 c3.item_frame_number, --车架号
+                 c3.item_engine_number, --发动机号
+                 
+                 c3.KEY_FLAG,-- 是否保留钥匙
+                 c3.REGISTRATION_FLAG,-- 是否保留登记证
+                 c3.PURCHASE_FLAG,-- 是否保留购置税证
+                 c3.INSURANCE_FLAG,-- 是否保留保单
+          
+                 c2.purchase_tax, -- 购置税
+                 c2.purchase_fee, -- 购车杂费
+                 c2.badge_price, -- 牌照费
+                 c2.badge_license_fee, -- 拍牌手续费
+                 c2.insurance_price, -- 保险费
+                 c2.badge_fee, -- 上牌杂费
+                 c2.gps_fee -- GPS安装费+年费
+
+              from con_contract             c,
+                   con_contract_lease_item  c2,
+                   con_contract_item_detail c3,
+                   hls_car_brands           b1,
+                   hls_car_series           b2,
+                   hls_car_model            b3,
+                 fnd_descriptions f1,
+                   fnd_descriptions f2,
+                   fnd_descriptions f3
+             where c.contract_id = c2.contract_id
+               and c2.contract_lease_item_id = c3.contract_lease_item_id
+               and c3.brand_id = b1.brand_id
+               --and b1.brand_id = b2.brand_id
+               and c3.series_id = b2.series_id
+               --and b1.brand_id = b3.brand_id
+               and c3.series_id = b3.model_id
+              and f1.description_id = b1.description_id
+               and f2.description_id = b2.description_id
+               and f3.description_id = b3.description_id
+               and c.data_class='NORMAL'
+			   and f1.language = ${/session/@lang}
+			   and f2.language = ${/session/@lang}
+			   and f3.language = ${/session/@lang}
+			   and c.data_class = 'NORMAL')
+			   #WHERE_CLAUSE#
+			order by contract_number
+			]]></bm:query-sql>
+        </bm:operation>
+        <!-- <bm:operation name="insert" >
+        	<bm:update-sql >
+        	</bm:update-sql>
+        </bm:operation> <bm:field name="key_flag" />
+        <bm:field name="registration_flag" />
+        <bm:field name="purchase_flag" />
+        <bm:field name="insurance_flag" />-->
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+        		UPDATE
+				    CON_CONTRACT_ITEM_DETAIL t1
+				SET
+				    t1.ITEM_FRAME_NUMBER =${@item_frame_number},
+				    t1.ITEM_ENGINE_NUMBER=${@item_engine_number},
+				    t1.key_flag		     =${@key_flag},
+				    t1.registration_flag =${@registration_flag},
+				    t1.purchase_flag     =${@purchase_flag},
+				    t1.insurance_flag    =${@insurance_flag},
+				    t1.LAST_UPDATED_BY   =${/session/@user_id},
+				    t1.LAST_UPDATE_DATE  =sysdate
+				WHERE
+				    t1.ITEM_DETAIL_ID = ${@item_detail_id}
+        	]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <e:exception-descriptor-config>
+        <e:exception-descriptor exception="java.sql.SQLException" handleClass="aurora.database.SQLExceptionDescriptor">
+            <e:error-message code="1" message="车架号或发动机号不能重复"/>
+        </e:exception-descriptor>
+    </e:exception-descriptor-config>
+</bm:model>

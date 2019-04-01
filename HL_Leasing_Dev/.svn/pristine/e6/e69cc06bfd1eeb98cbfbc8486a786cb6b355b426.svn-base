@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:f="aurora.database.features" xmlns:bm="http://www.aurora-framework.org/schema/bm" alias="t1" baseTable="ACR_INVOICE_HD_BATCH">
+    <bm:fields>
+        <bm:field name="batch_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="BATCH_ID" prompt="ACR_INVOICE_HD_BATCH.BATCH_ID"/>
+        <bm:field name="invoice_hd_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="INVOICE_HD_ID" prompt="ACR_INVOICE_HD_BATCH.INVOICE_HD_ID"/>
+        <bm:field name="creation_by" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CREATION_BY" prompt="ACR_INVOICE_HD_BATCH.CREATION_BY"/>
+        <bm:field name="last_updated_date" databaseType="DATE" datatype="java.util.Date" physicalName="LAST_UPDATED_DATE" prompt="ACR_INVOICE_HD_BATCH.LAST_UPDATED_DATE"/>
+    </bm:fields>
+    <bm:features>
+        <f:standard-who/>
+    </bm:features>
+    <bm:operations>
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+                DECLARE
+                    v_id NUMBER;
+                    r_acr_invoice_hd_batch acr_invoice_hd_batch%rowtype;
+                BEGIN
+                    SELECT acr_invoice_hd_batch_s.nextval INTO v_id FROM dual;
+                    r_acr_invoice_hd_batch.batch_id         :=v_id;
+                    r_acr_invoice_hd_batch.creation_date    :=sysdate;
+                    r_acr_invoice_hd_batch.creation_by      :=${/session/@user_id};
+                    r_acr_invoice_hd_batch.last_updated_by  :=${/session/@user_id};
+                    r_acr_invoice_hd_batch.last_updated_date:=sysdate;
+                    INSERT
+                    INTO
+                        acr_invoice_hd_batch VALUES r_acr_invoice_hd_batch;
+                    FOR rec_invoice IN
+                    (SELECT * FROM acr_invoice_hd t WHERE t.invoice_hd_id IN (${:@invoice_hd_ids}))
+                    LOOP
+                        UPDATE
+                            acr_invoice_hd t
+                        SET
+                            t.batch_id=v_id
+                        WHERE
+                            t.invoice_hd_id=rec_invoice.invoice_hd_id;
+                    END LOOP;
+                    acr_invoice_pkg.acr_invoice_submit(p_batch_id =>v_id, p_user_id=>${/session/@user_id});
+                END;
+            ]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

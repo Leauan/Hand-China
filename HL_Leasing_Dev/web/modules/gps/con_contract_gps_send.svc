@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2016-5-10 上午10:24:11  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:service xmlns:ns1="aurora.application.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" trace="true">
+    <a:init-procedure>
+        <a:model-update model="gps.con_contract_gps_data_check"/>
+        <s:server-script import="gps/gps.js"><![CDATA[
+            importPackage(Packages.rd.gps.tokenkey);
+            importPackage(Packages.java.util);
+            importPackage(Packages.rd.gps.newveh);
+            importPackage(Packages.rd.gps.findveh);
+            importPackage(Packages.rd.gps.newaxbveh);
+            var getTokenUrl = gps_config.getTokenUrl,
+                userName = gps_config.userName,
+                password = gps_config.password;
+            var bm = $bm('gps.con_contract_add_gps_password');
+            var bm_result = bm.queryAsMap({
+                password: password
+            });
+            var childs = bm_result.getChildren();
+            var child = childs[0];
+            
+            function post_get_name(name) {
+                var name_arr = {
+                    "NAME": "name",
+                    "STANDNO": "standNo",
+                    "USERTEL": "userTel",
+                    "NOTICEUSER": "noticeUser",
+                    "USERSEX": "userSex",
+                    "COMPANYID": "companyId",
+                    "IDNUM": "idNum",
+                    "ENGINE": "engine",
+                    "DISPLACEMENT": "displacement",
+                    "STROELINKMAN": "stroeLinkman",
+                    "STROETEL": "stroeTel",
+                    "FIXTIME": "fixTime",
+                    "INSTRUCTION": "instruction",
+                    "REMARK": "remark",
+                    "OPERATOR": "operator",
+                    "HOMEADDRESS": "homeAddress",
+                    "WORKADDRESS": "workAddress",
+                    "ORIGINADDRESS": "originAddress",
+                    "GROUPNAME": "groupName",
+                    "GROUPVAL": "groupVal",
+                    "GROUPEMAIL": "groupEmail",
+                    "MANAGERPHONE": "managerPhone",
+                    "MANAGERNAME": "managerName",
+                    "DEVICENUMBER": "deviceNumber",
+                    "TIMESTAMP": "timestamp",
+                    "SIGN": "sign",
+                    "CARDID": "cardId",
+                    "ADDRESS": "address",
+                    "BRANDTYPE": "brandType",
+                    "TYPE": "type",
+                    "USETYPE": "useType",
+                    "CARCOLOUR": "carColour",
+                    "STARTDATE": "startDate",
+                    "ENDDATE": "endDate",
+                    "CARAGE": "carAge",
+                    "SN": "SN"
+                };
+                if (name_arr[name]) {
+                    return name_arr[name];
+                } else {
+                    return name;
+                }
+            }
+            
+            function save_gps_resp(savetype, vehWorId, SN, address, axb_url) {
+                var saveBm = $bm('gps.con_contract_update_gps_response');
+                if (axb_url && savetype == 'AXB_GPS') {
+                    $ctx.parameter.axb_url = String(axb_url);
+                }
+                saveBm.update({
+                    contract_id: $ctx.parameter.contract_id,
+                    vehworid: vehWorId,
+                    sn: SN,
+                    address: address,
+                    axb_url: axb_url,
+                    savetype: savetype
+                });
+            }
+            
+            function new_axb_gps() {
+                var infoBm = $bm('gps.con_contract_add_axb_gps_info');
+                var infoResult = infoBm.queryAsMap({
+                    contract_id: $ctx.parameter.contract_id,
+                    token_key: $ctx.parameter.token_key
+                });
+                var infoChilds = infoResult.getChildren();
+                if (infoChilds.length) {
+                    var infoChild = infoChilds[0];
+                    var axbGpsUrl = gps_config.axbGpsUrl;
+                    var infoMap = new HashMap();
+                    for (var name in infoChild) {
+                        if (post_get_name(name)) {
+                            if (infoChild[name] || infoChild[name] === 0) {
+                                if (infoChild[name] == 'NO_LICENSE_NUMBER') {
+                                    infoMap.put(post_get_name(name), null);
+                                } else {
+                                    infoMap.put(post_get_name(name), infoChild[name]);
+                                }
+                            } else {
+                                infoMap.put(post_get_name(name), null);
+                            }
+                        }
+                    }
+                    try {
+                        // if (infoChild.AXB_URL) {
+                        // raise_app_error("该GPS工单对应的安心保合同已存在！");
+                        // } else {
+                        var nav = new NewAxbVeh(axbGpsUrl, infoMap, "UTF-8");
+                        var axb_url = nav.run();
+                        save_gps_resp('AXB_GPS', null, null, null, String(axb_url));
+                        // }
+                    } catch (e) {
+                        raise_app_error("新增安心保合同工单失败：" + e);
+                    }
+                } else {
+                    raise_app_error("未获取到安心保对应的合同工单信息");
+                }
+            }
+            
+            function new_con_gps() {
+                var infoBm = $bm('gps.con_contract_add_gps_info');
+                var infoResult = infoBm.queryAsMap({
+                    contract_id: $ctx.parameter.contract_id,
+                    token_key: $ctx.parameter.token_key
+                });
+                var infoChilds = infoResult.getChildren();
+                if (infoChilds.length) {
+                    var infoChild = infoChilds[0];
+                    var newGpsUrl = gps_config.newGpsUrl;
+                    var infoMap = new HashMap();
+                    for (var name in infoChild) {
+                        if (post_get_name(name)) {
+                            if (infoChild[name] || infoChild[name] === 0) {
+                                infoMap.put(post_get_name(name), infoChild[name]);
+                            } else {
+                                infoMap.put(post_get_name(name), null);
+                            }
+                        }
+                    }
+                    try {
+                        if (!infoChild.SN) {
+                            var nv = new NewVeh(newGpsUrl, infoMap, "UTF-8");
+                            var vehWorId = nv.run();
+                            save_gps_resp('NEW_GPS', vehWorId);
+                        }
+            
+                    } catch (e) {
+                        raise_app_error("新增工单失败：" + e);
+                    }
+                } else {
+                    raise_app_error("未获取到对应的合同工单信息");
+                }
+            }
+            
+            function find_con_gps(type) {
+                var infoBm = $bm('gps.con_contract_find_gps_info');
+                var infoResult = infoBm.queryAsMap({
+                    contract_id: $ctx.parameter.contract_id,
+                    token_key: $ctx.parameter.token_key
+                });
+                var infoChilds = infoResult.getChildren();
+                if (infoChilds.length) {
+                    var infoChild = infoChilds[0];
+                    var findGpsUrl = gps_config.findGpsUrl;
+                    var infoMap = new HashMap();
+                    for (var name in infoChild) {
+                        if (post_get_name(name)) {
+                            if (infoChild[name] || infoChild[name] === 0) {
+                                infoMap.put(post_get_name(name), infoChild[name]);
+                            } else {
+                                infoMap.put(post_get_name(name), null);
+                            }
+                        }
+                    }
+                    try {
+                        var fv = new FindVeh(findGpsUrl, infoMap, "UTF-8");
+                        var arr = fv.run();
+                        var SN = arr[0],
+                            address = arr[1];
+                        var error_message = null;
+                        if (type == 'FIND' && !SN) {
+                            error_message = "该工单尚未激活";
+                            raise_app_error(message);
+                        }
+                        if (infoChild.SN) {
+                            save_gps_resp('FIND_GPS', null, SN, address);
+                            return true;
+                        } else {
+                            if (SN) {
+                                save_gps_resp('FIND_GPS', null, SN, address);
+                                return true;
+                            } else {
+                                return false;
+                            }
+                        }
+                    } catch (e) {
+                        var message = null;
+                        if (error_message) {
+                            message = error_message;
+                        } else {
+                            message = "查找工单失败：" + e;
+                        }
+                        raise_app_error(message);
+                    }
+                } else {
+                    raise_app_error("未获取到对应的合同工单信息");
+                }
+            }
+            
+            try {
+                var tokenKeyObj = new GetTokenKey(getTokenUrl, userName, child.PASSWORD, "UTF-8");
+                var token_key = tokenKeyObj.run();
+                $ctx.parameter.token_key = token_key;
+            } catch (e) {
+                raise_app_error("获取tokenKey失败：" + e);
+            }
+            var gps_type = $ctx.parameter.gps_type;
+            if (gps_type == 'NEW_GPS') {
+                var flag = find_con_gps("NEW");
+                if (!flag) {
+                    new_con_gps();
+                }
+            } else if (gps_type == 'FIND_GPS') {
+                find_con_gps("FIND");
+            } else if (gps_type == 'AXB_GPS') {
+                var flag = find_con_gps();
+                if (flag) {
+                    new_axb_gps("AXB");
+                } else {
+                    raise_app_error("该GPS设备尚未激活！");
+                }
+            }
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:service-output output="/parameter"/>
+</a:service>

@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Foreinyel  
+    $Date: 2013-11-26 上午9:26:30  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:view>
+        <a:link id="csh_offset_link_id" url="${/request/@context_path}/modules/csh/CSH530/csh_offset.svc"/>
+        <a:link id="con_content_record_id" url="${/request/@context_path}/modules/csh/CSH530/con_contract_content.screen"/>
+        <script><![CDATA[
+            function csh_offset_reset() {
+                $('csh_offset_main_query_ds').reset();
+            }
+            
+            function csh_offset_query() {
+                $('csh_offset_main_result_ds').query();
+            }
+            
+            function csh_offset_confirm() {
+                if ($('csh_offset_main_result_ds').validate()) {
+                    var data = $('csh_offset_main_result_ds').getJsonData(true);
+                    //var selectrecord = $('csh_offset_main_result_ds').getSelected();
+                    if ($('csh_offset_main_result_ds').getSelected().length) {
+                        Aurora.request({
+                            url: $('csh_offset_link_id').getUrl(),
+                            para: data,
+                            success: function() {
+                                Aurora.SideBar.show({
+                                    msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                    duration: 2000
+                                });
+                                csh_offset_query();
+                            }
+                        });
+                    } else {
+                        Aurora.showMessage("提示", "请至少选择一条记录");
+                    }
+                    $('csh_offset_confirm_id').enable();
+                }
+            }
+            
+            function selectfun(ds, rec) {
+                rec.getMeta().getField('journal_date').setRequired(true);
+            }
+            
+            function unselectfun(ds, rec) {
+                rec.getMeta().getField('journal_date').setRequired(false);
+            }
+            /*
+             function see_1(){
+             new $A.Window({
+             id:'see_1',
+             params:{
+             req_hd_id:1
+             },
+             url:'${/request/@context_path}/modules/mobile_um/cf_wfl_screen/ca_debt_req_appr.screen',
+             fullScreen:true
+             });
+             //var e = Ext.get('csh_offset_button_1s');
+             //e.fadeIn();
+             //window.print();
+             }
+             function see_2(){
+             new $A.Window({
+             id:'see_1',
+             params:{
+             payment_req_id:1321
+             },
+             url:'${/request/@context_path}/modules/mobile_um/cf_wfl_screen/payment_req_appr.screen',
+             fullScreen:true
+             });
+             }
+             function see_3(){
+             var e = Ext.get('csh_offset_button_2s');
+             e.fadeOut();
+             }
+             */
+            
+            function onUpdate(ds, record, name, value) {
+                if (name == 'down_payment' || name == 'lease_charge' || name == 'deposit' || name == 'consulting_service' || name == 'first_rent') {
+                    var down_payment = record.get('down_payment');
+                    var lease_charge = record.get('lease_charge');
+                    var deposit = record.get('deposit');
+                    var consulting_service = record.get('consulting_service');
+                    var first_rent = record.get('first_rent');
+                    if (!down_payment) {
+                        down_payment = 0;
+                    }
+                    if (!lease_charge) {
+                        lease_charge = 0;
+                    }
+                    if (!deposit) {
+                        deposit = 0;
+                    }
+                    if (!consulting_service) {
+                        consulting_service = 0;
+                    }
+                    if (!first_rent) {
+                        first_rent = 0;
+                    }
+                    record.set('offset_amount', down_payment + lease_charge + deposit + consulting_service + first_rent);
+                }
+            }
+            
+            
+            function csh530_render_contractMaintainDs_grid(value, record, name) {
+                if (name == 'contract_number') {
+                    return '<a href="javascript:csh530_contractMaintainDs_grid_query(' + record.get('contract_id') + ');">' + value + '</a>';
+                }
+            }
+            
+             function csh530_contractMaintainDs_grid_query(contract_id)
+            {
+                var url = $('con_content_record_id').getUrl();
+                var win =  new Aurora.Window({
+                    id: 'con_contract_content_window',
+                    url: url,
+                    params:{
+                        contract_id:contract_id
+                    },
+                    title: '合同附件查看',
+                    fullScreen: true
+                }); 
+                win.on('close',function(){$('csh_offset_main_result_ds').query();});
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="csh_offset_main_query_ds"/>
+            <a:dataSet id="csh_offset_main_result_ds" autoQuery="true" model="csh.CSH530.csh_offset_main" pageSize="14" queryDataSet="csh_offset_main_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="journal_date"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="select" handler="selectfun"/>
+                    <a:event name="unselect" handler="unselectfun"/>
+                    <a:event name="update" handler="onUpdate"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:toolbarButton click="csh_offset_query" text="HAP_QUERY"/>
+                <a:toolbarButton click="csh_offset_reset" text="HAP_RESET"/>
+                <a:toolbarButton id="csh_offset_confirm_id" click="csh_offset_confirm" text="CONFIRM"/>
+                <!--<a:toolbarButton id="csh_offset_button_1s" click="see_1" text="see1"/>
+                <a:toolbarButton id="csh_offset_button_2s" click="see_2" text="see2"/>
+                <a:toolbarButton id="csh_offset_button_3s" click="see_3" text="see3"/>-->
+            </a:screenTopToolbar>
+            <a:form column="3" title="收付抵扣">
+                <a:textField name="contract_number" bindTarget="csh_offset_main_query_ds" prompt="HLS.CONTRACT_NUMBER"/>
+                <!-- <a:textField name="bp_id_agent_level1_n" bindTarget="csh_offset_main_query_ds" prompt="经销商"/> -->
+                <a:textField name="bp_name" bindTarget="csh_offset_main_query_ds" prompt="HLS.TENANT_CODE"/>
+            </a:form>
+            <a:grid bindTarget="csh_offset_main_result_ds" height="410" navBar="true" width="1258">
+                <a:columns>
+                    <a:column name="contract_number" prompt="HLS.CONTRACT_NUMBER" renderer="csh530_render_contractMaintainDs_grid" width="120"/>
+                    <a:column name="contract_status_disp" prompt="HLS.CONTRACT_STATUS" width="60"/>
+                    <a:column name="bp_name" prompt="HLS.TENANT_CODE" width="95"/>
+                    <a:column name="lease_item_amount" align="right" prompt="租赁物总价" renderer="Aurora.formatMoney" width="90"/>
+                    <a:column name="down_payment" align="right" editor="nf" prompt="首付款" renderer="Aurora.formatMoney" width="90"/>
+                    <a:column name="consulting_service" align="right" editor="nf" prompt="咨询服务费" renderer="Aurora.formatMoney" width="90"/>
+                    <a:column name="deposit" align="right" editor="nf" prompt="保证金" renderer="Aurora.formatMoney" width="90"/>
+                    <a:column name="lease_charge" align="right" editor="nf" prompt="手续费" renderer="Aurora.formatMoney" width="90"/>
+                    <a:column name="first_rent" align="right" editor="nf" prompt="首期租金" renderer="Aurora.formatMoney" width="90"/>
+                    <a:column name="offset_amount" align="right" prompt="抵扣合计" renderer="Aurora.formatMoney" width="90"/>
+                    <a:column name="downpay_proof" editor="tf" prompt="首付款证明" width="100"/>
+                    <a:column name="journal_date" editor="dp" prompt="凭证日期" renderer="Aurora.formatDate" width="100"/>
+                    <a:column name="subsystem_journal" prompt="子系统凭证" width="100"/>
+                </a:columns>
+                <a:editors>
+                    <a:datePicker id="dp"/>
+                    <a:textField id="tf"/>
+                    <a:numberField id="nf"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

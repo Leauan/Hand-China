@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-9-5 下午05:04:37  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:s="aurora.plugin.script" xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            
+        select  t1.*,
+        nvl(lease_charge,0)+nvl(lease_mgt_fee,0) lease_charge_mgt_fee,
+        nvl(received_lease_charge,0)+nvl(received_lease_mgt_fee,0) received_lease_charge_mgt_fee,
+        nvl(lease_charge, 0) - nvl(received_lease_charge, 0) + nvl(lease_mgt_fee, 0) - nvl(received_lease_mgt_fee, 0) unreceived_total_amount,
+  		nvl(total_rental,0)-nvl(total_received,0) unreceived_totle_rental
+  from (select p.project_id,
+               p.project_number,
+               p.project_name,
+               ct.contract_id,
+               ct.contract_number,
+               ct.contract_name,
+               ct.document_category,
+               ct.document_category_desc,
+               ct.bp_id_tenant,
+               ct.lease_times,
+               (select m.bp_code from hls_bp_master m where m.bp_id=ct.bp_id_tenant)bp_code,
+               ct.lease_start_date,
+               ct.bp_name,
+               (select sum(nvl(c.due_amount,0))
+                  from con_contract_cashflow c
+                 where c.contract_id = ct.contract_id
+                   and c.cf_item = 3
+                   and c.cf_status in ('BLOCK', 'RELEASE')
+                   and c.cf_direction !='NONCASH'
+                   ) lease_charge,
+                (select sum(nvl(c.received_amount,0))
+                  from con_contract_cashflow c
+                 where c.contract_id = ct.contract_id
+                   and c.cf_item = 3
+                   and c.cf_status in ('BLOCK', 'RELEASE')
+                   and c.cf_direction !='NONCASH'
+                   ) received_lease_charge,
+               (select sum(nvl(c.due_amount,0))
+                  from con_contract_cashflow c
+                 where c.contract_id = ct.contract_id
+                   and c.cf_item = 4
+                   and c.cf_status in ('BLOCK', 'RELEASE')
+                   and c.cf_direction !='NONCASH'
+                   ) lease_mgt_fee,
+                (select sum(nvl(c.received_amount,0))
+                  from con_contract_cashflow c
+                 where c.contract_id = ct.contract_id
+                   and c.cf_item = 4
+                   and c.cf_status in ('BLOCK', 'RELEASE')
+                   and c.cf_direction !='NONCASH'
+                   ) received_lease_mgt_fee,
+                
+               nvl(ct.total_rental, 0) total_rental,
+               nvl((select sum(nvl(cf.received_amount, 0))
+                     from con_contract_cashflow cf
+                    where cf.contract_id = ct.contract_id
+                      and cf.cf_item = 1
+                      and cf.cf_status in ('BLOCK', 'RELEASE')
+                      and cf.cf_direction !='NONCASH'),
+                   0) total_received,
+               nvl((select sum(nvl(cf2.overdue_amount, 0))
+                     from con_contract_cashflow cf2
+                    where cf2.overdue_status = 'Y'
+                      and cf2.contract_id = ct.contract_id
+                      and cf2.cf_item in (1,3,4)
+                      and cf2.cf_status in ('BLOCK', 'RELEASE')
+                      and cf2.cf_direction ='INFLOW'),
+                   0) overdue_amount,
+                   
+                   (select sum(nvl(c.due_amount,0)-nvl(c.received_amount,0)) 
+                   from con_contract_cashflow c 
+                   where c.cf_item=9
+                   and c.contract_id=ct.contract_id
+                   and c.cf_status in ('BLOCK', 'RELEASE')
+                   )unreceived_fine_amount,
+                   
+               ct.company_id,
+                   
+               ct.contract_status,
+               ct.contract_status_desc,
+               ct.lease_organization,
+               ct.lease_organization_desc,
+               ct.employee_id,
+               ct.employee_name,
+               ct.division,
+               ct.division_desc,
+               ct.lease_channel,
+               ct.lease_channel_desc,
+               ct.document_type,
+               ct.document_type_desc,
+               ct.con_search_term_1,
+               ct.con_search_term_2
+          from con_contract_v ct,prj_project p
+          where ct.project_id=p.project_id ) t1
+			#WHERE_CLAUSE#
+          order by project_number desc,contract_number desc
+ 
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="company_id"/>
+        <bm:field name="project_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="project_number"/>
+        <bm:field name="project_name"/>
+        <bm:field name="bp_code"/>
+        <bm:field name="contract_number"/>
+        <bm:field name="document_category"/>
+        <bm:field name="document_type"/>
+        <bm:field name="document_category_desc"/>
+        <bm:field name="document_type_desc"/>
+        <bm:field name="contract_status"/>
+        <bm:field name="contract_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="bp_id_tenant" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="lease_start_date" databaseType="DATE" datatype="java.util.Date"/>
+        <bm:field name="bp_name"/>
+        <bm:field name="total_received" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="overdue_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="total_rental" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="contract_status_desc"/>
+        <bm:field name="lease_times" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="contract_name"/>
+        <bm:field name="lease_charge_mgt_fee" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="lease_charge" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="lease_mgt_fee" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="received_lease_charge_mgt_fee" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="received_lease_charge" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="received_lease_mgt_fee" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="unreceived_total_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="unreceived_totle_rental" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="lease_organization"/>
+        <bm:field name="lease_organization_desc"/>
+        <bm:field name="employee_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="employee_name"/>
+        <bm:field name="division"/>
+        <bm:field name="division_desc"/>
+        <bm:field name="lease_channel"/>
+        <bm:field name="lease_channel_desc"/>
+        <bm:field name="con_search_term_1"/>
+        <bm:field name="con_search_term_2"/>
+        <bm:field name="unreceived_fine_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field name="lease_start_date_from" queryExpression="t1.lease_start_date &gt;=to_date(${@lease_start_date_from},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="lease_start_date_to" queryExpression="t1.lease_start_date &lt;=to_date(${@lease_start_date_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field field="contract_number" queryOperator="like"/>
+        <bm:query-field name="project_name" queryExpression=" t1.contract_id in (select c.contract_id from con_contract c,prj_project p where c.project_id=p.project_id  and p.project_name like ${@project_name})"/>
+        <bm:query-field field="employee_id" queryOperator="="/>
+        <bm:query-field field="document_type" queryOperator="="/>
+        <bm:query-field field="lease_organization" queryOperator="="/>
+        <bm:query-field field="division" queryOperator="="/>
+        <bm:query-field field="lease_channel" queryOperator="="/>
+        <bm:query-field field="con_search_term_1" queryOperator="like"/>
+        <bm:query-field field="con_search_term_2" queryOperator="like"/>
+        <bm:query-field field="contract_name" queryOperator="like"/>
+        <bm:query-field name="bp_id" queryExpression="t1.bp_id_tenant=${@bp_id}"/>
+        <bm:query-field name="company_authority" queryExpression="t1.company_id in (select company_id from fnd_companies start with company_id =${@company_authority} connect by prior company_id = parent_biz_company_id)"/>
+    </bm:query-fields>
+    <bm:features>
+        <s:bm-script><![CDATA[
+            var cx = Packages.aurora.javascript.Context.getCurrentContext();
+            Packages.aurora.plugin.script.engine.ScriptImportor.defineExternScript(cx, this, $ctx.getData(), "aut_authority_bm_validate.js");
+        ]]></s:bm-script>
+    </bm:features>
+</bm:model>

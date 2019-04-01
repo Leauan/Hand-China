@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-11-4 下午01:26:45  
+    $Revision: 1.0  
+    $Purpose: 摘要中方案报价
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            
+select hd.calc_session_id,
+       hd.billing_method,
+	   hd.tax_type_id,
+	   to_char(nvl(hd.int_rate_display,0)*100,'FM990.0099')||'%' int_rate_display,
+	   decode(hd.tax_type_id,1,'营业税',2,'增值税',3,'增值税',4,'增值税','')tax_type_id_desc,
+       to_char(hd.lease_item_amount, 'FM99,999,999,990.00') lease_item_amount,
+       to_char(decode(to_number(hd.net_lease_charge),0,'',hd.net_lease_charge),'FM99,999,999,990.00')net_lease_charge,
+       to_char(hd.finance_amount,'FM99,999,999,990.00')finance_amount,
+       to_char(hd.deposit,'FM99,999,999,990.00') deposit,
+       to_char((hd.net_residual_value/hd.finance_amount)*100,'FM990.0099')||'%' residual_ratio_n,
+       hd.lease_term,
+       to_char(hd.npv_using_cof,'FM99,999,999,990.00')npv_using_cof,
+       to_char(hd.irr*100,'FM990.0099')||'%' irr,
+       to_char(hd.irr_after_tax*100,'FM990.0099')||'%' irr_after_tax,
+       to_char(hd.annual_mean_rate*100,'FM99,999,999,990.0099')||'%' annual_mean_rate,
+       to_char(hd.down_payment,'FM99,999,999,990.0099')down_payment,
+       to_char(hd.down_payment_ratio*100,'FM990.0099')||'%' down_payment_ratio,
+       (to_number(hd.lease_times) * 12 / hd.annual_pay_times) lease_times_n,
+       decode(hd.annual_pay_times, 12, '月', 4, '季', 2, '半年', 1, '年') annual_pay_times_n,
+       decode(hd.pay_type, 1, '期初', 0, '期末') pay_type_n,
+       to_char((hd.deposit_ratio) * 100, 'FM990.0099') || '%' deposit_ratio_n,
+       hd.lease_times,
+       to_char(hd.net_total_interest + hd.finance_amount,
+               'FM99,999,999,999,990.00') finance_amount_n,
+       (select v.code_value_name
+          from sys_code_values_v v
+         where v.code = 'HLS500_DEPOSIT_DEDUCTION'
+           and v.code_value = hd.deposit_deduction) deposit_deduction_n,
+       to_char(hd.net_residual_value,'FM99,999,999,999,990.00')net_residual_value,
+       (select v.currency_name
+          from gld_currency_vl v
+         where v.currency_code = hd.currency) currency_n,
+       to_char(sysdate, 'yyyy/mm/dd') print_date,
+       (select cv.currency_symbol 
+          from gld_currency_vl cv 
+          where cv.currency_code=hd.currency)currency_symbol,
+       (select sum(1)
+      from hls_fin_calculator_ln ln
+     where ln.calc_session_id = hd.calc_session_id
+       and nvl(ln.net_lease_mgt_fee, 0) != 0) net_lease_mgt_fee_flag,
+      hd.lease_mgt_fee_rule,
+					       (select v.code_value_name
+					          from sys_code_values_v v
+					         where v.code = 'HLS500_MGT_FEE_RULE'
+					           and v.code_value = hd.lease_mgt_fee_rule) lease_mgt_fee_rule_desc,
+					           
+		(select to_char(sum(nvl(i.original_asset_value,0)),'FM99,999,999,990.00')
+          from prj_project_lease_item i
+         where i.project_id = ${@project_id} and i.contract_seq =q.contract_seq )lease_original_asset_value	,	
+         
+         (select to_char(sum(nvl(i.net_asset_value,0)),'FM99,999,999,990.00')
+          from prj_project_lease_item i
+         where i.project_id = ${@project_id} and i.contract_seq =q.contract_seq )lease_net_asset_value	,
+         
+         to_char(nvl(hd.finance_amount,0)-nvl(hd.deposit,0),'FM99,999,999,990.00') net_finance_amount,
+         to_char(nvl(hd.base_rate,0)*100,'FM990.0099')||'%' base_rate,	           
+		 (select v.code_value_name from sys_code_values_v v where v.code='TRE502_INT_RATE_FIXING_WAY' and v.code_value=hd.int_rate_fixing_way)int_rate_fixing_way_n,		
+		 to_char(nvl(hd.int_rate_fixing_range,0)*100,'FM990.0099')||'%' int_rate_fixing_range,
+		  prj305_save_pkg.get_prj_quotation_lease_item(q.quotation_id) quotation_lease_item_name,
+		  q.quotation_type,
+		  q.business_type quotation_business_type	           
+   from hls_fin_calculator_hd hd, prj_quotation q
+ where hd.calc_session_id = q.calc_session_id
+   and q.document_category = 'PROJECT'
+   and q.internal_confirm='Y'
+   and q.external_confirm='Y'
+   and q.enabled_flag='Y'
+   and q.document_id = ${/parameter/@project_id}
+   and ((exists (select 1
+                   from prj_quotation q1
+                  where q1.internal_confirm = 'Y'
+                    and q1.external_confirm = 'Y'
+                    and q1.enabled_flag = 'Y'
+                    and q1.quotation_type = 'SECONDARY'
+                    and q1.document_category = 'PROJECT'
+                    and q1.document_id = q.document_id) and
+        q.quotation_type = 'SECONDARY') or
+       (not exists (select 1
+                       from prj_quotation q2
+                      where q2.internal_confirm = 'Y'
+                        and q2.external_confirm = 'Y'
+                        and q2.enabled_flag = 'Y'
+                        and q2.quotation_type = 'SECONDARY'
+                        and q2.document_category = 'PROJECT'
+                        and q2.document_id = q.document_id)))     
+          
+
+ ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

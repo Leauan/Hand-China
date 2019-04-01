@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <model-query autoCount="false" fetchAll="true" model="zjwfl.zj_wfl_graphics" rootPath="graphics_record"/>
+        <model-query autoCount="false" fetchAll="true" model="zjwfl.zj_wfl_graphics_preview" rootPath="graphics_detail_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="bmLink_reset_graphics" model="zjwfl.zj_wfl_graphics_detail" modelaction="execute"/>
+        <a:link id="pageLink_edit_graphics" url="${/request/@context_path}/modules/zjwfl/zj_wfl_graphics_editor.screen"/>
+        <a:link id="pageLink_sub_preview" url="${/request/@context_path}/modules/zjwfl/zj_wfl_graphics_preview_sub.screen"/>
+        <a:link id="bmLink_getGraphic" model="zjwfl.zj_wfl_graphics" modelaction="query"/>
+        <script><![CDATA[
+        	function winClose_graphicsProview()
+        	{
+        	    $('zj_wfl_graphics_preview').close();
+        	}
+        	
+        	function winOpen_graphics_preview_sub(workflow_id,width,height)
+        	{
+        	    new Aurora.Window({
+                    id: 'zj_wfl_graphics_preview_sub',
+                    url: $('pageLink_sub_preview').getUrl(),
+                    params: {
+                        workflow_id: workflow_id
+                    },
+                    title: '链接流程图',
+                    height: height + 30,
+                    width: width + 30
+                });
+        	}
+        	
+            function onClick_graphics(e, el, ds, record) {
+                if(record){
+	                var workflow_id = record.get('link_workflow_id');
+	                if (Ext.isEmpty(workflow_id)) {
+	                    return;
+	                }
+	                else
+	                {
+	                    
+	                    Aurora.request({
+			                url: $('bmLink_getGraphic').getUrl(),
+			                para: {
+			                	workflow_id:workflow_id
+			                },
+			                success: function(res) {
+			                    var obj = res.result.record;
+			                    winOpen_graphics_preview_sub(workflow_id,obj['width'],obj['height']);
+			                },
+			                failure: function() {
+			                },
+			                error: function() {
+			                },
+			                scope: this
+			            });
+	                }
+                }
+            }
+            
+            function previewPage_refresh()
+            {
+                graphics_preview_refresh();
+            }
+            
+            function editGraphics() {
+                var win = new Aurora.Window({
+                    id: 'zj_wfl_graphics_editor',
+                    url: $('pageLink_edit_graphics').getUrl(),
+                    params: {
+                        workflow_id: '${/parameter/@workflow_id}'
+                    },
+                    fullScreen: true,
+                    className:'graphic_background'
+                });
+                win.on('close',function(){
+                	previewPage_refresh();
+                });
+            }
+            
+            function resetGraphics() {
+                Aurora.showConfirm('${l:PROMPT}', '是否需要重置图形编辑？', function() {
+                    Aurora.request({
+                        url: $('bmLink_reset_graphics').getUrl(),
+                        para: {
+                            workflow_id: '${/parameter/@workflow_id}'
+                        },
+                        success: editGraphics,
+                        scope: this
+                    });
+                }, function() {
+            
+                   });
+            }
+            
+            
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="graphics_detail_ds" model="zjwfl.zj_wfl_graphics_preview" queryUrl="${/request/@context_path}/autocrud/zjwfl.zj_wfl_graphics_preview/query?workflow_id=${/parameter/@workflow_id}">
+                <a:datas dataSource="/model/graphics_detail_list"/>
+                <a:fields>
+                    <a:field name="type"/>
+                    <a:field name="config"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:hBox>
+                <a:button click="editGraphics" text="编辑"/>
+                <a:button click="resetGraphics" text="重置"/>
+            </a:hBox>
+            <a:graphic id="graphics_preview_main" bindTarget="graphics_detail_ds" height="${/model/graphics_record/record/@height}" style="border:1px solid #ccc" width="${/model/graphics_record/record/@width}">
+                <a:events>
+                    <a:event name="click" handler="onClick_graphics"/>
+                </a:events>
+            </a:graphic>
+        </a:screenBody>
+    </a:view>
+</a:screen>

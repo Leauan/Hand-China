@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:ns1="aurora.application.action" xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" trace="true">
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            function recursive_dynamic_save(root, base_table, query_only, parent_table, parent_base_table_pk) {
+                if (!root || !base_table) return;
+                var children = root.getChildren();
+                if (!children.length) return;
+                var query_base_table_bm = $bm('cont.CON500.con_hls_doc_layout_tab_query');
+                var sub_tn_map = query_base_table_bm.queryAsMap({
+                    "parent_table": base_table.toUpperCase(),
+                    'layout_code': $ctx.parameter.layout_code,
+                    'enabled_flag': 'Y'
+                });
+                var sub_base_tables = sub_tn_map.getChildren();
+                if (query_only == 'Y' && sub_base_tables.length == 0) {
+                    return;
+                }
+                $ctx.dynamic_base_table = base_table;
+                var bm = $bm('cont.CON500.con_contract_common');
+                var pk = $ctx.pkmap[base_table];
+                for (var i = 0;i < children.length;i++) {
+                    var _status = children[i]._status;
+                    // var status_bm=$bm('bm');
+                    // status_bm.update(children[i]);校验单据状态
+                    var parent_error_code = '';
+                    try {
+                        bm.option = {
+                            updatePassedFieldOnly: 'true'
+                        }
+                        if (parent_table && parent_base_table_pk && !children[i][parent_base_table_pk]) {
+                            parent_error_code = 'HLS_TABLE_UNIQUE.SAVE_PARENT_FIRST';
+                            raise_app_error(parent_error_code);
+                        }
+                        if (query_only != 'Y') {
+                            bm[_status](children[i]);
+                        }
+                    } catch (e) {
+                        if (parent_error_code) {
+                            raise_app_error(parent_error_code);
+                        } else {
+                            raise_app_error('HLS_TABLE_UNIQUE.' + base_table.toUpperCase());
+                        }
+                    }
+                    var check_bm;
+                    if (base_table == 'hls_bp_master') {
+                        check_bm = $bm('hls.HLS213.hls_bp_master_check_id_card');
+                        check_bm['update'](children[i]);
+                    } else if (base_table == 'hls_bp_master_contact_info' && _status != 'delete') {
+                        check_bm = $bm('hls.HLS213.hls_bp_master_contact_info_check');
+                        check_bm['update'](children[i]);
+                    } else if (base_table == 'hls_bp_master_address') {
+                        check_bm = $bm('hls.HLS213.hls_bp_master_check_address_type');
+                        check_bm['update'](children[i]);
+                    }
+                    if (!parent_table && children[i].getData().getParent().getName() == 'parameter') {
+                        if (!$ctx.parameter.master_id) {
+                            $ctx.parameter.master_id = children[i][pk];
+                        }
+                        if ($ctx.parameter.master_type) {
+                            children[i].master_type = $ctx.parameter.master_type;
+                        }
+                        if ($ctx.parameter.document_category) {
+                            children[i].document_category = $ctx.parameter.document_category;
+                        }
+                        if ($ctx.parameter.document_id) {
+                            children[i].document_id = $ctx.parameter.document_id;
+                        }
+                        if ($ctx.parameter.function_code) {
+                            children[i].function_code = $ctx.parameter.function_code;
+                        }
+                        if ($ctx.parameter.function_usage) {
+                            children[i].function_usage = $ctx.parameter.function_usage;
+                        }
+                        if (_status == 'insert') {
+                            var get_num_bm = $bm('hls.HLS213.hls_bp_master_update_special_fields');
+                            children[i].master_id = children[i][pk] || null;
+                            get_num_bm.update(children[i]);
+                        }
+                    }
+                    for (var j = 0;j < sub_base_tables.length;j++) {
+                        var bind_name = sub_base_tables[j].tab_code + '_' + sub_base_tables[j].base_table.toLowerCase();
+                        var sub_root = children[i].getChild(bind_name);
+                        if (sub_root && pk) {
+                            var sub_children = sub_root.getChildren();
+                            for (var m = 0;m < sub_children.length;m++) {
+                                sub_children[m][pk] = children[i][pk];
+                            }
+                            recursive_dynamic_save(sub_root, sub_base_tables[j].base_table, sub_base_tables[j].query_only, sub_base_tables[j].parent_table, sub_base_tables[j].parent_base_table_pk);
+                        }
+                    }
+                }
+            }
+            
+            function master_check_after_save() {
+                var last_check_bm = $bm('hls.HLS213.hls_bp_master_check_after_save');
+                last_check_bm.update({
+                    master_type: $ctx.parameter.master_type,
+                    master_id: $ctx.parameter.master_id
+                });
+            }
+            recursive_dynamic_save($ctx.parameter, $ctx.parameter.base_table, $ctx.parameter.query_only, $ctx.parameter.parent_table, $ctx.parameter.parent_base_table_pk);
+            master_check_after_save();
+        ]]></s:server-script>
+    </a:init-procedure>
+    <a:service-output output="/parameter"/>
+</a:service>

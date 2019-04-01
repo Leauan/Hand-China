@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhuxianfei
+    $Date: 2018年1月19日 下午1:25:14  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="${/parameter/@layout_code}_con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <!--  <a:link id="con_dff_car_detail_link" url="${/request/@context_path}/modules/cont/CON740/con_dff_car_detail.screen"/> -->
+        <a:link id="${/parameter/@layout_code}_cdd_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="${/parameter/@layout_code}_cdd_downloadFile_id" url="${/request/@context_path}/downloadFile.screen"/>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <link href="${/request/@context_path}/css/lightbox.css" rel="stylesheet" type="text/css"/>
+        <script src="${/request/@context_path}/javascripts/lightbox.js"/>
+        <a:link id="${/parameter/@layout_code}_contract_car_link_id" url="${/request/@context_path}/modules/cont/CON740/con_dff_car_detail.screen"/>
+        <a:link id="${/parameter/@layout_code}_con740_submit_link" model="cont.CON740.con740_car_update" modelaction="update"/>
+        <script><![CDATA[
+            Ext.ux.Lightbox.register('a[ref=img]', true);
+            
+            
+            //indexchange事件(grid,attach,gridbox,table)
+            window['${/parameter/@layout_code}_on_layout_dynamic_grid_indexchange'] = function(ds, record, bp_seq) {
+                //debugger;
+                var con_lease_ds_id = 'CON_DFF_CAR_DISPLACE_MODIFY_G_CAR_DIS_INFO_con_contract_lease_item_ds';
+                var con_dff_car_ds_id = 'CON_DFF_CAR_DISPLACE_MODIFY_G_NEW_CAR_INFO_con_contract_lease_item_ds';
+                if (ds.id == con_lease_ds_id) {
+                    var lease_record = $(con_lease_ds_id).getCurrentRecord();
+                    var displace_doc_id = lease_record.get('displace_doc_id');
+                    $(con_dff_car_ds_id).setQueryParameter('contract_lease_item_id', displace_doc_id);
+                    $(con_dff_car_ds_id).query();
+                }
+            };
+            
+            //置换
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                //debugger;
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_lease_item');
+                var records = $(ds_id).getSelected();
+                var record = records[0];
+                var et_flag = record.get('et_flag');
+            
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+            
+                if (et_flag == 'Y') {
+                    Aurora.showMessage('${l:PROMPT}', '本车已经结清完毕，不允许置换！');
+                    return;
+                }
+            
+                var param = record.data;
+                param['contract_id'] = record.get('contract_id');
+                param['finance_amount'] = record.get('finance_amount');
+                param['function_code'] = 'CON740N';
+                param['function_usage'] = 'UPDATE';
+                param['maintain_type'] = 'MODIFY';
+                param['contract_lease_item_id'] = record.get('contract_lease_item_id');
+                param['url_title'] = '车辆置换';
+                hls_doc_get_layout_code('${/parameter/@layout_code}_con_contract_get_layout_code_link_id', param, '${/parameter/@layout_code}_contract_car_link_id', ds_id, '${/parameter/@layout_code}');
+            
+            };
+            
+            
+            
+            //提交审批
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract');
+                var record = $(ds_id).getCurrentRecord();
+                var con_contract_id = record.get('contract_id');
+                var root_ds = $('${/parameter/@layout_code}_virtual_ds');
+                if (root_ds.validate()) {
+                    window['${/parameter/@layout_code}_SAVE_LAYOUT_DYNAMIC_CLICK']();
+            
+                    Aurora.showConfirm('${l:HLS.PROMPT}', '${l:HLS.ARE_YOU_SURE_TO_SUBMIT}', function() {
+                        Aurora.request({
+                            url: $('${/parameter/@layout_code}_con740_submit_link').getUrl(),
+                            para: {
+                                contract_id: record.get('contract_id')
+            
+                            },
+                            success: function(res) {
+                                window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                                $('${/parameter/@winid}').close();
+                                Aurora.SideBar.show({
+                                    msg: '操作成功',
+                                    duration: 2000
+                                });
+                            },
+                            failure: function() {
+                                window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                            },
+                            error: function() {
+                                window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                            },
+                            scope: this
+                        });
+                    });
+                }
+            };
+            
+            
+            function upload_file(id, name, query_only) {
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][id + '---' + name];
+                if (record.get('con_dff_attachment_id')) {
+                    var url;
+                    if (query_only == 'Y' || '${/parameter/@function_usage}' == 'QUERY' || '${/parameter/@maintain_type}' == 'READONLY') {
+                        url = $('${/parameter/@layout_code}_cdd_downloadFile_id').getUrl() + '?table_name=CON_DFF_ATTACHMENT&header_id=' + record.get('con_dff_attachment_id');
+                    } else {
+                        url = $('${/parameter/@layout_code}_cdd_uploadFile_id').getUrl() + '?table_name=CON_DFF_ATTACHMENT&header_id=' + record.get('con_dff_attachment_id');
+                    }
+                    var win = new Aurora.Window({
+                        url: url,
+                        title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                        id: 'prj500_cdd_uploadFile_screen_id',
+                        width: 850,
+                        height: 400
+                    });
+                    win.on('close', function() {
+                        record.ds.query();
+                    });
+                } else {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先保存!');
+                }
+            }
+            
+            function view_pdf(attachment_id) {
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/fnd.fnd_atm_attachment/query',
+                    para: {
+                        attachment_id: attachment_id
+                    },
+                    success: function(res) {
+                        var path = res.result.record.file_path;
+                        path = path.substr(path.indexOf('hls_attachment'));
+                        var tomcat_source = '${/parameter/@tomcat_source}';
+                        var source_path = 'http://' + window.location.host + '/' + tomcat_source + '/' + path;
+                        var oWin = window.open(source_path);
+                    },
+                    scope: this
+                });
+            }
+            
+            
+            
+            function open_car_info_Window(record_id, ds_id) {
+                var record = $(ds_id).findById(record_id);
+                var param = record.data;
+                var a = record.get('car_price');
+                param['contract_id'] = record.get('contract_id');
+                param['finance_amount'] = record.get('finance_amount');
+                param['function_code'] = 'CON740N';
+                param['function_usage'] = 'UPDATE';
+                param['maintain_type'] = 'MODIFY';
+                param['contract_lease_item_id'] = record.get('contract_lease_item_id');
+                param['url_title'] = '车辆置换';
+                hls_doc_get_layout_code('${/parameter/@layout_code}_con_contract_get_layout_code_link_id', param, '${/parameter/@layout_code}_contract_car_link_id', ds_id, '${/parameter/@layout_code}');
+            
+            }
+            
+            //超链接渲染
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+            
+                window['${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                if (name == 'attachment') {
+                    link_function = 'upload_file';
+                    if (record.get('attach_count') == 0 || !record.get('attach_count')) {
+                        return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                    } else {
+                        return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '(' + record.get('attach_count') + ')' + '</a>';
+                    }
+                } else if (name == 'attach_file_name') {
+                    if (value != null) {
+                        var link = '${/request/@context_path}/atm_download.svc?attachment_id=';
+                        var str = value.split(';;');
+                        var url = '';
+                        for (var i = 0;i < str.length;i++) {
+                            var temp = str[i].split('--');
+                            if (!Aurora.isEmpty(temp[0])) {
+                                var file_name = temp[0].toUpperCase();
+                                var file_suffix = temp[0].substr(temp[0].lastIndexOf('.') + 1).toUpperCase();
+                                if (file_name.indexOf('.PDF') >= 0) {
+                                    url = url + '<a href=javascript:view_pdf(\'' + temp[1] + '\')>' + temp[0] + '</a>' + ',';
+                                } else if (file_suffix == 'BMP' || file_suffix == 'JPG' || file_suffix == 'JPEG' || file_suffix == 'PNG' || file_suffix == 'GIF') {
+                                    url = url + '<a href=' + link + temp[1] + ' ref="img">' + temp[0] + '</a>' + ',';
+                                } else {
+                                    url = url + '<a href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                                }
+                            }
+                        }
+                        return url;
+                    }
+                }
+                return value;
+            };
+            
+            //更新时调用
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+                //debugger;
+                var ds_id = 'CON_DFF_CAR_DISPLACE_MODIFY_G_NEW_CAR_INFO_con_contract_lease_item_ds';
+                var rec = $(ds_id).getCurrentRecord();
+                if (ds_id == ds.id) {
+                    if (name == 'brand_id') {
+                        rec.set('series_id', '');
+                        rec.set('series_id_n', '');
+                        rec.set('model_id', '');
+                        rec.set('model_id_n', '');
+            
+                    }
+                }
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

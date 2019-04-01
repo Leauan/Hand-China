@@ -1,0 +1,82 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hp  
+    $Date: 2014-1-7 下午02:46:06  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" defaultOrderBy="contract_number,a.internal_period_num,accounting_date desc" needAccessControl="false">
+    <bm:fields>
+        <bm:field name="contract_id"/>
+        <bm:field name="contract_number"/>
+        <bm:field name="contract_status"/>
+        <bm:field name="contract_status_n"/>
+        <bm:field name="bp_id_tenant"/>
+        <bm:field name="bp_id_tenant_n"/>
+        <bm:field name="accounting_date" databaseType="DATE" datatype="java.util.Date"/>
+        <bm:field name="bp_id_vender"/>
+        <bm:field name="bp_id_vender_n"/>
+        <bm:field name="bp_id_agent_level1"/>
+        <bm:field name="bp_id_agent_level1_n"/>
+        <bm:field name="inception_of_lease" databaseType="DATE" datatype="java.util.Date"/>
+        <bm:field name="internal_period_num"/>
+        <bm:field name="period_name"/>
+        <bm:field name="finance_income"/>
+        <bm:field name="sum_finance_income"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+select a.contract_id,
+       b.contract_number,
+       b.contract_status,
+       b.contract_status_n,
+       b.bp_id_tenant,
+       b.bp_id_tenant_n,
+       b.bp_id_vender,
+       b.bp_id_vender_n,
+       b.bp_id_agent_level1,
+       b.bp_id_agent_level1_n,
+       b.inception_of_lease,
+       a.accounting_date,
+       a.internal_period_num,
+       g.period_name,
+       sum(a.finance_income) finance_income,
+       (select sum(c.finance_income)
+          from con_finance_income c
+         where c.contract_id = a.contract_id
+           and c.internal_period_num <= a.internal_period_num
+         group by c.contract_id) sum_finance_income
+  from con_finance_income a, con_contract_lv b, gld_periods g
+ #WHERE_CLAUSE#
+  group by a.contract_id,
+          a.internal_period_num,
+          a.accounting_date,
+          b.contract_number,
+          b.contract_status,
+          b.contract_status_n,
+          b.bp_id_tenant,
+          b.bp_id_tenant_n,
+          b.bp_id_vender,
+          b.bp_id_vender_n,
+          b.bp_id_agent_level1,
+          b.bp_id_agent_level1_n,
+          b.inception_of_lease,
+          g.period_name
+
+ #ORDER_BY_CLAUSE#
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field field="bp_id_tenant" queryOperator="="/>
+        <bm:query-field field="bp_id_vender" queryOperator="="/>
+        <bm:query-field field="bp_id_agent_level1" queryExpression="bp_id_agent_level1 = nvl(${@bp_id_agent_level1}, bp_id_agent_level1) or bp_id_agent_level1 is null"/>
+        <bm:query-field field="contract_id" queryExpression="a.contract_id=nvl(${@contract_id},a.contract_id)"/>
+        <bm:query-field name="period_name_from" queryExpression="period_name &gt;= nvl(${@period_name_from},period_name)"/>
+        <bm:query-field name="period_name_to" queryExpression="period_name &lt;= nvl(${@period_name_to},period_name) "/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="(contract_status=&apos;INCEPT&apos; and a.contract_id = b.contract_id and g.internal_period_num=a.internal_period_num and period_set_code = &apos;CAMC_PERIOD&apos;)"/>
+    </bm:data-filters>
+</bm:model>

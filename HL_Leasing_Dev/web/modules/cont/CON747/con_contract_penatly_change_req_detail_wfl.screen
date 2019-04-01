@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-12-20 下午03:30:10  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootPath="sysdate_rp"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="penatly_link" url="${/request/@context_path}/modules/cont/CON747/con_contract_penatly_submit.svc"/>
+        <a:link id="con_contract_rent_dun_link" url="${/request/@context_path}/modules/cont/CON747/con_contract_rent_dun_query.screen"/>
+        <script><![CDATA[
+            function req_detail_close() {
+                $('penalty_change_window').close();
+            }
+            
+            function req_detail_approve() {
+                Aurora.showConfirm('${l:HLS.PROMPT}', '${l:HLS.ARE_YOU_SURE_TO_SUBMIT}', req_detail_approve_confirm, function() {
+                    return;
+                });
+            }
+            
+            function req_detail_approve_confirm() {
+                var line_selected_records = $('con_change_req_line_ds').getSelected();
+                if (line_selected_records.length == 0) {
+                    Aurora.showMessage('${HLS.PROMPTS}', '${l:CON747.CHOOSE_CHANGE_RECORD_MSG}');
+                    return;
+                }
+                for (i = 0;i < line_selected_records.length;i++) {
+                   // if (!Ext.isEmpty(line_selected_records[i].get('change_penalty_amount')) || line_selected_records[i].get('change_penalty_amount') === 0) {
+                        var ds = $('con_contract_penatly_change_req_detail_header_ds');
+                        var datas = ds.getJsonData(false);
+                        Aurora.Masker.mask($('penalty_change_window').wrap, '${HLS.EXECUTING}');
+                        Aurora.request({
+                            url: $('penatly_link').getUrl(),
+                            para: datas,
+                            success: function() {
+                                Aurora.Masker.unmask($('penalty_change_window').wrap);
+                                $('con_change_req_line_ds').query();
+                                Aurora.showMessage('${l:HLS.PROMPT}', '${l:CON747.SUBMIT_SUCCESS}');
+                            },
+                            failure: function() {
+                                Aurora.Masker.unmask($('penalty_change_window').wrap);
+                            },
+                            error: function() {
+                                Aurora.Masker.unmask($('penalty_change_window').wrap);
+                            }
+            
+                        });
+                    // }else {
+                        // Aurora.showMessage('${HLS.PROMPTS}', '${l:CON747.ENTER_CHANGE_AMOUNT_MSG}');
+                        // return;
+                    // }
+                }
+                var url = $('con_contract_rent_dun_link').getUrl();
+                Aurora.go(url);
+            
+            }
+            
+            function on_change_req_line_query(ds, qpara) {
+                var bp_id = '${/parameter/@bp_id}';
+                if (bp_id) {
+                    qpara['bp_id'] = bp_id;
+                }
+            }
+            
+            function con_change_req_line_ds_update(ds, record, name, value, oldvalue) {
+                //debugger;
+                if (name == 'change_penalty_amount') {
+                    if (!Ext.isEmpty(value) || value === 0) {
+                        if (value - record.get('due_amount') > 0) {
+                            Aurora.showConfirm('${l:HLS.PROMPT}', '${l:CON747.CONFIRM_CHANGE_MSG}', function() {
+                                $('con_change_req_line_ds').select(record);
+                                return;
+                            }, function() {
+                                record.set('change_penalty_amount', '');
+                                $('con_change_req_line_ds').unSelect(record);
+                                return;
+                            });
+                        } else {
+                            $('con_change_req_line_ds').select(record);
+                        }
+                    } else {
+                        $('con_change_req_line_ds').unSelect(record);
+                    }
+                }
+                if (name == 'derate_amount') {
+                    var derate_amount = record.get('derate_amount');
+                    var unreceived_amount = record.get('unreceived_amount');
+                    //alert(unreceived_amount);
+                    af_amount  = unreceived_amount - derate_amount;
+                    record.set('af_amount',af_amount);
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="con_contract_penatly_change_req_detail_header_ds" autoQuery="true" model="cont.CON747.con_contract_penalty_head_query" queryUrl="${/request/@context_path}/autocrud/cont.CON747.con_contract_penalty_head_query/query?contract_id=${/parameter/@contract_id}" submitUrl="${/request/@context_path}/modules/cont/CON747/con_contract_penatly_submit.svc">
+                <a:fields>
+                    <a:field name="contract_number"/>
+                    <a:field name="contract_name"/>
+                    <a:field name="project_number"/>
+                    <a:field name="bp_name"/>
+                    <a:field name="inception_of_lease"/>
+                    <a:field name="received_times"/>
+                    <a:field name="overdue_status"/>
+                    <a:field name="overdue_amount"/>
+                    <!-- <a:field name="bp_id_tenant"/>
+                    <a:field name="bp_code"/>
+                    <a:field name="bp_name"/>
+                    <a:field name="con_req_number"/>
+                    <a:field name="project_id"/>
+                    <a:field name="project_number"/>
+                    <a:field name="project_name"/> -->
+                    <a:field name="last_calc_date" defaultValue="${/model/sysdate_rp/record/@now_time}" readOnly="true"/>
+                    <a:field name="change_reason" required="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con_change_req_line_ds" autoQuery="true" bindName="line_result" bindTarget="con_contract_penatly_change_req_detail_header_ds" fetchAll="true" model="cont.CON747.con_contract_penatly_change_req_detail_line" selectable="true">
+                <a:fields>
+                    <a:field name="cashflow_id"/>
+                    <a:field name="contract_id" defaultValue="${/parameter/@contract_id}"/>
+                    <a:field name="change_penalty_amount"/>
+                    <a:field name="times"/>
+                    <a:field name="due_date"/>
+                    <a:field name="cf_item_desc"/>
+                    <a:field name="rental_amount"/>
+                    <a:field name="received_amount"/>
+                    <a:field name="unreceived_amount"/>
+                    <a:field name="derate_amount"/>
+                    <a:field name="af_amount"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="con_change_req_line_ds_update"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="req_detail_close" text="HLS.BACK"/>
+                <a:gridButton click="req_detail_approve" text="HLS.SUBMIT"/>
+            </a:screenTopToolbar>
+            <a:form column="1" title="罚息免除申请维护">
+                <a:box column="3" labelWidth="100">
+                    <!-- <a:textField name="bp_code" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="CON305.BP_ID_TENANT" readOnly="true" width="150"/>
+                    <a:textField name="bp_name" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="HLS.TENANT_NAME" readOnly="true" width="150"/>
+                    <a:textField name="con_req_number" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="CON747.CON_REQ_NUMBER" readOnly="true" width="150"/>
+                    <a:textField name="project_number" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="HLS.PROJECT_NUMBER" readOnly="true" width="150"/>
+                    <a:textField name="project_name" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="HLS.PROJECT_NAME" readOnly="true" width="150"/>
+                    <a:datePicker name="last_calc_date" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="CON747.LAST_CALC_DATE" readOnly="true" width="150"/>
+                     -->
+                    <a:textField name="contract_number" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="合同编号" readOnly="true" width="150"/>
+                    <a:textField name="contract_name" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="合同名称" readOnly="true" width="150"/>
+                    <a:textField name="project_number" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="申请编号" readOnly="true" width="150"/>
+                    <a:textField name="bp_name" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="承租人名称" readOnly="true" width="150"/>
+                    <a:datePicker name="inception_of_lease" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="起租日" readOnly="true" width="150"/>
+                    <a:textField name="received_times" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="已还款期数" readOnly="true" width="150"/>
+                    <a:textField name="overdue_status" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="是否逾期" readOnly="true" width="150"/>
+                    <a:textField name="overdue_amount" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="逾期金额" readOnly="true" width="150"/>
+                    <a:datePicker name="last_calc_date" bindTarget="con_contract_penatly_change_req_detail_header_ds" prompt="CON747.LAST_CALC_DATE" readOnly="true" width="150"/>
+                </a:box>
+                <a:box column="3" labelWidth="100">
+                    <a:textArea name="change_reason" bindTarget="con_contract_penatly_change_req_detail_header_ds" colspan="3" prompt="CON747.CHANGE_REASON" width="666"/>
+                </a:box>
+            </a:form>
+            <a:grid bindTarget="con_change_req_line_ds" marginHeight="300" marginWidth="30" navBar="true">
+                <a:columns>
+                    <!-- <a:column name="contract_number" prompt="HLS.CONTRACT_NUMBER" width="150"/> -->
+                    <!-- <a:column name="contract_name" prompt="HLS.CONTRACT_NAME" width="200"/> -->
+                    <a:column name="times" prompt="HLS.TIMES" width="80"/>
+                    <a:column name="due_date" prompt="计划付款日期" renderer="Aurora.formatDate" width="150"/>
+                    <a:column name="cf_item_desc" prompt="HLS.CF_ITEM_DESC" width="150"/>
+                    <a:column name="rental_amount" align="right" prompt="CON305.ACC_AMOUNT" renderer="Aurora.formatMoney" width="150"/>
+                    <a:column name="received_amount" align="right" prompt="已收金额" renderer="Aurora.formatMoney" width="150"/>
+                    <a:column name="unreceived_amount" align="right" prompt="未收金额" renderer="Aurora.formatMoney" width="150"/>
+                    <!-- <a:column name="due_date" prompt="HLS.DUE_DATE" renderer="Aurora.formatDate" width="100"/>
+                    <a:column name="overdue_max_days" align="right" prompt="CON747.OVERDUE_MAX_DAYS" width="100"/>
+                    <a:column name="due_amount" align="right" prompt="CON747.DUE_AMOUNT" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="change_penalty_amount" align="right" editor="line_nf" prompt="CON747.CHANGE_PENALTY_AMOUNT" renderer="Aurora.formatMoney" width="100"/> -->
+                    <a:column name="derate_amount" editor="line_nf" prompt="减免金额" renderer="Aurora.formatMoney" width="150"/>
+                    <a:column name="af_amount" prompt="减免后应收金额" renderer="Aurora.formatMoney" width="150"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="line_nf" allowDecimals="true" allowFormat="true" allowNegative="false"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

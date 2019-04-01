@@ -1,0 +1,744 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei5743  
+    $Date: 2014-10-8 下午3:16:19  
+    $Revision: 1.0  
+    $Purpose: 租赁申请创建
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.user_id=${/session/@user_id}" model="prj.PRJ500D.sys_user_lv" rootPath="user_name_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="get_car_organization_id" model="prj.PRJ500D.yonda_car_organization" modelaction="query"/>
+        <a:link id="get_special_fields_link_id" model="cont.CON500.con_contract_get_special_fields" modelaction="update"/>
+        <a:link id="get_calc_id" model="prj.PRJ500D.calc_quotation" modelaction="update"/>
+        <a:link id="submit_approval_link" model="prj.PRJ500D.prj_project_workflow_start" modelaction="update"/>
+        <a:link id="prj500_cdd_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="prj500_cdd_downloadFile_id" url="${/request/@context_path}/downloadFile.screen"/>
+        <a:link id="get_id_card_no_info_id" model="prj.PRJ500D.hls_bp_master_np_v" modelaction="query"/>
+        <a:link id="get_organization_code_id" model="prj.PRJ500D.hls_bp_master_org_v" modelaction="query"/>
+        <a:link id="get_id_card_no_info_guar_id" model="prj.PRJ500D.hls_bp_master_np_guar" modelaction="query"/>
+        <a:link id="get_org_code_info_guar_id" model="prj.PRJ500D.hls_bp_master_org_guar" modelaction="query"/>
+        <a:link id="get_id_card_no_tenant_sec_id" model="prj.PRJ500D.hls_bp_master_np_tenant_sec_v" modelaction="query"/>
+        <a:link id="user_id_query_link" model="prj.PRJ500D.sys_user_lv" modelaction="query"/>
+        <a:link id="hls_fin_doc_quotation_link_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_doc_quotation.svc"/>
+        <a:link id="hls_fin_calculator_update_link_id" url="${/request/@context_path}/modules/hls/HLS500N/hls_fin_calculator_update_n.screen"/>
+        <a:link id="hls_fin_calc_quotation_header_link_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calc_quotation_header.screen"/>
+        <a:link id="update_prj_project_quotation_info_id" model="prj.PRJ500D.update_project_quotation_info" modelaction="update"/>
+        <a:link id="get_car_organization_id_link" model="prj.PRJ500D.get_hls_car_organization" modelaction="query"/>
+        <a:link id="tenant_history_project_link" url="${/request/@context_path}/modules/prj/PRJ501N/tenant_history_project.screen"/>
+        <a:link id="get_bp_id_invoice_link" model="prj.PRJ500D.get_bp_id_invoice" modelaction="query"/>
+        <a:link id="get_company_distrct_link" model="prj.PRJ500D.get_company_info" modelaction="query"/>
+        <a:link id="prj_project_dowload_uploadfile" url="${/request/@context_path}/modules/prj/lease_atm_batch_dl.svc"/>
+		<a:link id="${/parameter/@layout_code}${/parameter/@pre_layout}prj501n_analyse_detail_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_analyse_detail.screen"/>
+        <script src="${/request/@context_path}/modules/prj/PRJ500N/javascripts/input_validator.js"/>
+        <script src="${/request/@context_path}/modules/prj/PRJ500N/javascripts/check_org_code.js"/>
+        <script><![CDATA[
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                new Aurora.Window({
+                    id: 'contract_history_window',
+                    url: $('tenant_history_project_link').getUrl(),
+                    params: {
+                        project_id: '${/parameter/@project_id}'
+                    },
+                    fullScreen: true
+                });
+            };
+            
+            //申请历史
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                new Aurora.Window({
+                    id: 'contract_history_window',
+                    url: $('tenant_history_project_link').getUrl(),
+                    params: {
+                        project_id: '${/parameter/@project_id}'
+                    },
+                    fullScreen: true
+                });
+            };
+            
+            //审批页面中打包下载
+            window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function() {
+                var prj_project_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                var prj_project_record = $(prj_project_ds_id).getAt(0);
+                var tenant_info_record = $('${/parameter/@layout_code}_BP_INFO_prj_project_bp_ds').getAt(0);
+                var project_id = prj_project_record.get('project_id');
+                var project_number= prj_project_record.get('project_number');
+                var bp_name= tenant_info_record.get('bp_name');
+                var doc_code =project_number+'_'+bp_name ;
+                var url_l = $('prj_project_dowload_uploadfile').getUrl() + '?document_id=' + project_id + '&document_table=PRJ_PROJECT' + '&doc_code=' + encodeURI(doc_code)+'&all_flag=Y';
+                window.open(href = url_l, target = "_self");
+            
+            };
+            
+            //保存前调用，生成项目编号
+            window['${/parameter/@layout_code}_on_layout_dynamic_before_submit'] = function(ds, record) {
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var ds1 = $('${/parameter/@layout_code}_BP_INFO_prj_project_bp_ds');
+                var ds1Record = ds1.getCurrentRecord();
+                if (ds1Record) {
+                    if (!Aurora.isEmpty(ds1Record.get('cell_phone'))) {
+                        if (!checkMobile(ds1Record.get('cell_phone'))) {
+                            Aurora.showMessage('提示', '申请人信息中，请输入正确格式的手机号码！');
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                            return false;
+                        }
+                    }
+                    if (!Aurora.isEmpty(ds1Record.get('organization_code'))) {
+                        if (check_org_code(ds1Record.get('organization_code')) != 0) {
+                            Aurora.showMessage('提示', '申请人组织机构代码格式错误，请重新维护！');
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                            return false;
+                        }
+                    }
+                    if (!Aurora.isEmpty(ds1Record.get('id_card_no'))) {
+                        if (ds1Record.get('bp_class') == 'NP' && ds1Record.get('id_type') == 'ID_CARD') {
+                            if (!checkCard(ds1Record.get('id_card_no'))) {
+                                Aurora.showMessage('提示', '申请人信息中，请输入正确格式的身份证！');
+                                window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                                return false;
+                            }
+                        }
+                    }
+                }
+                var ds2 = $('${/parameter/@layout_code}_BP_TENANT_SEC_INFO_prj_project_bp_ds');
+                var ds2Record = ds2.getCurrentRecord();
+                if (ds2Record) {
+                    if (!Aurora.isEmpty(ds2Record.get('cell_phone'))) {
+                        if (!checkMobile(ds2Record.get('cell_phone'))) {
+                            Aurora.showMessage('提示', '联合承租人信息中，请输入正确格式的手机号码！');
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                            return false;
+                        }
+                    }
+                    if (!Aurora.isEmpty(ds2Record.get('id_card_no'))) {
+                        if (ds2Record.get('bp_class') == 'NP' && ds2Record.get('id_type') == 'ID_CARD') {
+                            if (!checkCard(ds2Record.get('id_card_no'))) {
+                                Aurora.showMessage('提示', '联合承租人信息中，请输入正确格式的身份证！');
+                                window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                                return false;
+                            }
+                        }
+                    }
+                }
+                var ds3 = $('${/parameter/@layout_code}_G_INS_LP_prj_project_bp_ds');
+                var ds3Record = ds3.getCurrentRecord();
+                if (ds3Record) {
+                    if (!Aurora.isEmpty(ds3Record.get('cell_phone'))) {
+                        if (!checkMobile(ds3Record.get('cell_phone'))) {
+                            Aurora.showMessage('提示', '担保人信息中，请输入正确格式的手机号码！');
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                            return false;
+                        }
+                    }
+                    if (!Aurora.isEmpty(ds3Record.get('id_card_no'))) {
+                        if (ds3Record.get('bp_class') == 'NP' && ds3Record.get('id_type') == 'ID_CARD') {
+                            if (!checkCard(ds3Record.get('id_card_no'))) {
+                                Aurora.showMessage('提示', '担保人信息中，请输入正确格式的身份证！');
+                                window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                                return false;
+                            }
+                        }
+                    }
+                }
+                var check_flag = false;
+                if (record.get('project_number')) {
+                    return true;
+                }
+                Aurora.request({
+                    url: $('get_special_fields_link_id').getUrl(),
+                    para: {
+                        document_category: '${/parameter/@document_category}',
+                        document_type: record.get('document_type'),
+                        function_code: '${/parameter/@function_code}',
+                        function_usage: '${/parameter/@function_usage}'
+                    },
+                    success: function(res) {
+            
+                        var document_number = res.result.document_number;
+                        record.set('project_number', document_number);
+                        record.set('document_category', '${/parameter/@document_category}');
+                        check_flag = true;
+                    },
+                    error: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    failure: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    sync: true,
+                    scope: this
+                });
+                return check_flag;
+            };
+            
+            
+            
+            //提交审批
+            window['${/parameter/@layout_code}_submit_approval_layout_dynamic_click'] = function() {
+                Aurora.showConfirm('${l:HLS.PROMPT}', '确认提交审批？', function() {
+                    record = $('${/parameter/@layout_code}_RECEIPT_INFO_prj_project_ds').getAt(0);
+                    if (!record.get('project_id')) {
+                        Aurora.showMessage('${l:PROMPT}', '请先保存数据');
+                    } else {
+                        Aurora.request({
+                            url: $('submit_approval_link').getUrl(),
+                            para: {
+                                project_id: record.get('project_id')
+                            },
+                            success: function() {
+                                $('${/parameter/@winid}').close();
+                                Aurora.SideBar.show({
+                                    msg: '操作成功',
+                                    duration: 2000
+                                });
+            
+                            },
+                            scope: this
+                        });
+                    }
+                });
+            
+            };
+            
+            
+            function upload_file(id, name, query_only) {
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][id + '---' + name];
+                if (record.get('check_id')) {
+                    var url;
+                    if (query_only == 'Y') {
+                        url = $('prj500_cdd_downloadFile_id').getUrl() + '?table_name=PRJ_CDD_ITEM_CHECK&header_id=' + record.get('check_id');
+                    } else {
+                        url = $('prj500_cdd_uploadFile_id').getUrl() + '?table_name=PRJ_CDD_ITEM_CHECK&header_id=' + record.get('check_id');
+                    }
+                    var win = new Aurora.Window({
+                        url: url,
+                        title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                        id: 'prj500_cdd_uploadFile_screen_id',
+                        width: 850,
+                        height: 400
+                    });
+            
+                    win.on('close', function() {
+                        record.ds.query();
+                    });
+                } else {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先保存!');
+                }
+            }
+			
+			 window['${/parameter/@layout_code}${/parameter/@pre_layout}prj501_open_analyse_win'] = function(record_id, ds_id, condition_code) {
+                var record = $(ds_id).findById(record_id);
+                var param = {};
+                param['target_type'] = record.get('target_type');
+                param['target'] = record.get('target');
+                param['condition_code'] = condition_code;
+                param['layout_code'] = 'PRJ_ANALYSE_DETAIL';
+                param['winid'] = 'prj501n_analyse_detail_win';
+                param['function_usage'] = 'QUERY';
+                var win = new Aurora.Window({
+                    id: 'prj501n_analyse_detail_win',
+                    params: param,
+                    url: $('${/parameter/@layout_code}${/parameter/@pre_layout}prj501n_analyse_detail_link').getUrl(),
+                    title: '维度明细(' + 'PRJ_ANALYSE_DETAIL)',
+                    fullScreen: true,
+                    draggable: true
+                });
+            };
+            
+            //超链接渲染
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                var link_function = '';
+                window['${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                if (name == 'attachment') {
+                    link_function = 'upload_file';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                } else if (name == 'attach_file_name') {
+                    if (value != null) {
+                        var link = '${/request/@context_path}/atm_download.svc?attachment_id=';
+                        var str = value.split(';;');
+                        var url = '';
+                        for (var i = 0;i < str.length;i++) {
+                            var temp = str[i].split('--');
+                            if (!Aurora.isEmpty(temp[0])) {
+                                url = url + '<a href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                            }
+                        }
+                        return url;
+            
+                    }
+                }
+                else if(name=='description'){
+                    if (record.get('important_flag')=='Y'){
+                        return '<font color="RED">'+value+'</font>';
+                    }
+                    return value;
+                }else if (name == 'approved_count' || name == 'reject_count' || name == 'cancel_count' || name == 'terminate_count') {
+                    var condition_code;
+                    if (name === 'approved_count') {
+                        condition_code = '11';
+                    } else if (name === 'reject_count') {
+                        condition_code = '12';
+                    } else if (name === 'cancel_count') {
+                        condition_code = '13';
+                    } else if (name === 'terminate_count') {
+                        condition_code = '14';
+                    }
+                    if (value > 0) {
+                        return '<a href="javascript:${/parameter/@layout_code}${/parameter/@pre_layout}prj501_open_analyse_win(\'' + record.id + '\',\'' + record.ds.id + '\',\'' + condition_code + '\')">' + value + '</a>';
+                    } else {
+                        return value;
+                    }
+            
+                }
+            };
+            
+            //报价
+            
+            function winOpen_quotation() {
+                var head_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                var head_ds = $(head_ds_id);
+                var head_record = head_ds.getAt(0);
+                var prj_quotation_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_quotation');
+                var hls_fin_calculator_ln_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_fin_calculator_ln');
+                record = $(prj_quotation_ds_id).getAt(0);
+                if (!head_record.get('project_id')) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先保存!');
+                    return;
+                }
+                var parent_base_table_pk = 'project_id';
+                var url;
+                if ('${/parameter/@calc_type}' == 'LITE_CALCULATOR') {
+                    url = $('hls_fin_calc_quotation_header_link_id').getUrl();
+                } else if ('${/parameter/@calc_type}' == 'CLASSIC_CALCULATOR') {
+                    url = $('hls_fin_calculator_update_link_id').getUrl();
+                } else {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.CALC_TYPE_IS_NULL}');
+                    return;
+                }
+                var project_id = head_record.get('project_id');
+                var parent_pk_value = head_record.get('project_id');
+                record.set('document_category', '${/parameter/@document_category}');
+                record.set('function_code', '${/parameter/@function_code}');
+                record.set('function_usage', '${/parameter/@function_usage}');
+                record.set('document_id', parent_pk_value);
+                record.set('to_doc_table', 'HLS_FIN_CALCULATOR_HD');
+                record.set('from_doc_table', 'PRJ_QUOTATION');
+                record.set('from_doc_pk', record.get('quotation_id'));
+                record.set('calculate_flag', 'N');
+                //写死一些参数
+                record.set('contract_seq', 1);
+                record.set('version', '1');
+                record.set('internal_confirm', 'Y');
+                record.set('external_confirm', 'Y');
+                record.set('enabled_flag', 'Y');
+                var lease_item_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project_lease_item');
+                var lease_item_record = $(lease_item_ds_id).getAt(0);
+                record.set('price_list', lease_item_record.get('price_list'));
+                record.set('annual_pay_times', record.get('annual_pay_times_num'));
+                record.set('company_id', head_record.get('company_id'));
+                var calc_recreate_L_formula;
+                if (record.get('quotation_id') && !record.get('calc_session_id')) {
+                    calc_recreate_L_formula = 'Y';
+                    record.set('_status', 'update');
+                } else if (record.get('quotation_id') && record.get('calc_session_id')) {
+                    calc_recreate_L_formula = 'N';
+                    record.set('_status', 'execute');
+                } else {
+                    calc_recreate_L_formula = 'Y';
+                    record.set('_status', 'insert');
+                }
+                var saveData = [];
+                saveData.push(record.data);
+                Aurora.request({
+                    url: $('hls_fin_doc_quotation_link_id').getUrl(),
+                    para: saveData,
+                    success: function(res) {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window'];
+                        $(prj_quotation_ds_id).query();
+                        var quotation_id = record.get('quotation_id') || res.result.quotation_id;
+                        var win = new Aurora.Window({
+                            id: 'hls_fin_calc_quotation_link_winid',
+                            params: {
+                                document_id: parent_pk_value,
+                                document_category: '${/parameter/@document_category}',
+                                maintain_type: 'update',
+                                calc_session_id: res.result.record.calc_session_id,
+                                quotation_id: quotation_id,
+                                dsId: prj_quotation_ds_id,
+                                winId: 'hls_fin_calc_quotation_link_winid',
+                                global_flag: 'Y',
+                                id_num: 0,
+                                calc_type: '${/parameter/@calc_type}',
+                                recreate_L_formula: calc_recreate_L_formula,
+                                currency_code: 'CNY'
+                            },
+                            url: url,
+                            fullScreen: true,
+                            draggable: true
+                        });
+                        win.on('close', function() {
+                            $(prj_quotation_ds_id).setQueryParameter('project_id', project_id);
+                            $(hls_fin_calculator_ln_ds_id).setQueryParameter('project_id', project_id);
+                            $(prj_quotation_ds_id).query();
+                            $(hls_fin_calculator_ln_ds_id).query();
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window'];
+                        });
+                    },
+                    failure: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window'];
+                    },
+                    error: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window'];
+                    },
+                    scope: this
+                });
+            }
+            
+            
+            
+            //按钮渲染
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_dynamic_button_renderer'] = function(value, record, name, config_record, bp_seq) {
+                var link_function = '';
+                if (name == 'quotation') {
+                    link_function = 'winOpen_quotation';
+                }
+                if (Ext.isIE || Ext.isIE9 || Ext.isIE10) {
+                    return '<button style="font-size:11px;height:22px;width:70%;text-align:center;padding:0 4px 4px 0" onclick="window[\'' + link_function + '\']();"><div style="height: 18px; line-height: 16px; text-decoration: none;">' + config_record.get('prompt') + '</div></button>';
+                } else {
+                    return '<button style="font-size:11px;height:22px;width:70%;text-align:center;" onclick="window[\'' + link_function + '\']();">' + config_record.get('prompt') + '</button>';
+                }
+            
+            };
+            
+            
+            
+            function get_project_bp_ds_id(layoutDataSetList, bp_category) {
+                var base_table_temp = 'prj_project_bp_ds';
+                for (var i = 0;i < layoutDataSetList.length;i++) {
+                    var dsId = layoutDataSetList[i];
+                    if (dsId.substring(dsId.length - base_table_temp.length, dsId.length) == base_table_temp) {
+                        var record = $(dsId).getAt(0);
+                        if (record) {
+                            if (record.get('bp_category') == bp_category) {
+                                return dsId;
+                            }
+                        }
+                    }
+                }
+                return '';
+            }
+            
+            //保存submitsuccess调用
+            window['${/parameter/@layout_code}_on_layout_dynamic_submitsuccess'] = function(ds, record, res) {
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                if (ds_id) {
+                    record = $(ds_id).getAt(0);
+                    var cdd_item_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_cdd_item_doc_ref');
+                    $(cdd_item_ds_id).setQueryParameter('cdd_list_id', record.get('cdd_list_id'));
+                    $(cdd_item_ds_id).query();
+                    var prj_cdd_item_doc_ref_ds = $(cdd_item_ds_id);
+            
+                    function prj_cdd_item_doc_ref_load() {
+                        //取消重复监听
+                        prj_cdd_item_doc_ref_ds.un('load', prj_cdd_item_doc_ref_load);
+                        $(cdd_item_ds_id).submit();
+                    }
+                    prj_cdd_item_doc_ref_ds.on('load', prj_cdd_item_doc_ref_load);
+            
+                }
+                window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+            
+            };
+            
+            
+            //更新时调用
+            window['${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project_lease_item');
+                if (ds.id == ds_id) {
+                    if (name == 'plate_resource') {
+                        //自有外牌备注必输,牌照提供方必填
+                        if (value == 'OWN_LICENCE') {
+                            record.getField('nonlocal_plate_desc').setRequired(true);
+                            $('${/parameter/@layout_code}_RECEIPT_INFO_prj_project_ds').getCurrentRecord().getField('license_provider_name').setRequired(true);
+                            $('${/parameter/@layout_code}_RECEIPT_INFO_prj_project_ds').getCurrentRecord().getField('license_provider_code').setRequired(true);
+                        } //自有上海牌备注不必输，牌照提供方必填
+                        else if (value == 'OWN_SH_LICENCE') {
+                            record.getField('nonlocal_plate_desc').setRequired(false);
+                            $('${/parameter/@layout_code}_RECEIPT_INFO_prj_project_ds').getCurrentRecord().getField('license_provider_name').setRequired(true);
+                            $('${/parameter/@layout_code}_RECEIPT_INFO_prj_project_ds').getCurrentRecord().getField('license_provider_code').setRequired(true);
+                        } else {
+                            record.getField('nonlocal_plate_desc').setRequired(false);
+                            $('${/parameter/@layout_code}_RECEIPT_INFO_prj_project_ds').getCurrentRecord().getField('license_provider_name').setRequired(false);
+                            $('${/parameter/@layout_code}_RECEIPT_INFO_prj_project_ds').getCurrentRecord().getField('license_provider_code').setRequired(false);
+                        }
+                    }
+                }
+                    if (ds.id == '${/parameter/@layout_code}_BP_INFO_prj_project_bp_ds') {
+                        //无贷款月供为0
+                        if (name == "house_loans_flag") {
+                            if (value == 'N') {
+                                record.set('house_month_amount', 0);
+                            }
+                        }
+                        if (name == 'bp_name') {
+                            var project_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                            project_record = $(project_ds_id).getAt(0);
+                            project_record.set('bp_name', value);
+                        }
+                        if (name == 'organization_code') {
+                            Aurora.request({
+                                url: $('get_organization_code_id').getUrl(),
+                                para: {
+                                    organization_code: value
+                                },
+                                success: function(data) {
+                                    if (data.result.record && !data.result.record.length) {
+                                        //申请人信息
+                                        for (var name in data.result.record) {
+                                            record.set(name, data.result.record[name]);
+                                        }
+            
+                                    }
+            
+                                },
+                                failure: function() {
+            
+                                   },
+                                error: function() {
+            
+                                   },
+                                scope: this
+                            });
+                        }
+                        if (name == 'id_card_no') {
+                            var id_type = record.get('id_type');
+                            Aurora.request({
+                                url: $('get_id_card_no_info_id').getUrl(),
+                                para: {
+                                    id_card_no: value,
+                                    id_type: id_type
+                                },
+                                success: function(data) {
+                                    if (data.result.record && !data.result.record.length) {
+                                        //申请人信息
+                                        for (var name in data.result.record) {
+                                            record.set(name, data.result.record[name]);
+                                        }
+            
+                                    }
+            
+                                },
+                                failure: function() {
+            
+                                   },
+                                error: function() {
+            
+                                   },
+                                scope: this
+                            });
+                        }
+                    }
+                    if (ds.id == '${/parameter/@layout_code}_BP_TENANT_SEC_INFO_prj_project_bp_ds') {
+                        //无贷款月供为0
+                        if (name == "house_loans_flag") {
+                            if (value == 'N') {
+                                record.set('house_month_amount', 0);
+                            }
+                        }
+                        if (name == 'id_card_no') {
+                            id_type = record.get('id_type');
+                            Aurora.request({
+                                url: $('get_id_card_no_tenant_sec_id').getUrl(),
+                                para: {
+                                    id_card_no: value,
+                                    id_type: id_type
+                                },
+                                success: function(data) {
+                                    if (data.result.record && !data.result.record.length) {
+                                        // 联合承租人
+                                        for (var name in data.result.record) {
+                                            record.set(name, data.result.record[name]);
+                                        }
+                                    }
+            
+                                },
+                                failure: function() {
+            
+                                   },
+                                error: function() {
+            
+                                   },
+                                scope: this
+                            });
+                        }
+                    }
+                    if (ds.id == '${/parameter/@layout_code}_G_INS_LP_prj_project_bp_ds') {
+                        //无贷款月供为0
+                        if (name == "house_loans_flag") {
+                            if (value == 'N') {
+                                record.set('house_month_amount', 0);
+                            }
+                        }
+                        if (name == 'id_card_no') {
+                            id_type = record.get('id_type');
+                            Aurora.request({
+                                url: $('get_id_card_no_info_guar_id').getUrl(),
+                                para: {
+                                    id_card_no: value,
+                                    id_type: id_type
+                                },
+                                success: function(data) {
+                                    if (data.result.record && !data.result.record.length) {
+                                        // 担保人
+                                        for (var name in data.result.record) {
+                                            record.set(name, data.result.record[name]);
+                                        }
+                                    }
+            
+                                },
+                                failure: function() {
+            
+                                   },
+                                error: function() {
+            
+                                   },
+                                scope: this
+                            });
+                        }
+                    }
+                    
+                    if (ds.id == '${/parameter/@layout_code}_G_INS_P_ORG_prj_project_bp_ds') {
+                    if (name == 'organization_code') {
+                        Aurora.request({
+                            url: $('get_org_code_info_guar_id').getUrl(),
+                            para: {
+                                organization_code: value
+                            },
+                            success: function(data) {
+                                if (data.result.record && !data.result.record.length) {
+                                    // 担保人
+                                    for (var name in data.result.record) {
+                                        record.set(name, data.result.record[name]);
+                                    }
+                                }
+            
+                            },
+                            failure: function() {
+            
+                               },
+                            error: function() {
+            
+                               },
+                            scope: this
+                        });
+                    }
+                }
+                
+            };
+            
+            Aurora.onReady(function() {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                var head_record = $(ds_id).getAt(0);
+                head_record.set('owner_user_id', '${/model/user_name_path/record/@user_id}');
+                head_record.set('owner_user_id_n', '${/model/user_name_path/record/@user_id_n}');
+                head_record.set('owner_user_tel', '${/model/user_name_path/record/@phone}');
+                Aurora.request({
+                    url: $('get_car_organization_id').getUrl(),
+                    para: {
+                        unit_id: head_record.get('unit_id')
+                    },
+                    success: function(data) {
+                        if (data.result.record && !data.result.record.length) {
+                            head_record.set('organization_id', data.result.record.organization_id);
+                            head_record.set('organization_id_n', data.result.record.organization_name);
+                        } else {
+                            //没有找到值置空
+                            head_record.set('organization_id', '');
+                            head_record.set('organization_id_n', '');
+                        }
+            
+                    },
+                    failure: function() {
+            
+                       },
+                    error: function() {
+            
+                       },
+                    scope: this
+                });
+                //公司带出区域
+                Aurora.request({
+                    url: $('get_company_distrct_link').getUrl(),
+                    para: {
+                        company_id: head_record.get('company_id')
+                    },
+                    success: function(data) {
+                        if (data.result.record && !data.result.record.length) {
+                            head_record.set('district', data.result.record.district);
+                            head_record.set('district_n', data.result.record.district_n);
+                        }
+                    },
+                    failure: function() {
+            
+                       },
+                    error: function() {
+            
+                       },
+                    scope: this
+                });
+            });
+            
+            //新增和加载时调用(form)
+            window['${/parameter/@layout_code}_on_layout_dynamic_form_add_and_load'] = function(ds, record, config_records) {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project_lease_item');
+                if (ds.id == ds_id && ds_id) {
+                    var project_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                    head_record = $(project_ds_id).getAt(0);
+                    Aurora.request({
+                        url: $('get_bp_id_invoice_link').getUrl(),
+                        para: {
+                            unit_id: head_record.get('unit_id')
+                        },
+                        success: function(data) {
+                            if (data.result.record && !data.result.record.length) {
+                                if (Ext.isEmpty(record.get('invoice_agent_id'))) {
+                                    record.set('invoice_agent_id', data.result.record.bp_id);
+                                    record.set('invoice_agent_id_n', data.result.record.bp_name);
+                                }
+                            }
+                        },
+                        failure: function() {
+            
+                           },
+                        error: function() {
+            
+                           },
+                        scope: this
+                    });
+                    var plate_resource = record.get('plate_resource');
+                    if (!Ext.isEmpty(plate_resource)) {
+                        //自有外牌备注必输,牌照提供方必填
+                        if (plate_resource == 'OWN_LICENCE') {
+                            record.getField('nonlocal_plate_desc').setRequired(true);
+                            $('${/parameter/@layout_code}_RECEIPT_INFO_prj_project_ds').getCurrentRecord().getField('license_provider_name').setRequired(true);
+                            $('${/parameter/@layout_code}_RECEIPT_INFO_prj_project_ds').getCurrentRecord().getField('license_provider_code').setRequired(true);
+                        } //自有上海牌备注不必输，牌照提供方必填
+                        else if (plate_resource == 'OWN_SH_LICENCE') {
+                            record.getField('nonlocal_plate_desc').setRequired(false);
+                            $('${/parameter/@layout_code}_RECEIPT_INFO_prj_project_ds').getCurrentRecord().getField('license_provider_name').setRequired(true);
+                            $('${/parameter/@layout_code}_RECEIPT_INFO_prj_project_ds').getCurrentRecord().getField('license_provider_code').setRequired(true);
+                        } else {
+                            record.getField('nonlocal_plate_desc').setRequired(false);
+                            $('${/parameter/@layout_code}_RECEIPT_INFO_prj_project_ds').getCurrentRecord().getField('license_provider_name').setRequired(false);
+                            $('${/parameter/@layout_code}_RECEIPT_INFO_prj_project_ds').getCurrentRecord().getField('license_provider_code').setRequired(false);
+                        }
+                    }
+                }
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

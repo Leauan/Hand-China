@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ouyangzhaochang2663 $
+    $Date: 2010/12/10 08:03:39 $
+    $Revision: 1.4 $
+    $Purpose: 公司创建
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query autoCount="false" fetchAll="true" fieldNameCase="lower" model="fnd.fnd_companies" rootPath="fnd_company"/>
+        <a:model-query autoCount="true" defaultWhereClause="enabled_flag = &apos;Y&apos;" fetchAll="true" model="gld.gld_set_of_books" queryOrderBy="set_of_books_code" rootPath="set_of_book_list"/>
+        <a:model-query autoCount="false" fetchAll="true" model="fnd.FND2020.fnd_company_position_cmb" rootPath="parent_companies"/>
+    </a:init-procedure>
+    <a:view>
+        <script><![CDATA[
+            function createCompany(){
+                $('fnd_companies_create_ds').submit();
+            }
+            
+            function closeCompanyCreateWindow(){
+                $('company_create_window').close();                
+            }
+            function onCompanyCreateSuccess(){
+                closeCompanyCreateWindow();
+                queryCompanies();
+            }
+            function onUpdate(ds,record,name,value){
+                if(name == 'start_date_active' || name == 'end_date_active'){
+                    record.validate((name == 'start_date_active') ? 'end_date_active' : 'start_date_active');
+                }
+            }
+            
+            function compareDate(start, end){
+                if(start > end){
+                    return false;
+                }
+                return true;
+            }
+            
+            function dateValidator(record, name, value){
+                if(name == 'start_date_active' || name == 'end_date_active'){
+                    var start_date = record.get('start_date_active');
+                    var end_date = record.get('end_date_active');
+                    if(typeof(end_date) != 'undefined' && !Ext.isEmpty(end_date)){
+                        if(!compareDate(start_date, end_date)){
+                            return '${l:START_GREATER_THAN_END}';
+                        }
+                    }
+                    return true;
+                }
+            }
+            
+            function blurHandler(){
+                var company_code=$('fnd_companies_create_ds').getAt(0).get('company_code');
+                var records=$('fnd_companies_result_ds').getAll();
+                for(var i=0;i<records.length;i++){
+                    if(company_code==records[i].get('company_code')){
+                        Aurora.showMessage('${l:PROMPT}','${l:FND_COMPANY.COMPANY_CODE_REPEAT}');
+                        $('fnd_companies_create_ds').getAt(0).set('company_code','');
+                    }
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <!-- SPV公司 -->
+            <a:dataSet id="spv_company_ds">
+                <a:datas>
+                    <a:record name="是" code="Y"/>
+                    <a:record name="否" code="N"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="fnd_companies_level_ds" autoCount="false" fetchAll="true" loadData="true" model="fnd.fnd_company_levels"/>
+            <a:dataSet id="fnd_companies_type_ds" lookupCode="COMPANY_TYPE"/>
+            <a:dataSet id="gld_set_of_book_ds">
+                <a:datas dataSource="/model/set_of_book_list"/>
+            </a:dataSet>
+            <a:dataSet id="parent_companies_ds">
+                <a:datas dataSource="/model/parent_companies"/>
+            </a:dataSet>
+            <a:dataSet id="fnd_companies_parent_ds" autoCount="false" fetchAll="true" loadData="true" model="fnd.FND2020.fnd_companies_parent"/>
+            <a:dataSet id="fnd_companies_create_ds" autoCreate="true" model="fnd.fnd_companies" submitUrl="${/request/@context_path}/modules/fnd/FND2020/fnd_company_create_control.svc">
+                <a:fields>
+                    <a:field name="company_code" required="true"/>
+                    <a:field name="company_short_name" required="true"/>
+                    <a:field name="company_type_display" displayField="code_value_name" options="fnd_companies_type_ds" required="true" returnField="company_type" valueField="code_value"/>
+                    <a:field name="set_of_books_id_display" displayField="set_of_books_name_display" options="gld_set_of_book_ds" required="true" returnField="set_of_books_id" valueField="set_of_books_id"/>
+                    <a:field name="company_level_id_display" displayField="description_display" options="fnd_companies_level_ds" returnField="company_level_id" valueField="company_level_id"/>
+                    <a:field name="start_date_active" datatype="date" required="true" validator="dateValidator"/>
+                    <a:field name="end_date_active" datatype="date" validator="dateValidator"/>
+                    <a:field name="parent_biz_company_display" readOnly="true"/>
+                    <a:field name="parent_biz_company_code" lovGridHeight="300" lovHeight="460" lovService="fnd.fnd_companies?company_type=1&amp;valid_date=sysdate" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="company_id" to="parent_biz_company_id"/>
+                            <a:map from="company_code" to="parent_biz_company_code"/>
+                            <a:map from="company_short_name" to="parent_biz_company_display"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="chief_position_id_display" displayField="position_name_display" options="parent_companies_ds" readOnly="true" returnField="chief_position_id" valueField="position_id"/>
+                    <!-- <a:field name="spv_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/> -->
+                    <a:field name="spv_flag_desc" displayField="name" options="spv_company_ds" prompt="FND_COMPANIES.SPV_FLAG" returnField="spv_flag" valueField="code"/>
+                    <a:field name="enable_role_authority" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="enable_user_authority" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="onCompanyCreateSuccess"/>
+                    <a:event name="update" handler="onUpdate"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="closeCompanyCreateWindow" text="HLS.CLOSE"/>
+                <a:gridButton click="createCompany" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:fieldSet column="1" title="FND_COMPANIES.INFO" width="550">
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="company_code" bindTarget="fnd_companies_create_ds" typeCase="upper">
+                        <a:events>
+                            <a:event name="blur" handler="blurHandler"/>
+                        </a:events>
+                    </a:textField>
+                    <a:textField name="company_short_name" bindTarget="fnd_companies_create_ds"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="company_full_name" bindTarget="fnd_companies_create_ds" width="408"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:comboBox name="company_type_display" bindTarget="fnd_companies_create_ds"/>
+                    <a:comboBox name="set_of_books_id_display" bindTarget="fnd_companies_create_ds"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <!-- <a:comboBox name="company_level_id_display" bindTarget="fnd_companies_create_ds"/> -->
+                    <a:comboBox name="chief_position_id_display" bindTarget="fnd_companies_create_ds"/>
+                    <!--   spv公司 -->
+                    <a:comboBox name="spv_flag_desc" bindTarget="fnd_companies_create_ds"/>
+                    <!-- <a:checkBox name="spv_flag" bindTarget="fnd_companies_create_ds"/> -->
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:lov name="parent_biz_company_code" bindTarget="fnd_companies_create_ds"/>
+                    <a:textField name="parent_biz_company_display" bindTarget="fnd_companies_create_ds"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:datePicker name="start_date_active" bindTarget="fnd_companies_create_ds"/>
+                    <a:datePicker name="end_date_active" bindTarget="fnd_companies_create_ds"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="address" bindTarget="fnd_companies_create_ds" width="408"/>
+                </a:hBox>
+                <!-- <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:checkBox name="spv_flag" bindTarget="fnd_companies_create_ds"/>
+                </a:hBox> -->
+            </a:fieldSet>
+            <a:fieldSet column="1" title="FND_COMPANIES.FINACE_DETAIL" width="550">
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="invoice_title" bindTarget="fnd_companies_create_ds" width="408"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="invoice_bp_address_phone_num" bindTarget="fnd_companies_create_ds" width="408"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="invoice_bp_bank_account" bindTarget="fnd_companies_create_ds" width="408"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:numberField name="vat_invoice_limit" allowFormat="true" bindTarget="fnd_companies_create_ds"/>
+                    <a:numberField name="invoice_limit" allowFormat="true" bindTarget="fnd_companies_create_ds"/>
+                </a:hBox>
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:textField name="tax_registry_num" bindTarget="fnd_companies_create_ds" width="408"/>
+                </a:hBox>
+            </a:fieldSet>
+            <a:fieldSet column="1" title="FND_COMPANIES.AUTHORITY_CONTROL" width="550">
+                <a:hBox labelSeparator=" " labelWidth="100">
+                    <a:checkBox name="enable_user_authority" bindTarget="fnd_companies_create_ds"/>
+                    <a:label width="117"/>
+                    <a:checkBox name="enable_role_authority" bindTarget="fnd_companies_create_ds"/>
+                </a:hBox>
+            </a:fieldSet>
+        </a:screenBody>
+    </a:view>
+</a:screen>

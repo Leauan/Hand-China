@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:e="aurora.service.exception" xmlns:o="aurora.database.local.oracle" xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="ZJ_WFL_WORKFLOW_ASSIGN_RULE">
+    <bm:fields>
+        <bm:field name="assign_rule_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="ASSIGN_RULE_ID" prompt="ZJ_WFL_WORKFLOW_ASSIGN_RULE.ASSIGN_RULE_ID"/>
+        <bm:field name="company_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="COMPANY_ID" prompt="ZJ_WFL_WORKFLOW_ASSIGN_RULE.COMPANY_ID"/>
+        <bm:field name="sequence_num" databaseType="NUMBER" datatype="java.lang.Long" physicalName="SEQUENCE_NUM" prompt="ZJ_WFL_WORKFLOW_ASSIGN_RULE.SEQUENCE_NUM"/>
+        <bm:field name="approval_rule" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="APPROVAL_RULE" prompt="ZJ_WFL_WORKFLOW_ASSIGN_RULE.APPROVAL_RULE"/>
+        <bm:field name="approval_rule_desc" databaseType="VARCHAR2" datatype="java.lang.String" forInsert="false" forUpdate="false"/>
+        <bm:field name="parameter_url" databaseType="VARCHAR2" datatype="java.lang.String" forInsert="false" forUpdate="false"/>
+        <bm:field name="parameter_type" databaseType="VARCHAR2" datatype="java.lang.String" forInsert="false" forUpdate="false"/>
+        <bm:field name="parameter_value_id1" databaseType="NUMBER" datatype="java.lang.Long" physicalName="PARAMETER_VALUE_ID1" prompt="ZJ_WFL_WORKFLOW_ASSIGN_RULE.PARAMETER_VALUE_ID1"/>
+        <bm:field name="parameter_value_id2" databaseType="NUMBER" datatype="java.lang.Long" physicalName="PARAMETER_VALUE_ID2" prompt="ZJ_WFL_WORKFLOW_ASSIGN_RULE.PARAMETER_VALUE_ID2"/>
+        <bm:field name="parameter_value_code1" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PARAMETER_VALUE_CODE1" prompt="ZJ_WFL_WORKFLOW_ASSIGN_RULE.PARAMETER_VALUE_CODE1"/>
+        <bm:field name="parameter_value_code2" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PARAMETER_VALUE_CODE2" prompt="ZJ_WFL_WORKFLOW_ASSIGN_RULE.PARAMETER_VALUE_CODE2"/>
+        <bm:field name="parameter_value_desc1" databaseType="VARCHAR2" datatype="java.lang.String" forInsert="false" forUpdate="false"/>
+        <bm:field name="parameter_value_desc2" databaseType="VARCHAR2" datatype="java.lang.String" forInsert="false" forUpdate="false"/>
+        <bm:field name="assign_source_type" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="ASSIGN_SOURCE_TYPE" prompt="ZJ_WFL_WORKFLOW_ASSIGN_RULE.ASSIGN_SOURCE_TYPE"/>
+        <bm:field name="assign_source_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="ASSIGN_SOURCE_ID" prompt="ZJ_WFL_WORKFLOW_ASSIGN_RULE.ASSIGN_SOURCE_ID"/>
+        <bm:field name="notify_template_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="NOTIFY_TEMPLATE_ID" prompt="ZJ_WFL_WORKFLOW_ASSIGN_RULE.NOTIFY_TEMPLATE_ID"/>
+        <bm:field name="notify_template_code" databaseType="VARHCAR2" datatype="java.lang.String" forInsert="false" forUpdate="false"/>
+        <bm:field name="notify_template_desc" databaseType="VARCHAR2" datatype="java.lang.String" forInsert="false" forUpdate="false"/>
+        <bm:field name="rule_count_info" databaseType="VARCHAR2" datatype="java.lang.String" forInsert="false" forUpdate="false"/>
+        <bm:field name="notify_type" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="NOTIFY_TYPE"/>
+        <bm:field name="notify_type_display" databaseType="VARCHAR2" datatype="java.lang.String" forInsert="false" forUpdate="false" physicalName="NOTIFY_TYPE_DISPLAY"/>
+    </bm:fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    t.assign_rule_id,
+                    (SELECT
+                        COUNT(1)
+                        ||'条规则'
+                    FROM
+                        zj_wfl_business_rule_assigns a
+                    WHERE
+                        a.assign_rule_id = t.assign_rule_id
+                    ) AS rule_count_info,
+                    t.company_id,
+                    t.notify_template_id,
+                    nt.notify_template_code,
+                    nt.description AS notify_template_desc,
+                    t.sequence_num,
+                    t.approval_rule,
+                    r.description AS approval_rule_desc,
+                    r.parameter_1_type AS parameter_type,
+                    r.parameter_1_url AS parameter_url,
+                    t.assign_source_type,
+                    t.assign_source_id,
+                    t.parameter_value_id1,
+                    t.parameter_value_code1,
+                    (select v.description
+				          from (select e.employee_id as id,
+				                       e.employee_code as code,
+				                       e.name as description,
+				                       'APPOINTED_EMPLOYEE' as approval_rule
+				                  from zj_wfl_employee_vl e
+				                union all
+				                select p.position_id as id,
+				                       p.position_code as code,
+				                       p.description,
+				                       'APPOINTED_POSITION' as approval_rule
+				                  from zj_wfl_position_vl p
+				                 where p.company_id = ${@company_id}
+				                 union all
+				                 select p.position_id as id,
+				                       p.position_code as code,
+				                       p.description,
+				                       'APPOINTED_COM_POS' as approval_rule
+				                  from zj_wfl_position_vl p
+				                 ) v
+				         where v.id = t.parameter_value_id1
+				           and v.approval_rule = t.approval_rule) as parameter_value_desc1,
+                    t.notify_type,
+                    (SELECT
+                        sc.code_value_name
+                    FROM
+                        sys_code_values_v sc
+                    WHERE
+                        sc.code      ='ZJ_WFL_NOTIFY_TYPE' AND
+                        sc.code_value=t.notify_type
+                    ) notify_type_display,
+                    t.parameter_value_id2,
+				           t.parameter_value_code2,
+				           r.parameter_2_url,
+				           r.parameter_2_type,
+				           (select t.company_short_name from fnd_companies_vl t where t.company_code = t.parameter_value_code2) as parameter_value_desc2
+                FROM
+                    zj_wfl_workflow_assign_rule t,
+                    zj_wfl_workflow_rules r,
+                    zj_sys_notify_template_v nt
+                WHERE
+                    r.rule_code              = t.approval_rule AND
+                    nt.notify_template_id(+) = t.notify_template_id AND
+                    t.assign_source_id       = ${@assign_source_id} AND
+                    t.company_id             = ${@company_id}
+                ORDER BY
+                    t.sequence_num
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:features>
+        <f:standard-who/>
+        <o:sequence-pk/>
+    </bm:features>
+    <bm:primary-key>
+        <bm:pk-field name="assign_rule_id"/>
+    </bm:primary-key>
+</bm:model>

@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" needAccessControl="false">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    pci.cdd_item,
+                    pci.description,
+                    pci.order_seq,
+                    pci.show_seq,
+                    pp.send_flag,
+                    pp.paper_required,
+                    pp.attachment_required,
+                    pp.not_applicable,
+                    pp.check_id,
+                    (SELECT
+                        COUNT(1)
+                    FROM
+                        fnd_atm_attachment_multi m
+                    WHERE
+                        m.table_name     = 'PRJ_CDD_ITEM_CHECK' AND
+                        m.table_pk_value = TO_CHAR(pp.check_id)
+                    )attach_count,
+                    pci.sys_flag,
+                    pci.note,
+                    pci.cdd_list_id,
+                    pci.cdd_item_id,
+                    pci.line_type,
+                    pci.chance_required_flag,
+                    pci.chance_display_flag,
+                    pci.project_required_flag,
+                    pci.project_display_flag,
+                    pci.contract_required_flag,
+                    pci.contract_display_flag,
+                    pci.sign_required_flag,
+                    pci.sign_display_flag,
+                    pci.incept_required_flag,
+                    pci.incept_display_flag,
+                    pci.lender_required_flag,
+                    pci.lender_display_flag,
+                    pci.chance_tab_group,
+                    pci.project_tab_group,
+                    pci.contract_tab_group,
+                    pci.sign_tab_group,
+                    pci.incept_tab_group,
+                    pci.lender_tab_group,
+                    tg.tab_group_id,
+                    tg.tab_group attachment_tab_group,
+                    lgt.important_flag,
+                    lgt.seq_num,
+                    DECODE(NVL(lgt.important_flag,'N'),'Y',1,'N',0,0) order_field,
+                    NVL(pp.document_id,${@contract_id}) document_id,
+                    NVL(pp.document_table, 'CON_CONTRACT') document_table,
+                    NVL(
+                    (SELECT
+                        'Y'
+                    FROM
+                        dual
+                    WHERE
+                        EXISTS
+                        (SELECT
+                            1
+                        FROM
+                            con_contract_payment_terms t,
+                            con_contract_cashflow cf
+                        WHERE
+                            t.cashflow_id  =cf.cashflow_id AND
+                            cf.contract_id =${@contract_id} AND
+                            t.cdd_item_id  =pci.cdd_item_id AND
+                            'CON_CONTRACT' ='CON_CONTRACT'
+                        )
+                    ),'N') payment_terms_flag,
+                    (SELECT
+                        ptc.confirm_flag
+                    FROM
+                        con_contract_payment_t_check ptc
+                    WHERE
+                        ptc.cdd_item_id = pci.cdd_item_id AND
+                        ptc.contract_id = ${@contract_id} AND
+                        'CON_CONTRACT'  = 'CON_CONTRACT'
+                    ) check_confirm_flag,
+                    (SELECT
+                        ptc.confirm_note
+                    FROM
+                        con_contract_payment_t_check ptc
+                    WHERE
+                        ptc.cdd_item_id = pci.cdd_item_id AND
+                        ptc.contract_id = ${@contract_id} AND
+                        'CON_CONTRACT'  = 'CON_CONTRACT'
+                    ) check_confirm_note,
+                    (SELECT
+                        TO_CHAR(MAX(f.creation_date),'yyyy-mm-dd hh24:mi:ss')
+                    FROM
+                        fnd_atm_attachment_multi fm,
+                        fnd_atm_attachment f
+                    WHERE
+                        fm.attachment_id  = f.attachment_id AND
+                        fm.table_name     = 'PRJ_CDD_ITEM_CHECK' AND
+                        fm.table_pk_value = pp.check_id
+                    ) AS last_file_upload_time,
+                    hls_sys_upload_pkg.get_atm_file_href(p_table_pk_value => pp.check_id,p_source_type => 'PRJ_CDD_ITEM_CHECK',p_user_id => ${/session/@user_id}) AS attach_file_name
+                FROM
+                    (SELECT
+                        pcf.check_id,
+                        pcf.document_id,
+                        pcf.document_table,
+                        pck.cdd_item_id,
+                        pck.send_flag,
+                        pck.paper_required,
+                        pck.attachment_required,
+                        pck.not_applicable
+                    FROM
+                        prj_cdd_item_doc_ref pcf,
+                        prj_cdd_item_check pck
+                    WHERE
+                        pcf.document_table = 'CON_CONTRACT' AND
+                        pcf.document_id    = ${@contract_id} AND
+                        pck.check_id       = pcf.check_id
+                    ) pp,
+                    prj_cdd_item pci,
+                    prj_cdd_item_list_grp_tab lgt,
+                    prj_cdd_item_tab_group tg,
+                    (SELECT
+                        sg.tab_group_id
+                    FROM
+                        PRJ_CDD_ITEM_TAB_SUB_GROUP sg START
+                    WITH sg.parent_tab_group_id = 263 CONNECT BY prior sg.tab_group_id = sg.parent_tab_group_id
+                    UNION
+                    SELECT to_number(263) FROM dual
+                    ) sg
+                WHERE
+                    pci.cdd_item_id  = lgt.cdd_item_id AND
+                    lgt.TAB_GROUP_ID =tg.TAB_GROUP_ID AND
+                    lgt.TAB_GROUP_ID = sg.tab_group_id AND
+                    lgt.enabled_flag = 'Y' AND
+                    tg.enabled_flag  = 'Y' AND
+                    pci.cdd_item_id  = pp.cdd_item_id(+) AND
+                    pci.cdd_list_id  = (select cc.cdd_list_id from con_contract cc where cc.contract_id = ${@contract_id}) AND
+                    lgt.cdd_list_id  = pci.cdd_list_id AND
+                    pci.enabled_flag = 'Y'
+                ORDER BY
+                    lgt.seq_num ASC
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <!-- <bm:fields>
+        <bm:field name="now_time" databaseType="DATE" datatype="java.util.Date" physicalName="NOW_TIME"/>
+        <bm:field name="never_date" databaseType="DATE" datatype="java.util.Date" physicalName="NEVER_DATE"/>
+        <bm:field name="now_period_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="NOW_PERIOD_NAME"/>
+        <bm:field name="now_internal_period_num" databaseType="NUMBER" datatype="java.lang.Long" physicalName="NOW_INTERNAL_PERIOD_NUM"/>
+        <bm:field name="authority_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="AUTHORITY_FLAG"/>
+    </bm:fields> -->
+</bm:model>

@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-6-24 下午1:29:07  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="enabled_flag=&apos;Y&apos;" fetchAll="true" model="basic.hls_document_type_v" rootPath="document_type"/>
+        <a:model-query defaultWhereClause="enabled_flag=&apos;Y&apos;" fetchAll="true" model="hls.HLS002.hls_document_category" rootPath="document_category"/>
+        <a:model-query fetchAll="true" model="cont.CON701.con_contract_et_profile" rootPath="et_profile"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_adv_settle_create_link" url="${/request/@context_path}/modules/cont/CON701/con_early_termination_create.screen"/>
+        <a:link id="rpt_report_sheet_query" url="${/request/@context_path}/modules/psr/psr_report_test.svc"/>
+        <script><![CDATA[
+            function contractQueryScreen_forward() {
+                 history.go(1);
+            }
+            
+            function contractQueryScreen_back() {
+                history.go(-1);
+            }
+            
+            function contractQueryScreen_query() {
+                $('contractQueryScreen_mainDs').query();
+            }
+            
+            function contractQueryScreen_refresh() {
+                var ds = $('contractQueryScreen_mainDs');
+                ds.query(ds.currentPage);
+            }
+            
+            function contractQueryScreen_add() {
+                var a = $('contractQueryScreen_mainDs').getSelected();
+                var record = a[0],
+                contract_id=record.get('contract_id');
+                record.getMeta().getField('et_type_dis').setLovPara('contract_id',contract_id);
+                
+                new Aurora.Window({
+                    id: 'con_contract_adv_settle_create_window',
+                    url: $('con_contract_adv_settle_create_link').getUrl(),
+                    params: {
+                        winId: 'con_contract_adv_settle_create_window'
+                    },
+                    title: '提前结清创建',
+                    fullScreen: true
+                });
+            }
+            
+            /* function test(){
+                 window.open($('rpt_report_sheet_query').getUrl());
+            } */
+            /* function gridCellClick(ds){
+              var contract_id=  $('contractQueryScreen_mainDs').getCurrentRecord().get('contract_id');
+              alert(contract_id);
+            } */
+            function onUpdate_early_termination(dataSet, record, name, value) {
+                if (name == 'termination_date') {
+                    var termination_date = Aurora.formatDate(value);
+                    Aurora.request({
+                        url: $('con_contract_termination_date_check_link').getUrl(),
+                        para: {
+                            termination_date: termination_date
+                        },
+                        success: function(args) { //
+                            var check_flag = args.result.check_flag;
+                            if (check_flag == 'N') {
+                                Aurora.showMessage('提示', '提前结清日不在预定规则内');
+                            }
+                        },
+                        scope: this
+                    });
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="bpClassDs" lookupCode="YES_NO"/>
+            <a:dataSet id="document_type_ds">
+                <a:datas dataSource="/model/document_type"/>
+            </a:dataSet>
+            <a:dataSet id="document_type_for_et_ds">
+                <a:datas dataSource="/model/document_type_for_et"/>
+            </a:dataSet>
+            <a:dataSet id="document_category_ds">
+                <a:datas dataSource="/model/document_category"/>
+            </a:dataSet>
+            <a:dataSet id="et_profile_ds">
+                <a:datas dataSource="/model/et_profile"/>
+            </a:dataSet>
+            <a:dataSet id="contractQueryScreen_paraDs">
+                <a:fields>
+                    <a:field name="overdue_status_desc" displayField="code_value_name" options="bpClassDs" returnField="overdue_status" valueField="code_value"/>
+                    <a:field name="document_type_desc" displayField="document_type_desc" options="document_type_ds" returnField="document_type" valueField="document_type"/>
+                    <a:field name="document_category_desc" displayField="description" options="document_category_ds" returnField="document_category" valueField="document_category"/>
+                    <a:field name="employee_id"/>
+                    <a:field name="employee_code" lovGridHeight="300" lovHeight="450" lovService="basic.hls_salesman_assign_v_for_lov" lovWidth="500" title="PRJ501.PRJ_contract.EMPLOYEE_NAME">
+                        <a:mapping>
+                            <a:map from="employee_id" to="employee_id"/>
+                            <a:map from="employee_name" to="employee_name"/>
+                            <a:map from="employee_code" to="employee_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_code" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="project_number" lovGridHeight="300" lovHeight="450" lovService="prj.PRJ501.prj_project_for_lov" lovWidth="500" title="项目名">
+                        <a:mapping>
+                            <a:map from="project_id" to="project_id"/>
+                            <a:map from="project_name" to="project_name"/>
+                            <a:map from="project_no" to="project_number"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="user_desc" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="basic.hls_salesman_v_for_lov" lovWidth="500" prompt="AUT_TRX_USER_AUTHORIZE.USER_ID" title="员工选择">
+                        <a:mapping>
+                            <a:map from="description" to="user_desc"/>
+                            <a:map from="user_id" to="user_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <!-- <a:field  name="adv_settle_date" /> -->
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="contractQueryScreen_mainDs" autoCount="true" autoQuery="true" model="cont.CON701.con_early_termination_query" queryDataSet="contractQueryScreen_paraDs" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="et_type_dis" autoComplete="true" lovGridHeight="300" lovHeight="450" lovService="cont.CON701.hls_document_type_for_et_lov" lovWidth="500" prompt="提前结清类型" required="true">
+                        <a:mapping>
+                            <a:map from="document_type" to="et_type"/>
+                            <a:map from="document_type_desc" to="et_type_dis"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="termination_date" required="true"/>
+                    <a:field name="et_profile_desc" displayField="description" options="et_profile_ds" returnField="et_profile" valueField="et_profile"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_early_termination"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <!-- <a:screenTitle/> -->
+                <a:gridButton click="contractQueryScreen_back" text="HLS.BACK"/>
+                <a:gridButton click="contractQueryScreen_forward" text="HLS.FORWARD"/>
+                <a:gridButton text="HLS.EXIT"/>
+                <a:gridButton click="contractQueryScreen_add" text="HLS.CREATE"/>
+                <a:gridButton click="contractQueryScreen_query" text="HLS.QUERY"/>
+                <!-- <a:gridButton click="test" text="测试"/> -->
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="100" marginWidth="30" title="HLS.QUERY_TITLE">
+                <a:textField name="contract_number" bindTarget="contractQueryScreen_paraDs" prompt="合同编码"/>
+                <a:textField name="contract_name" bindTarget="contractQueryScreen_paraDs" prompt="合同名称"/>
+                <a:datePicker name="date_from" bindTarget="contractQueryScreen_paraDs" prompt="起租日期从"/>
+                <a:datePicker name="date_to" bindTarget="contractQueryScreen_paraDs" prompt="起租日期到"/>
+                <a:lov name="bp_code" bindTarget="contractQueryScreen_paraDs" prompt="承租人代码"/>
+                <a:textField name="bp_name" bindTarget="contractQueryScreen_paraDs" prompt="承租人名称"/>
+                <a:lov name="project_number" bindTarget="contractQueryScreen_paraDs" prompt="项目编号"/>
+                <a:textField name="project_name" bindTarget="contractQueryScreen_paraDs" prompt="项目名称"/>
+                <a:comboBox name="document_category_desc" bindTarget="contractQueryScreen_paraDs" prompt="合同类别"/>
+                <a:comboBox name="document_type_desc" bindTarget="contractQueryScreen_paraDs" prompt="合同类型"/>
+                <a:lov name="user_desc" bindTarget="contractQueryScreen_paraDs" prompt="项目经理"/>
+                <a:comboBox name="overdue_status_desc" bindTarget="contractQueryScreen_paraDs" prompt="当前是否逾期"/>
+            </a:form>
+            <a:grid id="contractQueryScreen_mainDs_grid" bindTarget="contractQueryScreen_mainDs" marginHeight="200" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" prompt="合同编号" width="150"/>
+                    <a:column name="contract_name" prompt="合同名称" width="150"/>
+                    <a:column name="document_type_desc" prompt="合同类型" width="150"/>
+                    <a:column name="document_category_desc" prompt="合同类别" width="150"/>
+                    <a:column name="bp_name" prompt="承租人名称" width="150"/>
+                    <a:column name="project_name" prompt="项目名称"/>
+                    <a:column name="inception_of_lease" prompt="起租日期"/>
+                    <a:column name="employee_name" prompt="项目经理"/>
+                    <a:column name="status_desc" prompt="合同状态"/>
+                </a:columns>
+                <!-- <a:events>
+                    <a:event name="cellclick" handler="gridCellClick"/>
+                </a:events> -->
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

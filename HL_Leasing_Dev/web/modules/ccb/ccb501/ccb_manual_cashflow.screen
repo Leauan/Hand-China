@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wdd  
+    $Date: 2018-05-09 下午5:28:34  
+    $Revision: 1.0  
+    $Purpose: 生成银联代扣
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="ccb501_create_doc_link" url="${/request/@context_path}/modules/ccb/ccb501/ccb_manual_doc_create.svc"/>
+        <script><![CDATA[
+            //判断同一批次是否是同一个银联扣款渠道
+           function cup_channel(records) {
+                for (i = 0;i < records.length;i++) {
+                    var re1 = records[i].get('cup_channel');
+                    for(j=0;j<records.length;j++){
+                        var re2 = records[j].get('cup_channel');
+                        if(i!=j && re1!=re2){
+                            Aurora.showMessage('${l:PROMPT}', '同一批次扣款单必须关联同一个银联渠道');
+                            return;
+                            
+                        }
+                    }
+                }
+            
+            }
+            //创建代扣单
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                debugger;
+                var param = {};
+                var saveData = [];
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_contract_cashflow');
+                var cashflows_ds = $(ds_id);
+                var records = cashflows_ds.getSelected();
+                if (records.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '请选择需要生成代扣单的记录');
+                    return;
+                }
+                //校验判断同一批次是否是同一个银联扣款渠道
+                cup_channel(records);
+                Aurora.showConfirm('${l:PROMPT}', '是否确定生成代扣单？', function() {
+                    debugger;
+                    var detail_mask = Ext.getBody();
+                    Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                    for (var i = 0;i < records.length;i++) {
+                        var record = records[i];
+                        var contract_number = record.get('contract_number');
+                        var times = record.get('times');
+                        if (record.get('manual_rec_amount') > record.get('un_rec_amount')) {
+                            Aurora.showMessage('${l:PROMPT}', '合同号"' + contract_number + '"第<' + times + '>期扣款金额不得大于未收金额，请核实！');
+                            Aurora.Masker.unmask(detail_mask);
+                            return;
+                        }
+                        if (record.get('cup_sign_flag') != 'Y') {
+                            Aurora.showMessage('${l:PROMPT}', '合同号"' + contract_number + '"第<' + times + '>期扣款账号未签约，不允许代扣，请核实！');
+                            Aurora.Masker.unmask(detail_mask);
+                            return;
+                        }
+                        saveData.push({
+                            'manual_rec_amount': record.get('manual_rec_amount'),
+                            'contract_id': record.get('contract_id'),
+                            'cashflow_id': record.get('cashflow_id'),
+                            'cup_channel':record.get('cup_channel'),
+                            '_status': 'insert'
+                        });
+                    }
+                    param['details'] = saveData;
+                    Aurora.request({
+                        url: $('ccb501_create_doc_link').getUrl(),
+                        para: param,
+                        success: function() {
+                            Aurora.SideBar.show({
+                                msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                duration: 2000
+                            });
+                            cashflows_ds.query(cashflows_ds.currentPage);
+                            Aurora.Masker.unmask(detail_mask);
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(detail_mask);
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(detail_mask);
+                        },
+                        scope: this
+                    });
+                });
+            
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

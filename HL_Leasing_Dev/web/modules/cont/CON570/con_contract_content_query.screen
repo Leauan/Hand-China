@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hand  
+    $Date: 2016-4-20 上午10:19:19  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootPath="default_value_path"/>
+    </a:init-procedure>
+    <a:view>
+        <!--   <a:link id="con_content_record_id" url="${/request/@context_path}/modules/cont/CON555A/con_contract_content.screen"/> -->
+        <a:link id="wfl_con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="wfl_prj_chance_create_link" url="${/request/@context_path}/modules/prj/PRJ501N/prj_project_maintain.screen"/>
+        <a:link id="con_application_archive_link" url="${/request/@context_path}/modules/cont/CON555A/con_contract_archive.screen"/>
+        <a:link id="courier_number_query_link" url="${/request/@context_path}/modules/cont/CON555A/courier_number_query.screen"/>
+        <a:link id="con_contract_storage_apply_link" url="${/request/@context_path}/modules/cont/CON570/con_contract_storage_apply.screen"/>
+        <a:link id="con_contract_storage_apply_rd_link" url="${/request/@context_path}/modules/cont/CON575/con_contract_storage_apply.screen"/>
+        <a:link id="submit_approval_link" model="cont.CON555A.contract_workflow_start" modelaction="batch_update"/>
+        <a:link id="con_contract_send_sms_link" url="${/request/@context_path}/modules/cont/CON570/con_contract_content_send_sms.svc"/>
+        <script><![CDATA[
+            function application_archive() {
+                var recodes = $('con_contract_v_for_query_result_ds').getSelected();
+                if (recodes.length < 1) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '未选择合同不能进行归档操作！');
+                    return;
+                }
+                // for (var i = 0;i < recodes.length;i++) {
+                // if (Ext.isEmpty(recodes[i].get('collect_complete_date'))) {
+                // Aurora.showMessage('${l:HLS.PROMPT}', '有合同收集资料未完成，不能进行归档！');
+                // return;
+                // }
+            
+                // }
+                for (var j = 0;j < recodes.length;j++) {
+            
+                    var archive_status = recodes[j].get('archive_status');
+            
+                    if (archive_status != '10') {
+                        Aurora.showMessage('${l:HLS.PROMPT}', '该合同正在归档中或归档完毕，不能重复发起！');
+                        return;
+                    }
+                }
+                // var cons={};
+                // // for(var data in recodes){
+                // // cons.push(data.get('contract_id'));
+                // // }
+                // for(var i=0;i<recodes.length;i++){
+                // //cons.push(recodes[i].get('contract_id'));
+                // cons[i]=recodes[i].get('contract_id');
+                // }
+                // //cons['invoice_agent_desc']='代理商'
+                // alert(cons);
+                var url = $('con_application_archive_link').getUrl();
+                var win = new Aurora.Window({
+                    id: 'application_archive_mail_window',
+                    url: url,
+                    params: {
+                        invoice_agent_desc: '代理商'
+                    },
+                    title: '资料收集',
+                    fullScreen: true
+                });
+                win.on('close', function() {
+                    $('con_contract_v_for_query_result_ds').query();
+                });
+            
+            }
+            
+            function query_con_contract_v_for_query_result_ds() {
+            
+                $('con_contract_v_for_query_result_ds').query();
+            }
+            
+            function reset_con_contract_v_for_query_query_ds() {
+                $('con_contract_v_for_query_query_ds').reset();
+            }
+            
+            
+            function con555_con_contract_archive(record_id) {
+                var record = $('CONTRACT_ARCHIVE_G_LIST_con_contract_ds').findById(record_id);
+            
+                con555_contractMaintainDs_grid_update2(record.get('contract_id'), record.get('cdd_list_id'), record.get('archive_status'));
+                // if ($('con_contract_v_for_query_result_ds').getCurrentRecord()) {
+                // var record = $('con_contract_v_for_query_result_ds').getCurrentRecord();
+                // con555_contractMaintainDs_grid_update2(record.get('contract_id'), record.get('cdd_list_id'));
+                // }
+            }
+            
+            function con555_contractMaintainDs_grid_update2(contract_id, cdd_list_id, archive_status) {
+                var url;
+                if (archive_status == '30') {
+                    url = $('con_contract_storage_apply_rd_link').getUrl();
+                } else {
+                    url = $('con_contract_storage_apply_link').getUrl();
+                }
+                var win = new Aurora.Window({
+                    id: 'con_contract_storage_apply_window',
+                    url: url,
+                    params: {
+                        contract_id: contract_id,
+                        cdd_list_id: cdd_list_id
+                    },
+                    title: '资料收集',
+                    fullScreen: true
+                });
+                win.on('close', function() {
+                    $('con_contract_v_for_query_result_ds').query();
+                });
+            }
+            
+            function con555_render_contractMaintainDs_grid(value, record, name) {
+                if (name == 'contract_number') {
+                    return '<a href="javascript:con555_con_contract_archive(' + record.id + ');">' + value + '</a>';
+                    //return '<a href="javascript:con555_contractMaintainDs_grid_update(' + record.id + ');">' + value + '</a>';
+            
+                    //record.id是啥子呦。
+            
+                }
+            }
+            
+            
+            
+            function on_base_ds_project_number_render(value, record, name) {
+            
+                return '<a href="javascript:do_open_prj(\'' + record.ds.id + '\')" >' + value + '</a>';
+            }
+            
+            function do_open_prj(ds_id) {
+            
+                var record = $(ds_id).getCurrentRecord();
+                record.set('function_code', 'PRJ501W');
+                record.set('function_usage', 'QUERY');
+                record.set('document_category', 'PROJECT');
+                record.data['url_title'] = '租赁申请查询';
+                record.data['window_open_flag'] = 'Y';
+                record.data['show_history_flag'] = 'Y';
+                var param = record.data;
+                hls_doc_get_layout_code('wfl_con_contract_get_layout_code_link_id', param, 'wfl_prj_chance_create_link');
+            }
+            
+            function archive_status_renderer(value, record, name) {
+                if (value == '延迟催促') {
+                    return "<font color='red'>" + value + "</font>";
+                }
+                return value;
+            
+            }
+            
+            function delay_day_renderer(value, record, name) {
+                var reg_status_n = record.get('reg_status_n');
+                if (reg_status_n == '已归档') {
+                    return;
+                }
+                return value;
+            }
+            
+            function collect_complete_n_renderer(value, record, name) {
+                if (value == '是') {
+                    var days = record.get('days');
+                    if (days > 5) {
+                        return "<font color='red'>" + value + "</font>";
+                    }
+                }
+                return value;
+            
+            }
+            
+            function courier_query() {
+                var url = $('courier_number_query_link').getUrl();
+                var win = new Aurora.Window({
+                    id: 'courier_number_query_window',
+                    url: url,
+                    title: '资料收集',
+                    fullScreen: true
+                });
+            
+            }
+            
+            function submit_approval() {
+                //debugger;
+                var records = $('con_contract_v_for_query_result_ds').getSelected();
+                if (records.length < 1) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '未选择合同不能进行归档操作！');
+                    return;
+                }
+                var prams = [];
+                for (var i = 0;i < records.length;i++) {
+                    // var contract_id=records[i].get('contract_id');
+                    // var data={'contract_id':contract_id,
+                    // status:'archive'
+                    // };
+                    //prams.push(data);
+                    var data = {};
+                    data['contract_id'] = records[i].get('contract_id');
+            
+                    data['_status'] = 'update';
+                    prams[i] = data;
+                }
+            
+                Aurora.request({
+                    url: $('submit_approval_link').getUrl(),
+                    para: prams,
+                    success: function() {
+            
+                        $('application_archive_mail_window').close();
+                        Aurora.SideBar.show({
+                            msg: '操作成功',
+                            duration: 2000
+                        });
+                    },
+                    failure: function() {
+            
+                       },
+                    error: function() {
+            
+                       },
+                    scope: this
+                });
+            
+            }
+            
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record) {
+                var link_function = '';
+                window['${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                if (name == 'contract_number') {
+                    link_function = 'con555_con_contract_archive';
+                    return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\');">' + value + '</a>';
+                }
+            };
+            
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                $('CONTRACT_ARCHIVE_G_LIST_con_contract_layout_grid_id')._export('xls', '合同档案归档导出文件_${/model/default_value_path/record/@now_time}');
+            };
+            
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                var records = $('CONTRACT_ARCHIVE_G_LIST_con_contract_ds').getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请选择一个合同进行归档操作！');
+                    return;
+                }
+                var url = $('con_contract_storage_apply_link').getUrl();
+                var contract_id = records[0].get('contract_id');
+                var cdd_list_id = records[0].get('cdd_list_id');
+                var win = new Aurora.Window({
+                    id: 'con_contract_storage_apply_window',
+                    url: url,
+                    params: {
+                        contract_id: contract_id,
+                        cdd_list_id: cdd_list_id
+                    },
+                    title: '资料收集',
+                    fullScreen: true
+                });
+                win.on('close', function() {
+                    $('con_contract_v_for_query_result_ds').query();
+                });
+            };
+            
+            //短信通知
+             // window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function() {
+                // var records = $('CONTRACT_ARCHIVE_G_LIST_con_contract_ds').getSelected();
+                // if (records.length == 0) {
+                    // Aurora.showMessage('${l:HLS.PROMPT}', '请至少选择一个合同发送短信！');
+                    // return;
+                // }
+                // for (var i = 0;i < records.length;i++) {
+                    // var archive_status = records[i].get('archive_status');
+                    // if (archive_status != '20') {
+                        // Aurora.showMessage('${l:HLS.PROMPT}', '请勾选问题件合同发送短信！');
+                        // return;
+                    // }
+                // }
+                // Aurora.showConfirm('${l:HLS.PROMPT}', '是否确认发送短信？', send_con_storage_sms, function() {
+                    // return;
+                // });
+            // };
+            
+            
+            function send_con_storage_sms() {
+                var records = $('CONTRACT_ARCHIVE_G_LIST_con_contract_ds').getSelected();
+                var url = $('con_contract_send_sms_link').getUrl();
+                var prams = [];
+                for (var i = 0;i < records.length;i++) {
+                    var data = {};
+                    data['contract_id'] = records[i].get('contract_id');
+                    data['_status'] = 'update';
+                    prams[i] = data;
+                }
+                Aurora.request({
+                    url: url,
+                    para: prams,
+                    success: function(res) {
+                        //alert(1)
+                        // Aurora.SideBar.show({
+                        // msg: '操作成功！',
+                        // duration: 5000
+                        // });
+                        Aurora.showMessage('${l:HLS.PROMPT}', '操作成功！');
+                    },
+                    failure: function() {},
+                    error: function() {},
+                    scope: this
+                });
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

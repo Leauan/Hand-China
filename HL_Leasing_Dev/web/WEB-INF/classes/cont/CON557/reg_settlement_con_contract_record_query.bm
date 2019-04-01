@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2014-11-24 下午04:11:56  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        (SELECT
+                            p.document_table
+                        FROM
+                            prj_cdd_item_doc_ref p
+                        WHERE
+                            p.check_id        = pcc.check_id AND
+                            p.document_id     = t.contract_id AND
+                            p.document_table IN ('CON_CONTRACT_CREDIT','CON_CONTRACT') AND
+                            ROWNUM            =1
+                        ) document_table,
+                        t.contract_id ,
+                        t.document_category,
+                        pci.cdd_item_id,
+                        pci.cdd_list_id,
+                        pci.cdd_item,
+                        pci.description,
+                        pci.enabled_flag,
+                        pci.note,
+                        NVL(pci.sys_flag, 'N') sys_flag,
+                        pcc.paper_required,
+                        pcc.attachment_required,
+                        pci.paper_content_flag,
+                        pci.collection_data_flag,
+                        pcc.not_applicable,
+                        pcc.check_id,
+                        pci.order_seq,
+                        pci.sign_required_flag,
+                        hls_sys_upload_pkg.get_atm_file_href(p_table_pk_value => pcc.check_id,p_source_type => 'PRJ_CDD_ITEM_CHECK',p_user_id => ${/session/@user_id}) AS file_name,
+                        --(SELECT
+                        --    MAX(fm.creation_date)
+                        --FROM
+                        --    fnd_atm_attachment_multi fm
+                        --WHERE
+                        --    fm.table_name     = 'PRJ_CDD_ITEM_CHECK' AND
+                        --    fm.table_pk_value = pcc.check_id
+                        --) creation_date,
+                        -- pcit.DOC_REQUIRE,
+                        (
+                        SELECT
+                            v.code_value_name AS value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code      = 'DOC_REQUIRE' AND
+                            v.code_value=pcit.DOC_REQUIRE
+                        ) DOC_REQUIRE,
+                        (SELECT
+                            v.code_value_name AS value_name
+                        FROM
+                            sys_code_values_v v
+                        WHERE
+                            v.code      = 'DOC_TYPE' AND
+                            v.code_value=pcit.DOC_TYPE
+                        ) DOC_TYPE_N,
+                        pcit.DOC_TYPE,
+                        pcit.AMOUNT,
+                        --  pcit.LEND_FLAG,
+                        pcit.TEMPLET_HEAD_ID,
+                        pci.LEND_FLAG
+                    FROM
+                        prj_cdd_item pci,
+                        prj_cdd_item_check pcc,
+                        con_contract t,
+                        prj_cdd_item_templet pcit,
+                        prj_cdd_item_templet_hd pt
+                    WHERE
+                        pt.templet_code = (
+                            CASE
+                                WHEN t.DIVISION='00'
+                                THEN 'HY_CDD_NP_00'
+                                WHEN t.DIVISION='01'
+                                THEN 'HY_CDD_NP_01'
+                                ELSE 'HY_CDD_NP_00'
+                            END ) AND
+                        pcit.templet_head_id =pt.templet_head_id AND
+                        pci.cdd_item         =pcit.cdd_item AND
+                        pci.cdd_item_id      = pcc.cdd_item_id(+) AND
+                        t.cdd_list_id        = pci.cdd_list_id AND
+                        pci.cdd_list_id      = t.cdd_list_id AND
+                        pci.enabled_flag     = 'Y' AND
+                        (
+                            pci.cdd_item_id IN
+                            (SELECT
+                                t1.cdd_item_id
+                            FROM
+                                prj_cdd_item_list_grp_tab T1,
+                                PRJ_CDD_ITEM_TAB_GROUP T2
+                            WHERE
+                                t1.cdd_list_id = t.cdd_list_id AND
+                                (
+                                    T2.TAB_GROUP_ID IN
+                                    (SELECT
+                                        T3.TAB_GROUP_ID
+                                    FROM
+                                        PRJ_CDD_ITEM_TAB_GROUP T4,
+                                        PRJ_CDD_ITEM_TAB_SUB_GROUP T3
+                                    WHERE
+                                        T4.TAB_GROUP_ID=T3.PARENT_TAB_GROUP_ID AND
+                                        T4.TAB_GROUP   ='DATA_ARCHIVING'
+                                    UNION
+                                    SELECT
+                                        T4.TAB_GROUP_ID
+                                    FROM
+                                        PRJ_CDD_ITEM_TAB_GROUP T4
+                                    WHERE
+                                        T4.TAB_GROUP='DATA_ARCHIVING'
+                                    )
+                                )
+                                AND
+                                t2.tab_group_id = t1.tab_group_id
+                            ) OR
+                            NVL(pci.sys_flag, 'N')='N'
+                        )
+                        AND
+                        t.contract_id = ${/parameter/@contract_id}
+                    ) t1 #WHERE_CLAUSE#
+                ORDER BY
+                    order_seq
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:data-filters>
+        <bm:data-filter name="doc_type" expression="t1.doc_type=&apos;20&apos;"/>
+    </bm:data-filters>
+</bm:model>

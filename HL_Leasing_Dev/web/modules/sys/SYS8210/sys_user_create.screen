@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ouyangzhaochang2663 $
+    $Date: 2011/02/21 08:37:47 $
+    $Revision: 1.8 $
+    $Purpose: UPDATE BY DJ 重构大部分代码
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <script><![CDATA[
+        
+            function createScreen_close(){
+                $('sys_user_create').close();
+            }
+
+            function createDs_save(){
+                var ds = $('createDs');
+	            if (ds.validate()) {
+	                ds.submit();
+	            }
+            }
+            
+            function onSubmitSuccess_createDs(dataSet, datas, res){
+                userScreen_userDs_query();
+                createScreen_close();
+            }
+            
+            function field_handle(type,record,name)
+            {
+                var field=record.getField(name);
+                if(type=='readonly')
+                {
+	                field.setReadOnly(true);
+	                field.setRequired(false);
+	                record.set(name,'');
+                }
+                else if(type=='require')
+                {
+                    field.setReadOnly(false);
+	                field.setRequired(true);
+                }
+                
+            }
+            
+            function onUpdate_createDs(ds,record,name,value,oldvalue){
+            		if(name == 'bp_category'){
+                	var user_type=record.get("bp_category");
+            		var bp_code=record.getMeta().getField('bp_code');
+            		var employee_code=record.getMeta().getField('employee_code');
+            		if(user_type == 'EMPLOYEE'){
+            			bp_code.setReadOnly(true);
+            			employee_code.setReadOnly(false);
+            			record.set('bp_id','');            			
+            			record.set('bp_code','');
+            			record.set('bp_name','');
+            		}else {
+            			bp_code.setReadOnly(false);
+            			employee_code.setReadOnly(true);
+            			url = 'sys.SYS8210.sys_user_bp_master_lov?bp_category='+user_type;
+                        bp_code.setLovService(url);
+                        var mapping = [{
+                            from: "bp_id",
+                            to: "bp_id"
+                        }, {
+                            from: "bp_code",
+                            to: "bp_code"
+                        },{
+                        		from:"bp_name",
+                        		to:"bp_name"}];
+                        bp_code.setMapping(mapping);
+            			record.set('employee_id','');
+            			record.set('employee_code','');
+            			record.set('emp_name','');
+            		}
+            		}
+                if(name=='state')
+                {
+	                if(value=='1'){
+	                    field_handle('readonly',record,'password_lifespan_access');
+	                    field_handle('require',record,'password_lifespan_days');
+	                }else if(value=='2'){
+	                    field_handle('require',record,'password_lifespan_access');
+	                    field_handle('readonly',record,'password_lifespan_days');
+	                }else{
+	                    field_handle('readonly',record,'password_lifespan_access');
+	                    field_handle('readonly',record,'password_lifespan_days');
+	                }
+                }
+                else if(name=='frozen_flag')
+                {
+                    if(value == 'Y'){
+	                    record.set('frozen_date',new Date().format('yyyy-mm-dd'));
+	                }else{
+	                    record.set('frozen_date','');
+	                }
+                }
+                else if(name == 'password' || name == 'confirm_password'){
+                    record.validate((name == 'password') ? 'confirm_password' : 'password'); 
+                }
+                else if(name == 'start_date' || name == 'end_date'){
+                    record.validate((name == 'start_date') ? 'end_date' : 'start_date');
+                }
+            }
+            
+            //验证两次输入的密码是否一致
+            function validate_password(record, name, value){
+                if(name == 'password' || name == 'confirm_password'){
+                    var password = record.get('password');
+                    var passwordRe = record.get('confirm_password');
+                    if(password != passwordRe){
+                        return '${l:FND_PRV_SET_PASS.PWD_NO_EQU}';
+                    }
+                    return true;
+                }                             
+            }
+            
+            function compareDate(start, end){
+                if(start > end){
+                    return false;
+                }
+                return true;
+            }
+            
+            function validate_date(record, name, value){
+                if(name == 'start_date' || name == 'end_date'){
+                    var start_date = record.get('start_date');
+                    var end_date = record.get('end_date');
+                    if(typeof(end_date) != 'undefined' && !Ext.isEmpty(end_date)){
+                        if(!compareDate(start_date, end_date)){
+                            return '${l:START_GREATER_THAN_END}';
+                        }
+                    }
+                    return true;
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="createDs" autoCreate="true" model="sys.sys_user">
+                <a:fields>
+                    <a:field name="user_name" required="true"/>
+                    <a:field name="start_date" required="true" validator="validate_date"/>
+                    <a:field name="description" required="true"/>
+                    <a:field name="password" required="true"/>
+                    <a:field name="confirm_password" required="true" validator="validate_password"/>
+                    <a:field name="end_date" validator="validate_date"/>
+                    <a:field name="state" defaultValue="3"/>
+                    <a:field name="frozen_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="frozen_date" readOnly="true"/>
+                    <a:field name="emp_name" readOnly="true"/>
+                    <a:field name="employee_code" autoComplete="true" autoCompleteField="employee_code" lovGridHeight="300" lovHeight="430" lovService="sys.SYS8210.sys_user_employee_lov?ORDER_FIELD=employee_code" lovWidth="500" readOnly="true" title="EXP_EMPLOYEES.QUERY">
+                        <a:mapping>
+                            <a:map from="name" to="emp_name"/>
+                            <a:map from="employee_code" to="employee_code"/>
+                            <a:map from="employee_id" to="employee_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_category_name" displayField="code_value_name" options="user_type_lov_ds" returnField="bp_category" valueField="code_value"/>
+                    <a:field name="bp_code" lovGridHeight="300" lovHeight="460" lovLabelWidth="100" lovWidth="530" readOnly="true">
+                        <a:mapping>
+                            <a:map from="" to=""/>
+                            <a:map from="" to=""/>
+                            <a:map from="" to=""/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_name" readOnly="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="onSubmitSuccess_createDs"/>
+                    <a:event name="update" handler="onUpdate_createDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="createScreen_close" text="HLS.CLOSE"/>
+                <a:gridButton click="createDs_save" text="HLS.SAVE"/>
+            </a:screenTopToolbar>
+            <a:fieldSet column="2" labelWidth="100" title="SYS_USER.USER_INFO" width="500">
+                <a:textField name="user_name" bindTarget="createDs" typeCase="upper"/>
+                <a:textField name="description" bindTarget="createDs"/>
+                <a:passWord name="password" bindTarget="createDs" prompt="SYS_USER.NEW_PASSWORD"/>
+                <a:passWord name="confirm_password" bindTarget="createDs" prompt="SYS_USER.CONFIRM"/>
+                <a:datePicker name="start_date" bindTarget="createDs"/>
+                <a:datePicker name="end_date" bindTarget="createDs"/>
+                <a:comboBox name="bp_category_name" bindTarget="createDs" prompt="SYS_USER.USER_TYPE"/>
+                <a:textField name="phone" bindTarget="createDs" prompt="SYS_USER.PHONE"/>
+                <!--<a:hBox/>-->
+                <a:lov name="employee_code" bindTarget="createDs"/>
+                <a:textField name="emp_name" bindTarget="createDs"/>
+                <a:lov name="bp_code" bindTarget="createDs" prompt="HLS_BP_MASTER.BP_CODE"/>
+                <a:textField name="bp_name" bindTarget="createDs" prompt="HLS_BP_MASTER.BP_NAME"/>
+                <a:checkBox name="frozen_flag" bindTarget="createDs"/>
+                <a:datePicker name="frozen_date" bindTarget="createDs"/>
+                <a:hBox padding="0" prompt="SYS_USER.PASSWD_EXPIRED_TYPE">
+                    <a:radio name="state" bindTarget="createDs" layout="vertical" style="padding-top:5px;padding-bottom:5px;" width="80">
+                        <a:items>
+                            <a:item label="SYS_USER.PASSWD_EXPIRED_DAYS" value="1"/>
+                            <a:item label="SYS_USER.PASSWD_EXPIRED_TIMES" value="2"/>
+                            <a:item label="SYS_USER.PASSWD_EXPIRED_NEVER" value="3"/>
+                        </a:items>
+                    </a:radio>
+                    <a:vBox>
+                        <a:numberField name="password_lifespan_days" allowDecimals="false" allowNegative="false" bindTarget="createDs" readOnly="true" width="67"/>
+                        <a:numberField name="password_lifespan_access" allowDecimals="false" allowNegative="false" bindTarget="createDs" readOnly="true" width="67"/>
+                    </a:vBox>
+                </a:hBox>
+            </a:fieldSet>
+        </a:screenBody>
+    </a:view>
+</a:screen>

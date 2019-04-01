@@ -1,0 +1,534 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-8-23 下午3:46:59  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <!-- <a:model-query autoCount="false" defaultWhereClause=" contract_id=${/parameter/@contract_id}" fetchAll="true" model="csh.CSH501.csh_payment_req_selected" rootPath="payment_req_selected"/> -->
+        <a:model-query autoCount="false" defaultWhereClause=" document_category=&apos;PAYMENT_REQ&apos; and  enabled_flag=&apos;Y&apos;" fetchAll="true" model="hls.HLS003.hls_document_type" rootPath="payment_document_type"/>
+        <a:model-query autoCount="false" defaultWhereClause=" enabled_flag=&apos;Y&apos;" fetchAll="true" model="gld.gld_exchangerate_types" rootPath="exchangerate_types"/>
+        <a:model-query fetchAll="true" model="gld.gld_exchangerate_type_lov" rootPath="exchangerate_type_path"/>
+        <a:model-query fetchAll="true" model="csh.CSH511.fnd_financial_option" rootPath="fnd_financial_option_path"/>
+        <a:model-query defaultWhereClause="t1.enabled_flag=&apos;Y&apos;" fetchAll="true" model="basic.csh_payment_method_for_lov" rootPath="payment_method_path"/>
+        <a:model-query fetchAll="true" model="csh.CSH511.csh_transaction_default_exchange_rate_type" rootPath="default_exchange_rate_type_path"/>
+    </a:init-procedure>
+    <a:view>
+        <div/>
+        <a:link id="csh_payment_req_pay_win_link" url="${/request/@context_path}/modules/csh/CSH502/csh_payment_req_pay.screen"/>
+        <a:link id="get_period_name_id" model="csh.CSH511.csh_transaction_get_period_name" modelaction="query"/>
+        <a:link id="get_exchange_rate_link_id" model="csh.CSH511.csh_transaction_get_exchange_rate" modelaction="query"/>
+        <a:link id="csh502_cdd_uploadFile_id" url="${/request/@context_path}/downloadFile.screen"/>
+        <script><![CDATA[
+            function onUpdate_csh502_payment(ds, record, name, value, oldvalue) {
+                var handling_charge = record.get('handling_charge');
+                if (Ext.isEmpty(handling_charge)) {
+                    handling_charge = 0;
+                }
+                if (name == 'currency_code') {
+                    //
+                    if (value != oldvalue) {
+                        record.set('exchange_rate', '');
+                        record.set('exchange_rate_type', '');
+                        record.set('rate_method_code', '');
+                        record.set('exchange_rate_type_display', '');
+                        record.set('exchange_rate_quotation', '');
+                        if (oldvalue != null && oldvalue != '') {
+                            record.set('transaction_amount', '');
+                            record.set('transaction_functional_amount', '');
+                            record.set('handling_charge', '');
+                        }
+                    }
+                    if (value == record.get('functional_currency_code')) {
+                        record.getField('exchange_rate_type_display').setRequired(false);
+                        record.getField('exchange_rate_type').setReadOnly(true);
+                        record.getField('exchange_rate_type_display').setReadOnly(true);
+                        record.getField('exchange_rate').setReadOnly(true);
+                        record.set('exchange_rate', 1);
+                    } else {
+                        record.set('exchange_rate_type', '${/model/fnd_financial_option_path/record/@default_exchange_rate_type}');
+                        record.set('rate_method_code', '${/model/fnd_financial_option_path/record/@rate_method_code}');
+                        record.set('exchange_rate_type_display', '${/model/fnd_financial_option_path/record/@exchange_rate_type_display}');
+                        record.getField('exchange_rate_type_display').setRequired(true);
+                        record.getField('exchange_rate_type_display').setReadOnly(false);
+                    }
+                } else if (name == 'rate_method_code') {
+                    record.set('exchange_rate_quotation', '');
+                    record.set('exchange_rate', '');
+            
+                    if (value == 'PERIOD' || value == 'DAILY' || value == 'FIXED') {
+                        record.getField('exchange_rate').setReadOnly(true);
+                        record.set('exchange_rate', '');
+                        getExchangeRate({
+                            fromCur: record.get('functional_currency_code'),
+                            toCur: record.get('currency_code'),
+                            exchangeRateType: record.get('exchange_rate_type'),
+                            exchangeDate: record.get('transaction_date'),
+                            periodName: record.get('period_name')
+                        });
+                    } else {
+                        record.getField('exchange_rate').setReadOnly(false);
+                        record.set('exchange_rate', '');
+                    }
+                } else if (name == 'exchange_rate') {
+                    if (record.get('exchange_rate') != null && record.get('exchange_rate') != '') {
+                        setfunctionamount(record);
+                    } else {
+                        record.set('transaction_functional_amount', '');
+                    }
+                } else if (name == 'handling_charge') {
+                    if (value === 0 && record.get('zero_amounts_allowed') == 'N') {
+                        Aurora.showMessage('${l:PROMPT}', '${l:CSH510.ZERO_AMOUNTS_ALLOWED}');
+                    }
+                    if (record.get('currency_code') == record.get('functional_currency_code')) {
+                        record.set('transaction_functional_amount', value + record.get('transaction_amount'));
+                    } else {
+                        setfunctionamount(record);
+                    }
+                } else if (name == 'transaction_amount') {
+                    if (value === 0 && record.get('zero_amounts_allowed') == 'N') {
+                        Aurora.showMessage('${l:PROMPT}', '${l:CSH510.ZERO_AMOUNTS_ALLOWED}');
+                    }
+                    if (record.get('currency_code') == record.get('functional_currency_code')) {
+                        record.set('transaction_functional_amount', value + handling_charge);
+                    } else {
+                        setfunctionamount(record);
+                    }
+                } else if (name == 'transaction_date') {
+                    showPeriod(record);
+                } else if (name == 'precision') {
+                    record.getField('transaction_amount').setPropertity('decimalprecision', value);
+                    record.getField('transaction_functional_amount').setPropertity('decimalprecision', value);
+                    record.getField('handling_charge').setPropertity('decimalprecision', value);
+                    if (record.get('transaction_amount') || record.get('transaction_amount') == 0 || record.get('handling_charge')) {
+                        setfunctionamount(record);
+                    }
+                } else if (name == 'bank_account_id') {
+                    if (record.get('zero_amounts_allowed') == 'N' && record.get('transaction_amount') === 0) {
+                        Aurora.showMessage('${l:PROMPT}', '${l:CSH510.ZERO_AMOUNTS_ALLOWED}');
+                    }
+                }
+            }
+            
+            function setfunctionamount(record) {
+                var quotation = record.get('exchange_rate_quotation');
+                var a = record.get('transaction_amount');
+                var b = record.get('exchange_rate');
+                var c = record.get('handling_charge');
+                if (Ext.isEmpty(c)) {
+                    c = 0;
+                }
+                a = a + c;
+                if (Ext.isDefined(a) && Ext.isDefined(b)) {
+                    if (quotation == 'DIRECT QUOTATION') {
+                        record.set('transaction_functional_amount', parseFloat((a / b).toFixed(record.get('precision'))));
+                    } else {
+                        record.set('transaction_functional_amount', parseFloat((a * b).toFixed(record.get('precision'))));
+                    }
+                }
+            }
+            
+            function getExchangeRate(param) {
+            
+                Aurora.request({
+                    url: $('get_exchange_rate_link_id').getUrl(),
+                    para: {
+                        from_currency: param.fromCur,
+                        to_currency: param.toCur,
+                        exchange_date: param.exchangeDate,
+                        exchange_period_name: param.periodName,
+                        exchange_rate_type: param.exchangeRateType
+                    },
+                    success: setRateAndQuotation,
+                    scope: this
+                });
+            }
+            
+            function setRateAndQuotation(res) {
+                var record = $('csh_payment_req_pay_ln_ds').getCurrentRecord();
+                if (Ext.isDefined(res.result.record.exchange_rate)) {
+                    record.set('exchange_rate', res.result.record.exchange_rate);
+                }
+                if (Ext.isDefined(res.result.record.exchange_rate_quotation)) {
+                    record.set('exchange_rate_quotation', res.result.record.exchange_rate_quotation);
+                } else {
+                    record.set('exchange_rate_quotation', 'DIRECT QUOTATION');
+                }
+            }
+            
+            function showPeriod(record) {
+                var r_date = record.get('transaction_date');
+                r_date = Aurora.formatDate(r_date);
+                Aurora.request({
+                    url: $('get_period_name_id').getUrl(),
+                    para: {
+                        p_date: r_date
+                    },
+                    success: function(res) {
+                        if (res) {
+                            var period_name = res.result.record.period_name,
+                                internal_period_num = res.result.record.internal_period_num;
+                            if (period_name) {
+                                record.set('period_name', period_name);
+                                record.set('internal_period_num', internal_period_num);
+                            } else {
+                                record.set('period_name', '');
+                                record.set('internal_period_num', '');
+                            }
+                        }
+                    },
+                    scope: this
+                });
+            }
+            
+            function periodname(res) {
+                if (res) {
+                    var period_name = res.result.record.period_name,
+                        internal_period_num = res.result.record.internal_period_num;
+                    if (period_name) {
+                        $('csh_payment_req_pay_ln_ds').getCurrentRecord().set('period_name', period_name);
+                        $('csh_payment_req_pay_ln_ds').getCurrentRecord().set('internal_period_num', internal_period_num);
+                    } else {
+                        $('csh_payment_req_pay_ln_ds').getCurrentRecord().set('period_name', '');
+                        $('csh_payment_req_pay_ln_ds').getCurrentRecord().set('internal_period_num', '');
+                    }
+                }
+            }
+            
+            function csh502_payment_save() {
+                if ($('csh_payment_req_pay_ds').validate() && $('csh_payment_req_pay_ln_ds').validate()) {
+                    var record = $('csh_payment_req_pay_ds').getAt(0);
+                    var lrecord = $('csh_payment_req_pay_ln_ds').getAt(0);
+                    record.set('payment_req_id', ${/parameter/@payment_req_id});
+            
+                    var saveData = [];
+                    record.set('_status', 'insert');
+                    saveData.push(record.data);
+                    Aurora.showConfirm('${l:PROMPT_MESSAGE}', '确定提交？', function okFun() {
+                        Aurora.request({
+                            url: '${/request/@context_path}/autocrud/csh.CSH502.csh_payment_transaction_save/batch_update',
+                            para: saveData,
+                            success: function(res) {
+                                Aurora.SideBar.show({
+                                    msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                    duration: 2000
+                                });
+                                window.location.href = $('csh_payment_req_pay_query').getUrl();
+                            },
+                            failure: function() {
+                                Aurora.Masker.unmask(Ext.getBody());
+                            },
+                            error: function() {
+                                Aurora.Masker.unmask(Ext.getBody());
+                            },
+                            scope: this
+                        });
+                    });
+                }
+            }
+            
+            function csh502_payment_back() {
+                $('${/parameter/@winId}').close();
+            }
+            
+            function csh502_payment_reset() {
+                $('csh_payment_req_pay_ds').getAt(0).set('rate_method_code_display', '');
+                $('csh_payment_req_pay_ds').getAt(0).set('rate_method_code', '');
+                $('csh_payment_req_pay_ln_ds').getAt(0).set('pay_amount', '');
+                $('csh_payment_req_pay_ln_ds').getAt(0).set('pay_date', '');
+            }
+            
+            function csh502_payment_pay() {
+                var record = $('csh_payment_req_pay_ln_ds').getCurrentRecord();
+                var payment_req_id = record.get('payment_req_id');
+                new Aurora.Window({
+                    id: 'csh_payment_req_pay_win',
+                    url: $('csh_payment_req_pay_win_link').getUrl(),
+                    params: {
+                        payment_req_id: payment_req_id,
+                        winId: 'csh_payment_req_pay_win'
+                    },
+                    title: '${l:CSH502.CSH_PAYMENT_REQ_PAY}',
+                    fullScreen: true
+                });
+            }
+            
+            
+            function onLoad_csh502_payment(ds) {
+                var records = ds.getAll();
+                for (var i = 0;i < records.length;i++) {
+            
+                    records[i].getField('bp_bank_account_code').setLovPara('bp_id', records[i].get('bp_id'));
+                    var value = records[i].get('currency_code');
+                    var functional_currency_code = '${/model/default_exchange_rate_type_path/record/@functional_currency_code}';
+                    records[i].getField('bank_account_code').setLovPara('currency_code', value);
+                    records[i].set('functional_currency_code', functional_currency_code);
+                    records[i].set('exchange_rate', '');
+                    records[i].set('exchange_rate_type', '');
+                    records[i].set('rate_method_code', '');
+                    records[i].set('exchange_rate_type_display', '');
+                    records[i].set('exchange_rate_quotation', '');
+                    if (value == functional_currency_code) {
+                        records[i].getField('exchange_rate_type_display').setRequired(false);
+                        records[i].getField('exchange_rate_type').setReadOnly(true);
+                        records[i].getField('exchange_rate_type_display').setReadOnly(true);
+                        records[i].getField('exchange_rate').setReadOnly(true);
+                        records[i].set('exchange_rate', 1);
+                    } else {
+                        records[i].set('exchange_rate_type', '${/model/fnd_financial_option_path/record/@default_exchange_rate_type}');
+                        records[i].set('rate_method_code', '${/model/fnd_financial_option_path/record/@rate_method_code}');
+                        records[i].set('exchange_rate_type_display', '${/model/fnd_financial_option_path/record/@exchange_rate_type_display}');
+                        records[i].getField('exchange_rate_type_display').setRequired(true);
+                        records[i].getField('exchange_rate_type_display').setReadOnly(false);
+                    }
+            
+                    records[i].set('transaction_amount', records[i].get('residual_amount'));
+                    records[i].set('transaction_date', records[i].get('apply_pay_date'));
+                }
+            }
+            
+            window['csh502_cdd_attachment_render'] = function(value, record, name) {
+                //debugger;
+                var check_id = record.get('check_id');
+                var file_name = record.get('file_name');
+                var record_id = record.id;
+                if (!record.isNew && check_id) {
+                    return '<a href="javascript:window[\'csh502_cdd_attachtment_upload\'](\'' + record.get('check_id') + '\',\'' + file_name + '\',\'' + record_id + '\')">${l:HLS.ATTACHMENT}</a>';
+                }
+            };
+            
+            window['csh502_cdd_attachtment_upload'] = function(check_id, file_name, record_id) {
+                //debugger;
+                var url = $('csh502_cdd_uploadFile_id').getUrl() + '?table_name=PRJ_CDD_ITEM_CHECK&header_id=' + check_id;
+                var record = $('con_contract_sign_info_ds').getCurrentRecord();
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'con555_cdd_uploadFile_screen_id',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {
+                    //debugger;
+            
+                    $('con_contract_sign_info_ds').query();
+            
+                    //var newvalue = $('con555_detail_result_ds').findById(record_id).get('file_name');
+            
+                });
+            
+            };
+            
+            window['csh502_link_render'] = function(value, record, name) {
+                if (value != null) {
+                    var link = '${/request/@context_path}/atm_download.svc?attachment_id=';
+                    var str = value.split(';;');
+                    var url = '';
+                    for (var i = 0;i < str.length;i++) {
+                        var temp = str[i].split('--');
+                        if (!Aurora.isEmpty(temp[0])) {
+                            url = url + '<a href=' + link + temp[1] + ' ref="img">' + temp[0] + '</a>' + ',';
+                        }
+                    }
+                    return url;
+                }
+            };
+            
+            function csh504_ddct_link(record_id, name) {
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][record_id + '---' + name];
+                if (record.dirty) {
+                    Aurora.showMessage('${l:PROMPT}', '请先保存数据！');
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    return;
+                }
+                var payment_req_ln_id = record.get('payment_req_ln_id'),
+                    apply_amount = record.get('amount'),
+                    contract_number = record.get('contract_number'),
+                    ref_doc_id = record.get('ref_doc_id');
+                var win = new Aurora.Window({
+                    id: 'csh_req_ddct_link_winid',
+                    url: $('csh_req_ddct_link').getUrl(),
+                    params: {
+                        apply_amount: apply_amount,
+                        payment_req_id: '${/parameter/@payment_req_id}',
+                        payment_req_ln_id: payment_req_ln_id,
+                        contract_number: contract_number,
+                        contract_id: ref_doc_id,
+                        winid: 'csh_req_ddct_link_winid',
+                        function_usage: '${/parameter/@function_usage}'
+                    },
+                    title: '抵扣',
+                    width: 1000,
+                    height: 500
+                });
+                win.on('close', function() {
+                    var lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                    $(lnds_id).query($(lnds_id).currentPage);
+                });
+            }
+            
+            function csh501d_payment_req_detail_g_renderer(value, record, name) {
+                if (name == 'ddct_link') {
+                    link_function = 'csh504_ddct_link';
+                    if (record.get('payment_req_ln_id') && record.get('cf_item') == '5') {
+                        return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+                    } else {
+                        return '';
+                    }
+                }
+            }
+            
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="payment_method_ds">
+                <a:datas dataSource="/model/payment_method_path"/>
+            </a:dataSet>
+            <a:dataSet id="document_type_ds">
+                <a:datas dataSource="/model/payment_document_type"/>
+            </a:dataSet>
+            <!-- <a:dataSet id="exchangerate_types_ds">
+                <a:datas dataSource="/model/exchangerate_types"/>
+            </a:dataSet> -->
+            <a:dataSet id="exchangerate_type_ds">
+                <a:datas dataSource="/model/exchangerate_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="csh_bank_account_ds">
+                <a:datas dataSource="/model/csh_bank_account"/>
+            </a:dataSet>
+            <a:dataSet id="csh_payment_req_pay_ds"><![CDATA[
+            ]]></a:dataSet>
+            <a:dataSet id="con_contract_sign_info_ds" autoQuery="true" model="csh.CSH505.con_contract_atm" queryUrl="${/request/@context_path}/autocrud/csh.CSH505.con_contract_atm/query?payment_req_id=${/parameter/@payment_req_id}"/>
+            <a:dataSet id="csh_payment_req_pay_ln_ds" autoQuery="true" queryUrl="${/request/@context_path}/autocrud/csh.CSH502.csh_payment_req_pay_query/query?payment_req_id=${/parameter/@payment_req_id}" selectable="true" selectionModel="single">
+                <a:fields>
+                    <!-- <a:field name="document_type_dis" displayField="description" options="document_type_ds" readOnly="true" required="false" returnField="document_type" valueField="document_type"/> -->
+                    <!-- <a:field name="rate_method_code_display" displayField="rate_method_code_display" options="exchangerate_types_ds" returnField="rate_method_code" valueField="rate_method_code"/> -->
+                    <a:field name="bp_code" lovGridHeight="300" lovHeight="500" lovService="csh.CSH501.csh_payment_bp_for_lov?bp_id=${/model/payment_req_selected/record/@tenant_bp_id}" lovWidth="530" required="false" title="CSH502.CSH_PAYMENT_OBJ">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_category" to="bp_category"/>
+                        </a:mapping>
+                    </a:field>
+                    <!-- <a:field name="bank_account_code" lovGridHeight="300" lovHeight="500" lovService="csh.CSH502.csh_payment_bank_account_lov?is_company_account=&apos;Y&apos;" lovWidth="530" required="false" title="CSH502.CSH_PAYMENT_OBJ">
+                        <a:mapping>
+                            <a:map from="bank_account_code" to="bank_account_code"/>
+                            <a:map from="bank_account_name" to="bank_account_name"/>
+                            <a:map from="bank_account_num" to="bank_account_num"/>
+                            <a:map from="bank_account_id" to="bank_account_id"/>
+                        </a:mapping>
+                    </a:field> -->
+                    <!-- <a:field name="functional_currency_code" defaultValue="${/model/default_exchange_rate_type_path/record/@functional_currency_code}"/> -->
+                    <a:field name="exchange_rate_type_display" displayField="type_name" options="exchangerate_type_ds" readOnly="true" returnField="exchange_rate_type" valueField="type_code">
+                        <a:mapping>
+                            <a:map from="type_code" to="exchange_rate_type"/>
+                            <a:map from="rate_method_code" to="rate_method_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="transaction_date" required="true"/>
+                    <a:field name="exchange_rate_type"/>
+                    <a:field name="exchange_rate" readOnly="true" required="false"/>
+                    <a:field name="rate_method_code"/>
+                    <a:field name="transaction_amount" required="true"/>
+                    <a:field name="transaction_functional_amount" readOnly="true" required="true"/>
+                    <a:field name="bank_account_code" autoComplete="true" autoCompleteField="bank_account_num" lovGridHeight="350" lovHeight="550" lovLabelWidth="90" lovService="csh.CSH101.csh_bank_account_lov" lovWidth="850" required="true" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="precision" to="precision"/>
+                            <a:map from="zero_amounts_allowed" to="zero_amounts_allowed"/>
+                            <a:map from="bank_account_id" to="bank_account_id"/>
+                            <a:map from="bank_account_num" to="bank_account_num"/>
+                            <a:map from="bank_account_name" to="bank_account_name"/>
+                            <a:map from="bank_account_code" to="bank_account_code"/>
+                            <a:map from="currency_code" to="currency_code"/>
+                            <a:map from="currency_name" to="currency_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_bank_account_code" autoComplete="true" autoCompleteField="bank_account_num" lovGridHeight="350" lovHeight="550" lovLabelWidth="90" lovService="basic.hls_bp_master_bank_account_v_for_lov?enabled_flag=Y&amp;bp_enabled_flag=Y" lovWidth="580" title="CSH511.BANK_ACCOUNT_CODE">
+                        <a:mapping>
+                            <a:map from="bank_account_id" to="bp_bank_account_id"/>
+                            <a:map from="bank_account_num" to="bp_bank_account_num"/>
+                            <a:map from="bank_account_name" to="bp_bank_account_name"/>
+                            <a:map from="bank_account_code" to="bp_bank_account_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="payment_method_display" displayField="description" options="payment_method_ds" returnField="payment_method_id" valueField="payment_method_id"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_csh502_payment"/>
+                    <a:event name="load" handler="onLoad_csh502_payment"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="csh502_payment_pay" text="CSH502.CSH_PAY"/>
+                <!-- <a:gridButton click="csh502_payment_reset" text="HLS.RESET"/> -->
+                <a:gridButton click="csh502_payment_back" text="HLS.BACK"/>
+            </a:screenTopToolbar>
+            <a:form labelWidth="100" title="CSH502.CSH_PAYMENT_REQ_PAY" width="1238">
+                <a:box column="4" labelWidth="120">
+                    <a:textField name="payment_req_number" bindTarget="csh_payment_req_queryDs" prompt="CSH502.CSH_REQ_NO" readOnly="true" width="150"/>
+                    <a:datePicker name="req_date" bindTarget="csh_payment_req_queryDs" prompt="CSH502.CSH_REQ_DATE" readOnly="true" width="150"/>
+                    <a:textField name="payment_description" bindTarget="csh_payment_req_queryDs" prompt="HLS.COMMENT" readOnly="true" width="428"/>
+                </a:box>
+                <a:box column="4" labelWidth="120">
+                    <a:lov name="bp_code" bindTarget="csh_payment_req_queryDs" prompt="CSH502.CSH_PAYMENT_OBJ" readOnly="true" width="150"/>
+                    <a:datePicker name="apply_pay_date" bindTarget="csh_payment_req_queryDs" prompt="CSH501.CSH_REQ_PAY_DATE" readOnly="true" width="150"/>
+                    <a:numberField name="apply_amount" allowDecimals="true" allowFormat="true" bindTarget="csh_payment_req_queryDs" prompt="CSH501.CSH_APPLIED_TOTAL_AMOUNT" readOnly="true" width="150"/>
+                    <a:textField name="currency_name" bindTarget="csh_payment_req_queryDs" prompt="HLS.CURRENCY" readOnly="true" width="150"/>
+                </a:box>
+                <a:box column="4" labelWidth="120">
+                    <a:textField name="approval_status" bindTarget="csh_payment_req_queryDs" prompt="CSH502.CSH_APR_STATE" readOnly="true" width="150"/>
+                    <a:datePicker name="approval_date" bindTarget="csh_payment_req_queryDs" prompt="CSH502.CSH_APR_DATE" readOnly="true" width="150"/>
+                    <!-- <a:textField name="approval_note" bindTarget="csh_payment_req_queryDs" prompt="审批备注" readOnly="true" width="428"/> -->
+                </a:box>
+            </a:form>
+            <a:tabPanel marginHeight="250" marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="付款信息" width="150">
+                        <a:grid id="csh_payment_req_create_grid_ds" bindTarget="csh_payment_req_pay_ln_ds" marginHeight="300" marginWidth="50" navBar="true">
+                            <a:columns>
+                                <a:column name="contract_number" lock="true" prompt="HLS.CONTRACT_NUMBER" width="120"/>
+                                <a:column name="contract_name" lock="true" prompt="HLS.CONTRACT_NAME" width="150"/>
+                                <a:column name="times" prompt="HLS.PERIOD_NUMBER"/>
+                                <a:column name="bp_code" prompt="CSH501.CSH_PAYMENT_OBJ"/>
+                                <a:column name="bp_name" prompt="CSH501.CSH_PAYMENT_OBJ_NAME" width="150"/>
+                                <a:column name="apply_amount" align="right" prompt="CSH501.CSH_REQ_AMOUNT" renderer="Aurora.formatMoney"/>
+                                <a:column name="ddct_link" align="CENTER" prompt="坐扣" renderer="csh501d_payment_req_detail_g_renderer" width="60"/>
+                                <a:column name="sum_ddct_amount" align="RIGHT" prompt="坐扣金额" renderer="Aurora.formatMoney" width="120"/>
+                                <a:column name="virtual_amount" align="right" prompt="实际发票金额" renderer="Aurora.formatMoney"/>
+                                <a:column name="estimated_due_amount" align="right" prompt="预估金额" renderer="Aurora.formatMoney"/>
+                                <a:column name="apply_pay_date" prompt="CSH501.CSH_REQ_PAY_DATE" renderer="Aurora.formatDate"/>
+                                <a:column name="residual_amount" prompt="CSH501.CSH_RESIDUAL_AMOUNT" renderer="Aurora.formatMoney"/>
+                                <a:column name="project_name" prompt="HLS.PROJECT_NAME" width="150"/>
+                                <a:column name="bp_tenant_name" prompt="HLS.TENANT_NAME" width="150"/>
+                                <a:column name="cf_description" prompt="CSH501.CSH_PAYMENT_PRJ"/>
+                                <a:column name="due_amount" prompt="CSH501.CSH_PAYMENT_AMOUNT" renderer="Aurora.formatMoney"/>
+                                <a:column name="currency_name" prompt="HLS.CURRENCY"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                    <!--  <a:tab prompt="签约附件" width="150">
+                        <a:grid bindTarget="con_contract_sign_info_ds" marginHeight="300" marginWidth="50" navBar="true">
+                            <a:columns>
+                                <a:column name="description" lock="true" prompt="HLS.DOCUMENT_NAME" width="200"/>
+                                <a:column name="attachment" align="center" lock="true" prompt="附件" renderer="csh502_cdd_attachment_render" width="60"/>
+                                <a:column name="file_name" align="center" lock="true" prompt="附件名" renderer="csh502_link_render" width="400"/>
+                                <a:column name="note" editor="tex_area_e" prompt="审核意见1" width="200"/>
+                                <a:column name="note2" editor="tex_area_e" prompt="审核意见2" width="200"/>
+                                <a:column name="note3" editor="tex_area_e" prompt="审核意见3" width="200"/>
+                                <a:column name="note4" editor="tex_area_e" prompt="审核意见4" width="200"/>
+                                <a:column name="note5" editor="tex_area_e" prompt="审核意见5" width="200"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:textArea id="tex_area_e"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab> -->
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	&author:DJ
+	$date:2013/11/12
+	$purpose:短信发送
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="sys.SYS401.exp_employees_mobile" rootPath="emp_mobile_list"/>
+        <a:model-query fetchAll="true" model="sys.SYS401.hls_bp_contact_mobile" rootPath="bp_contact_mobile_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="bmLink_send_sms" model="sys.SYS401.sys_sms_list" modelaction="execute"/>
+        <script><![CDATA[
+            function lock_window() {
+                Aurora.Masker.mask(Ext.getBody(), '正在提交');
+            }
+            
+            function unlock_window() {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            
+            function clearSms() {
+                $('smsCreateDs').reset();
+            }
+            
+            function submitSms() {
+                lock_window();
+                var ds = $('smsCreateDs');
+                if (!ds.validate()) {
+                    unlock_window();
+                    return;
+                }
+                var record = ds.getAt(0);
+                var text = record.get('text');
+                var length = String(text).length;
+            
+                unlock_window();
+                Aurora.showConfirm('${l:HLS.PROMPT}', '每条短信最多60个字，当前字数为' + length + '，将发送' + Math.ceil(length / 60) + '条，是否确认？', function() {
+                    lock_window();
+                    Aurora.request({
+                        url: $('bmLink_send_sms').getUrl(),
+                        para: {
+                            'all_phone_number': record.get('all_phone_number'),
+                            'text': record.get('text')
+                        },
+                        success: function(res) {
+                            unlock_window();
+                            Aurora.SideBar.show({
+                                msg: '提交成功',
+                                duration: 2000
+                            });
+                            clearSms();
+                        },
+                        failure: function() {
+                            unlock_window();
+                        },
+                        error: function() {
+                            unlock_window();
+                        },
+                        scope: this
+                    });
+                }, function() {});
+            
+            }
+            
+            function validate_smsCreateDs(record, name, value) {
+                if (name == 'all_phone_number') {
+                    var reg = /^[0-9;]*$/;
+                    if (reg.test(value)) {
+                        return true;
+                    }
+                    return '只能包含数字和分号（分隔符）';
+                }
+            }
+            
+            function getMobileStr(ds) {
+                var str = '';
+                var records = ds.getSelected();
+                for (var i = 0,
+                    j = records.length;i < j;i++) {
+                    var mobile = records[i].get('mobile');
+                    if (!Ext.isEmpty(mobile)) {
+                        str = str + mobile + ';';
+                    }
+                }
+                return str;
+            }
+            
+            function get_employee_mobile(ds) {
+                var str = '';
+                var mobile_obj={};
+                var records = ds.getAll();
+                for (var i = 0;i < records.length;i++) {
+                    if (records[i].get('checked') == 'Y') {
+                        var mobile = records[i].get('mobil');
+                        if (!Ext.isEmpty(mobile)) {
+                            mobile_obj[mobile]=mobile;
+                        }
+                    }
+                }
+                for(mobiles in mobile_obj){
+                    if(!Ext.isEmpty(mobiles)){
+                        str = str + mobiles + ';';
+                    }
+                }
+                return str;
+            }
+            
+            function generateMobileStr() {
+                var str = get_employee_mobile($('empMobileDs')) + getMobileStr($('bpContactMobileDs'));
+                $('smsCreateDs').getAt(0).set('all_phone_number', str);
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="smsCreateDs" autoCreate="true">
+                <a:fields>
+                    <a:field name="text" required="true"/>
+                    <a:field name="all_phone_number" required="true" validator="validate_smsCreateDs"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="empMobileDs">
+                <a:datas dataSource="/model/emp_mobile_list"/>
+            </a:dataSet>
+            <a:dataSet id="bpContactMobileDs" selectable="true">
+                <a:datas dataSource="/model/bp_contact_mobile_list"/>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="clearSms" text="清空"/>
+                <a:gridButton click="submitSms" text="提交短信"/>
+            </a:screenTopToolbar>
+            <a:hBox>
+                <a:vBox>
+                    <a:form title=" ">
+                        <a:textArea name="all_phone_number" bindTarget="smsCreateDs" height="150" prompt="手机号" width="650"/>
+                        <a:textArea name="text" bindTarget="smsCreateDs" height="150" prompt="短信内容" width="650"/>
+                    </a:form>
+                </a:vBox>
+                <a:vBox>
+                    <a:button click="generateMobileStr" height="40" style="margin-top:50px;" text="&lt;---"/>
+                </a:vBox>
+                <a:vBox>
+                    <a:tabPanel marginHeight="120" width="420">
+                        <a:tabs>
+                            <a:tab prompt="员工" width="100">
+                                <!-- <a:grid bindTarget="empMobileDs" marginHeight="170" width="360">
+                                    <a:columns>
+                                        <a:column name="person" autoAdjust="false" prompt="姓名" showTitle="true" width="200"/>
+                                        <a:column name="mobile" prompt="手机" width="100"/>
+                                    </a:columns>
+                                </a:grid> -->
+                                <a:treeGrid bindTarget="empMobileDs" idField="unit_id" marginHeight="170" parentField="parent_unit_id" sequenceField="seq" showCheckBox="true" width="410">
+                                    <a:columns>
+                                        <a:column name="unit_name" width="150"/>
+                                        <a:column name="name" prompt="姓名" width="100"/>
+                                        <a:column name="mobil" prompt="手机" width="120"/>
+                                    </a:columns>
+                                </a:treeGrid>
+                            </a:tab>
+                            <a:tab prompt="客户" width="100">
+                                <a:grid bindTarget="bpContactMobileDs" marginHeight="170" width="400">
+                                    <a:columns>
+                                        <a:column name="person" autoAdjust="false" prompt="姓名" showTitle="true" width="200"/>
+                                        <a:column name="mobile" prompt="手机" width="100"/>
+                                    </a:columns>
+                                </a:grid>
+                            </a:tab>
+                        </a:tabs>
+                    </a:tabPanel>
+                </a:vBox>
+            </a:hBox>
+        </a:screenBody>
+    </a:view>
+</a:screen>

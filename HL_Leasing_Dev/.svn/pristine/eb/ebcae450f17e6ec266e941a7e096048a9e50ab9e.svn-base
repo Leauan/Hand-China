@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-7-30 下午3:32:01  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="rsc.RSC303.rsc_get_fin_statement_templet_id" rootPath="datasource"/>
+        <a:model-query defaultWhereClause="fin_statement_templet_id=${/model/datasource/record/@fin_statement_templet_id} and bp_id=${/parameter/@bp_id}" fetchAll="true" model="rsc.RSC303.rsc_fin_statement_prj_hds_v" rootPath="rsc_fin_statement_prj_hds"/>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="currency"/>
+        <a:model-execute model="rsc.RSC303.rsc_fin_statement_fc_years_head"/>
+        <a:model-query fetchAll="true" model="rsc.RSC303.rsc_fin_excel_prj_export_years" rootPath="/model/columns"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="cashflow_forecast_sheets_excel_id" url="${/request/@context_path}/modules/rsc/RSC303/rsc_fin_excel_sheets_prj_export.svc"/>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <script><![CDATA[
+            function RSC304_handle_forecast_back() {
+                (parent == top ? self : parent)['$']('${/parameter/@winid}').close();
+            }
+            
+            function RSC304_handle_forecast_query() {
+                $('RSC304_fin_statement_prj_forecast_result_ds').query();
+            }
+            
+            function formatNumber(value) {
+                //return Aurora.formatNumber(value, 10).replace(/0*$/g, '').replace(/\.$/, '');
+                return Aurora.formatNumber(value, 2);
+            }
+            
+            function do_excel() {
+                var url = $('cashflow_forecast_sheets_excel_id').getUrl() + '?fin_statement_templet_id=' + ${/model/datasource/record/@fin_statement_templet_id} + '&bp_id=' + ${/parameter/@bp_id} + '&datasoure_type=cashflow_forecast';
+                window.open(url);
+            }
+            
+            function percentRender(value, record, name) {
+                if (!Ext.isEmpty(value)) {
+                    return Aurora.formatMoney(mul(100, value)) + '%';
+                }
+            }
+            
+            function do_test() {
+                var ds = $('RSC304_fin_statement_prj_cashflow_statement_ds');
+                var record3 = ds.find('line_number', 3),
+                    record6 = ds.find('line_number', 6),
+                    record7 = ds.find('line_number', 7);
+                var value7 = plus(record3.get('first_year_amount'), record6.get('first_year_amount'));
+                record7.set('first_year_amount', value7);
+            }
+            
+            function forecast_Fun() {
+                var ds = $('RSC304_fin_statement_prj_forecast_result_ds');
+                ds.submit();
+            }
+            
+            function submitsuccess_result() {
+                $('RSC304_fin_statement_prj_forecast_result_ds').query();
+            }
+            
+            function forecast_amountEdit(record, name) {
+                if (record.get('is_input') == 'N') {
+                    return '';
+                } else if (record.get('is_input') == 'Y' && (record.get('fin_statement_item') == 'RENTAL_INPUT' || record.get('fin_statement_item') == 'OPERA_WK_CPT_INPUT')) {
+                    return 'forecast_numfield';
+                }
+            }
+            
+            function amountEdit(record, name) {
+                if (record.get('is_input') == 'N') {
+                    return '';
+                } else if (record.get('is_input') == 'Y') {
+                    return 'forecast_numfield';
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="currency_ds">
+                <a:datas dataSource="/model/currency"/>
+            </a:dataSet>
+            <a:dataSet id="fin_statement_type_handle_query_ds" lookupCode="FIN_STATEMENT_TYPE"/>
+            <a:dataSet id="RSC304_fin_statement_prj_handle_query_ds" model="rsc.RSC303.rsc_fin_statement_prj_hds_v">
+                <a:datas dataSource="/model/rsc_fin_statement_prj_hds"/>
+                <a:fields>
+                    <a:field name="currency_name" displayField="currency_name" options="currency_ds" readOnly="true" returnField="currency_code" valueField="currency_code"/>
+                    <a:field name="bp_code" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov" lovWidth="500" prompt="HLS.BP_CODE" readOnly="true" required="true" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="bp_id" to="bp_id"/>
+                            <a:map from="bp_code" to="bp_code"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_name" prompt="HLS.BP_NAME" readOnly="true"/>
+                    <a:field name="bp_id"/>
+                    <a:field name="fin_statement_templet_code" lovGridHeight="350" lovHeight="500" lovService="rsc.RSC302.rsc_fin_statement_tmplt_hds_for_lov?bp_id=${/parameter/@bp_id}" lovWidth="500" readOnly="true" required="true" title="FIN_STATEMENT_TMPLT_CODE">
+                        <a:mapping>
+                            <a:map from="fin_statement_templet_code" to="fin_statement_templet_code"/>
+                            <a:map from="fin_statement_templet_id" to="fin_statement_templet_id"/>
+                            <a:map from="fin_statement_templet_name" to="fin_statement_templet_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="fin_statement_templet_name" readOnly="true"/>
+                    <a:field name="fin_statement_type_name" displayField="code_value_name" options="fin_statement_type_handle_query_ds" returnField="fin_statement_type" valueField="code_value_name"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="RSC304_fin_statement_prj_forecast_result_ds" autoPageSize="true" autoQuery="true" fetchAll="true" model="rsc.RSC303.rsc_fin_statement_prj_import_cashflow_forecast" queryDataSet="RSC304_fin_statement_prj_handle_query_ds" queryUrl="${/request/@context_path}/autocrud/rsc.RSC303.rsc_fin_statement_prj_import_cashflow_forecast/query?fin_statement_templet_id=${/model/datasource/record/@fin_statement_templet_id}&amp;bp_id=${/parameter/@bp_id}&amp;first_fin_statement_id=${/parameter/@first_fin_statement_id}&amp;second_fin_statement_id=${/parameter/@second_fin_statement_id}&amp;third_fin_statement_id=${/parameter/@third_fin_statement_id}">
+                <a:datas dataSource="/model/columns_result"/>
+                <a:events>
+                    <a:event name="submitsuccess" handler="submitsuccess_result"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="RSC304_handle_forecast_back" text="HLS.BACK"/>
+                <!-- <a:gridButton click="RSC304_handle_forecast_query" text="HLS.QUERY"/> -->
+                <a:gridButton click="do_excel" text="HLS.EXCEL_EXPORT"/>
+                <a:gridButton click="forecast_Fun" text="RSC_FIN_STATEMENT_TMPLT_HDS.FORECAST"/>
+            </a:screenTopToolbar>
+            <a:form column="3" labelWidth="120" marginWidth="30" title="现金流预测查询">
+                <a:lov name="bp_code" bindTarget="RSC304_fin_statement_prj_handle_query_ds" prompt="HLS.BP_CODE"/>
+                <a:textField name="bp_name" bindTarget="RSC304_fin_statement_prj_handle_query_ds" prompt="HLS.BP_NAME"/>
+                <a:comboBox name="currency_name" bindTarget="RSC304_fin_statement_prj_handle_query_ds" prompt="RSC_FIN_STATEMENT_TMPLT_HDS.STATEMENT_CURRENCY"/>
+                <a:lov name="fin_statement_templet_code" bindTarget="RSC304_fin_statement_prj_handle_query_ds" prompt="RSC_FIN_STATEMENT_TMPLT_HDS.FIN_STATEMENT_TMPLT_CODE"/>
+                <a:textField name="fin_statement_templet_name" bindTarget="RSC304_fin_statement_prj_handle_query_ds" prompt="RSC_FIN_STATEMENT_TMPLT_HDS.FIN_STATEMENT_TMPLT_NAME"/>
+            </a:form>
+            <a:grid bindTarget="RSC304_fin_statement_prj_forecast_result_ds" marginHeight="230" marginWidth="60" navBar="true">
+                <a:toolBar>
+                    <a:button type="excel"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="rnum" align="center" prompt="RSC_FIN_STATEMENT_TMPLT_LNS.LINE_NUMBER" width="50"/>
+                    <a:column name="item_desc" align="left" prompt="RSC_FIN_STATEMENT_TMPLT_LNS.FIN_STATEMENT_ITEM" width="200"/>
+                    <a:placeHolder id="object_id"/>
+                    <a:column name="first_year_forecast_amount" align="right" editorFunction="forecast_amountEdit" prompt="预测期第1期" renderer="Aurora.formatMoney" width="150"/>
+                    <a:column name="second_year_forecast_amount" align="right" editorFunction="forecast_amountEdit" prompt="预测期第2期" renderer="Aurora.formatMoney" width="150"/>
+                    <a:column name="third_year_forecast_amount" align="right" editorFunction="forecast_amountEdit" prompt="预测期第3期" renderer="Aurora.formatMoney" width="150"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="forecast_numfield"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+        <script><![CDATA[
+        ]]></script>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="object_id">
+            <p:loop source="/model/columns">
+                <c:process-config>
+                    <a:column name="${@column_name}" align="right" editorFunction="amountEdit" prompt="${@field_description}" renderer="Aurora.formatMoney" width="150"/>
+                </c:process-config>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

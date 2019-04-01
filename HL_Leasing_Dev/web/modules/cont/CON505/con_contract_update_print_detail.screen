@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-9-10 下午01:51:25  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="con_contract_content_asset_detail_link_id" url="${/request/@context_path}/modules/cont/CON505/con_contract_content_asset_detail.screen"/>
+        <a:link id="con_contract_update_print_fin_link_id" url="${/request/@context_path}/modules/cont/CON500/con_contract_update_print_fin.screen"/>
+        <a:link id="con_contract_create_content_link_id" model="cont.CON505.con_contract_create_content" modelaction="update"/>
+        <script><![CDATA[
+            function con_print_detail_print() {
+                var records = $('con_contract_update_print_detail_line_ds').getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    return;
+                }
+                var record = records[0];
+                var url = $('con_contract_update_print_fin_link_id').getUrl() + '?templt_name=' + 'fin_contract.xml' + '&contract_id=' + '${/parameter/@contract_id}' + '&document_category=' + '${/parameter/@document_category}' + '&clause_usage=' + record.get('exchange_templet_usage');
+                window.open(url);
+            }
+            
+            function on_print_detail_lov(record, name) {
+                if (record.isNew) {
+                    return 'print_detail_grid_lov_id';
+                } else {
+                    return '';
+                }
+            }
+            
+            function on_print_detail_combobox(record, name) {
+                if (record.isNew) {
+                    return 'print_detail_grid_combobox_id';
+                } else {
+                    return '';
+                }
+            }
+            
+            function con_print_detail_add() {
+                $('con_contract_update_print_detail_grid_id').showEditorByRecord($('con_contract_update_print_detail_line_ds').create());
+            }
+            
+            function lock_current_window() {
+                Aurora.Masker.mask($('${/parameter/@winid}').wrap, '正在保存...');
+            }
+            
+            function unlock_current_window() {
+                Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+            }
+            
+            function con_print_detail_create() {
+                lock_current_window();
+                Aurora.request({
+                    url: $('con_contract_create_content_link_id').getUrl(),
+                    para: {
+                        contract_id: '${/parameter/@contract_id}'
+                    },
+                    success: function(res) {
+                        var result_ds = $('con_contract_update_print_detail_line_ds');
+                        result_ds.query(result_ds.currentPage);
+                        unlock_current_window();
+                    },
+                    error: function() {
+                        unlock_current_window();
+                    },
+                    failure: function() {
+                        unlock_current_window();
+                    },
+                    scope: this
+                });
+            }
+            
+            function con_print_detail_save() {
+                if ($('con_contract_update_print_detail_line_ds').validate()) {
+                    lock_current_window();
+                    $('con_contract_update_print_detail_line_ds').submit();
+                }
+            }
+            
+            function on_result_submitsuccess() {
+                unlock_current_window();
+            }
+            
+            function on_result_submitfailed() {
+                unlock_current_window();
+            }
+            
+            function on_result_add(ds, record, index) {
+                record.set('contract_id', '${/parameter/@contract_id}');
+            }
+            
+            function see_asset_detail_renderer(value, record, name) {
+                if (name == 'asset_detail'&&record.get('content_id')) {
+                    return '<a href="javascript:con505_asset_detail(' + record.get('content_id') + ','+record.get('con_contract_bp_id')+',\'' +record.get('bp_category')+ '\');">' + '资产明细' + '</a>';
+                }
+            }
+            function con505_asset_detail(content_id,con_contract_bp_id,bp_category){
+                new Aurora.Window({
+                    id:'con_contract_content_asset_detail_winid',
+                    url:$('con_contract_content_asset_detail_link_id').getUrl(),
+                    params:{
+                       contract_id:'${/parameter/@contract_id}',
+                       content_id:content_id,
+                       con_contract_bp_id:con_contract_bp_id,
+                       bp_category:bp_category,
+                       winid:'con_contract_content_asset_detail_winid'
+                    },
+                    title:'资产明细',
+                    width:500,
+                    height:460
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="basic_clause_tmplet_usage_ds" lookupCode="CON_TMPLET_USAGE"/>
+            <a:dataSet id="con_contract_update_print_detail_header_ds" loadData="true" model="cont.CON500.con_contract_v">
+                <a:fields>
+                    <a:field name="contract_number" readOnly="true"/>
+                    <a:field name="contract_name" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con_contract_update_print_detail_line_ds" autoQuery="true" queryUrl="${/request/@context_path}/autocrud/cont.CON500.con_contract_content_v/query?contract_id=${/parameter/@contract_id}" selectable="true" submitUrl="${/request/@context_path}/modules/cont/CON505/con_contract_content_save.svc">
+                <a:fields>
+                    <a:field name="bp_name" lovGridHeight="350" lovHeight="500" lovService="cont.CON505.con_contract_content_bp_for_lov?contract_id=${/parameter/@contract_id}" lovWidth="500" required="true" title="商业伙伴">
+                        <a:mapping>
+                            <a:map from="record_id" to="con_contract_bp_id"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="bp_category" to="bp_category"/>
+                            <a:map from="bp_category_desc" to="bp_category_desc"/>
+                            <a:map from="bp_class" to="bp_class"/>
+                            <a:map from="bp_class_desc" to="bp_class_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="clause_usage_name" displayField="code_value_name" options="basic_clause_tmplet_usage_ds" required="true" returnField="clause_usage" valueField="code_value"/>
+                    <a:field name="templet_name" lovGridHeight="350" lovHeight="500" lovService="basic.con_clause_templet_for_lov" lovWidth="500" required="true" title="合同模板">
+                        <a:mapping>
+                            <a:map from="templet_id" to="templet_id"/>
+                            <a:map from="description" to="templet_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="content_number" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="on_result_submitsuccess"/>
+                    <a:event name="submitfailed" handler="on_result_submitfailed"/>
+                    <a:event name="add" handler="on_result_add"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar style="width:848px">
+                <a:gridButton click="con_print_detail_create" text="生成合同文本"/>
+                <a:gridButton click="con_print_detail_add" text="HLS.NEW"/>
+                <a:gridButton click="con_print_detail_save" text="HLS.SAVE"/>
+                <a:gridButton click="con_print_detail_print" text="确认打印"/>
+            </a:screenTopToolbar>
+            <a:form column="2" title="合同文本打印" width="852">
+                <a:textField name="contract_number" bindTarget="con_contract_update_print_detail_header_ds" prompt="合同编号"/>
+                <a:textField name="contract_name" bindTarget="con_contract_update_print_detail_header_ds" prompt="合同名称" width="200"/>
+            </a:form>
+            <a:grid id="con_contract_update_print_detail_grid_id" bindTarget="con_contract_update_print_detail_line_ds" height="350" navBar="true" width="850">
+                <a:columns>
+                    <a:column name="clause_usage_name" editorFunction="on_print_detail_combobox" prompt="合同用途"/>
+                    <a:column name="bp_name" editorFunction="on_print_detail_lov" prompt="商业伙伴名称"/>
+                    <a:column name="bp_category_desc" prompt="商业伙伴类别"/>
+                    <a:column name="bp_class_desc" prompt="商业伙伴分类"/>
+                    <a:column name="asset_detail" align="center" prompt="资产明细" renderer="see_asset_detail_renderer"/>
+                    <a:column name="templet_name" editor="print_detail_grid_lov_id" prompt="合同条款模板"/>
+                    <a:column name="content_number" editor="print_detail_grid_textfield_id" prompt="合同文本编号"/>
+                    <a:column name="content_print_flag_name" prompt="合同文本状态"/>
+                </a:columns>
+                <a:editors>
+                    <a:lov id="print_detail_grid_lov_id"/>
+                    <a:comboBox id="print_detail_grid_combobox_id"/>
+                    <a:textField id="print_detail_grid_textfield_id"/>
+                    <a:checkBox id="print_detail_grid_checkbox_id"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

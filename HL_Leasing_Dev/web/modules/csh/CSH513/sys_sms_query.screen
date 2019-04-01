@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	&author:DJ
+	$date:2013/11/12
+	$purpose:短信发送
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure><![CDATA[
+    ]]></a:init-procedure>
+    <a:view>
+        <a:link id="pageLink_view_log" url="${/request/@context_path}/modules/sys/SYS402/sys_sms_log.screen"/>
+        <a:link id="bmLink_re_submit_sms" model="sys.SYS401.sys_sms_list" modelaction="update"/>
+        <script><![CDATA[
+	        
+	        function reSubmitSms(sms_id) {
+                Aurora.request({
+	                url: $('bmLink_re_submit_sms').getUrl(),
+	                para: {
+	                    'sms_id' : sms_id
+	                },
+	                success: function(res) {
+	                    Aurora.SideBar.show({
+	                        msg: '提交成功',
+	                        duration: 2000
+	                    });
+	                },
+	                failure: function() {
+	                },
+	                error: function() {
+	                },
+	                scope: this
+	            });
+	        }
+        	
+        	function winOpen_view_log(sms_id) {
+                new Aurora.Window({
+                    id: 'sys_sms_log',
+                    url: $('pageLink_view_log').getUrl(),
+                    params:{
+                    	sms_id : sms_id
+                    },
+                    title: '错误日志',
+                    height: 380,
+                    width: 800
+                });
+            }
+        	
+        	function render_smsQueryDs_grid(value,record,name)
+        	{
+        	    if(name=='view_log')
+                {
+                    if(record.get('status')=='FAIL')
+                    {
+                        return '<a href="javascript:winOpen_view_log(' + record.get('sms_id') + ')">查看</a>';
+                    }
+                    return '';
+                }
+                else if(name=='re_submit')
+                {
+                    if(record.get('status')=='FAIL')
+                    {
+                        return '<a href="javascript:reSubmitSms(' + record.get('sms_id') + ')">重发</a>';
+                    }
+                    return '';
+                }
+        	}
+        	
+        	function smsQueryPage_refresh()
+        	{
+        	    $('smsQueryDs').query();
+        	    $('smsHistoryQueryDs').query();
+        	}
+        	
+        	function smsQueryPage_query()
+        	{
+        	    $('smsHistoryQueryDs').query();
+        	}
+		]]></script>
+        <a:dataSets>
+            <a:dataSet id="sys402_query_ds" autoCreate="true"/>
+            <a:dataSet id="smsQueryDs" autoPageSize="true" autoQuery="true" model="sys.SYS401.sys_sms_list" queryDataSet="sys402_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="text" required="true" validator="validate_smsCreateDs"/>
+                    <a:field name="all_phone_number" required="true" validator="validate_smsCreateDs"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="smsHistoryQueryDs" autoPageSize="true" autoQuery="true" model="sys.SYS402.sys_sms_history" queryDataSet="sys402_query_ds">
+                <a:fields><![CDATA[
+                ]]></a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="smsQueryPage_refresh" text="HLS.REFRESH"/>
+                <a:gridButton click="smsQueryPage_query" text="HLS.QUERY"/>
+            </a:screenTopToolbar>
+            <a:form column="5" title="查询">
+                <a:textField name="phone_number" bindTarget="sys402_query_ds" prompt="手机号"/>
+                <a:datePicker name="sms_date_f" bindTarget="sys402_query_ds" prompt="提交时间从"/>
+                <a:datePicker name="sms_date_t" bindTarget="sys402_query_ds" prompt="提交时间到"/>
+                <a:datePicker name="sent_date_f" bindTarget="sys402_query_ds" prompt="发送时间从"/>
+                <a:datePicker name="sent_date_t" bindTarget="sys402_query_ds" prompt="发送时间到"/>
+            </a:form>
+            <a:tabPanel marginHeight="100" marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="待发送" width="100">
+                        <a:grid id="smsQueryDs_grid" bindTarget="smsQueryDs" marginHeight="130" marginWidth="60" navBar="true">
+                            <a:toolBar>
+                                <a:button type="save"/>
+                                <a:button type="delete"/>
+                                <a:button type="excel"/>
+                            </a:toolBar>
+                            <a:columns>
+                                <a:column name="sms_date_str" prompt="提交日期" width="130"/>
+                                <a:column name="status_desc" align="center" prompt="状态" width="100"/>
+                                <a:column name="phone_number" align="right" prompt="手机号" width="100"/>
+                                <a:column name="text" editor="sys402_texted" prompt="短信内容" showTitle="true" width="400"/>
+                                <a:column name="priority_desc" prompt="优先级"/>
+                                <a:column name="view_log" prompt="错误日志" renderer="render_smsQueryDs_grid"/>
+                                <a:column name="re_submit" align="center" prompt="重发" renderer="render_smsQueryDs_grid"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:textField id="sys402_texted"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab prompt="已发送" width="100">
+                        <a:grid id="smsHistoryQueryDs_grid" bindTarget="smsHistoryQueryDs" marginHeight="130" marginWidth="60" navBar="true">
+                            <a:toolBar>
+                                <a:button type="excel"/>
+                            </a:toolBar>
+                            <a:columns>
+                                <a:column name="sms_date_str" prompt="提交日期" width="130"/>
+                                <a:column name="sent_date_str" prompt="发送日期" width="130"/>
+                                <a:column name="phone_number" align="right" prompt="手机号" width="100"/>
+                                <a:column name="text" prompt="短信内容" showTitle="true" width="400"/>
+                                <a:column name="priority_desc" prompt="优先级"/>
+                                <a:column name="msg_id" prompt="移动消息ID" width="200"/>
+                            </a:columns>
+                            <a:editors/>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+            </a:tabPanel>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="con_lawyer_letter_tenant_np_print_link_id" url="${/request/@context_path}/modules/cont/CON620/con_lawyer_letter_tenant_np_print.screen"/>
+        <a:link id="con_lawyer_letter_guarantor_np_print_link_id" url="${/request/@context_path}/modules/cont/CON620/con_lawyer_letter_guarantor_np_print.screen"/>
+        <a:link id="con_lawyer_letter_tenant_org_print_link_id" url="${/request/@context_path}/modules/cont/CON620/con_lawyer_letter_tenant_org_print.screen"/>
+        <a:link id="con_lawyer_letter_guarantor_org_print_link_id" url="${/request/@context_path}/modules/cont/CON620/con_lawyer_letter_guarantor_org_print.screen"/>
+        <script><![CDATA[
+
+            function lock_current_window() {
+                Aurora.Masker.mask(Ext.getBody(), '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_current_window() {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            
+            function set_print_detail_btn_disable() {
+                $('con_lawyer_letter_print_id').disable();
+            }
+            
+            function set_print_detail_btn_enable() {
+                $('con_lawyer_letter_print_id').enable();
+            }
+            
+            function con_lawyer_letter_print() {
+                var records = $('con_contract_bp_ds').getSelected();
+                if (records.length != 1) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                    unlock_current_window();
+                    set_print_detail_btn_enable();
+                    return;
+                }
+                var record = records[0];
+                if (record.dirty) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:HLS.EXECUTE_AFTER_SAVE}');
+                    unlock_current_window();
+                    set_print_detail_btn_enable();
+                    return;
+                }
+            
+                var templt_name = '';
+                var link = '';
+                var bp_class = record.get('bp_class');
+                var bp_category = record.get('bp_category');
+                if (bp_class == 'NP') {
+                    if (bp_category == 'TENANT') {
+                        templt_name = 'cf_lawyer_letter_tenant_np.xml';
+                        link = $('con_lawyer_letter_tenant_np_print_link_id').getUrl();
+                    } else if (bp_category == 'GUARANTOR') {
+                        templt_name = 'cf_lawyer_letter_guarantor_np.xml';
+                        link = $('con_lawyer_letter_guarantor_np_print_link_id').getUrl();
+                    } else {
+                        alert('商业伙伴类型没有维护，不能打印催收函');
+                        return;
+                    }
+                } else if (bp_class == 'ORG') {
+                    if (bp_category == 'TENANT') {
+                        templt_name = 'cf_lawyer_letter_tenant_org.xml';
+                        link = $('con_lawyer_letter_tenant_org_print_link_id').getUrl();
+                    } else if (bp_category == 'GUARANTOR') {
+                        templt_name = 'cf_lawyer_letter_guarantor_org.xml';
+                        link = $('con_lawyer_letter_guarantor_org_print_link_id').getUrl();
+                    } else {
+                        alert('商业伙伴类型没有维护，不能打印催收函');
+                        return;
+                    }
+                } else {
+                    alert('商业伙伴类型没有维护，不能打印催收函');
+                    return;
+                }
+
+                var url = link + '?templt_name=' + templt_name + '&contract_id=' + record.get('contract_id');
+                var form = document.createElement("form");
+                form.target = "word_export_window";
+                form.method = "post";
+                form.action = url;
+                var iframe = Ext.get('word_export_window') || new Ext.Template('<iframe id ="word_export_window" name="word_export_window" style="position:absolute;left:-10000px;top:-10000px;width:1px;height:1px;display:none"></iframe>').insertFirst(document.body, {}, true);
+                document.body.appendChild(form);
+                form.submit();
+                Ext.fly(form).remove();
+                unlock_current_window();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="con_contract_bp_ds" loadData="true" model="cont.CON620.con_contract_bp_query" queryUrl="${/request/@context_path}/autocrud/cont.CON620.con_contract_bp_query/query?contract_id = ${/parameter/@contract_id}" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="contract_id" readOnly="true"/>
+                    <a:field name="bp_name" readOnly="true"/>
+                    <a:field name="bp_category" readOnly="true"/>
+                    <a:field name="bp_class" readOnly="true"/>
+                    <a:field name="bp_category_n" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar style="width:480px">
+                <a:screenTitle/>
+                <a:gridButton id="con_lawyer_letter_print_id" click="con_lawyer_letter_print" text="HLS.PRINT_CONFIRM"/>
+            </a:screenTopToolbar>
+            <a:grid id="con_contract_bp_id" bindTarget="con_contract_bp_ds" height="300" navBar="true" width="470">
+                <a:columns>
+                    <a:column name="bp_name" prompt="名称"/>
+                    <a:column name="bp_category_n" prompt="类型"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

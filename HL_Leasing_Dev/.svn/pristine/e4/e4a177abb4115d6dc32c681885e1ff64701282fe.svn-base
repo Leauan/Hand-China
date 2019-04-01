@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-9-24 下午02:03:10  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.document_category=&apos;CHANGE_REQUEST&apos;" fetchAll="true" model="basic.hls_document_type_for_lov" rootPath="hls_document_type_path"/>
+        <a:model-query defaultWhereClause="t1.document_category=&apos;CHANGE_REQUEST&apos; and t1.document_type=&apos;QUO_CHANGE_REQ&apos;" fetchAll="true" model="basic.hls_document_type_for_lov" rootPath="default_document_type_path"/>
+        <a:model-query defaultWhereClause="t1.user_id=${/session/@user_id}" fetchAll="true" model="basic.sys_user_for_lov" rootPath="default_sys_user_path"/>
+        <a:model-query fetchAll="true" model="basic.hls_sys_time_default_value" rootPath="default_value_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_quotation_change_req_link_id" url="${/request/@context_path}/modules/cont/CON721/con_contract_quotation_change_req.screen"/>
+        <a:link id="con_contract_quotation_change_req_copy_link_id" model="cont.CON721.con_contract_quotation_change_req_copy" modelaction="update"/>
+        <a:link id="hls_fin_calculator_update_link_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calculator_update.screen"/>
+        <script><![CDATA[
+            var to_calc_session_id;
+            
+            function con_contract_quotation_change_req_detail_submit() {
+                if ($('con_contract_quotation_change_req_detail_ds').validate()) {
+                    $A.Masker.mask(Ext.fly(document.documentElement), '${l:HLS.EXECUTING}');
+                    var record = $('con_contract_quotation_change_req_detail_ds').getAt(0);
+                    record.set('calc_session_id', to_calc_session_id);
+                    $('con_contract_quotation_change_req_detail_ds').submit();
+                }
+            }
+            
+            function on_change_req_detail_submitsuccess(ds) {
+                $A.Masker.unmask(Ext.fly(document.documentElement));
+                con_contract_quotation_change_req_detail_return();
+            }
+            
+            function on_change_req_detail_submitfailed(ds) {
+                $A.Masker.unmask(Ext.fly(document.documentElement));
+            }
+            
+            function con_contract_quotation_change_req_detail_return() {
+                window.location.href = $('con_contract_quotation_change_req_link_id').getUrl();
+            }
+            
+            function open_calc_window(calc_session_id) {
+                new Aurora.Window({
+                    id: 'hls_fin_calc_quotation_change_link_id',
+                    params: {
+                        calc_session_id: calc_session_id,
+                        document_id: '${/parameter/@contract_id}',
+                        document_category: 'CONTRACT',
+                        maintain_type: 'UPDATE',
+                        winId: 'hls_fin_calc_quotation_change_link_id',
+                        global_flag: 'Y',
+                        calc_type: 'CLASSIC_CALCULATOR'
+                    },
+                    url: $('hls_fin_calculator_update_link_id').getUrl(),
+                    title: '${l:HLS.FIN_CALCULATOR}',
+                    fullScreen: true,
+                    draggable: true
+                });
+            }
+            
+            function con_contract_quotation_change_req_detail_query() {
+            	open_calc_window(to_calc_session_id);
+            }
+            Aurora.onReady(function() {
+                $A.Masker.mask(Ext.fly(document.documentElement), '${l:HLS.EXECUTING}');
+                Aurora.request({
+                    url: $('con_contract_quotation_change_req_copy_link_id').getUrl(),
+                    para: {
+                        from_calc_session_id: '${/parameter/@calc_session_id}'
+                    },
+                    success: function(res) {
+                        Ext.get('change_quotation_req_id').setStyle({
+                            display: ''
+                        });
+                        $A.Masker.unmask(Ext.fly(document.documentElement));
+                        to_calc_session_id = res.result.to_calc_session_id;
+                        open_calc_window(to_calc_session_id);
+                    },
+                    error: function() {
+                        con_contract_quotation_change_req_detail_return();
+                    },
+                    failure: function() {
+                        con_contract_quotation_change_req_detail_return();
+                    },
+                    scope: this
+                });
+            });
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="hls_document_type_ds">
+                <a:datas dataSource="/model/hls_document_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="con_contract_quotation_change_req_detail_ds" autoCreate="true" submitUrl="${/request/@context_path}/modules/cont/CON721/con_contract_quotation_change_req.svc">
+                <a:fields>
+                    <a:field name="req_date" defaultValue="${/model/default_value_path/record/@now_time}" required="true"/>
+                    <a:field name="document_type_desc" defaultValue="${/model/default_document_type_path/record/@description}" displayField="description" options="hls_document_type_ds" required="true" returnField="document_type" valueField="document_type">
+                        <a:mapping>
+                            <a:map from="document_category" to="document_category"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="document_type" defaultValue="${/model/default_document_type_path/record/@document_type}"/>
+                    <a:field name="req_status" defaultValue="NEW"/>
+                    <a:field name="contract_id" defaultValue="${/parameter/@contract_id}"/>
+                    <a:field name="document_category" defaultValue="${/model/default_document_type_path/record/@document_category}"/>
+                    <a:field name="user_desc" defaultValue="${/model/default_sys_user_path/record/@description}" readOnly="true"/>
+                    <a:field name="description"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="on_change_req_detail_submitsuccess"/>
+                    <a:event name="submitfailed" handler="on_change_req_detail_submitfailed"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody id="change_quotation_req_id" style="display:none">
+            <a:screenTopToolbar>
+                <a:gridButton click="con_contract_quotation_change_req_detail_return" text="HLS.RETURN"/>
+                <a:gridButton click="con_contract_quotation_change_req_detail_submit" text="HLS.SUBMIT"/>
+                <a:gridButton click="con_contract_quotation_change_req_detail_query" text="CON721.CONTRACT_CHANGE_QUOTATION"/>
+            </a:screenTopToolbar>
+            <a:form column="3" labelWidth="100" title="CON721.CONTRACT_QUOTATION_CHANGE_REQ" width="750">
+                <a:datePicker name="req_date" bindTarget="con_contract_quotation_change_req_detail_ds" prompt="HLS.REQ_DATE" width="142"/>
+                <a:comboBox name="document_type_desc" bindTarget="con_contract_quotation_change_req_detail_ds" prompt="CON721.CONTRACT_QUOTATION_CHANGE_TYPE" width="142"/>
+                <a:lov name="user_desc" bindTarget="con_contract_quotation_change_req_detail_ds" prompt="HLS.APPLIER" width="142"/>
+                <a:textField name="description" bindTarget="con_contract_quotation_change_req_detail_ds" colspan="3" prompt="CON721.CONTRACT_QUOTATION_CHANGE_TEXT" width="642"/>
+            </a:form>
+        </a:screenBody>
+    </a:view>
+</a:screen>

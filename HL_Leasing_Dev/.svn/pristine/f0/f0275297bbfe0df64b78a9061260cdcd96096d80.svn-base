@@ -1,0 +1,727 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-6-24 下午07:14:16  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <!-- <s:server-script><![CDATA[
+            var n = $ctx.model.getChild('layout_config_grid_path');
+            if (n) $ctx.model.removeChild(n);
+            n = $ctx.model.getChild('tab_layout_grid_path');
+            if (n) $ctx.model.removeChild(n);
+        ]]></s:server-script> -->
+        <a:model-query defaultWhereClause="t1.enabled_flag=&apos;Y&apos;" fetchAll="true" model="hls.HLS030.hls_doc_layout_config_grid_field" rootPath="layout_config_grid_nodisplay_path"/>
+        <a:model-query defaultWhereClause="t1.enabled_flag=&apos;Y&apos; and t1.display_flag=&apos;Y&apos;" fetchAll="true" model="hls.HLS030.hls_doc_layout_config_grid_field" rootPath="layout_config_grid_path"/>
+        <a:model-query defaultWhereClause="t1.tab_code=${/parameter/@grid_tab_code} and t1.enabled_flag=&apos;Y&apos;" fetchAll="true" model="cont.CON500.con_hls_doc_layout_tab_query" rootPath="tab_layout_grid_path"/>
+        <a:model-query defaultWhereClause="t1.tab_code=${/parameter/@grid_tab_code} and t1.enabled_flag=&apos;Y&apos; and t1.display_flag=&apos;Y&apos;" fetchAll="true" model="hls.HLS030.hls_doc_layout_doc_tab_button" rootPath="layout_grid_button_path"/>
+        <!-- <s:server-script xmlns:s='aurora.plugin.script'><![CDATA[
+        	var m=$ctx.get('/model/layout_config_grid_path');
+        	 println(m.toXML());
+        ]]></s:server-script> -->
+    </a:init-procedure>
+    <a:view>
+        <a:link id="${/parameter/@grid_tab_code}_hls_fin_doc_quotation_link_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_doc_quotation.svc"/>
+        <a:link id="${/parameter/@grid_tab_code}_hls_fin_calc_quotation_header_link_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calc_quotation_header.screen"/>
+        <a:link id="${/parameter/@grid_tab_code}_hls_fin_calculator_update_link_id" url="${/request/@context_path}/modules/hls/HLS500N/hls_fin_calculator_update_n.screen"/>
+        <a:link id="${/parameter/@grid_tab_code}_hls_fin_calculator_readonly_link_id" url="${/request/@context_path}/modules/hls/HLS500/hls_fin_calculator_readonly.screen"/>
+        <a:link id="${/parameter/@grid_tab_code}_prj_chance_choose_guarantee_type_link_id" url="${/request/@context_path}/modules/prj/PRJ401/prj_chance_print_intention_detail.screen"/>
+        <a:link id="${/parameter/@grid_tab_code}_hls_lease_item_list_readonly_link_id" url="${/request/@context_path}/modules/hls/HLS203/hls_lease_item_list_readonly.screen"/>
+        <style><![CDATA[
+		.item-options{
+		    background:#ffffff;
+		}
+		.cell-editor{
+    		border:none;
+    		margin-left:3px;
+    	}
+        ]]></style>
+        <script src="${/request/@context_path}/javascripts/calculate.js"/>
+        <script><![CDATA[
+            var grid_remove_list = [];
+            window['${/parameter/@grid_tab_code}_con_grid_process'] = function(datas) {
+                for (var i = 0;i < datas.length;i++) {
+                    var temp = datas[i];
+                    for (var name in temp.data) {
+                        var temp_record = $('${/parameter/@grid_tab_code}_con_layout_config_ds').find('column_name', name);
+                        if (temp_record) {
+                            if (temp_record.get('validation_type') == 'NUMBERFIELD') {
+                                temp.data[name] = isNaN(temp.data[name]) == true ? temp.data[name] : parseFloat(parseFloat(temp.data[name]).toFixed(temp_record.get('precision')));
+                            }
+                        }
+                    }
+                }
+                return datas;
+            };
+            
+            function hls_formatMoney(v, p) {
+                return Aurora.formatNumber(v, p);
+            }
+            
+            function hls_formatMoney_zero_fill(v, p) {
+                return Aurora.formatNumber(v, p).replace(/0*$/g, '').replace(/\.$/, '');
+            }
+            
+            window['${/parameter/@grid_tab_code}_seedetail_ln_picture'] = function(value, record, name) {
+                var pic = get_grid_pic(record, name);
+                if (pic) {
+                    return pic;
+                } else {
+                    return '';
+                }
+            };
+            
+            window['${/parameter/@grid_tab_code}_seedetail_column_ln'] = function(value, record, name) {
+                var editor_record = $('${/parameter/@grid_tab_code}_con_layout_config_ds').find('column_name', name),
+                    precision = editor_record.get('precision'),
+                    validation_type = editor_record.get('validation_type');
+                if ((validation_type == 'NUMBERFIELD' || validation_type == 'PERCENTFIELD') && !Ext.isEmpty(value)) {
+                    if (editor_record.get('allow_format') == 'TRUE') {
+                        if (precision) {
+                            if (editor_record.get('zero_fill') == 'TRUE') {
+                                return hls_formatMoney(value, precision);
+                            } else {
+                                return hls_formatMoney_zero_fill(value, precision);
+                            }
+                        } else {
+                            return hls_formatMoney(value);
+                        }
+                    } else {
+                        if (precision && editor_record.get('allow_decimal') == 'TRUE') {
+                            if (editor_record.get('zero_fill') == 'TRUE') {
+                                return parseFloat(value).toFixed(precision);
+                            } else {
+                                return parseFloat(value).toFixed(precision).replace(/0*$/g, '').replace(/\.$/, '');
+                            }
+                        } else {
+                            if (editor_record.get('allow_decimal') == 'TRUE') {
+                                return value;
+                            } else {
+                                return parseFloat(parseFloat(value).toFixed(0));
+                            }
+                        }
+                    }
+                } else if (validation_type == 'DATEPICKER') {
+                    return Aurora.formatDate(value);
+                } else {
+                    return value;
+                }
+            };
+            
+            window['${/parameter/@grid_tab_code}_on_con_result_grid_add'] = function(ds) {
+                var line_record = ds.getCurrentRecord(),
+                    parent_table_tab_code = '${/model/tab_layout_grid_path/record/@parent_table_tab_code}',
+                    parent_table = '${/model/tab_layout_grid_path/record/@parent_table}',
+                    parent_base_table_pk = '${/model/tab_layout_grid_path/record/@parent_base_table_pk}';
+                var parent_ds_id = parent_table_tab_code + '_' + parent_table + '_ds';
+                var head_record = $(parent_ds_id).getCurrentRecord();
+                var config_records = $('${/parameter/@grid_tab_code}_con_layout_config_ds').getAll();
+                line_record.set('document_category', '${/parameter/@document_category}');
+                if (head_record.get(parent_base_table_pk)) {
+                    line_record.set(parent_base_table_pk, head_record.get(parent_base_table_pk));
+                    if ('${/model/tab_layout_grid_path/record/@base_table}'.toUpperCase() == 'PRJ_QUOTATION') {
+                        line_record.set('document_id', head_record.get(parent_base_table_pk));
+                    }
+                }
+                for (var i = 0;i < config_records.length;i++) {
+                    var config_record = config_records[i],
+                        validation_type = config_record.get('validation_type'),
+                        // validation_sql = config_record.get('validation_sql'),
+                        column_name = config_record.get('column_name'),
+                        display_name = config_record.get('column_name') + '_n';
+                    if (config_record.get('copy_from_parent_tab') == 'Y') {
+                        line_record.set(column_name, head_record.get(column_name));
+                        line_record.set(display_name, head_record.get(display_name));
+                    }
+                    if (validation_type == 'LOV' || validation_type == 'LOV_C' || validation_type == 'TREE' || validation_type == 'TREE_C') {
+                        // if (validation_type == 'LOV') {
+                        // line_record.getField(display_name).setLovPara('validation_sql', validation_sql);
+                        // } else if (validation_type == 'LOV_C') {
+                        // line_record.getField(column_name).setLovPara('validation_sql', validation_sql);
+                        // }
+                        var documentMapping;
+                        if (config_record.get('lov_return_vcode') == 'Y') {
+                            documentMapping = [{
+                                from: 'value_code',
+                                to: column_name
+                            }, {
+                                from: 'value_code',
+                                to: column_name
+                            }];
+                            line_record.getField(column_name).setMapping(documentMapping);
+                        } else {
+                            documentMapping = [{
+                                from: 'value_code',
+                                to: column_name
+                            }, {
+                                from: 'value_name',
+                                to: display_name
+                            }];
+                            line_record.getField(display_name).setMapping(documentMapping);
+                        }
+                    } else if (validation_type == 'COMBOBOX' || validation_type == 'COMBOBOX_C') {
+                        var combobox_ds = '${/parameter/@grid_tab_code}' + '_' + column_name + '_combobox_ds';
+                        var combobox_field;
+                        // $(combobox_ds).setQueryParameter('validation_sql', config_record.get('validation_sql'));
+                        var combobox_documentmapping;
+                        if (config_record.get('lov_return_vcode') == 'Y') {
+                            combobox_field = line_record.getField(column_name);
+                            combobox_field.setPropertity('displayfield', 'value_code');
+                            line_record.getField(column_name).setMapping(combobox_documentmapping);
+                        } else {
+                            combobox_field = line_record.getField(display_name);
+                            combobox_field.setPropertity('displayfield', 'value_name');
+                            line_record.getField(display_name).setMapping(combobox_documentmapping);
+                        }
+                    }
+                }
+                window['${/parameter/@grid_tab_code}_on_con_result_grid_add_dynamic'](ds, line_record);
+            };
+            
+            window['${/parameter/@grid_tab_code}_on_con_result_grid_load'] = function(ds) {
+                var records = ds.getAll();
+                if (records.length) {
+                    for (var i = 0;i < records.length;i++) {
+                        var line_record = records[i];
+                        var config_records = $('${/parameter/@grid_tab_code}_con_layout_config_ds').getAll();
+                        for (var j = 0;j < config_records.length;j++) {
+                            var config_record = config_records[j],
+                                validation_type = config_record.get('validation_type'),
+                                column_name = config_record.get('column_name'),
+                                display_name = config_record.get('column_name') + '_n';
+                            // validation_sql = config_record.get('validation_sql');
+                            if (validation_type == 'LOV' || validation_type == 'LOV_C' || validation_type == 'TREE' || validation_type == 'TREE_C') {
+                                // if (validation_type == 'LOV') {
+                                // line_record.getField(display_name).setLovPara('validation_sql', validation_sql);
+                                // } else if (validation_type == 'LOV_C') {
+                                // line_record.getField(column_name).setLovPara('validation_sql', validation_sql);
+                                // }
+                                var documentMapping;
+                                if (config_record.get('lov_return_vcode') == 'Y') {
+                                    documentMapping = [{
+                                        from: 'value_code',
+                                        to: column_name
+                                    }, {
+                                        from: 'value_code',
+                                        to: column_name
+                                    }];
+                                    line_record.getField(column_name).setMapping(documentMapping);
+                                } else {
+                                    documentMapping = [{
+                                        from: 'value_code',
+                                        to: column_name
+                                    }, {
+                                        from: 'value_name',
+                                        to: display_name
+                                    }];
+                                    line_record.getField(display_name).setMapping(documentMapping);
+                                }
+                            } else if (validation_type == 'COMBOBOX' || validation_type == 'COMBOBOX_C') {
+                                var combobox_ds = '${/parameter/@grid_tab_code}' + '_' + config_record.get('column_name') + '_combobox_ds';
+                                var combobox_field;
+                                // $(combobox_ds).setQueryParameter('validation_sql', validation_sql);
+                                var combobox_documentmapping;
+                                if (config_record.get('lov_return_vcode') == 'Y') {
+                                    combobox_field = line_record.getField(column_name);
+                                    combobox_field.setPropertity('displayfield', 'value_code');
+                                } else {
+                                    combobox_field = line_record.getField(display_name);
+                                    combobox_field.setPropertity('displayfield', 'value_name');
+                                }
+                            }
+                        }
+                        window['${/parameter/@grid_tab_code}_on_con_update_dymanic'](ds, line_record);
+                    }
+                }
+                unlock_current_window();
+            };
+            
+            window['${/parameter/@grid_tab_code}_on_con_doc_query'] = function(ds, para) {
+                var head_record = $('${/model/tab_layout_grid_path/record/@parent_table_tab_code}_${/model/tab_layout_grid_path/record/@parent_table}_ds').getCurrentRecord();
+                if (head_record) {
+                    para['${/model/tab_layout_grid_path/record/@parent_base_table_pk}'] = head_record.get('${/model/tab_layout_grid_path/record/@parent_base_table_pk}');
+                }
+                if (grid_remove_list[ds.id] == ds.id) {
+                    delete grid_remove_list[ds.id];
+                    var all = $A.CmpManager.getAll();
+                    for (var id in all) {
+                        var cmp = all[id];
+                        if ((cmp.binder ? cmp.binder.ds : cmp.dataset) != ds && cmp instanceof $A.Grid) {
+                            var find_ds = cmp.binder ? cmp.binder.ds : cmp.dataset;
+                            var base_table = '${/model/tab_layout_grid_path/record/@base_table}';
+                            var base_table_tail = base_table + '_ds';
+                            if (find_ds.id.match(new RegExp(base_table_tail + '$')) && grid_remove_list[find_ds.id] == find_ds.id) {
+                                find_ds.query();
+                                delete grid_remove_list[find_ds.id];
+                            }
+                        }
+                    }
+                }
+            };
+            
+            function on_grid_combobox_focus(combobox) {
+                if (!combobox.optionDataSet.isLoaded) {
+                    combobox.optionDataSet.isLoaded = true;
+                    combobox.optionDataSet.query();
+                }
+            }
+            
+            function sumFunction(datas, name) {
+                var sum = 0;
+                for (var i = 0;i < datas.length;i++) {
+                    var r = datas[i];
+                    var d = r.get(name);
+                    var n = parseFloat(d);
+                    if (!isNaN(n)) {
+                        sum = plus(sum, n);
+                    }
+                }
+                var total = (typeof(sum) == 'undefined' ? '' : parseFloat(sum));
+                return '<font>' + Aurora.formatNumber(total) + '</font>';
+            }
+            
+            window['${/parameter/@grid_tab_code}_see_detail_editor'] = function(record, name) {
+                name = get_config_column_name(name);
+                var config_record = $('${/parameter/@grid_tab_code}_con_layout_config_ds').find('column_name', name);
+                if (config_record) {
+                    var editor = '${/parameter/@grid_tab_code}_' + name + '_id';
+                    if (config_record.get('input_mode') == 'READONLY') {
+                        return '';
+                    }
+                    if (!record.isNew && config_record.get('input_mode') == 'REQUIRED_ONLY_ADD') {
+                        return '';
+                    } else {
+                        return editor;
+                    }
+                }
+            };
+            window['${/parameter/@grid_tab_code}_grid_query'] = function() {
+                $('${/parameter/@grid_tab_code}_${/model/tab_layout_grid_path/record/@base_table}_ds').query();
+            };
+            window['${/parameter/@grid_tab_code}_on_grid_object_focus'] = function(object) {
+                var config_ds = $('${/parameter/@grid_tab_code}_con_layout_config_ds'),
+                    name = get_config_column_name(object.binder.name),
+                    display_name = object.binder.name,
+                    record = object.record || object.binder.ds.create();
+                var config_record = config_ds.find('column_name', name);
+                var lov_cascade_para1 = config_record.get('lov_cascade_para1'),
+                    lov_cascade_para2 = config_record.get('lov_cascade_para2'),
+                    lov_cascade_para3 = config_record.get('lov_cascade_para3'),
+                    field = record.getField(display_name);
+                if (object instanceof $A.Lov) {
+                    if (config_record.get('validation_type') == 'LOV' || config_record.get('validation_type') == 'LOV_C') {
+                        field.setLovPara('column_name', name);
+                        field.setLovPara('tab_code', config_record.get('tab_code'));
+                        field.setLovPara('layout_code', config_record.get('layout_code'));
+                    }
+                    setObjectPara('LOV', '', field, lov_cascade_para1, record);
+                    setObjectPara('LOV', '', field, lov_cascade_para2, record);
+                    setObjectPara('LOV', '', field, lov_cascade_para3, record);
+                } else if (object instanceof $A.ComboBox) {
+                    var combobox_ds = object.optionDataSet;
+                    combobox_ds.setQueryParameter('column_name', name);
+                    combobox_ds.setQueryParameter('tab_code', config_record.get('tab_code'));
+                    combobox_ds.setQueryParameter('layout_code', config_record.get('layout_code'));
+                    setObjectPara('COMBOBOX', combobox_ds, field, lov_cascade_para1, record);
+                    setObjectPara('COMBOBOX', combobox_ds, field, lov_cascade_para2, record);
+                    setObjectPara('COMBOBOX', combobox_ds, field, lov_cascade_para3, record);
+                    combobox_ds.query();
+                }
+            };
+            
+            //自定义按钮
+            window['${/parameter/@grid_tab_code}_grid_user_button1'] = function() {
+                //合同租赁物发票导入
+                if ('${/parameter/@layout_code}' == 'CONTRACT_MODIFY' && '${/parameter/@grid_tab_code}' == 'G_ASSET') {
+                    var contract_id = '${/parameter/@document_id}';
+            
+                    if (!Ext.isEmpty(contract_id)) {
+                        new Aurora.Window({
+                            id: 'con_contract_lease_item_import_win',
+                            url: '${/request/@context_path}/modules/cont/CON500/con_contract_lease_item_invoice_import.screen',
+                            params: {
+                                'winid': 'con_contract_lease_item_import_win',
+                                'contract_id': contract_id,
+                                'session_id': '${/session/@session_id}',
+                                'parent_ds_id':'${/parameter/@grid_tab_code}_${/model/tab_layout_grid_path/record/@base_table}_ds'
+                            },
+                            width: 500,
+                            height: 400
+                        });
+                    }
+                }
+            };
+            
+            window['${/parameter/@grid_tab_code}_on_grid_object_beforecommit'] = function(object, record, lov_record) {
+                var display_name = object.binder.name,
+                    field = record.getField(display_name),
+                    mapping = field.get('mapping'),
+                    exists_flag = false;
+                for (var name in lov_record.data) {
+                    exists_flag = false;
+                    for (var i = 0,
+                        mapping_length = mapping.length;i < mapping_length;i++) {
+                        if ((exists_flag = (name == mapping[i]['from']))) {
+                            break;
+                        }
+                    }
+                    if (!exists_flag) {
+                        mapping.push({
+                            from: name,
+                            to: name
+                        });
+                    }
+                }
+                field.setMapping(mapping);
+            };
+            
+            window['${/parameter/@grid_tab_code}_on_con_doc_remove'] = function(ds, record, index) {
+                grid_remove_list[ds.id] = ds.id;
+                var all = $A.CmpManager.getAll();
+                for (var id in all) {
+                    var cmp = all[id];
+                    if ((cmp.binder ? cmp.binder.ds : cmp.dataset) != ds && cmp instanceof $A.Grid) {
+                        var find_ds = cmp.binder ? cmp.binder.ds : cmp.dataset;
+                        var base_table = '${/model/tab_layout_grid_path/record/@base_table}',
+                            base_table_pk = '${/model/tab_layout_grid_path/record/@base_table_pk}'.toLowerCase();
+                        var base_table_tail = base_table + '_ds';
+                        if (find_ds.id.match(new RegExp(base_table_tail + '$'))) {
+                            if (Ext.isDefined(record.get(base_table_pk))) {
+                                var find_record = find_ds.find(base_table_pk, record.get(base_table_pk));
+                                if (find_record) {
+                                    find_ds.removeLocal(find_record);
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_update_dynamic.screen?tab_code=${/parameter/@grid_tab_code}&amp;layout_code=${/parameter/@layout_code}&amp;function_code=${/parameter/@function_code}&amp;winid=${/parameter/@winid}&amp;document_id=${/parameter/@document_id}&amp;document_category=${/parameter/@document_category}&amp;parent_table_tab_code=${/model/tab_layout_grid_path/record/@parent_table_tab_code}&amp;parent_table=${/model/tab_layout_grid_path/record/@parent_table}&amp;base_table=${/model/tab_layout_grid_path/record/@base_table}&amp;parent_base_table_pk=${/model/tab_layout_grid_path/record/@parent_base_table_pk}&amp;calc_type=${/parameter/@calc_type}"/>
+        <a:dataSets>
+            <a:placeHolder id="dynamicFormDataSet_Grid_id"/>
+            <a:dataSet id="${/parameter/@grid_tab_code}_con_layout_config_ds">
+                <a:datas dataSource="/model/layout_config_grid_nodisplay_path"/>
+            </a:dataSet>
+            <a:dataSet id="${/parameter/@grid_tab_code}_${/model/tab_layout_grid_path/record/@base_table}_ds" autoPageSize="true" bindName="${/parameter/@grid_tab_code}_${/model/tab_layout_grid_path/record/@base_table}" bindTarget="${/model/tab_layout_grid_path/record/@parent_table_tab_code}_${/model/tab_layout_grid_path/record/@parent_table}_ds" fetchAll="${/model/tab_layout_grid_path/record/@fetchall}" processfunction="${/parameter/@grid_tab_code}_con_grid_process" queryUrl="${/request/@context_path}/modules/cont/CON500/con_contract_base_query.svc?document_category=${/parameter/@document_category}&amp;document_type=${/parameter/@document_type}&amp;tab_code=${/parameter/@grid_tab_code}&amp;layout_code=${/parameter/@layout_code}" selectable="true" submitUrl="${/request/@context_path}/modules/cont/CON500/con_contract_save.svc?base_table=${/model/tab_layout_grid_path/record/@base_table}&amp;query_only=${/model/tab_layout_grid_path/record/@query_only}&amp;tab_code=${/parameter/@grid_tab_code}&amp;document_id=${/parameter/@document_id}&amp;document_category=${/parameter/@document_category}&amp;document_type=${/parameter/@document_type}&amp;function_code=${/parameter/@function_code}&amp;function_usage=${/parameter/@function_usage}&amp;parent_table=${/model/tab_layout_grid_path/record/@parent_table}&amp;parent_base_table_pk=${/model/tab_layout_grid_path/record/@parent_base_table_pk}">
+                <a:fields>
+                    <a:placeHolder id="dynamicGridFields"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="${/parameter/@grid_tab_code}_on_con_result_grid_add"/>
+                    <a:event name="load" handler="${/parameter/@grid_tab_code}_on_con_result_grid_load"/>
+                    <a:event name="update" handler="${/parameter/@grid_tab_code}_on_con_doc_update"/>
+                    <a:event name="query" handler="${/parameter/@grid_tab_code}_on_con_doc_query"/>
+                    <a:event name="remove" handler="${/parameter/@grid_tab_code}_on_con_doc_remove"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:grid id="${/parameter/@grid_tab_code}_con_contract_grid_id" bindTarget="${/parameter/@grid_tab_code}_${/model/tab_layout_grid_path/record/@base_table}_ds" height="${/model/tab_layout_grid_path/record/@height}" marginHeight="${/model/tab_layout_grid_path/record/@margin_height}" marginWidth="${/model/tab_layout_grid_path/record/@margin_width}" navBar="true" width="${/model/tab_layout_grid_path/record/@width}">
+            <a:toolBar>
+                <span style="line-height:23px;margin-right:5px"><![CDATA[${/model/tab_layout_grid_path/record/@tab_desc}]]></span>
+                <a:placeHolder id="layout_grid_button_dymanic_id"/>
+            </a:toolBar>
+            <a:columns>
+                <a:placeHolder id="dynamicLineGrid_id"/>
+            </a:columns>
+            <a:editors>
+                <a:placeHolder id="dynamicLineEditor_id"/>
+            </a:editors>
+        </a:grid>
+        <script><![CDATA[
+            Aurora.onReady(function() {
+                var base_ds = $('${/parameter/@grid_tab_code}_${/model/tab_layout_grid_path/record/@base_table}_ds');
+                var parent_ds = $('${/model/tab_layout_grid_path/record/@parent_table_tab_code}_${/model/tab_layout_grid_path/record/@parent_table}_ds');
+                parent_ds.on('indexchange', function() {
+                    base_ds.setQueryParameter('${/model/tab_layout_grid_path/record/@parent_base_table_pk}', parent_ds.getCurrentRecord().get('${/model/tab_layout_grid_path/record/@parent_base_table_pk}'));
+                    base_ds.query();
+                });
+            });
+        ]]></script>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="dynamicFormDataSet_Grid_id">
+            <p:loop source="/model/layout_config_grid_nodisplay_path">
+                <p:switch test="@validation_type">
+                    <p:case value="COMBOBOX">
+                        <c:process-config>
+                            <a:dataSet id="${/parameter/@grid_tab_code}_${@column_name}_combobox_ds" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/cont.CON500.con_parameters_lov/query"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="COMBOBOX_C">
+                        <c:process-config>
+                            <a:dataSet id="${/parameter/@grid_tab_code}_${@column_name}_combobox_ds" fetchAll="true" queryUrl="${/request/@context_path}/autocrud/cont.CON500.con_parameters_lov/query"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicGridFields">
+            <p:loop source="/model/layout_config_grid_nodisplay_path">
+                <p:switch test="@validation_type">
+                    <p:case value="LOV_C">
+                        <c:process-config>
+                            <a:field name="${@column_name}" autoComplete="${@autocomplete}" defaultValue="${@default_value}" fetchSingle="${@fetchsingle}" lovGridHeight="350" lovHeight="500" lovService="cont.CON500.con_parameters_lov" lovWidth="560" readOnly="${@readonly_input_mode}" required="${@required_input_mode}" requiredMessage="${/model/tab_layout_grid_path/record/@tab_desc}${@prompt}${l:HLS.NOT_NULL}" title="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="LOV">
+                        <c:process-config>
+                            <a:field name="${@column_name}_n" autoComplete="${@autocomplete}" defaultValue="${@default_value_name}" fetchSingle="${@fetchsingle}" lovGridHeight="350" lovHeight="500" lovService="cont.CON500.con_parameters_lov" lovWidth="560" readOnly="${@readonly_input_mode}" required="${@required_input_mode}" requiredMessage="${/model/tab_layout_grid_path/record/@tab_desc}${@prompt}${l:HLS.NOT_NULL}" title="${@prompt}"/>
+                            <a:field name="${@column_name}" defaultValue="${@default_value}" requiredMessage="${/model/tab_layout_grid_path/record/@tab_desc}${@prompt}${l:HLS.NOT_NULL}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TREE_C">
+                        <c:process-config>
+                            <a:field name="${@column_name}" defaultValue="${@default_value}" lovGridHeight="350" lovHeight="500" lovUrl="${/request/@context_path}/modules/cont/CON500/con_contract_update_lov_tree.screen?tab_code=${/parameter/@grid_tab_code}&amp;layout_code=${/parameter/@layout_code}&amp;column_name=${@column_name}" lovWidth="500" readOnly="${@readonly_input_mode}" required="${@required_input_mode}" requiredMessage="${/model/tab_layout_grid_path/record/@tab_desc}${@prompt}${l:HLS.NOT_NULL}" title="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TREE">
+                        <c:process-config>
+                            <a:field name="${@column_name}_n" defaultValue="${@default_value_name}" lovGridHeight="350" lovHeight="500" lovUrl="${/request/@context_path}/modules/cont/CON500/con_contract_update_lov_tree.screen?tab_code=${/parameter/@grid_tab_code}&amp;layout_code=${/parameter/@layout_code}&amp;column_name=${@column_name}" lovWidth="500" readOnly="${@readonly_input_mode}" required="${@required_input_mode}" requiredMessage="${/model/tab_layout_grid_path/record/@tab_desc}${@prompt}${l:HLS.NOT_NULL}" title="${@prompt}"/>
+                            <a:field name="${@column_name}" defaultValue="${@default_value}" requiredMessage="${/model/tab_layout_grid_path/record/@tab_desc}${@prompt}${l:HLS.NOT_NULL}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="COMBOBOX_C">
+                        <c:process-config>
+                            <a:field name="${@column_name}" defaultValue="${@default_value}" options="${/parameter/@grid_tab_code}_${@column_name}_combobox_ds" readOnly="${@readonly_input_mode}" required="${@required_input_mode}" requiredMessage="${/model/tab_layout_grid_path/record/@tab_desc}${@prompt}${l:HLS.NOT_NULL}" returnField="${@column_name}" title="${@prompt}" valueField="value_code"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="COMBOBOX">
+                        <c:process-config>
+                            <a:field name="${@column_name}_n" defaultValue="${@default_value_name}" options="${/parameter/@grid_tab_code}_${@column_name}_combobox_ds" readOnly="${@readonly_input_mode}" required="${@required_input_mode}" requiredMessage="${/model/tab_layout_grid_path/record/@tab_desc}${@prompt}${l:HLS.NOT_NULL}" returnField="${@column_name}" title="${@prompt}" valueField="value_code"/>
+                            <a:field name="${@column_name}" defaultValue="${@default_value}" requiredMessage="${/model/tab_layout_grid_path/record/@tab_desc}${@prompt}${l:HLS.NOT_NULL}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="CHECKBOX">
+                        <c:process-config>
+                            <a:field name="${@column_name}" checkedValue="Y" defaultValue="${@default_value}" readOnly="${@readonly_input_mode}" required="${@required_input_mode}" requiredMessage="${/model/tab_layout_grid_path/record/@tab_desc}${@prompt}${l:HLS.NOT_NULL}" uncheckedValue="N"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="DATEPICKER">
+                        <c:process-config>
+                            <a:field name="${@column_name}" datatype="java.util.Date" defaultValue="${@default_value}" readOnly="${@readonly_input_mode}" required="${@required_input_mode}" requiredMessage="${/model/tab_layout_grid_path/record/@tab_desc}${@prompt}${l:HLS.NOT_NULL}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="*">
+                        <c:process-config>
+                            <a:field name="${@column_name}" defaultValue="${@default_value}" readOnly="${@readonly_input_mode}" required="${@required_input_mode}" requiredMessage="${/model/tab_layout_grid_path/record/@tab_desc}${@prompt}${l:HLS.NOT_NULL}"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicLineGrid_id">
+            <p:loop source="/model/layout_config_grid_path">
+                <p:switch test="@validation_type">
+                    <p:case value="NUMBERFIELD">
+                        <c:process-config>
+                            <a:column name="${@column_name}" align="${@alignment}" editorFunction="${/parameter/@grid_tab_code}_see_detail_editor" footerRenderer="${@footerrenderer}" prompt="${@prompt}" renderer="${/parameter/@grid_tab_code}_seedetail_column_ln" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="PERCENTFIELD">
+                        <c:process-config>
+                            <a:column name="${@column_name}" align="${@alignment}" editorFunction="${/parameter/@grid_tab_code}_see_detail_editor" prompt="${@prompt}" renderer="${/parameter/@grid_tab_code}_seedetail_column_ln" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="LOV_C">
+                        <c:process-config>
+                            <a:column name="${@column_name}" align="${@alignment}" editorFunction="${/parameter/@grid_tab_code}_see_detail_editor" prompt="${@prompt}" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="LOV">
+                        <c:process-config>
+                            <a:column name="${@column_name}_n" align="${@alignment}" editorFunction="${/parameter/@grid_tab_code}_see_detail_editor" prompt="${@prompt}" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TREE_C">
+                        <c:process-config>
+                            <a:column name="${@column_name}" align="${@alignment}" editorFunction="${/parameter/@grid_tab_code}_see_detail_editor" prompt="${@prompt}" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TREE">
+                        <c:process-config>
+                            <a:column name="${@column_name}_n" align="${@alignment}" editorFunction="${/parameter/@grid_tab_code}_see_detail_editor" prompt="${@prompt}" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="COMBOBOX_C">
+                        <c:process-config>
+                            <a:column name="${@column_name}" align="${@alignment}" editorFunction="${/parameter/@grid_tab_code}_see_detail_editor" prompt="${@prompt}" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="COMBOBOX">
+                        <c:process-config>
+                            <a:column name="${@column_name}_n" align="${@alignment}" editorFunction="${/parameter/@grid_tab_code}_see_detail_editor" prompt="${@prompt}" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="DATEPICKER">
+                        <c:process-config>
+                            <a:column name="${@column_name}" align="${@alignment}" editorFunction="${/parameter/@grid_tab_code}_see_detail_editor" prompt="${@prompt}" renderer="Aurora.formatDate" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TEXTFIELD">
+                        <c:process-config>
+                            <a:column name="${@column_name}" align="${@alignment}" editorFunction="${/parameter/@grid_tab_code}_see_detail_editor" prompt="${@prompt}" showtitle="${@sys_grid_show_title}" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TEXTAREA">
+                        <c:process-config>
+                            <a:column name="${@column_name}" align="${@alignment}" editorFunction="${/parameter/@grid_tab_code}_see_detail_editor" prompt="${@prompt}" showtitle="${@sys_grid_show_title}" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="PICTURE">
+                        <c:process-config>
+                            <a:column name="${@column_name}" align="${@alignment}" prompt="${@prompt}" renderer="${/parameter/@grid_tab_code}_seedetail_ln_picture" showtitle="${@sys_grid_show_title}" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="LINK">
+                        <c:process-config>
+                            <a:column name="${@column_name}" align="${@alignment}" prompt="${@prompt}" renderer="${/parameter/@grid_tab_code}_renderer" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="BUTTON">
+                        <c:process-config>
+                            <a:column name="${@column_name}" align="${@alignment}" prompt="${@prompt}" renderer="${/parameter/@grid_tab_code}_renderer" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="CHECKBOX">
+                        <c:process-config>
+                            <a:column name="${@column_name}" align="${@alignment}" editorFunction="${/parameter/@grid_tab_code}_see_detail_editor" prompt="${@prompt}" width="${@width}"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="dynamicLineEditor_id">
+            <p:loop source="/model/layout_config_grid_path">
+                <p:switch test="@validation_type">
+                    <p:case value="NUMBERFIELD">
+                        <c:process-config>
+                            <a:numberField id="${/parameter/@grid_tab_code}_${@column_name}_id" decimalPrecision="-1"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="PERCENTFIELD">
+                        <c:process-config>
+                            <a:percentField id="${/parameter/@grid_tab_code}_${@column_name}_id"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="LOV_C">
+                        <c:process-config>
+                            <a:lov id="${/parameter/@grid_tab_code}_${@column_name}_id">
+                                <a:events>
+                                    <a:event name="focus" handler="${/parameter/@grid_tab_code}_on_grid_object_focus"/>
+                                    <a:event name="beforecommit" handler="${/parameter/@grid_tab_code}_on_grid_object_beforecommit"/>
+                                </a:events>
+                            </a:lov>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="LOV">
+                        <c:process-config>
+                            <a:lov id="${/parameter/@grid_tab_code}_${@column_name}_id">
+                                <a:events>
+                                    <a:event name="focus" handler="${/parameter/@grid_tab_code}_on_grid_object_focus"/>
+                                    <a:event name="beforecommit" handler="${/parameter/@grid_tab_code}_on_grid_object_beforecommit"/>
+                                </a:events>
+                            </a:lov>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TREE_C">
+                        <c:process-config>
+                            <a:lov id="${/parameter/@grid_tab_code}_${@column_name}_id">
+                                <a:events>
+                                    <a:event name="focus" handler="${/parameter/@grid_tab_code}_on_grid_object_focus"/>
+                                    <a:event name="beforecommit" handler="${/parameter/@grid_tab_code}_on_grid_object_beforecommit"/>
+                                </a:events>
+                            </a:lov>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TREE">
+                        <c:process-config>
+                            <a:lov id="${/parameter/@grid_tab_code}_${@column_name}_id">
+                                <a:events>
+                                    <a:event name="focus" handler="${/parameter/@grid_tab_code}_on_grid_object_focus"/>
+                                    <a:event name="beforecommit" handler="${/parameter/@grid_tab_code}_on_grid_object_beforecommit"/>
+                                </a:events>
+                            </a:lov>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="COMBOBOX_C">
+                        <c:process-config>
+                            <a:comboBox id="${/parameter/@grid_tab_code}_${@column_name}_id">
+                                <a:events>
+                                    <a:event name="focus" handler="${/parameter/@grid_tab_code}_on_grid_object_focus"/>
+                                </a:events>
+                            </a:comboBox>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="COMBOBOX">
+                        <c:process-config>
+                            <a:comboBox id="${/parameter/@grid_tab_code}_${@column_name}_id">
+                                <a:events>
+                                    <a:event name="focus" handler="${/parameter/@grid_tab_code}_on_grid_object_focus"/>
+                                </a:events>
+                            </a:comboBox>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="DATEPICKER">
+                        <c:process-config>
+                            <a:datePicker id="${/parameter/@grid_tab_code}_${@column_name}_id"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TEXTFIELD">
+                        <c:process-config>
+                            <a:textField id="${/parameter/@grid_tab_code}_${@column_name}_id"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="TEXTAREA">
+                        <c:process-config>
+                            <a:textArea id="${/parameter/@grid_tab_code}_${@column_name}_id"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="CHECKBOX">
+                        <c:process-config>
+                            <a:checkBox id="${/parameter/@grid_tab_code}_${@column_name}_id"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+        <c:create-config targetId="layout_grid_button_dymanic_id">
+            <p:loop source="/model/layout_grid_button_path">
+                <p:switch test="@button_code">
+                    <p:case value="ADD">
+                        <c:process-config>
+                            <a:button text="${@prompt}" type="add"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="DELETE">
+                        <c:process-config>
+                            <a:button text="${@prompt}" type="delete"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="CLEAR">
+                        <c:process-config>
+                            <a:button text="${@prompt}" type="clear"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="QUERY">
+                        <c:process-config>
+                            <a:button click="${/parameter/@grid_tab_code}_grid_query" icon="${/request/@context_path}/images/search.png" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="EXCEL">
+                        <c:process-config>
+                            <a:button text="${@prompt}" type="excel"/>
+                        </c:process-config>
+                    </p:case>
+                    <p:case value="USER_BUTTON1">
+                        <c:process-config>
+                            <a:button click="${/parameter/@grid_tab_code}_grid_user_button1" icon="${/request/@context_path}/images/entity.png" text="${@prompt}"/>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

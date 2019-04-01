@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[SELECT * FROM (
+            SELECT t1.document_id,
+			       t1.document_number,
+			       t1.seq_no,
+			       t1.company_id,
+			       t1.contract_id,
+			       (SELECT contract_number
+			          FROM con_contract
+			         WHERE contract_id = t1.contract_id) AS contract_number,
+			       t1.cashflow_id,
+			       to_char((select cf.due_date
+			          from con_contract_cashflow cf
+			         where cf.cashflow_id = t1.cashflow_id),'yyyy-mm-dd') due_date,
+			       t1.receivable_amount,
+			       t1.real_revenue,
+			       t1.currency_code,
+			       t1.transaction_id,
+			       (select tx.transaction_number
+			          from rd_ebank_spd_trans_txds71 tx
+			         where tx.transaction_id = t1.transaction_id) transaction_number,
+			       t1.customer_id,
+			       t1.customer_name,
+			       t1.cus_bank_id,
+			       (SELECT ebank_name
+			          FROM csh_ebank
+			         WHERE ebank_id = t1.cus_bank_id) AS cus_bank_id_n,
+			       t1.cus_bank_account,
+			       t1.cus_bank_acc_name,
+			       t1.cus_id_phone,
+			       t1.status,
+			       (SELECT v.code_value_name
+			          FROM sys_code_values_v v
+			         WHERE v.code = 'RD_EBANK_SPD_DOCUMENT_STATUS'
+			           AND v.code_enabled_flag = 'Y'
+			           AND v.code_value_enabled_flag = 'Y'
+			           AND v.code_value = t1.status) status_desc,
+			       t1.new_date,
+			       t1.deal_date,
+			       t1.success_date,
+			       t1.fail_date,
+			       rd_ebank_spd_doc_pkg.get_document_date(t1.document_id) status_date,
+			       t1.source_type,
+			       (SELECT i.description
+			          FROM hls_cashflow_item i
+			         WHERE i.cf_item = t1.source_type) source_type_desc,
+			       t1.note,
+			       nvl(t1.error_msg,
+			           (select t.return_msg
+			              from rd_ebank_spd_trans_txds71 t
+			             where t.transaction_id = t1.transaction_id)) error_msg,
+			       t1.ref_v1,
+			       t1.ref_v2,
+			       t1.ref_v3,
+			       t1.ref_n1,
+			       t1.ref_n2,
+			       t1.ref_n3,
+			       t1.times,
+			       t1.csh_trans_id,
+			       t1.csh_trans_flag,
+			       (SELECT v.code_value_name
+			          FROM sys_code_values_v v
+			         WHERE v.code = 'YES_NO'
+			           AND v.code_enabled_flag = 'Y'
+			           AND v.code_value_enabled_flag = 'Y'
+			           AND v.code_value = t1.csh_trans_flag) csh_trans_flag_desc,
+			       (SELECT t.transaction_num
+			          FROM csh_transaction t
+			         WHERE t.transaction_id = t1.csh_trans_id) csh_trans_num,
+			       rd_ebank_spd_pub_pkg.get_transaction_date(t1.transaction_id, 'TXDS71') final_date, --最后处理日期
+			        to_char((SELECT inception_of_lease
+			          FROM con_contract 
+			         WHERE contract_id = t1.contract_id),'yyyy-mm-dd') AS inception_of_lease,
+			       nvl(t1.confirm_flag, 'N') confirm_flag,
+			       DECODE(t1.confirm_flag,
+			              NULL,
+			              '否',
+			              (SELECT v.code_value_name
+			                 FROM sys_code_values_v v
+			                WHERE v.code = 'YES_NO'
+			                  AND v.code_enabled_flag = 'Y'
+			                  AND v.code_value_enabled_flag = 'Y'
+			                  AND v.code_value = t1.confirm_flag)) confirm_flag_name
+			  FROM rd_ebank_spd_txds71_doc t1
+			  ORDER BY t1.document_number) t #WHERE_CLAUSE#
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="transaction_number" queryExpression="t.transaction_number between ${@transaction_number_from} and ${@transaction_number_to}"/>
+        <bm:query-field name="due_date" queryExpression="t.due_date between to_date(${@due_date_from},&apos;yyyy-mm-dd&apos;) and to_date(${@due_date_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="status" queryExpression="t.status = ${@status}"/>
+        <bm:query-field name="confirm_flag" queryExpression="t.confirm_flag = ${@confirm_flag}"/>
+        <bm:query-field name="source_type" queryExpression="t.source_type = ${@source_type}"/>
+    </bm:query-fields>
+</bm:model>

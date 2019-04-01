@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: jack  
+    $Date: 2014-12-3 下午4:13:47  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" defaultOrderBy="T1.sort_num">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            SELECT t1.*
+  FROM (SELECT a1.rank_num,
+               '第' || a1.times || '期租金' times_1,
+               a1.due_amount due_amount_1,
+               to_char(a1.due_date,
+                       'yyyy-mm-dd') due_date_1,
+               '第' || a2.times || '期租金' times_2,
+               a2.due_amount due_amount_2,
+               to_char(a2.due_date,
+                       'yyyy-mm-dd') due_date_2
+          FROM (SELECT b.*,
+                       rank() over(ORDER BY b.times) rank_num
+                  FROM (SELECT *
+                          FROM con_contract_cashflow a
+                         WHERE a.cf_item = 1
+                               AND a.cf_type = 1
+                               AND a.contract_id = ${@contract_id}
+                               AND a.times <= (SELECT MAX(times) / 2
+                                                 FROM con_contract_cashflow t1
+                                                WHERE t1.cf_item = 1
+                                                      AND t1.cf_type = 1
+                                                      AND a.contract_id = t1.contract_id)) b) a1,
+               (SELECT b.*,
+                       rank() over(ORDER BY b.times) rank_num
+                  FROM (SELECT *
+                          FROM con_contract_cashflow a
+                         WHERE a.cf_item = 1
+                               AND a.cf_type = 1
+                               AND a.contract_id = ${@contract_id}
+                               AND a.times > (SELECT MAX(times) / 2
+                                                FROM con_contract_cashflow t1
+                                               WHERE t1.cf_item = 1
+                                                     AND t1.cf_type = 1
+                                                     AND a.contract_id = t1.contract_id)) b) a2
+         WHERE a1.rank_num = a2.rank_num) t1
+               #WHERE_CLAUSE# order by t1.rank_num
+               
+
+]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

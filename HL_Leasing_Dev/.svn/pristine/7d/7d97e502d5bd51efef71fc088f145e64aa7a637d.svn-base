@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang 
+    $Date: 2015-6-10 上午11:21:27  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="cont.CON500.con_doc_file_get_bookmark_value" rootPath="file_bookmark_value_path"/>
+        <a:model-query fetchAll="true" model="cont.CON500.con_doc_file_get_content_file" rootPath="get_content_file_path"/>
+        <a:model-query fetchAll="true" model="cont.CON500.con_doc_file_para_table_column" rootPath="con_doc_file_para_table_column_path"/>
+        <a:model-query fetchAll="true" model="cont.CON500.con_doc_file_templet_get_atm" rootPath="con_doc_file_templet_get_atm_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_doc_file_get_table_list_id" model="cont.CON500.con_doc_file_get_table_list" modelaction="query"/>
+        <script><![CDATA[
+            var TANGER_OCX_OBJ;
+            var file_name;
+            var file_path;
+            var browser;
+            
+            function checkbrowser() {
+                var userAgent = navigator.userAgent,
+                    rMsie = /(msie\s|trident.*rv:)([\w.]+)/,
+                    rFirefox = /(firefox)\/([\w.]+)/,
+                    rOpera = /(opera).+version\/([\w.]+)/,
+                    rChrome = /(chrome)\/([\w.]+)/,
+                    rSafari = /version\/([\w.]+).*(safari)/;
+                var version;
+                var ua = userAgent.toLowerCase();
+            
+                function uaMatch(ua) {
+                    var match = rMsie.exec(ua);
+                    if (match != null) {
+                        return {
+                            browser: "IE",
+                            version: match[2] || "0"
+                        };
+                    }
+                    var match = rFirefox.exec(ua);
+                    if (match != null) {
+                        return {
+                            browser: match[1] || "",
+                            version: match[2] || "0"
+                        };
+                    }
+                    var match = rOpera.exec(ua);
+                    if (match != null) {
+                        return {
+                            browser: match[1] || "",
+                            version: match[2] || "0"
+                        };
+                    }
+                    var match = rChrome.exec(ua);
+                    if (match != null) {
+                        return {
+                            browser: match[1] || "",
+                            version: match[2] || "0"
+                        };
+                    }
+                    var match = rSafari.exec(ua);
+                    if (match != null) {
+                        return {
+                            browser: match[2] || "",
+                            version: match[1] || "0"
+                        };
+                    }
+                    if (match != null) {
+                        return {
+                            browser: "",
+                            version: "0"
+                        };
+                    }
+                }
+                var browserMatch = uaMatch(userAgent.toLowerCase());
+                if (browserMatch.browser) {
+                    browser = browserMatch.browser;
+                    version = browserMatch.version;
+                }
+            }
+            
+            function SaveServerFile() {
+                var saveUrl = '${/request/@context_path}/office_edit_online/file_upload.svc?file_name=' + encodeURIComponent(file_name) + '&file_path=' + encodeURIComponent(file_path);
+                var e = TANGER_OCX_OBJ.SaveToURL(saveUrl, "EDITFILE", "", file_name, 0);
+                if ('${/parameter/@batch_flag}' == 'Y') {
+                    var times = 0;
+                    var successInterval = setInterval(function() {
+                        function close_interval_window() {
+                            clearInterval(successInterval);
+                            successInterval = null;
+                            $('${/parameter/@winid}').close();
+                        }
+                        times = times + 1;
+                        if (Ext.isChrome || Ext.isGecko) {
+                            if (Ext.isDefined(save_success_flag) && save_success_flag == 'Y') {
+                                close_interval_window();
+                            }
+                        } else {
+                            close_interval_window();
+                        }
+                    }, 1000);
+                }
+            }
+            
+            function lock_edit_window() {
+                Aurora.Masker.mask($('${/parameter/@winid}').wrap, '正在加载。。。');
+            }
+            
+            function unlock_edit_window() {
+                Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+            }
+            
+            function filter_bookmarks() {
+                var bookmark_records = $('con_file_bookmark_value_ds').getAll();
+                for (var i = 0;i < bookmark_records.length;i++) {
+                    var bookmark_record = bookmark_records[i];
+                    var bookmark = bookmark_record.get('bookmark');
+                    var line_num = bookmark_record.get('line_num');
+                    var bookmark_value;
+                    if (bookmark_record.get('bookmark_type') == 'TEXT') {
+                        bookmark_value = bookmark_record.get('bookmark_value');
+                        if (bookmark_value) {
+                            try {
+                                TANGER_OCX_OBJ.SetBookmarkValue(bookmark, bookmark_value);
+                            } catch (e) {}
+                        }
+                    } else if (bookmark_record.get('bookmark_type') == 'TABLE_AREA') {
+                        bookmark_value = bookmark_record.get('bookmark_value');
+                        if (bookmark_value) {
+                            try {
+                                TANGER_OCX_OBJ.activedocument.FormFields.item(bookmark).Result = bookmark_value;
+                            } catch (e) {}
+                        }
+                    } else {
+                        Aurora.request({
+                            url: $('con_doc_file_get_table_list_id').getUrl() + '?_fetchall=true',
+                            para: {
+                                bookmark: bookmark,
+                                contract_id: '${/parameter/@contract_id}'
+                            },
+                            success: function(res) {
+                                var records = res.result.record;
+            
+                                function set_table_line(record, i) {
+                                    var num = i + 2;
+                                    try {
+                                        TANGER_OCX_OBJ.activedocument.bookmarks.item(bookmark).range.tables.item(1).cell(num - 1, 1).select();
+                                        TANGER_OCX_OBJ.ActiveDocument.Application.Selection.InsertRowsBelow(1); //插入新的行
+                                    } catch (e) {
+            
+                                       }
+                                    var column_records = $('con_doc_file_para_table_column_ds').getAll();
+                                    for (var name in record) {
+                                        if (column_records.length) {
+                                            for (var m = 0;m < column_records.length;m++) {
+                                                var column_record = column_records[m];
+                                                if (column_record.get('bookmark') == bookmark && name.toLowerCase() == column_record.get('column_name').toLowerCase()) {
+                                                    try {
+                                                        TANGER_OCX_OBJ.activedocument.bookmarks.item(bookmark).range.tables.item(1).Cell(num, column_record.get('column_num')).Range.InsertAfter(record[name]);
+                                                    } catch (e) {
+            
+                                                       }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                try {
+                                    TANGER_OCX_OBJ.activedocument.bookmarks.item(bookmark).range.tables.item(1).cell(1, 1).select();
+                                } catch (e) {
+            
+                                   }
+                                if (records && records.length) {
+                                    for (var i = 0;i < records.length;i++) {
+                                        var record = records[i];
+                                        var temp_i = i;
+                                        if (bookmark == 'CONTRACT_TEXT_LIST') {
+                                            temp_i = i + line_num;
+                                        }
+                                        set_table_line(record, temp_i);
+                                    }
+                                } else if (records && !records.length) {
+                                    set_table_line(records, 0);
+                                }
+                            },
+                            error: function() {
+            
+                               },
+                            failure: function() {
+            
+                               },
+                            scope: this,
+                            sync: true
+                        });
+                    }
+                }
+                if ('${/parameter/@first_copy_flag}' == 'Y' && '${/model/con_doc_file_templet_get_atm_path/record/@pwd}') {
+                    try {
+                        TANGER_OCX_OBJ.activedocument.trackrevisions = true;
+                        // TANGER_OCX_OBJ.activedocument.protect(3, 0, '${/model/con_doc_file_templet_get_atm_path/record/@pwd}');
+                        TANGER_OCX_OBJ.setreadonly(true, '${/model/con_doc_file_templet_get_atm_path/record/@pwd}');
+                    } catch (e) {
+            
+                       }
+                    // addPic();
+                    SaveServerFile();
+                }
+            }
+            
+            function openServerFile() {
+                var openUrl = '${/request/@context_path}/office_edit_online/weboffice_download_file.svc?file_name=' + encodeURIComponent(file_name) + '&file_path=' + encodeURIComponent(file_path);
+                try {
+                    if ((browser == 'IE' && Ext.isDefined(TANGER_OCX_OBJ.activedocument)) || ((Ext.isChrome || Ext.isGecko) && Ext.isDefined(TANGER_OCX_OBJ.OpenFromURL))) {
+                        TANGER_OCX_OBJ.OpenFromURL(openUrl);
+                    } else {
+                        Aurora.showMessage('${l:PROMPT}', '请先联系管理员安装在线编辑插件');
+                        plugin_error_flag = 'Y';
+                        closeEditOfficeWindow();
+                    }
+                } catch (e) {
+                    Aurora.showMessage('${l:PROMPT}', e);
+                    plugin_error_flag = 'Y';
+                    closeEditOfficeWindow();
+                }
+                var objActiveInterval = setInterval(function() {
+                    if (TANGER_OCX_OBJ.ActiveDocument) {
+                        clearInterval(objActiveInterval);
+                        if ('${/parameter/@first_copy_flag}' == 'Y') {
+                            try {
+                                if ('${/model/con_doc_file_templet_get_atm_path/record/@pwd}') {
+                                    // TANGER_OCX_OBJ.activedocument.unprotect('${/model/con_doc_file_templet_get_atm_path/record/@pwd}');
+                                    TANGER_OCX_OBJ.setreadonly(false, '${/model/con_doc_file_templet_get_atm_path/record/@pwd}');
+                                }
+                                TANGER_OCX_OBJ.activedocument.trackrevisions = false;
+                            } catch (e) {
+            
+                               }
+                            filter_bookmarks();
+                        }
+                    }
+                }, 1000);
+            }
+            
+            function closeEditOfficeWindow() {
+                $('${/parameter/@winid}').close();
+            }
+            
+            
+            function addPic() {
+                var keycode = '${/parameter/@bar_code}';
+                if ('${/model/con_doc_file_templet_get_atm_path/record/@pwd}') {
+                    TANGER_OCX_OBJ.setreadonly(false, '${/model/con_doc_file_templet_get_atm_path/record/@pwd}');
+                }
+                TANGER_OCX_OBJ.activedocument.trackrevisions = false;
+                TANGER_OCX_OBJ.ActiveDocument.ActiveWindow.ActivePane.View.SeekView = 9;
+                TANGER_OCX_OBJ.ActiveDocument.Application.Selection.ParagraphFormat.Alignment = 2;
+                TANGER_OCX_OBJ.AddPicFromURL('http://10.164.9.254:8080/haier_dev/zxing?msize=100&keycode=' + encodeURIComponent(keycode), false, 0, 10, false, 50);
+                if (Ext.isChrome || Ext.isGecko) {
+                    var objInterval = setInterval(function() {
+                        if (Ext.isDefined(add_pic_success_flag) && add_pic_success_flag == 'Y') {
+                            clearInterval(objInterval);
+                            TANGER_OCX_OBJ.ActiveDocument.ActiveWindow.ActivePane.View.SeekView = 0;
+                            TANGER_OCX_OBJ.activedocument.trackrevisions = true;
+                            if ('${/model/con_doc_file_templet_get_atm_path/record/@pwd}') {
+                                TANGER_OCX_OBJ.setreadonly(true, '${/model/con_doc_file_templet_get_atm_path/record/@pwd}');
+                            }
+                            SaveServerFile();
+                        }
+                    }, 1000);
+                } else {
+                    TANGER_OCX_OBJ.ActiveDocument.ActiveWindow.ActivePane.View.SeekView = 0;
+                    SaveServerFile();
+                }
+            }
+            
+            Aurora.onReady(function() {
+                file_name = '${/model/get_content_file_path/record/@file_name}';
+                file_path = '${/model/get_content_file_path/record/@file_path}';
+                checkbrowser();
+                var objInterval = setInterval(function() {
+                    if (document.getElementById("TANGER_OCX")) {
+                        TANGER_OCX_OBJ = document.getElementById("TANGER_OCX");
+                        clearInterval(objInterval);
+                        openServerFile();
+                    }
+                }, 1000);
+            });
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="con_file_bookmark_value_ds">
+                <a:datas dataSource="/model/file_bookmark_value_path"/>
+            </a:dataSet>
+            <a:dataSet id="con_doc_file_para_table_column_ds">
+                <a:datas dataSource="/model/con_doc_file_para_table_column_path"/>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="closeEditOfficeWindow" text="退出"/>
+                <a:gridButton click="SaveServerFile" text="保存"/>
+                <!-- <a:gridButton click="addPic" text="新增图片"/> -->
+                <!-- <a:gridButton click="filter_bookmarks" text="数据重置"/> -->
+            </a:screenTopToolbar>
+            <div id="placeholder" style="display:none"/>
+            <script src="${/request/@context_path}/office_edit_online/ntkoofficecontrol.js"/>
+            <script><![CDATA[
+                ntkoObject();
+            ]]></script>
+        </a:screenBody>
+    </a:view>
+</a:screen>

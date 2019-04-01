@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2014-4-28 下午04:36:32  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:view>
+        <a:link id="sys_function_group_assign_function_link" url="${/request/@context_path}/modules/sys/SYS8110/sys_function_group_assign_function.screen"/>
+        <a:link id="sys_function_group_assign_role_copy_link" url="${/request/@context_path}/modules/sys/SYS8110/sys_function_group_assign_role_copy.screen"/>
+        <script><![CDATA[
+            function role_function_group_save_return() {
+                $('${/parameter/@winid}').close();
+            }
+            
+            function role_function_group_save() {
+                $('function_group_tree_ds').submit();
+            }
+            
+            function role_function_group_addtop() {
+                var dataset = $('function_group_tree_ds');
+                var record = new Aurora.Record({
+                    parent_role_function_group_id: '',
+                    role_id: '${/parameter/@role_id}',
+                    enabled_flag: 'Y'
+                });
+                dataset.add(record);
+            }
+            
+            function role_function_group_add() {
+                var dataset = $('function_group_tree_ds');
+                var record = dataset.getCurrentRecord();
+                if (!Aurora.isEmpty(record)) {
+                    var parent_role_function_group_id = record.get('role_function_group_id');
+                    if (parent_role_function_group_id) {
+                        var record1 = new Aurora.Record({
+                            parent_role_function_group_id: parent_role_function_group_id,
+                            role_id: '${/parameter/@role_id}',
+                            enabled_flag: 'Y'
+                        });
+                        dataset.add(record1);
+                    } else {
+                        Aurora.showMessage('${l:HLS.PROMPT}', '${l:SYS870.SAVE_CURRENT_TOP_LEVEL}');
+                    }
+                }
+            }
+            
+            function role_function_group_deleteNote() {
+                Aurora.showConfirm('${l:HLS.PROMPT}', '${l:SYS870.SURE_TO_DELETE_NODE}', function okFun() {
+                    var ds = $('function_group_tree_ds');
+                    var records = ds.getSelected();
+                    if (records.length > 0) {
+                        ds.remove(records);
+                    }
+                });
+            }
+            
+            function role_function_group_clearNote() {
+                var ds = $('function_group_tree_ds');
+                var records = ds.getSelected();
+                for (var i = 0;i < records.length;) {
+                    ds.removeLocal(records[i]);
+                }
+            }
+            
+            function on_grid_lov_focus(object) {
+                var record = $('function_group_tree_ds').getCurrentRecord();
+                var group_level = '';
+                if (record.get('parent_role_function_group_id')) {
+                    var parent_record = $('function_group_tree_ds').find('role_function_group_id', record.get('parent_role_function_group_id'));
+                    group_level = plus(parent_record.get('group_level'), 1);
+                } else {
+                    group_level = 1;
+                }
+                record.getField('function_group_code').setLovPara('group_level', group_level);
+            }
+            
+            function function_assign_renderer(value, record, name) {
+                var role_function_group_id = record.get('role_function_group_id'),
+                    function_group_id = record.get('function_group_id');
+                if (role_function_group_id) {
+                    return '<a href="javascript:open_group_function_assign(' + role_function_group_id + ',' + function_group_id + ')">${l:SYS8110.LINK.ASSIGN_FUNCTION}</a>';
+                }
+            }
+            
+            function open_group_function_assign(role_function_group_id, function_group_id) {
+                new Aurora.Window({
+                    id: 'sys_function_group_assign_function_link_winid',
+                    url: $('sys_function_group_assign_function_link').getUrl(),
+                    params: {
+                        role_function_group_id: role_function_group_id,
+                        function_group_id: function_group_id,
+                        winid: 'sys_function_group_assign_function_link_winid'
+                    },
+                    title: '${l:SYS870.FUNCTION_GROUP_ASSIGN}',
+                    height: 400,
+                    width: 500
+                });
+            }
+            
+            function function_group_tree_select(ds, record, all) {
+                if (!all) {
+                    var parent_role_function_group_id = record.get('role_function_group_id');
+                    var records = ds.getAll();
+                    var selectedRecords1 = ds.getSelected();
+                    for (var i = 0;i < records.length;i++) {
+                        if (!Aurora.isEmpty(record.get('role_function_group_id')) && records[i].get('parent_role_function_group_id') == record.get('role_function_group_id')) {
+                            if (selectedRecords1.indexOf(records[i]) == -1) {
+                                ds.select(records[i]);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            function function_group_tree_unselect(ds, record, all) {
+                if (!all) {
+                    var parent_role_function_group_id = record.get('role_function_group_id');
+                    if (!Aurora.isEmpty(parent_role_function_group_id)) {
+                        var records = ds.getAll();
+                        var selectedRecords1 = ds.getSelected();
+                        for (var i = 0;i < records.length;i++) {
+                            if (!Aurora.isEmpty(record.get('role_function_group_id')) && records[i].get('role_function_group_id') == record.get('parent_role_function_group_id')) {
+                                if (selectedRecords1.indexOf(records[i]) != -1) {
+                                    ds.unSelect(records[i]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            
+            function role_function_group_copy() {
+                var ds = $('function_group_tree_ds').getSelected();
+                if (ds.length == 0) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:SYS_ROLE_FUNCTION.CHOOSE_ONE}');
+                    return;
+                } else {
+                    new Aurora.Window({
+                        id: 'copy_role_win',
+                        url: $('sys_function_group_assign_role_copy_link').getUrl(),
+                        params: {
+                            role_id: '${/parameter/@role_id}',
+                            'winid': 'copy_role_win'
+                        },
+                        width: 650,
+                        height: 500
+                    });
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="function_group_tree_ds" autoCount="false" autoQuery="true" fetchAll="true" model="sys.SYS8110.sys_role_function_group" queryUrl="${/request/@context_path}/autocrud/sys.SYS8110.sys_role_function_group_vl/query?role_id=${/parameter/@role_id}" selectable="true">
+                <a:fields>
+                    <a:field name="function_group_code" lovGridHeight="350" lovHeight="500" lovService="sys.SYS870.sys_function_group_for_lov" lovWidth="500" required="true" title="菜单选择">
+                        <a:mapping>
+                            <a:map from="function_group_id" to="function_group_id"/>
+                            <a:map from="group_level" to="group_level"/>
+                            <a:map from="layout_sequence" to="layout_sequence"/>
+                            <a:map from="function_group_code" to="function_group_code"/>
+                            <a:map from="function_group_name" to="function_group_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="group_level"/>
+                    <a:field name="function_group_id"/>
+                    <a:field name="function_group_name" readOnly="true"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="layout_sequence" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="select" handler="function_group_tree_select"/>
+                    <a:event name="unselect" handler="function_group_tree_unselect"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="role_function_group_save_return" text="HLS.RETURN"/>
+                <a:gridButton click="role_function_group_addtop" text="SYS870.ADD_FRIST_LEVEL"/>
+                <a:gridButton click="role_function_group_add" text="SYS870.ADD_BOTTOM_LEVEL"/>
+                <a:gridButton click="role_function_group_deleteNote" text="HLS.REMOVE" width="80"/>
+                <a:gridButton click="role_function_group_clearNote" text="HLS.CLEAR" width="80"/>
+                <a:gridButton click="role_function_group_save" text="HLS.SAVE" width="80"/>
+                <a:gridButton click="role_function_group_copy" text="SYS_ROLE_FUNCTION.COPY_TO_OTHER_ROLES"/>
+            </a:screenTopToolbar>
+            <a:treeGrid id="functionGroupTreeGrid" bindTarget="function_group_tree_ds" expandField="expanded" height="450" idField="role_function_group_id" parentField="parent_role_function_group_id" sequenceField="layout_sequence" width="670">
+                <a:columns>
+                    <a:column name="function_group_code" editor="grid_lov" prompt="SYS870.SYS_FUNCTION_GROUP.FUNCTION_GROUP_CODE" width="200"/>
+                    <a:column name="function_group_name" prompt="SYS870.SYS_FUNCTION_GROUP.FUNCTION_GROUP_NAME" width="200"/>
+                    <a:column name="layout_sequence" align="right" editor="grid_nf" prompt="SYS870.SYS_FUNCTION_GROUP.LAYOUT_SEQUENCE" width="80"/>
+                    <a:column name="enabled_flag" editor="grid_cb" prompt="HLS.ENABLED_FLAG" width="60"/>
+                    <a:column name="function_assign" align="center" prompt="SYS8110.LINK.ASSIGN_FUNCTION" renderer="function_assign_renderer" width="100"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="grid_nf" allowDecimals="false"/>
+                    <a:checkBox id="grid_cb"/>
+                    <a:lov id="grid_lov">
+                        <a:events>
+                            <a:event name="focus" handler="on_grid_lov_focus"/>
+                        </a:events>
+                    </a:lov>
+                </a:editors>
+            </a:treeGrid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

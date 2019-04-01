@@ -1,0 +1,889 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wangwei5743  
+    $Date: 2014-10-8 下午3:16:19  
+    $Revision: 1.0  
+    $purpose: 租赁申请创建  创建界面       
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.user_id=${/session/@user_id}" model="prj.PRJ500D.sys_user_lv" rootPath="user_name_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="get_car_organization_id" model="prj.PRJ500D.yonda_car_organization" modelaction="query"/>
+        <a:link id="get_special_fields_link_id" model="cont.CON500.con_contract_get_special_fields" modelaction="update"/>
+        <a:link id="get_calc_id" model="prj.PRJ500D.calc_quotation" modelaction="update"/>
+        <a:link id="check_product_package_bag_link_id" model="prj.PRJ500D.prj_project_before_workflow_start" modelaction="update"/>
+        <a:link id="submit_approval_link" model="prj.PRJ500D.prj_project_workflow_start" modelaction="update"/>
+        <a:link id="prj500_cdd_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="prj500_cdd_downloadFile_id" url="${/request/@context_path}/downloadFile.screen"/>
+        <a:link id="get_id_card_no_info_id" model="prj.PRJ500D.hls_bp_master_np_v" modelaction="query"/>
+        <a:link id="get_organization_code_id" model="prj.PRJ500D.hls_bp_master_org_v" modelaction="query"/>
+        <a:link id="get_id_card_no_info_guar_id" model="prj.PRJ500D.hls_bp_master_np_guar" modelaction="query"/>
+        <a:link id="get_org_code_info_guar_id" model="prj.PRJ500D.hls_bp_master_org_guar" modelaction="query"/>
+        <a:link id="get_id_card_no_tenant_sec_id" model="prj.PRJ500D.hls_bp_master_np_tenant_sec_v" modelaction="query"/>
+        <a:link id="user_id_query_link" model="prj.PRJ500D.sys_user_lv" modelaction="query"/>
+        <a:link id="get_calc_validate_sql_link" model="prj.PRJ500D.prj_get_calc_validate_sql" modelaction="query"/>
+        <a:link id="get_car_organization_id_link" model="prj.PRJ500D.get_hls_car_organization" modelaction="query"/>
+        <a:link id="get_company_distrct_link" model="prj.PRJ500D.get_company_info" modelaction="query"/>
+        <a:link id="get_bp_id_invoice_link" model="prj.PRJ500D.get_bp_id_invoice" modelaction="query"/>
+        <a:link id="get_atch_download_link" url="${/request/@context_path}/modules/batch_download/lease_atm_batch_dl.svc"/>
+        <script src="${/request/@context_path}/modules/prj/PRJ500N/javascripts/input_validator.js"/>
+        <a:link id="con_item_frame_number_link" model="cont.CON501N.con_item_frame_number" modelaction="execute"/>
+        <!-- <script src="${/request/@context_path}/modules/prj/PRJ500N/javascripts/check_org_code.js"/> -->
+        <script><![CDATA[
+            //提交审批
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                //debugger;
+                var prj_project_bp_danbaoren = get_dsid_by_tabcode_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'DANBAOREN', 'prj_project_bp');
+                var prj_lease_item_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project_lease_item');
+                var plan_record = $(prj_lease_item_id).getAt(0);
+                var product_type = plan_record.get('product_type');
+                var product_plan_id = plan_record.get('product_plan_id');
+                var down_payment_ratio = plan_record.get('down_payment_ratio') * 1;
+                var balloon_ratio = plan_record.get('balloon_ratio') * 1;
+                var deposit_ratio = plan_record.get('deposit_ratio') * 1;
+                var lease_times = plan_record.get('lease_times') * 1;
+            
+                //担保人(法人)信息
+                var g_ins_p_org_gua_ds_id = get_dsid_by_tabcode_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'G_INS_P_ORG', 'prj_project_bp');
+                //担保人
+                var gua_ds_id = get_dsid_by_tabcode_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'DANBAOREN', 'prj_project_bp');
+                // $A.CmpManager.get(prj_project_record_ds)
+                var size = 0;
+                if ($A.CmpManager.get(g_ins_p_org_gua_ds_id)) {
+                    var g_ins_p_org_gua_ds_res = $(g_ins_p_org_gua_ds_id).getAll();
+                    size = size + g_ins_p_org_gua_ds_res.length;
+                }
+                if ($A.CmpManager.get(gua_ds_id)) {
+                    var gua_ds_id_res = $(gua_ds_id).getAll();
+                    size = size + gua_ds_id_res.length;
+                }
+            
+                if (size > 1) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '担保人只能有一个!');
+                    return;
+                }
+            
+                if (product_type != 'PACKAGE_BAG') {
+                    Aurora.request({
+                        url: $('check_product_package_bag_link_id').getUrl(),
+                        para: {
+                            product_plan_id: product_plan_id,
+                            down_payment_ratio: down_payment_ratio,
+                            balloon_ratio: balloon_ratio,
+                            deposit_ratio: deposit_ratio,
+                            lease_times: lease_times
+                        },
+                        success: function(res) {
+                            var package_bag = res.result.package_bag;
+                            //alert(package_bag);
+                            if (package_bag != 0) {
+                                Aurora.showConfirm('${l:HLS.PROMPT}', '您的申请符合套餐包产品，是否选择套餐包产品重新报价？', function() {}, function() {
+                                    window['${/parameter/@layout_code}_not_ignore_required_flag'] = true;
+                                    Aurora.showConfirm('${l:HLS.PROMPT}', '确认提交？', function() {
+                                        window['${/parameter/@layout_code}_not_ignore_required_flag'] = true;
+                                        var root_ds_1 = $('${/parameter/@layout_code}_virtual_ds');
+                                        if (root_ds_1.validate()) {
+                                            submit_wfl_flag = 'Y';
+                                            //提交先保存
+                                            window['${/parameter/@layout_code}_SAVE_LAYOUT_DYNAMIC_CLICK']();
+                                            //设置提交字段为Y
+                                        }
+                                    });
+                                });
+                            } else if (package_bag == 0) {
+                                window['${/parameter/@layout_code}_not_ignore_required_flag'] = true;
+                                Aurora.showConfirm('${l:HLS.PROMPT}', '确认提交？', function() {
+                                    window['${/parameter/@layout_code}_not_ignore_required_flag'] = true;
+                                    var root_ds_4 = $('${/parameter/@layout_code}_virtual_ds');
+                                    if (root_ds_4.validate()) {
+                                        submit_wfl_flag = 'Y';
+                                        //提交先保存
+                                        window['${/parameter/@layout_code}_SAVE_LAYOUT_DYNAMIC_CLICK']();
+                                        //设置提交字段为Y
+                                    }
+                                });
+                            }
+                        },
+                        error: function() {
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        failure: function() {
+                            window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        sync: true,
+                        scope: this
+                    });
+                } else if (product_type == 'PACKAGE_BAG') {
+                    Aurora.showConfirm('${l:HLS.PROMPT}', '确认提交？', function() {
+                        window['${/parameter/@layout_code}_not_ignore_required_flag'] = true;
+                        var root_ds_2 = $('${/parameter/@layout_code}_virtual_ds');
+                        if (root_ds_2.validate()) {
+                            submit_wfl_flag = 'Y';
+                            //提交先保存
+                            window['${/parameter/@layout_code}_SAVE_LAYOUT_DYNAMIC_CLICK']();
+                            //设置提交字段为Y
+                        }
+                    });
+                }
+            };
+            
+            //保存submitsuccess调用
+            window['${/parameter/@layout_code}_on_layout_dynamic_submitsuccess'] = function(ds, record, res) {
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                if (ds_id) {
+                    record = $(ds_id).getAt(0);
+                    var cdd_item_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_cdd_item_doc_ref');
+                    $(cdd_item_ds_id).setQueryParameter('cdd_list_id', record.get('cdd_list_id'));
+                    $(cdd_item_ds_id).query();
+                    var prj_cdd_item_doc_ref_ds = $(cdd_item_ds_id);
+            
+                    function prj_cdd_item_doc_ref_load() {
+                        //取消重复监听
+                        prj_cdd_item_doc_ref_ds.un('load', prj_cdd_item_doc_ref_load);
+                        $(cdd_item_ds_id).submit();
+                    }
+                    prj_cdd_item_doc_ref_ds.on('load', prj_cdd_item_doc_ref_load);
+                    var ln_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'hls_fin_calculator_ln');
+                    var quotation_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_quotation');
+                    $(quotation_ds_id).setQueryParameter('project_id', $(ds_id).getAt(0).get('project_id'));
+                    $(ln_ds_id).query();
+                    $(quotation_ds_id).query();
+                }
+            
+                window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+            
+            }; /*查询前调用*/
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_query'] = function(ds, qpara, bp_seq) {
+                var prj_project_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                var prj_record = $(prj_project_ds_id).getAt(0);
+                qpara.project_id = prj_record.get('project_id');
+            }; /*保存前调用，生成项目编号*/
+            window['${/parameter/@layout_code}_on_layout_dynamic_before_submit'] = function(ds, record) {
+                window['${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var prj_project_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                var prj_record = $(prj_project_ds_id).getAt(0);
+                var check_flag = false;
+                if (prj_record.get('project_number')) {
+                    return true;
+                }
+                Aurora.request({
+                    url: $('get_special_fields_link_id').getUrl(),
+                    para: {
+                        document_category: '${/parameter/@document_category}',
+                        document_type: record.get('document_type'),
+                        function_code: '${/parameter/@function_code}',
+                        function_usage: '${/parameter/@function_usage}'
+                    },
+                    success: function(res) {
+                        var document_number = res.result.document_number;
+                        prj_record.set('project_number', document_number);
+                        check_flag = true;
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    error: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    failure: function() {
+                        window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    sync: true,
+                    scope: this
+                });
+                return check_flag;
+            
+            };
+            //新增和加载时调用form
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_form_add_and_load'] = function(ds, record, config_records, bp_seq) {
+                //如果存在的话，进行校验逻辑  排除掉联系人校验
+                if ((ds.id).indexOf('prj_project_bp') != -1 && (ds.id).indexOf('prj_project_bp_contact_info') == -1) {
+                    //申请人身份证验证
+                    if (ds.fields.id_card_no) {
+                        ds.fields.id_card_no.pro.validator = id_card_no_validate;
+                    }
+                    //申请人手机验证
+                    if (ds.fields.cell_phone) {
+                        ds.fields.cell_phone.pro.validator = cell_phone_validate;
+                    }
+                    //申请人婚姻状况验证
+                    if (ds.fields.marital_status) {
+                        ds.fields.marital_status.pro.validator = marital_status_validate;
+                    }
+                    //申请人配偶身份证校验
+                    if (ds.fields.id_no_sp) {
+                        ds.fields.id_no_sp.pro.validator = id_no_sp_validate;
+                    }
+                    //申请人配偶手机校验
+                    if (ds.fields.cell_phone_sp) {
+                        ds.fields.cell_phone_sp.pro.validator = cell_phone_sp_validate;
+                    }
+                }
+                if ((ds.id).indexOf('prj_project_lease_item') != -1) {
+                    //产品带出
+                    if (ds.fields.product_plan_id_n) {
+                        ds.fields.product_plan_id_n.pro.validator = product_plan_id_validate;
+                    }
+                    //期数校验
+                    if (ds.fields.lease_times) {
+                        ds.fields.lease_times.pro.validator = lease_times_validate;
+                    }
+                    //首付款比例校验
+                    if (ds.fields.down_payment_ratio) {
+                        ds.fields.down_payment_ratio.pro.validator = down_payment_ratio_validate;
+                    }
+                    //保证金比例校验
+                    if (ds.fields.deposit_ratio) {
+                        ds.fields.deposit_ratio.pro.validator = deposit_ratio_validate;
+                    }
+                    //保证金校验
+                    if (ds.fields.deposit) {
+                        ds.fields.deposit.pro.validator = deposit_validate;
+                    }
+                    //首付款校验
+                    if (ds.fields.down_payment) {
+                        ds.fields.down_payment.pro.validator = down_payment_validate;
+                    }
+                    //购置价校验
+                    if (ds.fields.invoice_price) {
+                        ds.fields.invoice_price.pro.validator = invoice_price_validate;
+                    }
+                    //融资额校验
+                    if (ds.fields.finance_amount) {
+                        ds.fields.finance_amount.pro.validator = finance_amount_validate;
+                    }
+                    //手续费校验
+                    if (ds.fields.lease_charge) {
+                        ds.fields.lease_charge.pro.validator = lease_charge_validate;
+                    }
+                    //是否包牌校验
+                    if (ds.fields.license_fee_flag) {
+                        ds.fields.license_fee_flag.pro.validator = license_fee_flag_validate;
+                    }
+                    //是否融保险费
+                    if (ds.fields.insurance_flag) {
+                        ds.fields.insurance_flag.pro.validator = insurance_flag_validate;
+                    }
+                    //是否融购置税
+                    if (ds.fields.purchase_tax_flag) {
+                        ds.fields.purchase_tax_flag.pro.validator = purchase_tax_flag_validate;
+                    }
+                    //上牌费校验
+                    if (ds.fields.plate_price) {
+                        ds.fields.plate_price.pro.validator = plate_price_validate;
+                    }
+                    //购置税校验
+                    if (ds.fields.purchase_tax) {
+                        ds.fields.purchase_tax.pro.validator = purchase_tax_validate;
+                    }
+                    //保险费校验
+                    if (ds.fields.insurance_amount) {
+                        ds.fields.insurance_amount.pro.validator = insurance_amount_validate;
+                    }
+                }
+                if ((ds.id).indexOf('prj_project_bp_contact_info' != -1)) {
+                    //联系人1手机校验
+                    if (ds.fields.phone) {
+                        ds.fields.phone.pro.validator = phone_validate;
+                    }
+                    //联系人2手机校验
+                    if (ds.fields.phone_2) {
+                        ds.fields.phone_2.pro.validator = phone_validate;
+                    }
+                    //联系人3手机校验
+                    if (ds.fields.phone_3) {
+                        ds.fields.phone_3.pro.validator = phone_validate;
+                    }
+                }
+            };
+            
+            function down_payment_validate(record, name, value) {
+                var calc_result_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_quotation');
+                var invoice_price = record.get('invoice_price') || 0;
+                var insurance_amount = record.get('insurance_amount') || 0;
+                var purchase_tax = record.get('purchase_tax') || 0;
+                var plate_price = record.get('plate_price') || 0;
+                var lease_charge = record.get('lease_charge');
+                var deposit = record.get('deposit');
+                var down_payment_ratio = parseInt(value) / (parseInt(invoice_price) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(plate_price));
+                var finance_amount = parseInt(invoice_price) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(plate_price) - parseInt(value);
+                record.set('down_payment_ratio', down_payment_ratio);
+                record.set('finance_amount', finance_amount);
+                if (!deposit) {
+                    var first_time_pay = parseInt(lease_charge) + parseInt(value) + parseInt(deposit) + parseInt(plate_price) + parseInt(insurance_amount) + parseInt(purchase_tax);
+                    $(calc_result_ds_id).getAt(0).set('first_time_pay', first_time_pay);
+                }
+                return true;
+            }
+            
+            function plate_price_validate(record,name,value){
+                var invoice_price = record.get('invoice_price') || 0;
+                var insurance_amount = record.get('insurance_amount') || 0;
+                var purchase_tax = record.get('purchase_tax') || 0;
+                var down_payment = record.get('down_payment') || 0;
+                var finance_amount = parseInt(invoice_price) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(value) - parseInt(down_payment);
+                var down_payment_ratio = parseInt(down_payment) / (parseInt(value) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(invoice_price));
+                record.set('finance_amount', finance_amount);
+                record.set('down_payment_ratio', down_payment_ratio);
+                return true;
+            }
+            
+            function insurance_amount_validate(record,name,value){
+                var invoice_price = record.get('invoice_price') || 0;
+                var plate_price = record.get('plate_price') || 0;
+                var purchase_tax = record.get('purchase_tax') || 0;
+                var down_payment = record.get('down_payment') || 0;
+                var finance_amount = parseInt(invoice_price) + parseInt(plate_price) + parseInt(purchase_tax) + parseInt(value) - parseInt(down_payment);
+                var down_payment_ratio = parseInt(down_payment) / (parseInt(value) + parseInt(plate_price) + parseInt(purchase_tax) + parseInt(invoice_price));
+                record.set('finance_amount', finance_amount);
+                record.set('down_payment_ratio', down_payment_ratio);
+                return true;
+            }
+            
+            function purchase_tax_validate(record,name,value){
+                var invoice_price = record.get('invoice_price') || 0;
+                var insurance_amount = record.get('insurance_amount') || 0;
+                var plate_price = record.get('plate_price') || 0;
+                var down_payment = record.get('down_payment') || 0;
+                var finance_amount = parseInt(invoice_price) + parseInt(insurance_amount) + parseInt(plate_price) + parseInt(value) - parseInt(down_payment);
+                var down_payment_ratio = parseInt(down_payment) / (parseInt(value) + parseInt(insurance_amount) + parseInt(plate_price) + parseInt(invoice_price));
+                record.set('finance_amount', finance_amount);
+                record.set('down_payment_ratio', down_payment_ratio);
+                return true;
+            }
+            
+            function lease_charge_validate(record, name, value) {
+                var finance_amount = record.get('finance_amount');
+                var lease_charge_ratio;
+                if (!finance_amount) {
+                    lease_charge_ratio = 0;
+                } else {
+                    lease_charge_ratio = parseInt(value) / parseInt(finance_amount);
+                }
+                record.set('lease_charge_ratio', lease_charge_ratio);
+                return true;
+            }
+            
+            function finance_amount_validate(record, name, value) {
+                var deposit_ratio = record.get('deposit_ratio') || 0;
+                var deposit = parseFloat(deposit_ratio) * parseInt(value);
+                var lease_charge = record.get('lease_charge') || 0;
+                var finance_amount_from = record.get('finance_amount_from')||0;
+                var finance_amount_to = record.get('finance_amount_to')||99999999999;
+                var lease_charge_ratio;
+                if(value < finance_amount_from || value > finance_amount_to){
+                    Aurora.showMessage('提示', '超出范围，请重新选择融资方案！');
+                    return '请填写' + finance_amount_from + '到' + finance_amount_to + '之间的数字';
+                }
+                if (value != 0) {
+                    lease_charge_ratio = parseInt(lease_charge) / parseInt(value);
+                } else {
+                    lease_charge_ratio = 0;
+                }
+                record.set('deposit', deposit);
+                record.set('lease_charge_ratio', lease_charge_ratio);
+                return true;
+            }
+            
+            function invoice_price_validate(record, name, value) {
+                var down_payment = record.get('down_payment');
+                var insurance_amount = record.get('insurance_amount') || 0;
+                var purchase_tax = record.get('purchase_tax') || 0;
+                var plate_price = record.get('plate_price') || 0;
+                if (!down_payment) {
+                    var finance_amount = parseInt(value) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(plate_price) - parseInt(down_payment);
+                    record.set('finance_amount', finance_amount);
+                    var down_payment_ratio = parseInt(down_payment) / (parseInt(value) + parseInt(insurance_amount) + parseInt(purchase_tax) + parseInt(plate_price));
+                    record.set('down_payment_ratio', down_payment_ratio);
+                }
+                return true;
+            }
+            
+            
+            //加载时调用(grid,table,gridBox)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_load'] = function(ds, record, config_records, bp_seq) {
+                //如果存在的话，进行校验逻辑  排除掉联系人校验
+                if ((ds.id).indexOf('prj_project_bp') != -1 && (ds.id).indexOf('GUR_NP') != -1 && (ds.id).indexOf('prj_project_bp_contact_info') == -1) {
+                    //担保人身份证校验
+                    if (ds.fields.id_card_no) {
+                        ds.fields.id_card_no.pro.validator = gur_id_card_no_validate;
+                    }
+                    //担保人手机验证
+                    if (ds.fields.cell_phone) {
+                        ds.fields.cell_phone.pro.validator = gur_cell_phone_validate;
+                    }
+                }
+                // if ((ds.id).indexOf('prj_project_bp') != -1 && (ds.id).indexOf('GUR_ORG') != -1 && (ds.id).indexOf('prj_project_bp_contact_info') == -1) {
+                // ds.fields.id_card_no.pro.validator = prj500n_card_id_check;
+                // if (ds.fields.id_no_sp) {
+                // ds.fields.id_no_sp.pro.validator = prj500n_card_id_check;
+                // }
+                // }
+            };
+            //新增时调用(grid,table,gridBox)
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_grid_add'] = function(ds, record, config_records, bp_seq) {
+                //如果存在的话，进行校验逻辑  排除掉联系人校验
+                if ((ds.id).indexOf('prj_project_bp') != -1 && (ds.id).indexOf('GUR_NP') != -1 && (ds.id).indexOf('prj_project_bp_contact_info') == -1) {
+                    //担保人身份证校验
+                    if (ds.fields.id_card_no) {
+                        ds.fields.id_card_no.pro.validator = gur_id_card_no_validate;
+                    }
+                    //担保人手机验证
+                    if (ds.fields.cell_phone) {
+                        ds.fields.cell_phone.pro.validator = gur_cell_phone_validate;
+                    }
+                }
+                // if ((ds.id).indexOf('prj_project_bp') != -1 && (ds.id).indexOf('GUR_ORG') != -1 && (ds.id).indexOf('prj_project_bp_contact_info') == -1) {
+                // ds.fields.id_card_no.pro.validator = prj500n_card_id_check;
+                // if (ds.fields.id_no_sp) {
+                // ds.fields.id_no_sp.pro.validator = prj500n_card_id_check;
+                // }
+                // }
+                return true;
+            };
+            //更新时调用
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+                var bp_info_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project_bp');
+                var lease_item_info_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project_lease_item');
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project_lease_item');
+                var prj_project_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project');
+                var prj_record = $(prj_project_ds_id).getAt(0);
+                if(bp_info_ds_id==ds.id){
+                    if(name=='work_type'){
+                        debugger;
+                		$(lease_item_info_ds_id).getAt(0).getField('product_plan_id_n').setLovPara('work_type', record.get('work_type'));
+                    }
+                }
+                if(lease_item_info_ds_id==ds.id){
+                    if(name=='model_id_n'){
+		                record.getField('product_plan_id_n').setLovPara('model_id', record.get('model_id'));
+                    }
+                }
+                if (ds_id == ds.id) {
+                    if (name == 'lease_times') {
+                        if (!value) {
+                            record.getField('lease_times').setReadOnly(false);
+                        }
+                    }
+                    if (name == 'deposit_ratio') {
+                        if (!value) {
+                            record.getField('deposit_ratio').setReadOnly(false);
+                        }
+                    }
+                } /*如果是project_bp相关的，进行身份证校验处理*/
+                if ((ds.id).indexOf('prj_project_bp') != -1 && (ds.id).indexOf('prj_project_bp_contact_info') == -1) {
+                    var id_type = record.get('id_type');
+                    if (name == 'id_card_no') {
+                        Aurora.request({
+                            url: $('get_id_card_no_info_id').getUrl(),
+                            para: {
+                                id_card_no: value,
+                                id_type: id_type
+                            },
+                            success: function(data) {
+                                if (data.result.record && !data.result.record.length) {
+                                    //申请人信息
+                                    for (var name in data.result.record) {
+                                        record.set(name, data.result.record[name]);
+                                    }
+                                    prj_record.set('bp_code', data.result.record['bp_code']);
+                                    prj_record.set('bp_id_tenant', data.result.record['bp_id']);
+                                } else {
+                                    prj_record.set('bp_code', '');
+                                    prj_record.set('bp_id_tenant', '');
+                                }
+            
+            
+                            },
+                            failure: function() {
+            
+                               },
+                            error: function() {
+            
+                               },
+                            scope: this
+                        });
+                    }
+            
+                }
+            };
+            
+            
+            function id_card_no_validate(record, name, value) {
+                //获取担保人ds
+                var bp_gur_np_ds_id = get_dsid_by_tabcode_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'BP_GUR_NP', 'prj_project_bp');
+                if (!value) {
+                    return '身份证号不能为空';
+                } else {
+                    if (!checkCard(value)) {
+                        Aurora.showMessage('提示', '申请人信息中，请输入正确格式的身份证！');
+                        return '请输入正确格式的身份证';
+                    }
+                }
+                if (value.length == 18) {
+                    record.set('date_of_birth', new Date(value.substr(6, 4) + '/' + value.substr(10, 2) + '/' + value.substr(12, 2)));
+                    record.set('age', new Date().getFullYear() - value.substr(6, 4));
+                    if (value.substr(16, 1) % 2 == 1) {
+                        record.set('gender', 'MALE');
+                        record.set('gender_n', '男');
+                    } else if (value.substr(16, 1) % 2 == 0) {
+                        record.set('gender', 'FEMALE');
+                        record.set('gender_n', '女');
+                    }
+                    if (record.get('gender') == record.get('gender_sp')) {
+                        Aurora.showMessage('提示', '申请人和申请人配偶的性别不能相同！');
+                        record.set('gender_sp_n', '');
+                        record.set('date_of_birth_sp', '');
+                        record.set('age_sp', '');
+                        record.set('id_no_sp', '');
+                        return '申请人和申请人配偶的性别不能相同';
+                    }
+                }
+                if ($(bp_gur_np_ds_id).getAt(0)) {
+                    if (record.get('id_card_no') == $(bp_gur_np_ds_id).getAt(0).get('id_card_no')) {
+                        Aurora.showMessage('提示', '申请人和担保人的身份证不能相同！');
+                        record.set('id_no_sp', '');
+                        record.set('id_card_no', '');
+                        record.set('gender_n', '');
+                        record.set('date_of_birth', '');
+                        record.set('age', '');
+                        return '申请人和担保人的身份证不能相同';
+                    }
+                }
+                return true;
+            }
+            
+            function cell_phone_validate(record, name, value) {
+                //获取担保人ds
+                var bp_gur_np_ds_id = get_dsid_by_tabcode_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'BP_GUR_NP', 'prj_project_bp');
+                var bp_contact_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project_bp_contact_info');
+                if (!checkMobile(value)) {
+                    Aurora.showMessage('提示', '申请人信息中，请输入正确格式的手机号码！');
+                    return '请输入正确格式的手机号码';
+                }
+                if (record.get('cell_phone') == record.get('cell_phone_sp')) {
+                    Aurora.showMessage('提示', '申请人和申请人配偶的手机号不能相同！');
+                    return '申请人和申请人配偶的手机号不能相同';
+                }
+                if (!Ext.isEmpty($(bp_gur_np_ds_id).getAt(0))) {
+                    if (record.get('cell_phone') == ($(bp_gur_np_ds_id).getAt(0).get('cell_phone') || 0)) {
+                        Aurora.showMessage('提示', '申请人和担保人的手机号不能相同！');
+                        return '申请人和担保人的手机号不能相同';
+                    }
+                }
+                if (!Ext.isEmpty($(bp_contact_id).getAt(0))) {
+                    if (record.get('cell_phone') == $(bp_contact_id).getAt(0).get('phone') || record.get('cell_phone') == $(bp_contact_id).getAt(0).get('phone_2') || record.get('cell_phone') == $(bp_contact_id).getAt(0).get('phone_3')) {
+                        Aurora.showMessage('提示', '联系人和申请人的手机号不能一样！');
+                        return '联系人和申请人的手机号不能一样';
+                    }
+                }
+                return true;
+            }
+            
+            function marital_status_validate(record, name, value) {
+                if (value == 'UM' || value == 'DV') {
+                    record.set('bp_name_sp', '');
+                    record.set('id_no_sp', '');
+                    record.set('cell_phone_sp', '');
+                    record.set('work_unit_name_sp', '');
+                    record.set('work_type_sp', '');
+                    record.set('work_type_sp_n', '');
+                    record.set('age_sp', '');
+                    record.set('date_of_birth_sp', '');
+                    record.set('gender_sp_n', '');
+                    record.getField('bp_name_sp').setReadOnly(true);
+                    record.getField('id_no_sp').setReadOnly(true);
+                    record.getField('cell_phone_sp').setReadOnly(true);
+                    record.getField('work_unit_name_sp').setReadOnly(true);
+                    record.getField('work_type_sp_n').setReadOnly(true);
+                    record.getField('id_no_sp').setRequired(false);
+                    record.getField('bp_name_sp').setRequired(false);
+                } else if (value == 'MNC' || value == 'MWC' || value == 'RM' || Ext.isEmpty(value)) {
+                    record.getField('bp_name_sp').setReadOnly(false);
+                    record.getField('id_no_sp').setReadOnly(false);
+                    record.getField('cell_phone_sp').setReadOnly(false);
+                    record.getField('work_unit_name_sp').setReadOnly(false);
+                    record.getField('work_type_sp_n').setReadOnly(false);
+                    record.getField('id_no_sp').setRequired(true);
+                    record.getField('bp_name_sp').setRequired(true);
+                    record.getField('cell_phone_sp').setRequired(true);
+                }
+                return true;
+            }
+            
+            function id_no_sp_validate(record, name, value) {
+                if (!value) {
+                    return true;
+                } else {
+                    if (!checkCard(value)) {
+                        Aurora.showMessage('提示', '申请人配偶信息中，请输入正确格式的身份证！');
+                        return '请输入正确格式的身份证';
+                    }
+                }
+                if (value.length == 18) {
+                    record.set('date_of_birth_sp', new Date(value.substr(6, 4) + '/' + value.substr(10, 2) + '/' + value.substr(12, 2)));
+                    record.set('age_sp', new Date().getFullYear() - value.substr(6, 4));
+                    if (value.substr(16, 1) % 2 == 1) {
+                        record.set('gender_sp', 'MALE');
+                        record.set('gender_sp_n', '男');
+                    } else if (value.substr(16, 1) % 2 == 0) {
+                        record.set('gender_sp', 'FEMALE');
+                        record.set('gender_sp_n', '女');
+                    }
+                    if (record.get('gender') == record.get('gender_sp')) {
+                        Aurora.showMessage('提示', '申请人和申请人配偶的性别不能相同！');
+                        record.set('gender_sp_n', '');
+                        record.set('date_of_birth_sp', '');
+                        record.set('age_sp', '');
+                        record.set('id_no_sp', '');
+                        return '申请人和申请人配偶的性别不能相同';
+                    }
+                }
+                return true;
+            }
+            
+            function cell_phone_sp_validate(record, name, value) {
+                if (!value) {
+                    return true;
+                }
+                if (!checkMobile(value)) {
+                    Aurora.showMessage('提示', '申请人配偶信息中，请输入正确格式的手机号码！');
+                    return '请输入正确格式的手机号码';
+                }
+                if (record.get('cell_phone') == record.get('cell_phone_sp')) {
+                    Aurora.showMessage('提示', '申请人和申请人配偶的手机号不能相同！');
+                    return '申请人和申请人配偶的手机号不能相同';
+                }
+                return true;
+            }
+            
+            function gur_id_card_no_validate(record, name, value) {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project_bp');
+                if (!value) {
+                    return '身份证号不能为空';
+                } else {
+                    if (!checkCard(value)) {
+                        Aurora.showMessage('提示', '担保人信息中，请输入正确格式的身份证！');
+                        return '请输入正确格式的身份证';
+                    }
+                }
+                if (value.length == 18) {
+                    record.set('date_of_birth', new Date(value.substr(6, 4) + '/' + value.substr(10, 2) + '/' + value.substr(12, 2)));
+                    record.set('age', new Date().getFullYear() - value.substr(6, 4));
+                    if (value.substr(16, 1) % 2 == 1) {
+                        record.set('gender', 'MALE');
+                        record.set('gender_n', '男');
+                    } else if (value.substr(16, 1) % 2 == 0) {
+                        record.set('gender', 'FEMALE');
+                        record.set('gender_n', '女');
+                    }
+                }
+                if (record.get('id_card_no') == $(ds_id).getAt(0).get('id_card_no')) {
+                    Aurora.showMessage('提示', '申请人和担保人的身份证不能相同！');
+                    record.set('gender_n', '');
+                    record.set('date_of_birth', '');
+                    record.set('age', '');
+                    return '申请人和担保人的身份证不能相同';
+                }
+                return true;
+            }
+            
+            function gur_cell_phone_validate(record, name, value) {
+                //获取申请人ds
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project_bp');
+                if (!checkMobile(value)) {
+                    Aurora.showMessage('提示', '担保人信息中，请输入正确格式的手机号码！');
+                    return '请输入正确格式的手机号码';
+                }
+                if (record.get('cell_phone') == $(ds_id).getAt(0).get('cell_phone')) {
+                    record.set('cell_phone', '');
+                    Aurora.showMessage('提示', '申请人和担保人的手机号不能相同！');
+                    return '申请人和担保人的手机号不能相同';
+                }
+                return true;
+            }
+            
+            function lease_times_validate(record, name, value) {
+                var min_dp_ratio = record.get('min_dp_ratio');
+                var times_limit = record.get('times_limit');
+                var min_dp_ratio_visit = record.get('min_dp_ratio_visit');
+                var times_limit_visit = record.get('times_limit_visit');
+                var down_payment_ratio = record.get('down_payment_ratio');
+                var lease_times_temp=record.get('lease_times_temp');
+                if (!lease_times_temp) {
+                    record.getField('lease_times').setReadOnly(false);
+                } else {
+                    record.getField('lease_times').setReadOnly(true);
+                }
+                if (down_payment_ratio != 'undefined') {
+                    if (value == times_limit && down_payment_ratio >= min_dp_ratio) {
+                        record.set('gps_install_flag', 'N');
+                        record.set('gps_install_flag_n', '否');
+                    }else{
+                        record.set('gps_install_flag', 'Y');
+                        record.set('gps_install_flag_n', '是');
+                    }
+                    if (value == times_limit_visit && down_payment_ratio >= min_dp_ratio_visit) {
+                        record.set('visit_flag', 'N');
+                        record.set('visit_flag_n', '否');
+                    }else{
+                        record.set('visit_flag', 'Y');
+                        record.set('visit_flag_n', '是');
+                    }
+                }
+                return true;
+            }
+            
+            function down_payment_ratio_validate(record, name, value) {
+                var down_payment_ratio_from = record.get('down_payment_ratio_from') || 0;
+                var down_payment_ratio_to = record.get('down_payment_ratio_to') || 1;
+                var min_dp_ratio = record.get('min_dp_ratio');
+                var times_limit = record.get('times_limit');
+                var min_dp_ratio_visit = record.get('min_dp_ratio_visit');
+                var times_limit_visit = record.get('times_limit_visit');
+                var lease_times = record.get('lease_times') || 0;
+                if (value < down_payment_ratio_from || value > down_payment_ratio_to) {
+                    Aurora.showMessage('提示', '首付比例只能在' + down_payment_ratio_from * 100 + '到' + down_payment_ratio_to * 100 + '之间！');
+                    return '请填写' + down_payment_ratio_from * 100 + '到' + down_payment_ratio_to * 100 + '之间的数字';
+                }
+                if (lease_times == times_limit && value >= min_dp_ratio) {
+                    record.set('gps_install_flag', 'N');
+                    record.set('gps_install_flag_n', '否');
+                }else{
+                    record.set('gps_install_flag', 'Y');
+                    record.set('gps_install_flag_n', '是');
+                }
+                if (lease_times == times_limit_visit && value >= min_dp_ratio_visit) {
+                    record.set('visit_flag', 'N');
+                    record.set('visit_flag_n', '否');
+                }else{
+                    record.set('visit_flag', 'Y');
+                    record.set('visit_flag_n', '是');
+                }
+                return true;
+            }
+            
+            function deposit_ratio_validate(record, name, value) {
+                var finance_amount = record.get('finance_amount') || 0;
+                var deposit = parseInt(finance_amount) * parseFloat(value);
+                record.set('deposit', deposit);
+                return true;
+            }
+            
+            function deposit_validate(record, name, value) {
+                var calc_result_ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_quotation');
+                var insurance_amount = record.get('insurance_amount') || 0;
+                var purchase_tax = record.get('purchase_tax') || 0;
+                var plate_price = record.get('plate_price') || 0;
+                var lease_charge = record.get('lease_charge');
+                var down_payment = record.get('down_payment');
+                var first_time_pay = parseInt(lease_charge) + parseInt(down_payment) + parseInt(value) + parseInt(plate_price) + parseInt(insurance_amount) + parseInt(purchase_tax);
+                $(calc_result_ds_id).getAt(0).set('first_time_pay', first_time_pay);
+                return true;
+            }
+            
+            function phone_validate(record, name, value) {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project_bp');
+                var phone_0 = $(ds_id).getAt(0).get('id_card_no')
+                var phone_1 = record.get('phone');
+                var phone_2 = record.get('phone_2');
+                var phone_3 = record.get('phone_3');
+                if (phone_0 == phone_1 || phone_0 == phone_2 || phone_0 == phone_3) {
+                    Aurora.showMessage('提示', '联系人和申请人的手机号不能一样！');
+                    return '联系人和申请人的手机号不能一样';
+                }
+                if (phone_1 == phone_2 || phone_1 == phone_3 || phone_2 == phone_3) {
+                    Aurora.showMessage('提示', '联系人的手机号不能一样！');
+                    return '联系人的手机号不能一样';
+                }
+                return true;
+            }
+            
+            function phone_validate(record, name, value) {
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'prj_project_bp');
+                var phone_0 = $(ds_id).getAt(0).get('cell_phone')
+                var phone_1 = record.get('phone') || -1;
+                var phone_2 = record.get('phone_2') || -2;
+                var phone_3 = record.get('phone_3') || -3;
+                if (phone_1 != -1) {
+                    if (!checkMobile(phone_1)) {
+                        Aurora.showMessage('提示', '联系人1信息中，请输入正确格式的手机号码！');
+                        return '请输入正确格式的手机号码';
+                    }
+                }
+                if (phone_2 != -2) {
+                    if (!checkMobile(phone_2)) {
+                        Aurora.showMessage('提示', '联系人2信息中，请输入正确格式的手机号码！');
+                        return '请输入正确格式的手机号码';
+                    }
+                }
+                if (phone_3 != -3) {
+                    if (!checkMobile(phone_3)) {
+                        Aurora.showMessage('提示', '联系人3信息中，请输入正确格式的手机号码！');
+                        return '请输入正确格式的手机号码';
+                    }
+                }
+                if (phone_0 == phone_1 || phone_0 == phone_2 || phone_0 == phone_3) {
+                    Aurora.showMessage('提示', '联系人和申请人的手机号不能一样！');
+                    return '联系人和申请人的手机号不能一样';
+                }
+                if (phone_1 == phone_2 || phone_1 == phone_3 || phone_2 == phone_3) {
+                    Aurora.showMessage('提示', '联系人的手机号不能一样！');
+                    return '联系人的手机号不能一样';
+                }
+                return true;
+            }
+            
+            function product_plan_id_validate(record, name, value) {
+                debugger;
+                var down_payment_ratio = record.get('down_payment_ratio');
+                var finance_amount = record.get('finance_amount');
+                if (down_payment_ratio) {
+                    record.set('down_payment_ratio', down_payment_ratio);
+                }
+                if(finance_amount){
+                    record.set('finance_amount', finance_amount);
+                }
+                return true;
+            }
+            
+            function license_fee_flag_validate(record, name, value) {
+				if(value=='N'){
+					record.getField('plate_price').setReadOnly(true);
+					record.getField('plate_price').setRequired(false);
+				}else{
+				    record.getField('plate_price').setReadOnly(false);
+				    record.getField('plate_price').setRequired(true);
+				}
+                return true;
+            }
+            
+            function insurance_flag_validate(record, name, value) {
+				if(value=='N'){
+					record.getField('insurance_amount').setReadOnly(true);
+					record.getField('insurance_purchase').setReadOnly(true);
+					record.getField('insurance_amount').setRequired(false);
+					record.getField('insurance_purchase').setRequired(false);
+				}else{
+				    record.getField('insurance_amount').setReadOnly(false);
+				    record.getField('insurance_purchase').setReadOnly(false);
+				    record.getField('insurance_amount').setRequired(true);
+				    record.getField('insurance_purchase').setRequired(true);
+				}
+                return true;
+            }
+            
+            function purchase_tax_flag_validate(record, name, value) {
+				if(value=='N'){
+					record.getField('purchase_tax').setReadOnly(true);
+					record.getField('purchase_tax').setRequired(false);
+				}else{
+				    record.getField('purchase_tax').setReadOnly(false);
+				    record.getField('purchase_tax').setRequired(true);
+				}
+                return true;
+            }
+        ]]></script>
+    </a:view>
+</a:screen>

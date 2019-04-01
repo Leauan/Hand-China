@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-6-24 下午1:28:49  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure><![CDATA[
+    ]]></a:init-procedure>
+    <a:view package="aurora.ui.std" template="default">
+        <a:link id="con_contract_et_heads_save_link" modelaction="insert" url="${/request/@context_path}/autocrud/cont.CON701.con_contract_et_heads/batch_update"/>
+        <a:link id="con_contract_et_lines_save_link" modelaction="insert" url="${/request/@context_path}/autocrud/cont.CON701.con_contract_et_lines/batch_update"/>
+        <a:link id="con_contract_et_calculate_link" url="${/request/@context_path}/modules/cont/CON701/con_contract_et_calculate.svc"/>
+        <a:link id="con_contract_et_save_link" model="cont.CON701.con_contract_et_save" modelaction="execute"/>
+        <a:link id="con_contract_et_submit_link" model="cont.CON701.con_contract_et_submit" modelaction="execute"/>
+        <a:link id="con_contract_termination_date_check_link" model="cont.CON701.con_contract_termination_date_check" modelaction="execute"/>
+        <div/>
+        <script><![CDATA[
+            function Screen_forward() {
+                history.go(1);
+            }
+            
+            function Screen_back() {
+                history.go(-1);
+            }
+            
+            function Screen_exit() {
+                 $('${/parameter/@winId}').close();
+            }
+            
+            function contractCreateScreen_calculate() {
+            
+                var ds = $('contractQueryScreen_mainDs'),
+                    et_ds = $('early_terminationDs'),
+                    et_record = et_ds.getAt(0),
+                    record = ds.getCurrentRecord();
+                var et_agreement_id;
+                if (record.validateRecord()) {
+                    var termination_date = Aurora.formatDate(record.get('termination_date'));
+                    var contract_id = record.get('contract_id');
+                    var et_type = record.get('et_type');
+            
+                    if (et_record) {
+                        et_agreement_id = et_record.get('et_agreement_id');
+                    }
+                     Aurora.Masker.mask(Ext.getBody(), '正在加载..');
+                    Aurora.request({
+                        url: $('con_contract_et_calculate_link').getUrl(),
+                        para: {
+                            termination_date: termination_date,
+                            contract_id: contract_id,
+                            et_type: et_type,
+                            et_agreement_id: et_agreement_id
+                        },
+                        success: function(args) { //
+                            var et_agreement_id = args.result.et_agreement_id;
+                            et_ds.setQueryParameter('et_agreement_id', et_agreement_id);
+                            et_ds.query();
+            
+                            $('unreceivedAmountDs').setQueryParameter('contract_id', record.get('contract_id'));
+                            $('unreceivedAmountDs').setQueryParameter('et_agreement_id', et_agreement_id);
+                            $('unreceivedAmountDs').query();
+            
+                            $('receivedAmountDs').setQueryParameter('contract_id', record.get('contract_id'));
+                            $('receivedAmountDs').query();
+                            document.getElementById("detail_flag_id").style.display = "";
+                             Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                }
+            
+            }
+            
+            function et_save() {
+                var et_ds = $('early_terminationDs'),
+                    et_record = et_ds.getAt(0);
+                if (et_record) {
+                    var et_agreement_id = et_record.get('et_agreement_id'),
+                        penalty= et_record.get('penalty'),
+                        mgt_fee_after_discount =et_record.get('mgt_fee_after_discount'),
+                        et_total_amount =et_record.get('et_total_amount'); 
+                    Aurora.request({
+                        url: $('con_contract_et_save_link').getUrl(),
+                        para: {
+                            et_agreement_id: et_agreement_id,
+                            penalty:penalty,
+                            mgt_fee_after_discount:mgt_fee_after_discount,
+                            et_total_amount:et_total_amount
+                        },
+                        success: function(args) { //
+                            Aurora.SideBar.show({
+                                msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                duration: 2000
+                            });
+                        },
+                        scope: this
+                    });
+                } else {
+                    Aurora.showMessage('提示', '请先测算！');
+                }
+            
+            }
+            
+           function et_submit() {
+                var et_ds = $('early_terminationDs'),
+                    et_record = et_ds.getAt(0);
+                if (et_record) {
+                    var et_agreement_id = et_record.get('et_agreement_id');
+                    
+                    Aurora.request({
+                        url: $('con_contract_et_submit_link').getUrl(),
+                        para: {
+                            et_agreement_id: et_agreement_id
+                        },
+                        success: function(args) { //
+                            Aurora.SideBar.show({
+                                msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                duration: 2000
+                            });
+                        },
+                        scope: this
+                    });
+                } else {
+                    Aurora.showMessage('提示', '请先测算！');
+                }
+            
+            }
+            
+            
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="early_terminationDs" model="cont.CON701.con_contract_et_hd">
+                <!-- <a:fields>
+                    <a:field name="overdue_amount" required="true" />
+                    <a:field name="rentals_payable" required="true" />
+                    <a:field name="undue_principal" required="true" />
+                    <a:field name="et_interest" required="true" />
+                    <a:field name="et_fee" required="true" />
+                    <a:field name="residual_value" required="true" />
+                    <a:field name="et_rate" required="true" />
+                    
+                </a:fields> --><![CDATA[
+                
+                
+                
+                
+                
+                
+            ]]></a:dataSet>
+            <!-- <a:dataSet id="rentPaymentDs" model="cont.CON701.con_ren_payment_status_query" submitUrl="${/request/@context_path}/autocrud/cont.CON701.con_contract_et_lines/batch_update"><![CDATA[
+            
+            ]]></a:dataSet> -->
+            <a:dataSet id="receivedAmountDs" model="cont.CON701.con_contract_received_amount"/>
+            <a:dataSet id="unreceivedAmountDs" model="cont.CON701.con_contract_unreceived_amount"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="Screen_back" text="HLS.BACK"/>
+                <a:gridButton click="Screen_forward" text="HLS.FORWARD"/>
+                <a:gridButton click="Screen_exit" text="HLS.EXIT"/>
+                <a:gridButton click="contractCreateScreen_calculate" text="测算"/>
+                <a:gridButton click="et_save" text="HLS.SAVE"/>
+                <a:gridButton click="et_submit" text="提交"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="110" marginWidth="30" title="HLS.QUERY_TITLE">
+                <a:textField name="contract_number" bindTarget="contractQueryScreen_mainDs" prompt="合同编码"/>
+                <a:textField name="contract_name" bindTarget="contractQueryScreen_mainDs" prompt="合同名称"/>
+                <a:textField name="document_type_desc" bindTarget="contractQueryScreen_mainDs" prompt="合同类型"/>
+                <a:textField name="document_category_desc" bindTarget="contractQueryScreen_mainDs" prompt="合同类别"/>
+                <a:textField name="bp_name" bindTarget="contractQueryScreen_mainDs" prompt="承租人名称"/>
+                <a:textField name="project_name" bindTarget="contractQueryScreen_mainDs" prompt="项目名称"/>
+                <a:textField name="status_desc" bindTarget="contractQueryScreen_mainDs" prompt="合同状态"/>
+                <a:textField name="inception_of_lease" bindTarget="contractQueryScreen_mainDs" prompt="起租日期"/>
+                <a:textField name="employee_name" bindTarget="contractQueryScreen_mainDs" prompt="项目经理"/>
+                <!-- <a:textField name="overdue_status" bindTarget="contractQueryScreen_mainDs" prompt="是否逾期"/> -->
+                <a:comboBox name="et_profile_desc" bindTarget="contractQueryScreen_mainDs" prompt="结清方式"/>
+                <a:lov name="et_type_dis" bindTarget="contractQueryScreen_mainDs" prompt="提前结清类型"/>
+                <a:datePicker name="termination_date" bindTarget="contractQueryScreen_mainDs" prompt="提前结清日" renderer="Aurora.formatDate">
+                    <!-- <a:events>
+                        <a:event name="change" handler="termination_date_handler"/>
+                    </a:events> --><![CDATA[
+                    
+                    
+                    
+                ]]></a:datePicker>
+            </a:form>
+            <div id="detail_flag_id">
+                <a:form title="提前结清信息">
+                    <h3 style="color:black; text-align:left;font-weight:bold;font-size:14px;"><![CDATA[提前结清费用测算]]></h3>
+                    <a:form column="4" labelWidth="110" marginWidth="30">
+                        <a:numberField name="overdue_amount" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="逾期租金" readOnly="true"/>
+                        <a:numberField name="penalty" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="逾期罚金"/>
+                        <a:numberField name="rentals_payable" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="应付租金" readOnly="true"/>
+                        <a:numberField name="undue_principal" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="未到期本金" readOnly="true"/>
+                        <a:numberField name="et_interest" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="提前结清利息" readOnly="true"/>
+                        <a:numberField name="mgt_fee_after_discount" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="管理费贴现值"/>
+                        <a:numberField name="et_fee" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="提前结清手续费"/>
+                        <a:numberField name="residual_value" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="留购金" readOnly="true"/>
+                        <a:numberField name="et_rate" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="贴现利率" readOnly="true"/>
+                        <a:numberField name="et_total_amount" allowDecimals="true" allowFormat="true" bindTarget="early_terminationDs" decimalPrecision="2" prompt="提前结清费用合计"/>
+                    </a:form>
+                    <!-- <h3 style="color:black; text-align:left;font-weight:bold;font-size:14px;"><![CDATA[未到期金额贴现]]></h3> -->
+                    <a:tabPanel marginHeight="400" marginWidth="30">
+                        <a:tabs>
+                            <a:tab prompt="未收金额" width="110">
+                                <a:grid bindTarget="unreceivedAmountDs" marginHeight="430" marginWidth="60" navBar="true">
+                                    <a:columns>
+                                        <a:column name="times" prompt="期数"/>
+                                        <a:column name="cf_type_dis" prompt="类型"/>
+                                        <a:column name="due_amount" prompt="应付金额" renderer="Aurora.formatMoney"/>
+                                        <a:column name="received_amount" prompt="已收金额" renderer="Aurora.formatMoney"/>
+                                        <a:column name="due_date" prompt="预定支付日期"/>
+                                        <a:column name="principal" prompt="本金" renderer="Aurora.formatMoney"/>
+                                        <a:column name="interest" prompt="利息" renderer="Aurora.formatMoney"/>
+                                        <a:column name="termination_date" prompt="结清日"/>
+                                        <a:column name="cf_status_dis" prompt="现金流状态"/>
+                                    </a:columns>
+                                </a:grid>
+                            </a:tab>
+                            <a:tab prompt="已收金额" width="110">
+                                <a:grid bindTarget="receivedAmountDs" marginHeight="430" marginWidth="60" navBar="true">
+                                    <a:columns>
+                                        <a:column name="times" prompt="期数"/>
+                                        <a:column name="cf_type_dis" prompt="类型"/>
+                                        <a:column name="due_amount" prompt="应付金额" renderer="Aurora.formatMoney"/>
+                                        <a:column name="received_amount" prompt="未付金额" renderer="Aurora.formatMoney"/>
+                                        <a:column name="due_date" prompt="预定支付日期"/>
+                                        <a:column name="received_principal" prompt="已收本金" renderer="Aurora.formatMoney"/>
+                                        <a:column name="received_interest" prompt="已收利息" renderer="Aurora.formatMoney"/>
+                                        <a:column name="termination_date" prompt="结清日"/>
+                                        <a:column name="cf_status_dis" prompt="现金流状态"/>
+                                    </a:columns>
+                                </a:grid>
+                            </a:tab>
+                        </a:tabs>
+                    </a:tabPanel>
+                </a:form>
+            </div>
+        </a:screenBody>
+        <script><![CDATA[
+            Aurora.onReady(init);
+            function init() {
+                var record = $('contractQueryScreen_mainDs').getCurrentRecord();
+                record.getField('contract_number').setReadOnly(true);
+                record.getField('contract_name').setReadOnly(true);
+                record.getField('document_type_desc').setReadOnly(true);
+                record.getField('document_category_desc').setReadOnly(true);
+                record.getField('bp_name').setReadOnly(true);
+                record.getField('employee_name').setReadOnly(true);
+                record.getField('project_name').setReadOnly(true);
+                record.getField('status_desc').setReadOnly(true);
+                record.getField('inception_of_lease').setReadOnly(true);
+                record.getField('user_desc').setReadOnly(true);
+                record.getField('overdue_status').setReadOnly(true);
+                
+            document.getElementById("detail_flag_id").style.display = "none";
+            
+            }
+        ]]></script>
+    </a:view>
+</a:screen>

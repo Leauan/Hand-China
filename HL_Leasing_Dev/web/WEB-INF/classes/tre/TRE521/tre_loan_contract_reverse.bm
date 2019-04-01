@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Guoxuezhao  
+    $Date: 2013-6-3 下午5:44:23  
+    $Revision: 1.0  
+    $Purpose: 合同概要
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    tlc.loan_contract_id,
+                    tlc.loan_contract_number,
+                    tlc.bank_credit_contract_id,
+                    (SELECT
+                        bcc.credit_contract_number
+                    FROM
+                        tre_bank_credit_contract bcc
+                    WHERE
+                        bcc.credit_contract_id=tlc.bank_credit_contract_id
+                    ) credit_contract_number,
+                    tlc.loan_amount_type,
+                    tlc.loan_amount,
+                    TO_CHAR(tlc.loan_date_from, 'yyyy-mm-dd') AS loan_date_from,
+                    TO_CHAR(tlc.loan_date_to, 'yyyy-mm-dd') AS loan_date_to,
+                    (SELECT
+                        NVL(SUM(tlcw.withdraw_amount), 0)
+                    FROM
+                        tre_loan_contract_withdraw tlcw
+                    WHERE
+                        tlcw.loan_contract_id = tlc.loan_contract_id
+                    ) AS withdraw_amount,
+                    0 AS interest_payable,
+                    (SELECT
+                        NVL(SUM(tlcr.repayment_amount), 0)
+                    FROM
+                        tre_loan_contract_repayment tlcr
+                    WHERE
+                        tlcr.loan_contract_id = tlc.loan_contract_id
+                    ) AS repayment_amount,
+                    (SELECT
+                        NVL(SUM(dtl.repayment_principal), 0)
+                    FROM
+                        tre_loan_contract_repayment tlcr,
+                        tre_loan_con_repayment_dtl dtl
+                    WHERE
+                        tlcr.loan_contract_id = tlc.loan_contract_id AND
+                        tlcr.repayment_id     =dtl.repayment_id
+                    ) AS repayment_principal,
+                    (SELECT
+                        NVL(SUM(dtl.repayment_interest), 0)
+                    FROM
+                        tre_loan_contract_repayment tlcr,
+                        tre_loan_con_repayment_dtl dtl
+                    WHERE
+                        tlcr.loan_contract_id = tlc.loan_contract_id AND
+                        tlcr.repayment_id     =dtl.repayment_id
+                    ) AS repayment_interest,
+                    tre_loan_contract_pkg.get_remaining_amount(tlc.loan_contract_id,${/session/@user_id}) AS remaining_amount,
+                    tlc.business_type,
+                    tlc.loan_contract_status,
+                    (select v.bank_branch_name from csh_bank_all_v v where v.bank_account_id=tlc.bank_account_id)bank_branch_name,
+                    tlc.bank_account_code,
+                    tlc.withdraw_account_code,
+                    tlc.bank_branch_code
+                FROM
+                    tre_loan_contract_v tlc #WHERE_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="loan_contract_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="LOAN_CONTRACT_ID" required="true"/>
+        <bm:field name="loan_contract_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="LOAN_CONTRACT_NUMBER"/>
+        <bm:field name="credit_contract_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CREDIT_CONTRACT_NUMBER"/>
+        <bm:field name="loan_amount_type" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="LOAN_AMOUNT_TYPE"/>
+        <bm:field name="bank_credit_contract_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="BANK_CREDIT_CONTRACT_ID"/>
+        <bm:field name="business_type" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="BUSINESS_TYPE"/>
+        <bm:field name="loan_contract_status" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="LOAN_CONTRACT_STATUS"/>
+        <bm:field name="loan_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="LOAN_AMOUNT"/>
+        <bm:field name="loan_date_from" databaseType="DATE" datatype="java.util.Date" physicalName="LOAN_DATE_FROM"/>
+        <bm:field name="loan_date_to" databaseType="DATE" datatype="java.util.Date" physicalName="LOAN_DATE_TO"/>
+        <bm:field name="withdraw_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="WITHDRAW_AMOUNT"/>
+        <bm:field name="interest_payable" databaseType="NUMBER" datatype="java.lang.Double" physicalName="INTEREST_PAYABLE"/>
+        <bm:field name="repayment_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="REPAYMENT_AMOUNT"/>
+        <bm:field name="repayment_principal" databaseType="NUMBER" datatype="java.lang.Double" physicalName="REPAYMENT_PRINCIPAL"/>
+        <bm:field name="repayment_interest" databaseType="NUMBER" datatype="java.lang.Double" physicalName="REPAYMENT_INTEREST"/>
+        <bm:field name="remaining_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="REMAINING_AMOUNT"/>
+        <bm:field name="bank_branch_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="HLS.BANK_BRANCH_NAME"/>
+        <bm:field name="bank_account_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="bank_account_code"/>
+        <bm:field name="withdraw_account_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="withdraw_account_code"/>
+        <bm:field name="bank_branch_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="bank_branch_code"/>
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field field="business_type" queryOperator="="/>
+        <bm:query-field field="bank_credit_contract_id" queryOperator="="/>
+        <bm:query-field field="loan_contract_status" queryOperator="="/>
+        <bm:query-field field="loan_contract_number" queryOperator="like"/>
+        <bm:query-field field="bank_account_code" queryOperator="="/>
+        <bm:query-field field="withdraw_account_code" queryOperator="="/>
+        <bm:query-field field="bank_branch_code" queryOperator="="/>
+        <bm:query-field field="credit_contract_number" queryExpression="tlc.bank_credit_contract_id in (SELECT                                       bcc.credit_contract_id                                   FROM                                       tre_bank_credit_contract bcc                                   WHERE                                       bcc.credit_contract_number like ${@credit_contract_number}                                   )"/>
+        <bm:query-field field="loan_date_from" queryExpression="${@loan_date_from} between tlc.loan_date_from and nvl(tlc.loan_date_to,${@loan_date_from})"/>
+        <bm:query-field field="loan_date_to" queryExpression="${@loan_date_to} between tlc.loan_date_from and nvl(tlc.loan_date_to,${@loan_date_to})"/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="exists (select 1 from tre_loan_contract_withdraw w where tlc.loan_contract_id = w.loan_contract_id  and w.status = &apos;REVIEWED&apos;  and w.reversed_flag = &apos;N&apos;)"/>
+    </bm:data-filters>
+</bm:model>

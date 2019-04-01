@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: ouyangzhaochang2663 $
+    $Date: 2011/02/21 08:37:47 $
+    $Revision: 1.13 $
+    $Purpose: UPDATE BY DJ 重构大部分代码
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="pageLink_edit_user" url="${/request/@context_path}/modules/sys/SYS8210/sys_user_edit.screen"/>
+        <a:link id="pageLink_set_password" url="${/request/@context_path}/modules/sys/SYS8210/sys_user_set_password.screen"/>
+        <a:link id="pageLink_create_user" url="${/request/@context_path}/modules/sys/SYS8210/sys_user_create.screen"/>
+        <a:link id="pageLink_role_assign" url="${/request/@context_path}/modules/sys/SYS8210/sys_user_role_assign.screen"/>
+        <a:link id="pageLink_welcome" url="${/request/@context_path}/welcome.screen"/>
+        <script><![CDATA[
+        	function userScreen_forward() {
+	            history.go(1);
+	        }
+	        
+	        function userScreen_back() {
+	            history.go(-1);
+	        }
+	        
+	        function userScreen_userDs_query() {
+	            $('userDs').query();
+	        }
+	        
+	        function userScreen_quit() {
+	            location.href = $('pageLink_welcome').getUrl();
+	        }
+            
+            function resetService(){
+            	$('para_userDs').reset();
+            }
+            
+            function render_userDs_grid(value, record, name){
+                if(!record.isNew)
+                {
+                    var userId = record.get('user_id');
+                    if(name=='assign_role')
+                    {
+                        return '<a href="javascript:winOpen_assign_role('+userId+')">${l:SYS_USER.ROLE_ASSIGN}</a>';
+                    }
+                    else if(name=='set_password')
+                    {
+                        return '<a href="javascript:winOpen_set_password('+userId+')">${l:SYS_USER.MODIFY_PASSWORD}</a>';
+                    }
+                    else if(name=='edit_user')
+                    {
+                        return '<a href="javascript:winOpen_edit_user('+userId+')">${l:PROMPT.EDIT}</a>';
+                    }
+                    return '';
+                }
+                return '';
+            }
+            
+            
+            function winOpen_assign_role(id){
+                new Aurora.Window({
+                    id:'sys_user_role_assign', 
+                    url:$('pageLink_role_assign').getUrl(),
+                    params:{
+                    	user_id:id
+                    },
+                    title:'${l:SYS_USER.ROLE_ASSIGN}', 
+                    height:500,
+                    width:830
+                });
+            }
+        
+            function winOpen_create_user(){
+                new Aurora.Window({
+                    id:'sys_user_create', 
+                    url:$('pageLink_create_user').getUrl(), 
+                    title:'${l:SYS_USER.ADD_NEW_USER}', 
+                    height:380,
+                    width:530
+                });
+            }
+            function winOpen_set_password(id){
+                new Aurora.Window({
+                    id:'sys_user_set_password',
+					url:$('pageLink_set_password').getUrl(),
+					params:{
+                    	user_id:id
+                    },
+					title:'${l:SYS_USER.MODIFY_PASSWORD}',
+					height:250,
+					width:500
+				});
+            }
+            
+            function winOpen_edit_user(id){
+                new Aurora.Window({id:'sys_user_edit',
+					url:$('pageLink_edit_user').getUrl(),
+					params:{
+                    	user_id:id
+                    },
+					title:'${l:SYS_USER.EDIT_USER}',
+					height:380,
+					width:530
+				});
+            }
+
+            function user_export(){
+                $('userDs_grid')._export('xls','用户数据');
+            }
+            
+            function para_userDs_reset() {
+                $('para_userDs').reset();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="lockStatusDs" loadData="true" lookupCode="SYS_USER_ISLOCKED"/>
+            <a:dataSet id="user_type_lov_ds" loadData="true" lookupCode="USER_TYPE"/>
+            <a:dataSet id="para_userDs" autoCreate="true">
+                <a:fields>
+                    <a:field name="user_name"/>
+                    <a:field name="bp_category_name" displayField="code_value_name" options="user_type_lov_ds" returnField="bp_category" valueField="code_value"/>
+                    <a:field name="frozen_flag_display" displayField="code_value_name" options="lockStatusDs" returnField="frozen_flag" valueField="code_value"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="userDs" autoQuery="true" model="sys.SYS8210.login_account_query" pageSize="15" queryDataSet="para_userDs"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="userScreen_back" text="HLS.BACK"/>
+                <a:gridButton click="userScreen_forward" text="HLS.FORWARD"/>
+                <a:gridButton click="userScreen_quit" text="HLS.EXIT"/>
+                <a:gridButton click="para_userDs_reset" text="HLS.RESET"/>
+                <a:gridButton click="userScreen_userDs_query" text="HLS.QUERY"/>
+                <a:gridButton click="winOpen_create_user" text="HLS.NEW"/>
+                <a:gridButton click="user_export" text="HLS.EXPORT"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="100" title="HLS.QUERY_TITLE">
+                <a:textField name="user_name" bindTarget="para_userDs" prompt="SYS_USER.ACCOUNT"/>
+                <a:textField name="description" bindTarget="para_userDs" prompt="SYS_USER.DESCRIPTION"/>
+                <a:comboBox name="frozen_flag_display" bindTarget="para_userDs" prompt="SYS_USER.IS_FROZEN"/>
+                <a:comboBox name="bp_category_name" bindTarget="para_userDs" prompt="SYS_USER.USER_TYPE"/>
+                <a:textField name="employee_code" bindTarget="para_userDs" prompt="FND_PRV_LOGIN_ACC.EMPLOYEE_CODE"/>
+                <a:textField name="employee_name" bindTarget="para_userDs" prompt="EXP_EMPLOYEES.NAME"/>
+                <a:textField name="bp_code" bindTarget="para_userDs" prompt="HLS_BP_MASTER.BP_CODE"/>
+                <a:textField name="bp_name" bindTarget="para_userDs" prompt="HLS_BP_MASTER.BP_NAME"/>
+            </a:form>
+            <a:grid id="userDs_grid" bindTarget="userDs" marginHeight="170" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="user_name" prompt="SYS_USER.USER_NAME"/>
+                    <a:column name="description" prompt="FND_COMPANY_PROMPTS.DESCRIPTION" width="100"/>
+                    <a:column name="start_date" align="center" prompt="FND_COMPANIES.START_DATE_ACTIVE" renderer="Aurora.formatDate"/>
+                    <a:column name="end_date" align="center" prompt="FND_COMPANIES.END_DATE" renderer="Aurora.formatDate"/>
+                    <a:column name="frozen_flag" align="center" prompt="FND_PRV_LOGIN_ACC.STATUS" width="50"/>
+                    <a:column name="frozen_date" align="center" prompt="SYS_USER.FROZEN_DATE" renderer="Aurora.formatDate"/>
+                    <a:column name="bp_category_name" prompt="SYS_USER.USER_TYPE" width="60"/>
+                    <a:column name="employee_code" prompt="FND_PRV_LOGIN_ACC.EMPLOYEE_CODE" width="60"/>
+                    <a:column name="employee_name" prompt="EXP_EMPLOYEES.NAME"/>
+                    <a:column name="bp_code" prompt="HLS_BP_MASTER.BP_CODE"/>
+                    <a:column name="bp_name" prompt="HLS_BP_MASTER.BP_NAME" width="160"/>
+                    <a:column name="phone" prompt="SYS_USER.PHONE"/>
+                    <a:column name="assign_role" align="center" prompt="SYS_USER.ROLE_ASSIGN" renderer="render_userDs_grid" width="70"/>
+                    <a:column name="set_password" align="center" prompt="MODIFY_PASSWORD" renderer="render_userDs_grid" width="70"/>
+                    <a:column name="edit_user" align="center" prompt="HAP_EDIT" renderer="render_userDs_grid" width="50"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

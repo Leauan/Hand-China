@@ -1,0 +1,406 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-12-16 上午09:36:44  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query autoCount="false" model="tre.tre503.tre_loan_con_for_withdraw_int" rootPath="loan_con"/>
+        <a:model-query autoCount="false" fetchAll="true" model="tre.tre503.tre_loan_con_withdraw_int" rootPath="withdraw_int"/>
+        <a:model-query autoCount="false" fetchAll="true" model="gld.gld_exchangerate_type_lov" rootPath="exchangerate_type_path"/>
+        <a:model-query fetchAll="true" model="csh.CSH511.csh_transaction_default_exchange_rate_type" rootPath="default_exchange_rate_type_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="get_exchange_rate_link_id" model="csh.CSH511.csh_transaction_get_exchange_rate" modelaction="query"/>
+        <a:link id="get_period_name_id" model="csh.CSH511.csh_transaction_get_period_name" modelaction="query"/>
+        <a:link id="tre_loan_con_withdraw_reverse_link_id" url="${/request/@context_path}/modules/tre/TRE521/tre_loan_con_withdraw_reverse.svc"/>
+        <a:link id="tre_loan_contract_withdraw_con_readonly_link_id" url="${/request/@context_path}/modules/tre/TRE506/tre_loan_contract_withdraw_con_readonly.screen"/>
+        <script><![CDATA[
+            //初始化变量
+            var lcr, //loan_con_ds的currenRecord --$('loan_con_ds').getCurrentRecord()
+            base_rate_method, //基准利率期限 = lcr.get('base_rate_method')
+            int_rate_fixing_day, //利率决定日   = lcr.get('int_rate_fixing_day')
+            int_rate_fixing_way, //调整方式 = lcr.get('int_rate_fixing_way')
+            int_rate_fixing_range, //调整幅度 = lcr.get('int_rate_fixing_range')
+            loan_con_currency, //合同币种
+            functional_currency_code = '${/model/default_exchange_rate_type_path/record/@functional_currency_code}'; //本位币
+            //////////
+            
+            function query_tre_loan_contract_withdraw_result_ds() {
+                $('tre_loan_contract_withdraw_result_ds').query();
+            }
+            
+            function reset_tre_loan_contract_withdraw_query_ds() {
+                $('tre_loan_contract_withdraw_query_ds').reset();
+            }
+            
+            function withdraw_back() {
+                window.history.go(-1);
+            }
+            
+            function leaseConDetail(value, record, name) {
+                if (record.isNew) {
+                    return '';
+                } else {
+                    return '<a href="javascript:openConDetailWin(' + record.get('withdraw_id') + ');">${l:TRE502.DETAILS}</a>';
+                }
+            }
+            
+            function openConDetailWin(id) {
+                if (id == null || id == 'undefined') {
+                    Aurora.showMessage('${l:TRE502.ALERT.MESSAGE}', '${l:TRE502.ALERT.SAVE_FIRST}');
+                    return;
+                }
+                new Aurora.Window({
+                    id: 'tre_loan_contract_withdraw_con_win',
+                    url: $('tre_loan_contract_withdraw_con_readonly_link_id').getUrl(),
+                    params: {
+                        withdraw_id: id
+                    },
+                    title: '${l:TRE502.LOV_TITLE.FINANCING_CONTRACT}',
+                    height: 410,
+                    width: 580
+                });
+            }
+            
+            //取得定义利率
+            
+            function getOriRate(ref_date, date_from, date_to) {
+                ref_date = $A.parseDate(ref_date);
+                date_from = $A.parseDate(date_from);
+                date_to = $A.parseDate(date_to);
+                var baseRates = $('loan_con_withdaw_int_ds').getAll();
+                for (var i = 0,
+                    l = baseRates.length;i < l;i++) {
+                    var c = baseRates[i];
+                    if (ref_date >= $A.parseDate(c.get('valid_from')) && (c.get('valid_to') == null || $A.parseDate(c.get('valid_to')) >= ref_date)) {
+                        var months = date_to.getMonth() - date_from.getMonth(),
+                            years = date_to.getFullYear() - date_from.getFullYear(),
+                            tMon = years * 12 + months;
+                        if (c.get('months_from') < tMon && tMon <= c.get('months_to')) {
+                            return c.get('base_rate');
+                        }
+                    }
+                }
+                return 0;
+            }
+            
+            //根据调整方式，计算出利率
+            
+            function getCalRate(int_rate) {
+                var cal_rate = 0;
+                if (int_rate_fixing_range != null) {
+                    switch (int_rate_fixing_way) {
+                    case 'MUTIPLY':
+                        //上浮
+                    case 'FLOATING_DOWNWARD':
+                        //下浮
+                        cal_rate = int_rate * int_rate_fixing_way;
+                        break;
+                    case 'PLUS':
+                        //上调
+                        cal_rate = int_rate + int_rate_fixing_way;
+                        break;
+                    case 'DECREASE':
+                        //下调
+                        cal_rate = int_rate - int_rate_fixing_way;
+                        break;
+                    }
+                } else {
+                    cal_rate = int_rate;
+                }
+                return cal_rate;
+            }
+            
+            function withdrawAddHandler(dataSet, record, index) {
+                //利率的计算
+                var int_rate = 0;
+                //利率决定日为合同签订日，基准利率期限为总借款期限
+                //利率=合同签订日当天，总借款期限（合同表中借款期限到 – 借款期限从）对应央行基准利率*/±调整幅度
+                if (int_rate_fixing_day == 'CONTRACT_DATE' && base_rate_method == 'TOTAL_LOAN_TERM') {
+                    var int_rate = getOriRate(lcr.get('loan_contract_book_date'), lcr.get('loan_date_from'), lcr.get('loan_date_to'));
+                    if (int_rate != 0) {
+                        int_rate = getCalRate(int_rate);
+                        record.set('int_rate', int_rate);
+                    }
+                }
+            
+                if (loan_con_currency == functional_currency_code) {
+                    record.set('exchange_rate', 1);
+                }
+            }
+            
+            function rateTypeEditor(record, name) {
+                if (loan_con_currency == functional_currency_code) {
+                    return '';
+                } else {
+                    return 'wad_cbb';
+                }
+            }
+            
+            function rateEditor(record, name) {
+                if (loan_con_currency == functional_currency_code) {
+                    return '';
+                } else {
+                    return 'wad_nf';
+                }
+            }
+            
+            function loanConWithdrawUpdate(ds, record, name, value, oldvalue) {
+                if (name == 'exchange_rate_type') {
+                    record.set('exchange_rate_quotation', '');
+                    record.set('exchange_rate', '');
+                    if (value == 'PERIOD' || value == 'DAILY' || value == 'FIXED') {
+                        record.getField('exchange_rate').setReadOnly(true);
+                        record.set('exchange_rate', '');
+                        getExchangeRate({
+                            fromCur: functional_currency_code,
+                            toCur: record.get('currency'),
+                            exchangeRateType: record.get('exchange_rate_type'),
+                            exchangeDate: record.get('withdraw_date'),
+                            periodName: record.get('period_name')
+                        }, record);
+                    } else {
+                        record.getField('exchange_rate').setReadOnly(false);
+                        record.set('exchange_rate', '');
+                    }
+                } else if (name == 'withdraw_date') {
+                    showPeriod(record);
+                    //计算利率
+                    if (int_rate_fixing_day == 'EACH_LOAN_DATE' && base_rate_method == 'TOTAL_LOAN_TERM') {
+                        var int_rate = getOriRate(value, lcr.get('loan_date_from'), lcr.get('loan_date_to'));
+                        if (int_rate != 0) {
+                            var int_rate = getCalRate(int_rate);
+                            record.set('int_rate', int_rate);
+                        }
+                    }
+                } else if (name == 'repayment_date') {
+                    //计算利率
+                    if (int_rate_fixing_day == 'EACH_LOAN_DATE' && base_rate_method == 'EACH_LOAN_TERM') {
+                        var int_rate = getOriRate(record.get('withdraw_date'), record.get('withdraw_date'), value);
+                        if (int_rate != 0) {
+                            var int_rate = getCalRate(int_rate);
+                            record.set('int_rate', int_rate);
+                        }
+                    } else if (int_rate_fixing_day == 'CONTRACT_DATE' && base_rate_method == 'TOTAL_LOAN_TERM') {
+                        var int_rate = getOriRate(lcr.get('loan_contract_book_date'), record.get('withdraw_date'), value);
+                        if (int_rate != 0) {
+                            var int_rate = getCalRate(int_rate);
+                            record.set('int_rate', int_rate);
+                        }
+                    }
+                }
+            }
+            
+            function showPeriod(record) {
+                var r_date = record.get('withdraw_date');
+                r_date = Aurora.formatDate(r_date);
+                Aurora.request({
+                    url: $('get_period_name_id').getUrl(),
+                    para: {
+                        p_date: r_date
+                    },
+                    success: function(res) {
+                        if (res) {
+                            var period_name = res.result.record.period_name,
+                                internal_period_num = res.result.record.internal_period_num;
+                            if (period_name) {
+                                record.set('period_name', period_name);
+                                record.set('internal_period_num', internal_period_num);
+                            } else {
+                                record.set('period_name', '');
+                                record.set('internal_period_num', '');
+                                if (record.get('transaction_date')) {
+                                    record.set('transaction_date', '');
+                                    Aurora.showMessage('${l:PROMPT}', '${l:CSH511.PERIOD_ERROR}');
+                                }
+                            }
+                        }
+                    },
+                    scope: this
+                });
+            }
+            
+            
+            function getExchangeRate(param, record) {
+                Aurora.request({
+                    url: $('get_exchange_rate_link_id').getUrl(),
+                    para: {
+                        from_currency: param.fromCur,
+                        to_currency: param.toCur,
+                        exchange_date: param.exchangeDate,
+                        exchange_period_name: param.periodName,
+                        exchange_rate_type: param.exchangeRateType
+                    },
+                    success: function(res) {
+                        if (Ext.isDefined(res.result.record.exchange_rate)) {
+                            record.set('exchange_rate', res.result.record.exchange_rate);
+                        }
+                        if (Ext.isDefined(res.result.record.exchange_rate_quotation)) {
+                            record.set('exchange_rate_quotation', res.result.record.exchange_rate_quotation);
+                        } else {
+                            record.set('exchange_rate_quotation', 'DIRECT QUOTATION');
+                        }
+                    },
+                    scope: this
+                });
+            }
+            
+            function lock_detail_current_window() {
+                Aurora.Masker.mask(document.documentElement, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_detail_current_window() {
+                Aurora.Masker.unmask(document.documentElement);
+            }
+            
+            
+            
+            Aurora.onReady(function() {
+                lcr = $('loan_con_ds').getCurrentRecord();
+                base_rate_method = lcr.get('base_rate_method');
+                int_rate_fixing_day = lcr.get('int_rate_fixing_day');
+                int_rate_fixing_way = lcr.get('int_rate_fixing_way');
+                int_rate_fixing_range = lcr.get('int_rate_fixing_range');
+                loan_con_currency = lcr.get('currency');
+            });
+            
+            function withdrawReverse() {
+                lock_detail_current_window();
+                var ds = $('tre_loan_contract_withdraw_result_ds');
+                var h_ds = $('tre_loan_contract_withdraw_reverse_ds');
+                var pr = ds.getSelected();
+                if (pr.length == 0) {
+                    Aurora.showMessage('${l:TRE502.ALERT.MESSAGE}', '${l:TRE502.ALERT.PLEASE_SELECT_DATA}');
+                    unlock_detail_current_window();
+                    return;
+                }
+                if (h_ds.validate()) {
+                    var reversed_date = h_ds.getAt(0).get('reversed_date');
+            
+                    var pd = [];
+                    for (var i = 0,
+                        l = pr.length;i < l;i++) {
+                        pr[i].set('reversed_date', reversed_date);
+                        pd.push(pr[i].data);
+                    }
+                    Aurora.showConfirm('${l:PROMPT}', '${l:CSH514.REVERSE_SURE}', function okFun() {
+                        Aurora.request({
+                            url: $('tre_loan_con_withdraw_reverse_link_id').getUrl(),
+                            para: pd,
+                            success: function() {
+                                ds.query(ds.currentPage);
+                                unlock_detail_current_window();
+                            },
+                            failure: function() {
+                                unlock_detail_current_window();
+                            },
+                            error: function() {
+                                unlock_detail_current_window();
+                            },
+                            scope: this
+                        });
+                    }, unlock_detail_current_window());
+                }
+                unlock_detail_current_window();
+            }
+            
+            function ratePercentRender(value, record, name) {
+                return parseFloat(mul(value, 100)) + '%';
+            }
+            function loanConWithdrawQuery(ds, qpara) {
+                qpara['status'] = 'REVIEWED';
+                qpara['reversed_flag'] = 'N';
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="loan_con_ds">
+                <a:datas dataSource="/model/loan_con"/>
+            </a:dataSet>
+            <a:dataSet id="loan_con_withdaw_int_ds">
+                <a:datas dataSource="/model/withdraw_int"/>
+            </a:dataSet>
+            <a:dataSet id="exchangerate_type_ds">
+                <a:datas dataSource="/model/exchangerate_type_path"/>
+            </a:dataSet>
+            <a:dataSet id="tre_loan_contract_withdraw_query_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="loan_contract_id" defaultValue="${/parameter/@loan_contract_id}"/>
+                    <a:field name="loan_contract_number" defaultValue="${/parameter/@loan_contract_number}" readOnly="true"/>
+                    <a:field name="withdraw_number"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="tre_loan_contract_withdraw_reverse_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="reversed_date" required="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="yes_no_ds" lookupCode="YES_NO"/>
+            <a:dataSet id="tre_loan_contract_withdraw_result_ds" autoQuery="true" model="tre.tre503.tre_loan_contract_withdraw" queryDataSet="tre_loan_contract_withdraw_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="loan_contract_id" defaultValue="${/parameter/@loan_contract_id}"/>
+                    <a:field name="functional_currency_code" defaultValue="${/model/default_exchange_rate_type_path/record/@functional_currency_code}"/>
+                    <a:field name="withdraw_number" required="true"/>
+                    <a:field name="withdraw_date" required="true"/>
+                    <a:field name="period_name"/>
+                    <a:field name="withdraw_amount" required="true"/>
+                    <a:field name="repayment_date"/>
+                    <a:field name="internal_period_num"/>
+                    <a:field name="int_rate"/>
+                    <a:field name="currency" defaultValue="${/model/loan_con/record/@currency}"/>
+                    <a:field name="currency_name" defaultValue="${/model/loan_con/record/@currency_name}"/>
+                    <a:field name="exchange_rate_type"/>
+                    <a:field name="exchange_rate_type_desc" displayField="type_name" options="exchangerate_type_ds" returnField="exchange_rate_type" valueField="rate_method_code"/>
+                    <a:field name="exchange_rate"/>
+                    <a:field name="repurchase_date"/>
+                    <a:field name="repurchase_amount"/>
+                    <a:field name="posted_flag" defaultValue="N"/>
+                    <a:field name="posted_flag_desc" displayField="code_value_name" options="yes_no_ds" returnField="posted_flag" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="withdrawAddHandler"/>
+                    <a:event name="update" handler="loanConWithdrawUpdate"/>
+                    <a:event name="query" handler="loanConWithdrawQuery"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="withdrawReverse" text="HLS.REVERSE"/>
+                <a:gridButton click="query_tre_loan_contract_withdraw_result_ds" text="HAP_QUERY"/>
+                <a:gridButton click="reset_tre_loan_contract_withdraw_query_ds" text="HAP_RESET"/>
+                <a:gridButton click="withdraw_back" text="HAP_BACK"/>
+            </a:screenTopToolbar>
+            <a:form column="4" title="TRE502.FORM_TITLE.WITHDRAW_DETAILS">
+                <a:textField name="loan_contract_number" bindTarget="tre_loan_contract_withdraw_query_ds" prompt="TRE_LOAN_CONTRACT.LOAN_CONTRACT_NUMBER"/>
+                <a:textField name="withdraw_number" bindTarget="tre_loan_contract_withdraw_query_ds" prompt="TRE_LOAN_CONTRACT_WITHDRAW.DOCUMENT_NUMBER"/>
+                <a:datePicker name="withdraw_date_from" bindTarget="tre_loan_contract_withdraw_query_ds" prompt="TRE502.WITHDRAW_DATE_FROM"/>
+                <a:datePicker name="withdraw_date_to" bindTarget="tre_loan_contract_withdraw_query_ds" prompt="TRE502.WITHDRAW_DATE_TO"/>
+            </a:form>
+            <a:box style="border:solid 1px #cdd">
+                <a:datePicker name="reversed_date" bindTarget="tre_loan_contract_withdraw_reverse_ds" prompt="反冲日期"/>
+            </a:box>
+            <a:grid id="wad_grid" bindTarget="tre_loan_contract_withdraw_result_ds" marginHeight="200" marginWidth="30">
+                <a:columns>
+                    <a:column name="withdraw_number" prompt="TRE_LOAN_CONTRACT_WITHDRAW.DOCUMENT_NUMBER" width="100"/>
+                    <a:column name="withdraw_date" align="center" prompt="TRE_LOAN_CONTRACT_WITHDRAW.WITHDRAW_DATE" renderer="Aurora.formatDate" width="100"/>
+                    <a:column name="period_name" align="center" prompt="TRE_LOAN_CONTRACT_WITHDRAW.PERIOD_NAME"/>
+                    <a:column name="withdraw_amount" align="right" prompt="TRE_LOAN_CONTRACT_WITHDRAW.WITHDRAW_AMOUNT" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="repayment_date" align="center" prompt="TRE_LOAN_CONTRACT_WITHDRAW.REPAYMENT_DATE" renderer="Aurora.formatDate" width="100"/>
+                    <!--  <a:column align="center" prompt="TRE_LOAN_CONTRACT_WITHDRAW.FINANCING_CONTRACT" renderer="leaseConDetail" width="110"/> -->
+                    <a:column name="contract_number" align="center" prompt="TRE503.CONTRACT_NUMBER" width="120"/>
+                    <a:column name="contract_name" align="left" prompt="HLS.CONTRACT_NAME" width="150"/>
+                    <a:column name="int_rate" align="right" prompt="TRE_LOAN_CONTRACT_WITHDRAW.INT_RATE" renderer="ratePercentRender" width="80"/>
+                    <a:column name="currency_name" align="center" prompt="TRE_LOAN_CONTRACT_WITHDRAW.CURRENCY" width="80"/>
+                    <a:column name="exchange_rate_type_desc" prompt="TRE_LOAN_CONTRACT_WITHDRAW.EXCHANGE_RATE_TYPE" width="80"/>
+                    <a:column name="exchange_rate" align="right" prompt="TRE_LOAN_CONTRACT_WITHDRAW.EXCHANGE_RATE" width="80"/>
+                    <a:column name="status_name" align="center" prompt="状态" width="80"/>
+                    <a:column name="reviewed_by_name" align="center" prompt="TRE_LOAN_CONTRACT_WITHDRAW.POSTED_BY" width="80"/>
+                    <a:column name="note" align="right" prompt="TRE_LOAN_CONTRACT_WITHDRAW.NOTE" width="100"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

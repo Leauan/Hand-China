@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:ns2="aurora.database.local.oracle" xmlns:f="aurora.database.features" xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="update">
+            <bm:parameters>
+                <bm:parameter name="return_value" dataType="java.lang.String" input="false" inputPath="@return_value" output="true" outputPath="/parameter/@return_value"/>
+                <bm:parameter name="company_id" dataType="java.lang.Long" input="true" output="false"/>
+                <bm:parameter name="document_infos" dataType="java.lang.String" input="true" output="false"/>
+                <bm:parameter name="user_id" dataType="java.lang.Long" input="true" output="false"/>
+            </bm:parameters>
+            <bm:update-sql><![CDATA[
+                DECLARE
+                    v_node_action_id NUMBER;
+                BEGIN
+                    SELECT
+                        t.node_action_id
+                    INTO
+                        v_node_action_id
+                    FROM
+                        ZJ_WFL_WORKFLOW_NODE_ACTION t
+                    WHERE
+                        t.node_id               = ${@node_id} AND
+                        t.action_type           = ${@action_type};
+                    IF ${@child_workflow_desc} <> '租赁申请工作流-自动车部长合同复审' THEN
+                        ${@result_num}         := zj_wfl_core_pkg.workflow_approve(p_rcpt_record_id => ${@record_id}, 
+                        														   p_node_action_id => v_node_action_id, 
+                        														   p_comment => ${@comment_text_out}, 
+                        														   p_comment_text_out => ${@comment_text_out}, 
+                        														   p_user_id => ${/session/@user_id});
+                    ELSE
+                        ${@return_value} := zj_wfl_Batch_approval_job.Batch_approval_job_start(p_document_info => ${@document_info}, 
+                        																	   p_company_id => ${/session/@company_id}, 
+                        																	   p_user_id => ${/session/@user_id}, 
+                        																	   p_rcpt_record_id => ${@record_id}, 
+                        																	   p_node_action_id => v_node_action_id, 
+                        																	   p_comment => ${@comment_text_out}, 
+                        																	   p_comment_text_out => ${@comment_text_out});
+                    END IF;
+                END;
+            ]]></bm:update-sql>
+            <bm:parameters>
+                <bm:parameter name="result_num" dataType="java.lang.Long" input="false" output="true" outputPath="@result_num"/>
+                
+            </bm:parameters>
+        </bm:operation>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    rownum AS job_num,
+                    t.*
+                FROM
+                    (SELECT
+                        j.hls_monthend_job_id,
+                        j.document_infos,
+                        TO_CHAR(j.start_date, 'yyyy-mm-dd hh24:mi:ss') start_date,
+                        TO_CHAR(j.end_date, 'yyyy-mm-dd hh24:mi:ss') end_date,
+                        j.time_consuming,
+                        j.status,
+                        j.job_status,
+                        (SELECT COUNT(1) FROM hls_monthend_job WHERE document_infos = j.document_infos
+                        ) counts
+                    FROM
+                        hls_monthend_job j
+                    WHERE
+                        j.document_infos is not null
+                        and j.job_status in ('RUNNING','ERROR')
+                    ORDER BY
+                        j.start_date DESC
+                    ) t
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

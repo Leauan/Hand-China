@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Think  
+    $Date: 2016-8-22 下午4:49:25  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="cont.CON632.con_collection_phone_query" rootPath="collection_phone_query_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="save_con_collection_cell_hd" model="cont.CON632.con_collection_cell_note" modelaction="update"/>
+        <a:link id="prj_project_get_layout_code_link_id1" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="con632_col_detail1" url="${/request/@context_path}/modules/cont/CON632/con_collection_maintain_detail.screen"/>
+        <script><![CDATA[
+            function update_payments_date(ds, record, name, value, oldvalue) {
+                if (name == 'payments_day') {
+                    if (value != oldvalue) {
+                        var myDate = new Date();
+                        myDate.setDate(myDate.getDate() + value);
+                        record.set('payments_date', myDate);
+                    }
+                }
+                if (name == 'overdue_state_type') {
+                    if (value == 'PTP') {
+                        record.getField('payments_day').setRequired(true);
+                        record.getField('payments_day').setReadOnly(false);
+                        record.getField('payments_date').setRequired(true);
+                        record.getField('payments_date').setReadOnly(false);
+                    } else {
+                        record.getField('payments_day').setRequired(false);
+                        record.getField('payments_day').setReadOnly(true);
+                        record.getField('payments_date').setRequired(false);
+                        record.getField('payments_date').setReadOnly(true);
+                        record.set('payments_day', '');
+                        record.set('payments_date', '');
+                    }
+                }
+            }
+            
+            function save() {
+            
+                if ($('con_overdue_ds').validate() && $('con_overdue_ln_ds').validate()) {
+                    var record = $('con_overdue_ds').getAt(0);
+                    var records = $('con_overdue_ln_ds').getAt(0);
+                    Aurora.request({
+                        url: $('save_con_collection_cell_hd').getUrl(),
+                        para: {
+                            contract_id: '${/parameter/@contract_id}',
+                            project_id: '${/parameter/@project_id}',
+                            bp_id: '${/parameter/@bp_id_tenant}',
+                            overdue_state: record.get('overdue_state'),
+                            overdue_state_type: record.get('overdue_state_type'),
+                            payments_day: record.get('payments_day'),
+                            payments_date: record.get('payments_date'),
+                            col_id: '${/parameter/@col_id}',
+            
+                            bp_type_desc: records.get('bp_type_desc'),
+                            collection_name: records.get('collection_name'),
+                            staff_id: '${/parameter/@staff_id}',
+                            cell_phone: '${/parameter/@cell_phone}',
+                            call_time: records.get('call_time'),
+                            note: records.get('note'),
+                            type: records.get('type')
+                        },
+                        success: function(args) {
+            
+                            var ds = $('con_collection_phone_ds').getAll();
+                            for (var i = 0;i < ds.length;i++) {
+                                debugger;
+                                var record = ds[i];
+                                var query_url = $(record.get('type') + '_con_collection_call_phone_result_ds');
+                                query_url.query();
+                                $('con_contract_content_window').close();
+            
+                                //add by wdd 保存后刷新联系电话grid
+                                var con_contract_bp_url = $('CON_COLLECTION_G_TEL_con_contract_bp_ds');
+                                con_contract_bp_url.query();
+                                //end
+                            }
+                            Aurora.SideBar.show({
+                                msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                duration: 2000
+                            })
+                        },
+                        failure: function(args) {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function(args) {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                }
+            }
+            
+            function close() {
+                $('con_contract_content_window').close();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="con_collection_phone_ds">
+                <a:datas dataSource="/model/collection_phone_query_path"/>
+            </a:dataSet>
+            <!-- <a:dataSet id="con_over_state_id" loadData="true" model="cont.CON632.con632_over_state">
+                <a:fields>
+                    <a:field name="value_code"/>
+                </a:fields>
+            </a:dataSet> -->
+            <a:dataSet id="overdue_status_type_ds_id" lookupCode="OVERDUE_STATUS_TYPE"/>
+            <a:dataSet id="con_over_base" autoCreate="true">
+                <a:fields>
+                    <a:field name="contract_number" defaultValue="${/parameter/@contract_number}" readOnly="true"/>
+                    <a:field name="project_number" defaultValue="${/parameter/@project_number}" readOnly="true"/>
+                    <a:field name="bp_id_tenant_n" defaultValue="${/parameter/@bp_id_tenant_n}" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con_overdue_ds" autoQuery="true" model="cont.CON632.con_collection_call_hd" queryUrl="${/request/@context_path}/autocrud/cont.CON632.con_collection_call_hd/query?contract_id=${/parameter/@contract_id}&amp;project_id=${/parameter/@project_id}">
+                <a:fields>
+                    <a:field name="contract_id"/>
+                    <a:field name="project_id"/>
+                    <a:field name="bp_id_tenant"/>
+                    <a:field name="overdue_state_type_n" readOnly="true"/>
+                    <a:field name="overdue_state_type" readOnly="true"/>
+                    <a:field name="overdue_state"/>
+                    <a:field name="overdue_state_n" lovGridHeight="400" lovHeight="550" lovService="cont.CON632.con632_over_state" lovWidth="500" required="true">
+                        <a:mapping>
+                            <a:map from="status_id" to="overdue_state"/>
+                            <a:map from="status_name" to="overdue_state_n"/>
+                            <a:map from="overdue_status_type" to="overdue_state_type"/>
+                            <a:map from="overdue_status_type_n" to="overdue_state_type_n"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="payments_day"/>
+                    <a:field name="payments_date"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="update_payments_date"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="con_overdue_ln_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="phone_number"/>
+                    <a:field name="call_time" readOnly="true"/>
+                    <a:field name="bp_type_desc" defaultValue="${/parameter/@type_desc}" readOnly="true"/>
+                    <a:field name="collection_name" defaultValue="${/parameter/@bp_name}" readOnly="true"/>
+                    <a:field name="staff_name" defaultValue="${/parameter/@staff_name}" readOnly="true"/>
+                    <a:field name="type" defaultValue="${/parameter/@type}" readOnly="true"/>
+                    <a:field name="note" required="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con_collection_call_phone_result_ds" autoQuery="true" model="cont.CON632.con_collection_call_ln" selectable="true" selectionModel="single"/>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="close" text="关闭"/>
+                <a:gridButton click="save" text="保存"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="100" marginWidth="70" title="逾期状态">
+                <a:textField name="contract_number" bindTarget="con_over_base" prompt="合同编号"/>
+                <a:textField name="project_number" bindTarget="con_over_base" prompt="申请编号"/>
+                <a:textField name="bp_id_tenant_n" bindTarget="con_over_base" colspan="2" prompt="客户名称" width="520"/>
+                <a:lov name="overdue_state_n" bindTarget="con_overdue_ds" prompt="逾期状态"/>
+                <a:comboBox name="overdue_state_type_n" bindTarget="con_overdue_ds" prompt="逾期状态类别"/>
+                <a:numberField name="payments_day" allowDecimals="false" bindTarget="con_overdue_ds" prompt="承诺还款天数"/>
+                <a:datePicker name="payments_date" bindTarget="con_overdue_ds" prompt="承诺还款日期"/>
+            </a:form>
+            <a:form column="4" labelWidth="100" marginWidth="70" title="电话催收记录">
+                <a:textField name="bp_type_desc" bindTarget="con_overdue_ln_ds" prompt="类型"/>
+                <a:textField name="collection_name" bindTarget="con_overdue_ln_ds" prompt="姓名"/>
+                <a:textField name="staff_name" bindTarget="con_overdue_ln_ds" prompt="电催人员"/>
+                <a:dateTimePicker name="call_time" bindTarget="con_overdue_ln_ds" prompt="时间"/>
+                <a:textArea name="note" bindTarget="con_overdue_ln_ds" colspan="2" prompt="电催记录" width="520"/>
+            </a:form>
+            <a:tabPanel marginHeight="200" marginWidth="70">
+                <a:tabs>
+                    <a:placeHolder id="con_collection_call_id"/>
+                </a:tabs>
+            </a:tabPanel>
+            <!-- <a:grid bindTarget="con_collection_call_phone_result_ds" marginHeight="200" marginWidth="20" navBar="true" title="历史电催记录">
+                <a:columns>
+                    <a:column name="bp_type_desc" align="center" prompt="类型" width="120"/>
+                    <a:column name="collection_name" align="center" prompt="催收对象" width="120"/>
+                    <a:column name="cell_phone" align="center" prompt="电话" width="120"/>
+                    <a:column name="note" align="center" prompt="电催记录" width="120"/>
+                    <a:column name="call_time" align="center" prompt="登记时间" renderer="Aurora.formatDate" width="120"/>
+                    <a:column name="staff_name" align="center" prompt="电催人员" width="120"/>
+                </a:columns>
+            </a:grid> -->
+        </a:screenBody>
+        <script><![CDATA[
+            Ext.onReady(function() {
+                var myDate = new Date();
+                // var records = $('con_overdue_ds').getAt(0);
+                var record = $('con_overdue_ln_ds').getAt(0);
+                // records.set('payments_date', myDate);
+                record.set('call_time', myDate);
+            });
+        ]]></script>
+    </a:view>
+    <a:view-config>
+        <c:create-config targetId="con_collection_call_id">
+            <p:loop source="/model/collection_phone_query_path">
+                <p:switch test="@type">
+                    <p:case value="*">
+                        <c:process-config>
+                            <a:tab prompt="${@type_desc}" width="100">
+                                <a:screen-include screen="modules/cont/CON632/con_collection_phone_query.screen?type=${@type}&amp;contract_id=${/parameter/@contract_id}"/>
+                            </a:tab>
+                        </c:process-config>
+                    </p:case>
+                </p:switch>
+            </p:loop>
+        </c:create-config>
+    </a:view-config>
+</a:screen>

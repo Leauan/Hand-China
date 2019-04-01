@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Icon  
+    $Date: 2014-10-15 下午2:05:00  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:o="aurora.database.local.oracle" xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="AST_CAR_INSPECTION">
+    <bm:fields>
+        <bm:field name="inspection_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="INSPECTION_ID" prompt="AST_CAR_INSPECTION.INSPECTION_ID"/>
+        <bm:field name="item_detail_id" databaseType="NUMBER" datatype="java.lang.Long" insertExpression="${/parameter/@item_detail_id}" physicalName="ITEM_DETAIL_ID" prompt="AST_CAR_INSPECTION.ITEM_DETAIL_ID"/>
+        <bm:field name="inspection_date" databaseType="DATE" datatype="java.util.Date" physicalName="INSPECTION_DATE" prompt="AST_CAR_INSPECTION.INSPECTION_DATE"/>
+        <bm:field name="inspected_date" databaseType="DATE" datatype="java.util.Date" physicalName="INSPECTED_DATE" prompt="AST_CAR_INSPECTION.INSPECTED_DATE"/>
+        <bm:field name="inspection_result" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="INSPECTION_RESULT" prompt="AST_CAR_INSPECTION.INSPECTION_RESULT"/>
+        <bm:field name="description" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DESCRIPTION" prompt="AST_CAR_INSPECTION.DESCRIPTION"/>
+    </bm:fields>
+    <bm:features>
+        <f:standard-who/>
+        <o:sequence-pk/>
+    </bm:features>
+    <bm:primary-key>
+        <bm:pk-field name="inspection_id"/>
+    </bm:primary-key>
+    <bm:operations>
+        <bm:operation name="insert">
+            <bm:update-sql><![CDATA[
+    DECLARE
+                v_con_contract con_contract%rowtype;
+    BEGIN
+    SELECT
+                    t.*
+                INTO
+                    v_con_contract
+                FROM
+                    con_contract t,
+                    con_contract_item_detail d
+                WHERE
+                    t.contract_id           =d.contract_id AND
+                    d.ITEM_DETAIL_ID        = ${/parameter/@item_detail_id};
+     yonda_doc_history_pkg.yonda_insert_doc_status(p_document_id => v_con_contract.contract_id, p_document_type => v_con_contract.document_type, p_document_category => v_con_contract.document_category, p_doc_status => yonda_doc_history_pkg.yonda_con_car_inspection, p_instance_id => NULL, p_user_id => ${/session/@user_id});
+    INSERT
+    INTO
+        AST_CAR_INSPECTION
+        (
+            INSPECTION_ID,
+            ITEM_DETAIL_ID,
+            INSPECTION_DATE,
+            INSPECTED_DATE,
+            INSPECTION_RESULT,
+            DESCRIPTION,
+            CREATED_BY,
+            CREATION_DATE,
+            LAST_UPDATED_BY,
+            LAST_UPDATE_DATE
+        )
+        VALUES
+        (
+            AST_CAR_INSPECTION_S.NEXTVAL,
+            ${/parameter/@item_detail_id},
+            to_date(${@inspection_date},'yyyy-mm-dd'),
+            to_date(${@inspected_date},'yyyy-mm-dd'),
+            ${@inspection_result},
+            ${@description},
+            ${/session/@user_id},
+            sysdate,
+            ${/session/@user_id},
+            sysdate
+        )
+        RETURNING INSPECTION_ID
+    INTO
+        ${@inspection_id};
+END;
+  ]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field field="item_detail_id" queryOperator="="/>
+    </bm:query-fields>
+</bm:model>

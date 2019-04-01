@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:s="aurora.plugin.script" xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+            select * from (
+            ${:@validation_sql}) vv
+               #WHERE_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields><![CDATA[
+    ]]></bm:fields>
+    <bm:features>
+        <s:bm-script><![CDATA[
+            var model = $this.getObjectContext();
+            var para = $ctx.current_parameter || $ctx.parameter;
+            var validation_sql;
+            
+            function get_validation_sql() {
+                var query_validation_sql_bm = $bm('layout.server_layout_lov_validation_config');
+                var config_map = query_validation_sql_bm.queryAsMap(para);
+                var config_map_detail = config_map.getChildren();
+                if (config_map_detail.length != 0) {
+                    validation_sql = config_map_detail[0].validation_sql;
+                    para.validation_sql = validation_sql;
+                }
+                validation_sql = validation_sql.replace(/\$\{@([^\}]*)\}/g, function(a, b) {
+                    return "'" + (para[b] || '') + "'";
+                });
+            }
+            if (para.url) {
+                var url = decodeURIComponent(para.url);
+                var idx = url.indexOf('?');
+                if (idx) {
+                    url = url.substring(idx + 1);
+                }
+                if (url) {
+                    var paras = url.split('&');
+                    for (var i = 0;i < paras.length;i++) {
+                        var p = paras[i].split('=');
+                        para[p[0]] = p[1];
+                    }
+                }
+                get_validation_sql();
+                importClass(Packages.uncertain.composite.CompositeUtil);
+                var query_sql = CompositeUtil.findChild($this.getObjectContext(), "query-sql");
+                query_sql.setText(validation_sql);
+            } else if (para.validation_sql) {
+                validation_sql = para.validation_sql;
+                validation_sql = validation_sql.replace(/\$\{@([^\}]*)\}/g, function(a, b) {
+                    return "'" + (para[b] || '') + "'";
+                });
+            } else if (!para.validation_sql && !para.url) {
+                get_validation_sql();
+            }
+            validation_sql = validation_sql.replace(/\$\{\/session\/@([^\}]*)\}/g, function(a, b) {
+                return "'" + $ctx.session[b] + "'";
+            });
+            var lov_config_bm = $bm('layout.server_doc_layout_config_lov');
+            var lov_config_map = lov_config_bm.queryAsMap(para);
+            var lov_config_map_detail = lov_config_map.getChildren();
+            var queryfields = new CompositeMap(model.getChild('query-fields'));
+            for (var i = 0;i < lov_config_map_detail.length;i++) {
+                var fname = lov_config_map_detail[i].lov_col_name.toLowerCase();
+                var dbtype = lov_config_map_detail[i].lov_data_type.toUpperCase();
+                var f = Packages.aurora.bm.Field.createField(fname);
+                f.setPhysicalName(fname);
+                f.setDatabaseType(dbtype);
+                if (dbtype == 'DOUBLE') {
+                    f.setDataType('java.lang.Double');
+                } else if (dbtype == 'LONG') {
+                    f.setDataType('java.lang.Long');
+                } else if (dbtype == 'VARCHAR2') {
+                    f.setDataType('java.lang.String');
+                } else if (dbtype == 'DATE') {
+                    f.setDataType('java.util.Date');
+                }
+                if (lov_config_map_detail[i].lov_col_for_query == 'Y') {
+                    f.setForQuery(true);
+                    var qf = queryfields.createChildNS('query-field');
+                    qf.field = String(fname);
+                    if (dbtype == 'LONG' || dbtype == 'DOUBLE') {
+                        qf.queryoperator = '=';
+                    } else {
+                        qf.queryoperator = 'like';
+                    }
+                }
+                if (lov_config_map_detail[i].lov_col_for_display == 'Y') {
+                    f.setForDisplay(true);
+                }
+                f.setDisplayWidth(lov_config_map_detail[i].lov_col_display_width || 120);
+                f.setPrompt(lov_config_map_detail[i].lov_col_prompt);
+                $this.addField(f);
+            }
+        ]]></s:bm-script>
+    </bm:features>
+    <bm:query-fields><![CDATA[
+    ]]></bm:query-fields>
+</bm:model>

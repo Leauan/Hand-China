@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Icon  
+    $Date: 2014-11-3 下午3:11:24  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure><![CDATA[
+		
+	]]></a:init-procedure>
+    <a:view>
+        <a:link id="con_contract_update_print_fin_link_id" url="${/request/@context_path}/modules/csh/CSH506/csh_payment_print_word.screen"/>
+        <a:link id="csh506_payment_apply_link" model="csh.CSH506.csh_payment_apply_querya" modelaction="execute"/>
+        <a:link id="csh506_payment_print_link" model="csh.CSH506.csh_payment_print" modelaction="execute"/>
+        <a:link id="attachment_desc_link" url="${/request/@context_path}/modules/csh/CSH506/csh_attachment_query.screen"/>
+        <a:link id="con_contract_dowload_uploadfile" url="${/request/@context_path}/modules/cont/CON580/con_other_content_print.svc"/>
+        <a:link id="con_contract_modify_link" url="${/request/@context_path}/modules/cont/CON505/con_contract_modify.screen"/>
+        <a:link id="con_contract_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <!--  获取合同打印路径的js -->
+        <script src="${/request/@context_path}/modules/cont/CON504/javascripts/contract_print_path.js"/>
+        <script><![CDATA[
+            function csh506_payment_reset() {
+                $('csh_payment_apply_query_ds').reset();
+            }
+            
+            function csh506_payment_query() {
+                $('csh_payment_apply_result_ds').query();
+            }
+            
+            function csh506_payment_apply() {
+                Aurora.Masker.mask(Ext.getBody(), '正在提交');
+                var contract_id = $('csh_payment_apply_result_ds').getSelected()[0].get('contract_id');
+            
+                // if(records.length!=1) {
+                // Aurora.showMessage('${l:PROMPT}', '请选择一条记录');
+                // return;
+                // }
+                Aurora.showConfirm('提示', '确定申请选中项？', function() {
+                    // for(var i=0;i<records.length;i++) {
+                    // var pay_req_print_status=records[i].get('pay_req_print_status');
+                    // var inception_of_lease=records[i].get('inception_of_lease');
+                    // if(pay_req_print_status=='PRINT' || pay_req_print_status=='PRINTED' || pay_req_print_status=='APPLIED' ) {
+                    // Aurora.showMessage('${l:PROMPT}', '请勿重复申请！');
+                    // return;
+                    // }
+                    // if(Aurora.isEmpty(inception_of_lease)) {
+                    // Aurora.showMessage('${l:PROMPT}', '尚未收到首期款项！');
+                    // return;
+                    // }
+                    // records[i].set('_status', 'update', false);
+                    // }
+                    // $('csh_payment_apply_result_ds').submitSelected('${/request/@context_path}/autocrud/csh.CSH506.csh_payment_apply_querya/batch_update');
+                    Aurora.request({
+                        url: $('csh506_payment_apply_link').getUrl(),
+                        para: {
+                            contract_id: contract_id
+                        },
+                        success: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                            $('csh_payment_apply_query_ds').reset();
+                            $('csh_payment_apply_result_ds').query();
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                });
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            
+            function csh506_payment_print() {
+                Aurora.showConfirm('提示', '确定打印选中项？', function() {
+                    debugger;
+                    Aurora.Masker.mask(Ext.getBody(), '正在提交');
+                    var record = $('csh_payment_apply_result_ds').getSelected()[0];
+                    var contract_id = record.get('contract_id');
+                    var contract_number = record.get('contract_number');
+                    Aurora.request({
+                        url: $('csh506_payment_print_link').getUrl(),
+                        para: {
+                            contract_id: contract_id
+                        },
+                        sync: true,
+                        success: function() {
+                            debugger;
+                            var clause_usage = 'PAY_AGR';
+                            var templt_name = 'yonda_other_contract.xml';
+                            var document_category = record.get('document_category');
+                            var company_id = record.get('company_id');
+                            var pdf_key_path = get_pdf_key_path();
+                            var spv_company_code = record.get('spv_company_code');
+                            var doc_name = get_doc_path() + 'OTHER_CONTRACT_CONTENT/';
+                            var content_number = '付款承诺书';
+                            //不用于合同文本打印功能的文本
+                            var other_contract_content_flag = 'Y';
+                            var table_name = 'CSH_PAYMENT_APPLY';
+                            var table_pk_id = record.get('contract_id');
+                            //不用于合同文本打印功能的文本
+                            var link = $('con_contract_update_print_fin_link_id').getUrl();
+                            var url = link + '?templt_name=' + templt_name + '&contract_number=' + contract_number + '&contract_id=' + contract_id + '&document_category=' + document_category + '&clause_usage=' + clause_usage + '&templet_id=1166' + '&company_id=' + company_id + '&pdf_key_path=' + pdf_key_path + '&spv_company_code=' + spv_company_code + '&content_number=' + content_number + '&doc_name=' + doc_name + '&other_contract_content_flag=' + other_contract_content_flag + '&table_name=' + table_name + '&table_pk_id=' + table_pk_id;
+                            var form = document.createElement("form");
+                            form.target = "word_export_window";
+                            form.method = "post";
+                            form.action = url;
+                            var iframe = Ext.get('word_export_window') || new Ext.Template('<iframe id ="word_export_window" name="word_export_window" style="position:absolute;left:-10000px;top:-10000px;width:1px;height:1px;display:none"></iframe>').insertFirst(document.body, {}, true);
+                            document.body.appendChild(form);
+                            form.submit();
+                            Ext.fly(form).remove();
+                            var doc_code = '合同文本附件';
+                            setTimeout(function() {
+                                var url_l = $('con_contract_dowload_uploadfile').getUrl() + '?table_name=CSH_PAYMENT_APPLY' + '&table_pk_value=' + contract_id + '&doc_code=' + encodeURI(doc_code) + '&type=SIN';
+                                window.open(href = url_l, target = "_self");
+                                Aurora.Masker.unmask(Ext.getBody());
+                                $('csh_payment_apply_result_ds').query();
+                            }, 2000);
+            
+                        },
+                        failure: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    });
+                });
+            }
+            
+            
+            
+            function attachment_desc_renderer(val, rec, name) {
+                return '<a href=javascript:open_upload_window(' + rec.get('contract_id') + ',' + rec.get('cdd_list_id') + ')>上传附件</a>';
+            }
+            
+            function open_upload_window(contract_id, cdd_list_id) {
+                var url = $('attachment_desc_link').getUrl();
+                var win = new Aurora.Window({
+                    id: 'con_contract_content_window',
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    params: {
+                        contract_id: contract_id,
+                        cdd_list_id: cdd_list_id,
+                        winId: 'con_contract_content_window'
+                    },
+                    fullScreen: true
+                });
+                win.on('close', function() {});
+            }
+            
+            function csh_payment_submitsuccess(ds) {
+                $('csh_payment_apply_query_ds').reset();
+                $('csh_payment_apply_result_ds').query();
+            }
+            
+            function contract_info(value, record, name) {
+                if (name == 'contract_number') {
+                    return '<a href="javascript:open_contract_win(\'' + record.id + '\')">' + value + '</a>';
+                }
+            }
+            
+            function open_contract_win( record_id) {
+                debugger;
+                var record = $('csh_payment_apply_result_ds').findById(record_id);
+                var param = record.data;
+                param['function_code'] = 'CON301';
+                param['function_usage'] = 'QUERY';
+                param['maintain_type'] = 'UPDATE';
+                param['url_title'] = '${l:CON301.CONTRACT_DETAIL}';
+                hls_doc_get_layout_code('con_contract_get_layout_code_link_id', param, 'con_contract_modify_link', 'csh_payment_apply_result_ds');
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="print_status_ds">
+                <a:datas>
+                    <a:record name="待打印" value="PRINT"/>
+                    <a:record name="已打印" value="PRINTED"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="csh_payment_apply_query_ds">
+                <a:fields>
+                    <a:field name="pay_req_print_status_des" defaultValue="待打印" displayField="name" options="print_status_ds" returnField="pay_req_print_status" valueField="value"/>
+                    <a:field name="pay_req_print_status" defaultValue="PRINT"/>
+                    <a:field name="contract_number_from"/>
+                    <a:field name="contract_number_to"/>
+                    <a:field name="req_date_from"/>
+                    <a:field name="req_date_to"/>
+                    <a:field name="bp_code_from" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code_from"/>
+                            <a:map from="bp_name" to="bp_code_desc_from"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="bp_code_to" lovGridHeight="350" lovHeight="500" lovService="basic.hls_bp_master_v_for_lov" lovWidth="500">
+                        <a:mapping>
+                            <a:map from="bp_code" to="bp_code_to"/>
+                            <a:map from="bp_name" to="bp_code_desc_to"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="amount_from"/>
+                    <a:field name="amount_to"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="csh_payment_apply_result_ds" autoPageSize="true" autoQuery="true" model="csh.CSH506.csh_payment_apply_querya" queryDataSet="csh_payment_apply_query_ds" selectable="true" selectionModel="single">
+                <a:events>
+                    <a:event name="submitsuccess" handler="csh_payment_submitsuccess"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="csh506_payment_reset" text="HLS.RESET"/>
+                <a:gridButton click="csh506_payment_query" text="HAP_QUERY"/>
+                <!--                 <a:gridButton click="csh506_payment_apply" text="付款承诺书申请"/> -->
+                <a:gridButton click="csh506_payment_print" text="付款承诺书打印"/>
+                <!-- <a:gridButton click="csh502_payment_close" text="HLS.CLOSE"/> -->
+            </a:screenTopToolbar>
+            <a:form column="5" labelWidth="100" title="查询条件">
+                <a:textField name="contract_number_from" bindTarget="csh_payment_apply_query_ds" prompt="合同编号从" width="150"/>
+                <a:textField name="contract_number_to" bindTarget="csh_payment_apply_query_ds" prompt="合同编号到" width="150"/>
+                <a:datePicker name="req_date_from" bindTarget="csh_payment_apply_query_ds" prompt="起租日从" width="150"/>
+                <a:datePicker name="req_date_to" bindTarget="csh_payment_apply_query_ds" prompt="起租日到" width="150"/>
+                <a:textField name="owner_user_id_n" bindTarget="csh_payment_apply_query_ds" prompt="金融经理" width="150"/>
+                <a:lov name="bp_code_from" bindTarget="csh_payment_apply_query_ds" prompt="CSH502.CSH_PAYMENT_OBJ_FROM" width="150"/>
+                <a:lov name="bp_code_to" bindTarget="csh_payment_apply_query_ds" prompt="CSH502.CSH_PAYMENT_OBJ_TO" width="150"/>
+                <a:numberField name="amount_from" bindTarget="csh_payment_apply_query_ds" prompt="车款从" width="150"/>
+                <a:numberField name="amount_to" bindTarget="csh_payment_apply_query_ds" prompt="车款到" width="150"/>
+                <a:comboBox name="pay_req_print_status_des" bindTarget="csh_payment_apply_query_ds" prompt="打印状态" width="150"/>
+                <!-- <a:textField name="submitted_flag" bindTarget="csh_payment_req_query_ds" prompt="CSH502.CSH_SUBMIT_STATE" width="150"/> -->
+                <!-- <a:checkBox name="closed_flag" bindTarget="csh_payment_req_query_ds" prompt="CSH502.CSH_CLOSED_FLAG" width="70"/> -->
+            </a:form>
+            <a:grid id="csh_payment_apply_grid" bindTarget="csh_payment_apply_result_ds" marginHeight="230" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="contract_number" prompt="合同编号" renderer="contract_info" width="150"/>
+                    <a:column name="contract_name" prompt="合同名称" width="150"/>
+                    <a:column name="owner_user_id_n" prompt="金融经理" width="120"/>
+                    <a:column name="inception_of_lease" align="center" prompt="起租日" renderer="Aurora.formatDate" width="150"/>
+                    <a:column name="bp_code" prompt="付款对象" width="150"/>
+                    <a:column name="bp_name" prompt="对象名称" width="150"/>
+                    <a:column name="lease_item_amount" align="right" prompt="车款" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="other_fee3" align="right" prompt="购置税" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="insurance_fee" align="right" prompt="保险费" renderer="Aurora.formatMoney" width="100"/>
+                    <a:column name="pay_req_print_status_des" prompt="打印状态" width="100"/>
+                    <!-- <a:column name="attachment_desc" align="center" prompt="上传附件" renderer="attachment_desc_renderer" width="100"/> -->
+                </a:columns>
+            </a:grid>
+            <a:screen-include screen="modules/cont/CON500/con_contract_authority_list_validate.screen?document_category=CONTRACT&amp;function_code=CON301"/>
+            <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        </a:screenBody>
+    </a:view>
+</a:screen>

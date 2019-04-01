@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:s="aurora.plugin.script" xmlns:f="aurora.database.features" xmlns:bm="http://www.aurora-framework.org/schema/bm" alias="t1">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[select * from(
+            SELECT ccv.project_number,
+            ccv.owner_user_id  user_id,
+            ccv.contract_id,
+       ccv.contract_number, 
+       DECODE(cccl.times,
+              0,
+              (SELECT m.bp_name
+                 FROM csh_payment_req_ln l, hls_bp_master m
+                WHERE l.ref_doc_category = 'CONTRACT'
+                  AND l.ref_doc_id = ccv.contract_id
+                  AND m.bp_id = l.bp_id
+                  AND ROWNUM = 1
+                  AND EXISTS
+                (SELECT *
+                         FROM csh_write_off o, csh_transaction ct
+                        WHERE o.cashflow_id = cccl.cashflow_id
+                          AND cccl.cashflow_id = l.ref_doc_line_id
+                          AND o.csh_transaction_id = ct.transaction_id
+                          AND ct.write_off_flag = 'FULL'
+                          AND ct.transaction_type = 'PAYMENT')),
+              NULL) bp_name, 
+       ccv.dd_bank_account_name,
+       cccl.cf_direction_pic, 
+       cccl.cf_item_n,
+       cccl.times, 
+       nvl(to_char(cccl.due_date,'YYYY-MM-DD'),to_char(ccv.inception_of_lease,'YYYY-MM-DD')) due_date, 
+       -- to_char(cccl.due_date,'YYYY-MM-DD') due_date,
+       cccl.due_amount,
+       cccl.principal, 
+       cccl.interest, 
+       to_char(cccl.last_received_date,'YYYY-MM-DD') last_received_date, 
+       cccl.received_amount, 
+       cccl.received_principal, 
+       cccl.received_interest,
+       cccl.write_off_flag_n,
+       ccv.id_card_no,
+       (SELECT s.description
+          FROM sys_user s
+         WHERE s.user_id = ccv.owner_user_id
+           AND s.bp_category = 'AGENT') bp_name_n,
+       (select cc.overdue_max_days  from con_contract_cashflow cc where cc.cashflow_id=cccl.cashflow_id) overdue_days,
+       (select v.code_value_name value_name
+           from sys_code_values_v v
+       where v.code = 'WITHHOLD_WAYS' and v.code_value=ccv.withhold_way)  withhold_way_n,
+      ccv.dd_remark,
+       ccv.direct_debit_bank_id_n as direct_debit_bank_id,
+       ccv.dd_bank_account_num,
+       ccv.dd_bank_branch_name
+  FROM con_contract_v ccv, con_contract_cashflow_lv cccl
+ WHERE cccl.contract_id = ccv.contract_id
+   and ccv.data_class = 'NORMAL'
+   AND ccv.contract_status  not in('SIGN','CLOSED','SIGN_REJECT','NEW')
+    ) t1  #WHERE_CLAUSE#]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="project_number"/>
+        <bm:field name="user_id"/>
+        <bm:field name="contract_id"/>
+        <bm:field name="contract_number"/>
+        <bm:field name="bp_name"/>
+        <bm:field name="bp_name_n"/>
+        <bm:field name="dd_bank_account_name"/>
+        <bm:field name="cf_direction_pic"/>
+        <bm:field name="cf_item_n"/>
+        <bm:field name="times"/>
+        <bm:field name="due_date"/>
+        <bm:field name="due_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="principal" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="interest" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="last_received_date"/>
+        <bm:field name="received_amount" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="received_principal" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="received_interest" databaseType="NUMBER" datatype="java.lang.Double"/>
+        <bm:field name="write_off_flag_n"/>
+        <bm:field name="id_card_no"/>
+        <bm:field name="overdue_days"/>
+        <bm:field name="withhold_way_n"/>
+        <bm:field name="dd_remark"/>
+        <bm:field name="direct_debit_bank_id"/>
+        <bm:field name="dd_bank_account_num"/>
+        <bm:field name="dd_bank_branch_name"/>
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field name="write_off_flag_n" queryExpression="write_off_flag_n=${@write_off_flag_n}"/>
+        <bm:query-field name="bp_name" queryExpression="bp_name=${@bp_name}"/>
+        <bm:query-field name="project_number" queryExpression="upper(project_number) like &apos;%&apos; || upper(${@project_number}) || &apos;%&apos;"/>
+        <bm:query-field name="contract_number" queryExpression="upper(contract_number) like &apos;%&apos; || upper(${@contract_number}) || &apos;%&apos;"/>
+        <bm:query-field name="cf_direction_pic" queryExpression="upper(cf_direction_pic) like &apos;%&apos; || upper(${@cf_direction_pic}) || &apos;%&apos;"/>
+        <bm:query-field name="cf_item_n" queryExpression="cf_item_n=${@cf_item_n}"/>
+        <bm:query-field name="times" queryExpression="times=${@times}"/>
+        <bm:query-field name="id_card_no" queryExpression="id_card_no like upper(&apos;%&apos;||${@id_card_no}||&apos;%&apos;)"/>
+        <bm:query-field name="last_received_date_from" queryexpression="trunc(to_date(last_received_date,&apos;yyyy-mm-dd&apos;)) &gt;= to_date(${@last_received_date_from},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="last_received_date_to" queryexpression="trunc(to_date(last_received_date,&apos;yyyy-mm-dd&apos;)) &lt;= to_date(${@last_received_date_to},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="due_date_from" queryexpression="trunc(to_date(due_date,&apos;yyyy-mm-dd&apos;)) &gt;= to_date(${@due_date_from},&apos;yyyy-mm-dd&apos;)"/>
+        <bm:query-field name="due_date_to" queryexpression="trunc(to_date(due_date,&apos;yyyy-mm-dd&apos;)) &lt;= to_date(${@due_date_to},&apos;yyyy-mm-dd&apos;)"/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter name="owner_user_id" enforceOperations="query" expression=" exists (select 1 from aut_trx_user_authorize a1,aut_owner_user_authorize a2 where a1.trx_category = &apos;CONTRACT&apos; and a1.trx_id = t1.contract_id  and trunc(sysdate) between a1.start_date and nvl(a1.end_date,trunc(sysdate)) and a1.user_id = a2.owner_user_id and a1.trx_category = a2.trx_category  and a2.authorized_user_id = ${/session/@user_id} and trunc(sysdate) between a2.start_date and nvl(a2.end_date,trunc(sysdate)))"/>
+    </bm:data-filters>
+    <!-- <bm:features>
+     <f:standard-who/>
+        <s:bm-script><![CDATA[
+            var cx = Packages.aurora.javascript.Context.getCurrentContext();
+            Packages.aurora.plugin.script.engine.ScriptImportor.defineExternScript(cx, this, $ctx.getData(), "aut_authority_bm_validate.js");
+        ]]></s:bm-script>
+    </bm:features> -->
+</bm:model>

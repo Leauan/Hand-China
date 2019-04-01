@@ -1,0 +1,181 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qm  
+    $Date: 2014-4-21 上午10:05:13  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure/>
+    <a:view>
+		//${/parameter/@layout_code}_prj500_cdd_OnlydownloadFile_id添加于2019/1/7 xlx 作用只能上传不能删除上传文件
+        <a:link id="${/parameter/@layout_code}_prj500_cdd_OnlydownloadFile_id" url="${/request/@context_path}/uploadOnlyFile.screen"/>
+        <a:link id="license_attachment_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <script><![CDATA[
+            function licenseUpdateHandler(ds, rec, name, val, oldVal) {
+                if ('license_number' == name) {
+                    if ('沪' == val.substring(0, 1)) {
+                        $('ast_car_license_result_ds').getCurrentRecord().set('shh_license_flag', 'Y');
+                    } else {
+                        $('ast_car_license_result_ds').getCurrentRecord().set('shh_license_flag', 'N');
+                    }
+            
+                } else if ('shh_license_flag' == name) {
+                    rec.getField('purchase_date').setReadOnly(val == 'N');
+                    rec.getField('purchase_price').setReadOnly(val == 'N');
+                    rec.getField('license_end_date').setReadOnly(val == 'N');
+                }//租用牌照,上牌费用必输
+                 else if (name =='license_type') {
+                    if(val=='30') {
+                        rec.getField('license_fee').setRequired(true);
+                    } else {
+                        rec.getField('license_fee').setRequired(false);
+                    }
+                }
+            }
+            //原始逻辑
+           /* function beforeSubmitHandler(ds) {
+                var records = ds.getAll();
+                for (var i = 0;i < records.length;i++) {
+                    if (records[i].get('enabled_flag') == 'Y') {
+                        return true;
+                    }
+                }
+                Aurora.showMessage('${l:PROMPT}', '必须启用一张车牌!');
+                return false;
+            }*/
+			
+			 function beforeSubmitHandler(ds) {
+                var flag = false;
+                var records = ds.getAll();
+                for (var i = 0;i < records.length;i++) {
+                    var re1 = records[i].get('enabled_flag');
+                    if (records[i].get('enabled_flag') == 'Y') {
+                        flag = true;
+                    }
+                    for (var j = 0;j < records.length;j++) {
+                        var re2 = records[j].get('enabled_flag');
+                        if ((i != j && re1 == re2) && (re1 == 'Y' || re2 == 'Y')) {
+                            flag = false;
+                        }
+            
+                    }
+                }
+                if (!flag) {
+                    Aurora.showMessage('${l:PROMPT}', '必须且只能启用一张车牌!');
+                    return flag;
+                }
+            }
+            
+            function submitsuccessHandler(ds, res) {
+                ds.query();
+            }
+            
+            function receipt_attachment_upload(val, rec, name) {
+                return '<a href=javascript:open_upload_window(' + rec.get('ast_car_license_id') + ')>附件上传</a>';
+            }
+            
+            function open_upload_window(record_id) {
+                if (Aurora.isEmpty(record_id)) {
+                    Aurora.showMessage('提示', '请先保存再上传附件！');
+                    return;
+                }
+                var url = $('${/parameter/@layout_code}_prj500_cdd_OnlydownloadFile_id').getUrl() + '?table_name=AST_CAR_LICENSE&header_id=' + record_id;
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'license_uploadFile_id',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {});
+            }
+            
+            function my_date_func(val, rec, name) {
+                var flag = rec.get('shh_license_flag');
+                rec.getField('purchase_date').setReadOnly(flag == 'N');
+                rec.getField('purchase_price').setReadOnly(flag == 'N');
+                rec.getField('license_end_date').setReadOnly(flag == 'N');
+            
+                return Aurora.formatDate(val, rec, name);
+            }
+            
+            
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="license_type_ds" loadData="true" model="ast.AST502.ast_license_type"/>
+            <a:dataSet id="mortgage_flag_ds">
+                <a:datas>
+                    <a:record name="是" code="Y"/>
+                    <a:record name="否" code="N"/>
+                </a:datas>
+            </a:dataSet>
+            <a:dataSet id="ast_car_license_result_ds" model="ast.AST502.ast_car_license" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="ast_car_license_id"/>
+                    <a:field name="item_detail_id"/>
+                    <a:field name="license_number" required="true"/>
+                    <a:field name="register_number"/>
+                    <a:field name="on_car_date"/>
+                    <a:field name="license_fee"/>
+                    <a:field name="license_attach_fee"/>
+                    <a:field name="shh_license_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="purchase_date" readOnly="true"/>
+                    <a:field name="purchase_price" readOnly="true"/>
+                    <a:field name="license_end_date" readOnly="true"/>
+                    <!-- <a:field name="enabled_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/> -->
+                    <a:field name="mortgage_date"/>
+                    <a:field name="license_type_des" displayField="code_value_name" options="license_type_ds" returnField="license_type" valueField="code_value"/>
+                    <a:field name="license_type"/>
+                    <a:field name="license_flag" defaultValue="Y"/>
+                    <a:field name="mortgage_flag"/>
+                    <a:field name="mortgage_flag_des" displayField="name" options="mortgage_flag_ds" returnField="mortgage_flag" valueField="code"/>
+                    <a:field name="enabled_flag"/>
+                    <a:field name="enabled_flag_des" displayField="name" options="mortgage_flag_ds" returnField="enabled_flag" valueField="code"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="beforesubmit" handler="beforeSubmitHandler"/>
+                    <a:event name="update" handler="licenseUpdateHandler"/>
+                    <a:event name="submitsuccess" handler="submitsuccessHandler"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:grid id="ast_car_license_grid_id" bindTarget="ast_car_license_result_ds" height="210" marginWidth="30" navBar="true">
+            <a:toolBar>
+                <a:button type="add"/>
+                <a:button type="delete"/>
+            </a:toolBar>
+            <a:columns>
+                <a:column name="license_number" editor="ast_car_license_tf" prompt="牌照号" width="120"/>
+                <a:column name="register_number" editor="ast_car_license_tf" prompt="登记证编号" width="120"/>
+                <a:column name="license_type_des" editor="ast_car_license_comb" prompt="牌照类型" width="80"/>
+                <a:column name="on_car_date" editor="ast_car_license_dp" prompt="上牌日期" renderer="Aurora.formatDate" width="105"/>
+                <a:column name="license_fee" align="right" editor="ast_car_license_nf" prompt="牌照管理费" renderer="Aurora.formatMoney" width="105"/>
+                <!--  <a:column name="cashflow_flag" align="center" prompt="是否产生现金流"/> -->
+                <a:column name="license_address" editor="ast_car_license_tf" prompt="上牌地点" width="120"/>
+                <a:column name="mortgage_flag_des" editor="ast_car_license_comb" prompt="是否办理抵押" width="100"/>
+               <!--   <a:column name="mortgage_by" editor="ast_car_license_tf" prompt="抵押权人" width="100"/>
+                <a:column name="mortgage_to" editor="ast_car_license_tf" prompt="抵押人" width="100"/>
+                <a:column name="mortgage_date" editor="ast_car_license_dp" prompt="抵押日期" renderer="Aurora.formatDate" width="105"/> -->
+                <a:column name="enabled_flag_des" editor="ast_car_license_comb" prompt="是否启用" width="80"/>
+                <!--  <a:column name="license_end_date" editor="ast_car_license_dp" prompt="退牌日" renderer="Aurora.formatDate" width="105"/>
+                <a:column name="purchase_date" editor="ast_car_license_dp" prompt="收购日" renderer="my_date_func" width="105"/>
+                <a:column name="purchase_price" align="right" editor="ast_car_license_nf" prompt="收购价格" renderer="Aurora.formatMoney" width="105"/> -->
+                <!--     <a:column name="enabled_flag" editor="ast_car_license_check" prompt="是否启用" width="80"/> -->
+                <!--  <a:column name="shh_license_flag" editor="ast_car_license_cb" prompt="是否上海牌照" width="105"/>
+                <a:column name="license_end_transfer_fee" editor="ast_car_license_nf" prompt="退牌过户费" renderer="Aurora.formatMoney" width="105"/> -->
+                <a:column name="license_attach_fee" align="right" editor="ast_car_license_nf" prompt="杂费" renderer="Aurora.formatMoney" width="105"/>
+                <a:column align="center" prompt="附件" renderer="receipt_attachment_upload" width="80"/>
+            </a:columns>
+            <a:editors>
+                <a:numberField id="ast_car_license_nf"/>
+                <a:textField id="ast_car_license_tf"/>
+                <a:datePicker id="ast_car_license_dp"/>
+                <a:checkBox id="ast_car_license_cb"/>
+                <a:checkBox id="ast_car_license_check"/>
+                <a:comboBox id="ast_car_license_comb"/>
+            </a:editors>
+        </a:grid>
+        <a:hBox/>
+    </a:view>
+</a:screen>

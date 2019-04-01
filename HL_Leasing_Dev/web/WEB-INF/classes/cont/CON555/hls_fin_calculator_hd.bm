@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: mumu  
+    $Date: 2014-7-17 下午02:50:18  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" alias="t1" baseTable="HLS_FIN_CALCULATOR_HD">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+   				SELECT t.*,
+			       to_char(add_months(to_date(t.inception_of_lease, 'yyyy-mm-dd'), 1),
+			               'yyyy-mm-') || t.deduction_day first_lease
+			  from (select t1.*,
+			               --t1.inception_of_lease,
+			               --to_char(add_months(to_date(t1.inception_of_lease,'yyyy-mm-dd'),1),'yyyy-mm-dd') first_lease,
+			               case
+			                 when to_char(to_date(t1.inception_of_lease, 'yyyy-mm-dd'),
+			                              'dd') <= '10' then
+			                  '05'
+			                 when to_char(to_date(t1.inception_of_lease, 'yyyy-mm-dd'),
+			                              'dd') > '20' then
+			                  '25'
+			                 when to_char(to_date(t1.inception_of_lease, 'yyyy-mm-dd'),
+			                              'dd') <= '10' then
+			                  '05'
+			                 else
+			                  '15'
+			               end deduction_day,
+			               nvl(t1.lease_mgt_fee, 0) + nvl(t1.finance_amount, 0) as due_payment_amount,
+			               (SELECT sum(NVL(CC.RECEIVED_AMOUNT, 0))
+			                  FROM con_contract_cashflow cc
+			                 WHERE cc.cf_direction = 'OUTFLOW'
+			                   AND CC.CONTRACT_ID = ${@contract_id}) as payment_amt,
+			               decode(t2.achieve_status,
+			                      'FINISH',
+			                      0,
+			                      (SELECT sum(NVL(CC.RECEIVED_AMOUNT, 0))
+			                         FROM con_contract_cashflow cc
+			                        WHERE cc.cf_direction = 'OUTFLOW'
+			                          AND CC.CONTRACT_ID = ${@contract_id})) risk_amt
+			          from hls_fin_calculator_hd t1, con_contract t2
+			         where t1.calc_session_id = t2.calc_session_id
+			           and t2.contract_id = ${@contract_id}
+			         ORDER BY t1.calc_session_id) t
+   			]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

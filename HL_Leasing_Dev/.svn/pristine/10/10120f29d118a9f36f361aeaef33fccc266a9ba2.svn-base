@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-6-20 上午10:06:11  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[select contract_number,contract_id,company_id,
+            contract_name,document_type_desc,document_category_desc,bp_tenant_name,
+            project_number,inception_of_lease,bp_agent_code,bp_agent_name,contract_status,contract_status_desc,overdue_status_desc,overdue_status
+         from (SELECT t.contract_id,
+       t.company_id,
+       t.business_type,     
+       t.contract_number,
+       t.contract_name,
+       t.contract_status,
+       (select code_value_name from sys_code_values_v where code='CON500_CONTRACT_STATUS' and code_value=t.contract_status) contract_status_desc,
+       t.document_type,
+       dt.document_type_desc,
+       t.document_category,
+       dt.document_category_desc,
+       t.bp_id_tenant,
+       b.bp_name,
+       b.bp_code,
+       p.project_number,
+       to_char(t.inception_of_lease,'yyyy-mm-dd') inception_of_lease,
+       p.employee_id,
+       t.bp_id_tenant,
+       t.bp_id_vender,
+       t.bp_id_agent_level1,
+	   b.bp_name as bp_tenant_name,
+	   b.bp_code as bp_tenant_code,
+	   b2.bp_code as bp_vendor_code,
+	   b2.bp_name as bp_vendor_name,
+	   b3.bp_code as bp_agent_code,
+	   b3.bp_name as bp_agent_name,
+	   t.data_class,
+       (select u.user_name from sys_user_v u where u.user_id=p.employee_id )employee_name,
+       (select decode(count(*),0,'N','Y') from con_contract_cashflow f where f.contract_id =t.contract_id and f.overdue_status='Y') overdue_status,
+  	   (select decode(count(*),0,'否','是') from con_contract_cashflow f where f.contract_id =t.contract_id and f.overdue_status='Y') overdue_status_desc
+  FROM con_contract          t,
+       prj_project           p,
+       hls_bp_master         b,
+       hls_bp_master		 b2,
+       hls_bp_master		 b3,
+       hls_document_type_v   dt
+ WHERE t.project_id = p.project_id(+)	
+   AND t.bp_id_tenant = b.bp_id(+)
+   and t.bp_id_vender = b2.bp_id(+)
+   and t.bp_id_agent_level1=b3.bp_id(+)
+   and t.company_id = ${/session/@company_id}
+  and dt.document_type(+) = t.document_type order by contract_id desc) v
+  #WHERE_CLAUSE#]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:query-fields>
+        <bm:query-field name="date_from" datatype="java.lang.String" queryexpression="v.inception_of_lease &gt;= ${@date_from}"/>
+        <bm:query-field name="date_to" datatype="java.lang.String" queryexpression="v.inception_of_lease &lt;= ${@date_from}"/>
+        <bm:query-field name="contract_number" datatype="java.lang.String" queryexpression="v.contract_number like &apos;%&apos;||${@contract_number}||&apos;%&apos;"/>
+        <bm:query-field name="contract_name" datatype="java.lang.String" queryexpression="v.contract_name=${@contract_name}"/>
+        <bm:query-field name="bp_tenant_code" datatype="java.lang.String" queryexpression="v.bp_tenant_code=${@bp_tenant_code}"/>
+        <bm:query-field name="bp_tenant_name" datatype="java.lang.String" queryexpression="v.bp_tenant_name=${@bp_tenant_name}"/>
+        <bm:query-field name="project_number" datatype="java.lang.String" queryexpression="v.project_number=${@project_number}"/>
+        <bm:query-field name="document_category" datatype="java.lang.String" queryexpression="v.document_category=${@document_category}"/>
+        <bm:query-field name="document_type" datatype="java.lang.String" queryexpression="v.document_type=${@document_type}"/>
+        <bm:query-field name="bp_agent_code" datatype="java.lang.String" queryexpression="v.bp_agent_code=${@bp_agent_code}"/>
+        <bm:query-field name="bp_vendor_code" datatype="java.lang.String" queryexpression="v.bp_vender_code=${@bp_vender_code}"/>
+        <bm:query-field name="overdue_status" datatype="java.lang.String" queryexpression="v.overdue_status=${@overdue_status}"/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="v.contract_status=&apos;INCEPT&apos;"/>
+        <bm:data-filter enforceOperations="query" expression="v.data_class = &apos;NORMAL&apos;"/>
+        <!-- <bm:data-filter enforceOperations="query" expression="not exists (select 1 from con_contract_rp_hd where contract_id = v.contract_id and status is not null)"/> -->
+    </bm:data-filters>
+</bm:model>

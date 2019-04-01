@@ -1,0 +1,362 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2014-4-28 上午11:22:26  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:view>
+        <a:link id="sys_function_getcontainsbm_link" url="${/request/@context_path}/modules/sys/SYS860/sys_function_getcontainsbm.svc"/>
+        <a:link id="bm_accesscheck_link" model="sys.SYS860.bm_accesscheck" modelaction="query"/>
+        <a:link id="bmLink_function_service" model="sys.SYS860.sys_function_service" modelaction="query"/>
+        <a:link id="sys_function_autobm_link" url="${/request/@context_path}/modules/sys/SYS860/sys_function_autobm.svc"/>
+        <a:link id="sys_function_makezip_link" url="${/request/@context_path}/modules/sys/SYS860/sys_function_makezip.svc"/>
+        <a:link id="sys_function_tree_link" url="${/request/@context_path}/modules/sys/SYS860/sys_function_tree.screen"/>
+        <a:link id="sys_function_bm_link" url="${/request/@context_path}/modules/sys/SYS860/sys_function_bm.screen"/>
+        <a:link id="pageLink_function_service" url="${/request/@context_path}/modules/sys/SYS860/sys_function_service.screen"/>
+        <a:link id="sys_service_welcome_link" url="${/request/@context_path}/welcome.screen"/>
+        <script><![CDATA[
+            
+            function functionDs_query() {
+                $('functionDs').query();
+            }
+            
+            function resetFunction() {
+                $('para_functionDs').reset();
+            }
+
+        	function functionDs_grid_add(){
+                $('functionDs_grid').showEditorByRecord($('functionDs').create());
+            }
+            function functionDs_grid_clear(){
+                $('functionDs_grid').clear();
+            }
+            function functionDs_grid_remove(){
+                $('functionDs_grid').remove();
+            }
+            function functionDs_grid_submit() {
+                var ds = $('functionDs');
+                if (ds.validate()) {
+                    ds.submit();
+                }
+            }
+            function sys_8010_next(){
+                history.go(1);
+            }
+            function sys_8010_back(){
+                history.go(-1);
+            }
+            function sys_8010_quit(){
+                location.href = $('sys_service_welcome_link').getUrl();
+            }
+            
+            function openAssignPage(id) {
+                new Aurora.Window({
+                    id: 'sys_function_service_assign_window',
+                    url: $('pageLink_function_service').getUrl(),
+                    params:{
+                    	function_id : id
+                    },
+                    title: '${l:SYS8010.LINK.ASSIGN_PAGE}',
+                    height: 480,
+                    width: 680
+                });
+            }
+            
+            function openAssignBM(id) {
+                new Aurora.Window({
+                    id: 'sys_function_bm_window',
+                    url: $('sys_function_bm_link').getUrl(),
+                    params:{
+                    	function_id : id
+                    },
+                    title: '${l:SYS8010.LINK.ASSIGN_BM}',
+                    height: 480,
+                    width: 680
+                });
+            }
+            
+            
+            function downloadFunction(f_id,fn) {
+                Aurora.request({
+                    url:$('sys_function_makezip_link').getUrl(),
+                    para:{
+                        'function_id':f_id,
+                        'filename':fn
+                    },
+                    success:function(args){
+                        location.pathname = "${/request/@context_path}/"+fn+".zip";
+                    }
+                });
+            }
+            
+            function render_functionDs_grid(value, record, name) {
+                if(name=='parent_function_name')
+                {
+                    return ( !! value) ? value : '<font color="red">${l:ROOT}</font>';
+                }
+                var function_id = record.get('function_id');
+                var function_type = record.get('function_type');
+                if(record.isNew||Ext.isEmpty(function_id)||function_type=='G')
+                {
+                    return '';
+                }
+                else
+                {
+                    if(name=='assign_page')
+	                {
+		                return '<a href="javascript:openAssignPage(' + function_id + ')">${l:SYS8010.LINK.ASSIGN_PAGE}</a>';
+	                }
+	                if(name=='assign_bm')
+	                {
+		                return '<a href="javascript:openAssignBM(' + function_id + ')">${l:SYS8010.LINK.ASSIGN_BM}</a>';
+	                }
+	                if(name=='download')
+	                {
+		                return '<a href="javascript:downloadFunction(' + function_id + ',\'' + record.get('function_code') + '\')" title="${l:HAP_DOWNLOAD}"><img src="${/request/@context_path}/images/download.png"/></a>';
+	                }
+	                return '';
+                }
+                return '';
+                
+            }
+            
+            function onUpdate_functionDs(ds, record, name, value) {
+                if (name == 'function_type') {
+                    if (value == 'G') {
+                        record.set('command_line', '');
+                    }
+                    if(value!='F'){
+                        record.set('service_name','');
+                        record.set('service_id','');
+                    }
+                    record.getMeta().getField('service_name').setRequired(value == 'F');
+                }
+            }
+            
+            function viewFunctionTree() {
+                new Aurora.Window({
+                    id: 'sys_function_tree_window',
+                    url: $('sys_function_tree_link').getUrl(),
+                    title: '${l:SYS8010.BUTTON.VIEW_FUNCTION_TREE}',
+                    height: 500,
+                    width: 400
+                });
+            }
+            
+            function editorFun_functionDs_grid(record, name) {
+                if(name=='function_code')
+                {
+                    if(record.isNew)
+                    {
+                        return 'functionDs_grid_tf_upper';
+                    }
+                    return '';
+                }
+                return '';
+            }
+            
+            Array.prototype.indexOf = function(ele) {
+                for (var i = 0;i < this.length;i++) {
+                    if (this[i] == ele) {
+                        return i;
+                    }
+                }
+                return -1;
+            };
+            
+            //在不重复的情况下添加新数据
+            Array.prototype.union = function(ele) {
+                if (this.indexOf(ele) == -1) {
+                    this.add(ele);
+                }
+            };
+            
+            function fetchBM() {
+                var ds = $('functionDs');
+                var recs = ds.getSelected(); //取得选定的所有行
+                if (!recs.length) {
+                    return;
+                }
+            
+                var nrecs = [];
+                ///////取得所有需要插入的数据
+                for (var i = 0;i < recs.length;i++) {
+                    var f_id = recs[i].get('function_id');
+                    if (!f_id || recs[i].get('function_type') != 'F' || !recs[i].validateRecord()) {
+                        continue; //过滤未保存的新行,过滤不是"功能"的行,过滤没有主页面的行
+                    }
+                    var bma = fetchBM(f_id)[0];
+                    for (var m = 0;m < bma.length;m++) {
+                        nrecs.add({
+                            'function_id': f_id,
+                            'bm_name': bma[m],
+                            'insert_option': 'Y',
+                            'update_option': 'Y',
+                            'delete_option': 'Y',
+                            'query_option': 'Y',
+                            'execute_option': 'Y',
+                            '_status': 'insert'
+                        });
+                    }
+                }
+                /////
+                Aurora.request({
+                    url: $('sys_function_autobm_link').getUrl(),
+                    para: nrecs,
+                    //success: function(args3) {
+                    //    alert(Ext.util.JSON.encode(args3));
+                    //},
+                    scope: this
+                });
+            }
+            
+            
+            function getRegisteredPage(function_id) {
+                var pages = [];
+                Aurora.request({ //取得当前功能所分配的页面
+                    url: $('bmLink_function_service').getUrl()+'?function_id=' + function_id,
+                    success: function(args0) {
+                        if (!args0.result.record) {
+                            return;
+                        }
+                        pages = [].concat(args0.result.record);
+                    },
+                    scope: this,
+                    sync: true
+                });
+                return pages;
+            }
+            
+            //取得页面已经注册过的BM,数组
+            
+            function getRegisteredBM(function_id) {
+                var bmArrayo = [];
+                Aurora.request({
+                    url: $('bm_accesscheck_link').getUrl()+'?function_id=' + function_id,
+                    success: function(args2) {
+                        if (!args2.result.record) {
+                            return;
+                        }
+                        var recs = [].concat(args2.result.record);
+                        for (var i = 0;i < recs.length;i++) {
+                            var sn = recs[i].bm_name.trim();
+                            if (sn.length > 0) { //去掉空的,以及重复的
+                                bmArrayo.union(sn);
+                            }
+                        }
+                    },
+                    scope: this,
+                    sync: true
+                });
+                return bmArrayo;
+            }
+            
+            //取得所有应该注册但还没有注册bm,和已经注册过的bm
+            
+            function fetchBM(function_id) {
+                var bmArray = []; //页面中引用了但还没有注册的bm
+                var bmArrayo = getRegisteredBM(function_id);
+            
+                var pages = getRegisteredPage(function_id);
+                for (var i = 0;i < pages.length;i++) { //对于每个页面...
+                    Aurora.request({ //对于每个页面,取得其关联的bm
+                        url: $('sys_function_getcontainsbm_link').getUrl(),
+                        para: {
+                            'scrpath': pages[i].service_name
+                        },
+                        success: function(args1) {
+                            var bmrs = args1.result.record;
+                            if (!bmrs) {
+                                return;
+                            }
+                            bmrs = [].concat(bmrs);
+                            for (var j = 0;j < bmrs.length;j++) {
+                                if (bmrs[j].bm.length > 0) {
+                                    if (bmArrayo.indexOf(bmrs[j].bm) == -1) {
+                                        bmArray.union(bmrs[j].bm);
+                                    }
+                                }
+                            }
+                        },
+                        scope: this,
+                        sync: true
+                    });
+                }
+                return [bmArray, bmArrayo];
+            }
+            
+           ]]></script>
+        <a:dataSets>
+            <a:dataSet id="para_functionDs" autoCreate="true" model="sys.SYS860.sys_function"/>
+            <a:dataSet id="functionDs" autoPageSize="true" autoQuery="true" model="sys.SYS860.sys_function" queryDataSet="para_functionDs" selectable="true">
+                <a:fields>
+                    <a:field name="function_code" required="true"/>
+                    <a:field name="function_name" required="true"/>
+                    <a:field name="service_name" lovGridHeight="330" lovHeight="460" lovService="sys.sys_service" lovWidth="450" title="SYS8010.SYS_FUNCTION.SERVICE_NAME">
+                        <a:mapping>
+                            <a:map from="service_id" to="service_id"/>
+                            <a:map from="service_name" to="service_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="function_type" defaultValue="F"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="onUpdate_functionDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <!--  <a:gridButton click="sys_8010_back" text="HLS.BACK"/>
+                <a:gridButton click="sys_8010_next" text="HLS.FORWARD"/> -->
+                <a:gridButton click="sys_8010_quit" text="HLS.EXIT"/>
+                <a:gridButton click="functionDs_grid_add" text="HLS.NEW"/>
+                <a:gridButton click="functionDs_grid_remove" text="HLS.REMOVE"/>
+                <a:gridButton click="functionDs_grid_clear" text="HLS.CLEAR"/>
+                <a:gridButton click="functionDs_grid_submit" text="HLS.SAVE"/>
+                <a:gridButton click="functionDs_query" text="HLS.QUERY"/>
+                <a:gridButton click="viewFunctionTree" text="SYS8010.BUTTON.VIEW_FUNCTION_TREE"/>
+                <a:gridButton click="fetchBM" text="SYS8010.BUTTON.FETCH_BM"/>
+            </a:screenTopToolbar>
+            <a:form column="3" title="HAP_QUERY_TITLE">
+                <a:textField name="function_code" bindTarget="para_functionDs" typeCase="upper">
+                    <a:events>
+                        <a:event name="enterdown" handler="functionDs_query"/>
+                    </a:events>
+                </a:textField>
+                <a:textField name="function_name" bindTarget="para_functionDs">
+                    <a:events>
+                        <a:event name="enterdown" handler="functionDs_query"/>
+                    </a:events>
+                </a:textField>
+                <a:textField name="service_name" bindTarget="para_functionDs" width="200">
+                    <a:events>
+                        <a:event name="enterdown" handler="functionDs_query"/>
+                    </a:events>
+                </a:textField>
+            </a:form>
+            <a:grid id="functionDs_grid" bindTarget="functionDs" marginHeight="180" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="function_code" editorFunction="editorFun_functionDs_grid" lock="true" width="100"/>
+                    <a:column name="function_name" editor="functionDs_grid_tf" width="120"/>
+                    <a:column name="sequence" align="right" editor="functionDs_grid_nf_integer" width="50"/>
+                    <a:column name="service_name" editor="functionDs_grid_lov" width="400"/>
+                    <a:column name="icon" editor="functionDs_grid_tf" width="100"/>
+                    <a:column name="assign_page" align="center" prompt="SYS8010.LINK.ASSIGN_PAGE" renderer="render_functionDs_grid" width="80"/>
+                    <a:column name="assign_bm" align="center" prompt="SYS8010.LINK.ASSIGN_BM" renderer="render_functionDs_grid" width="80"/>
+                    <a:column name="download" align="center" prompt="HAP_DOWNLOAD" renderer="render_functionDs_grid" width="60"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="functionDs_grid_tf_upper" typeCase="upper"/>
+                    <a:textField id="functionDs_grid_tf" typeCase="upper"/>
+                    <a:numberField id="functionDs_grid_nf_integer" allowdecimals="false"/>
+                    <a:comboBox id="functionDs_grid_comb"/>
+                    <a:lov id="functionDs_grid_lov"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

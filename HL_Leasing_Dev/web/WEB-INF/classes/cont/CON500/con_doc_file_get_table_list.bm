@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang 
+    $Date: 2015-6-10 下午04:07:48  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:s="aurora.plugin.script" xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                select * from (
+            ${:@validation_sql}) vv
+               #WHERE_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields><![CDATA[
+    ]]></bm:fields>
+    <bm:features>
+        <s:bm-script><![CDATA[
+            var model = $this.getObjectContext();
+            var para = $ctx.parameter || $ctx.current_parameter;
+            var validation_sql;
+            println(para.toXML());
+            
+            function get_validation_sql() {
+                var query_validation_sql_bm = $bm('cont.CON500.con_doc_file_templet_para_sql');
+                var config_map = query_validation_sql_bm.queryAsMap(para);
+                var config_map_detail = config_map.getChildren();
+                if (config_map_detail.length != 0) {
+                    validation_sql = config_map_detail[0].sql_content;
+                }
+            
+                validation_sql = validation_sql.replace(/\{\$([^{}$]*)\$\}/g, function(a, b) {
+                    return "'" + (para[b.toLowerCase()] || '') + "'";
+                });
+                validation_sql = validation_sql.replace(/\$\{\/session\/@([^\}]*)\}/g, function(a, b) {
+                    return "'" + $ctx.session[b] + "'";
+                });
+            }
+            
+            get_validation_sql();
+            importClass(Packages.uncertain.composite.CompositeUtil);
+            var query_sql = CompositeUtil.findChild($this.getObjectContext(), "query-sql");
+            query_sql.setText(validation_sql);
+        ]]></s:bm-script>
+    </bm:features>
+</bm:model>

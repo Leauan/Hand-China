@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+  create by xuls  2014-10-10 11:20
+  for mantain project content
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.project_id = ${/parameter/@project_id}" fetchAll="true" model="prj.PRJ702N.prj_content_quotation" rootPath="prj702n_quos"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="prj_project_content_print_link" url="${/request/@context_path}/modules/prj/PRJ702N/prj_project_content_print.screen"/>
+        <script><![CDATA[
+        
+            function lock_current_window() {
+                Aurora.Masker.mask($('${/parameter/@winid}').wrap, '${l:HLS.EXECUTING}');
+            }
+            
+            function unlock_current_window() {
+                Aurora.Masker.unmask($('${/parameter/@winid}').wrap);
+            }
+            
+            function prj702n_content_add() {
+                $('prj702_content_result_gd').showEditorByRecord($('prj702n_content_result_ds').create());
+            }
+            
+            function prj702n_content_create_event(ds, record, index) {
+                var head_record = $('prj702n_quotations_ds').getCurrentRecord();
+                var quotation_id = head_record.get('quotation_id');
+                record.set('quotation_id', quotation_id);
+            }
+            
+            function prj702n_content_clear() {
+                $('prj702_content_result_gd').clear();
+            }
+            
+            function prj702n_content_save() {
+                $('prj702n_content_result_ds').submit();
+            }
+            
+            function prj702n_content_print() {
+                if ($('prj702n_content_result_ds').validate(true)) {
+                    var records = $('prj702n_content_result_ds').getSelected();
+                    if (records.length != 1) {
+                        Aurora.showMessage('${l:PROMPT}', '${l:HLS.SELECT_RECORD}');
+                        return;
+                    }
+                    var record = records[0];
+                    if (Ext.isEmpty(record.get('templet_name')) || Ext.isEmpty(record.get('content_number'))) {
+                        Aurora.showMessage('${l:PROMPT}', '合同条款模板和合同文本编号不能为空！');
+                        unlock_current_window();
+                        return;
+                    }
+            
+                    if (record.dirty) {
+                        Aurora.showMessage('${l:PROMPT}', '${l:HLS.EXECUTE_AFTER_SAVE}');
+                        unlock_current_window();
+                        return;
+                    }
+                    var templt_name;
+                    var quotation_id = record.get('quotation_id');
+                    var clause_usage = record.get('clause_usage');
+                    var templet_id = record.get('templet_id');
+                    var bp_id = record.get('bp_id');
+                    var  bp_class = record.get('bp_class');
+                    var  content_number = record.get('content_number');
+                    var  content_id = record.get('content_id');
+                    lock_current_window();
+                    if (clause_usage == 'FIN') {
+                        templt_name = 'lsh_fin_contract.xml';
+                        con_name = '融资租赁合同';
+                    } else if (clause_usage == 'GUT' && bp_class == 'ORG') {
+                        templt_name = 'lsh_gut_contract_org.xml';
+                        con_name = '保证合同（法人）';
+                    } else if (clause_usage == 'GUT' && bp_class == 'NP') {
+                        templt_name = 'lsh_gut_contract_np.xml';
+                        con_name = '保证合同（自然人）';
+                    } else if (clause_usage == 'OWN') {
+                        templt_name = 'lsh_own_contract.xml';
+                        con_name = '资产转让合同';
+                    } else if (clause_usage == 'PUR') {
+                        templt_name = 'pur_contract.xml';
+                        con_name = '购买合同';
+                    } else if (clause_usage == 'MOR') {
+                        templt_name = 'lsh_mor_contract.xml';
+                        con_name = '抵押合同';
+                    } else if (clause_usage == 'DEPOSIT') {
+                        templt_name = 'lsh_dept_contract.xml';
+                        con_name = '保证金合同';
+                    } else if (clause_usage == 'COA') {
+                        templt_name = 'coa_contract.xml';
+                        con_name = '';
+                    }
+                    
+            
+                    var url = encodeURI($('prj_project_content_print_link').getUrl() + '?templt_name=' + templt_name + '&project_id=' + '${/parameter/@project_id}'+'&quotation_id='+quotation_id + '&clause_usage=' + clause_usage + '&templet_id=' + templet_id + '&bp_id=' + bp_id + '&content_number=' + content_number + '&content_id=' + content_id + '&con_name=' + con_name);
+                    var form = document.createElement("form");
+                    form.target = "word_export_window";
+                    form.method = "post";
+                    form.action = url;
+                    var iframe = Ext.get('word_export_window') || new Ext.Template('<iframe id ="word_export_window" name="word_export_window" style="position:absolute;left:-10000px;top:-10000px;width:1px;height:1px;display:none"></iframe>').insertFirst(document.body, {}, true);
+                    document.body.appendChild(form);
+                    form.submit();
+                    Ext.fly(form).remove();
+                    unlock_current_window();
+            
+                }
+            }
+            
+            function prj702n_comed_fun(record,name){
+                if(record.isNew){
+                    return 'prj702n_comed';
+                }
+                return '';
+            }
+            function prj702n_loved_fun(record,name){
+                if(record.isNew){
+                    return 'prj702n_loved';
+                }
+                return '';
+            }
+            function prj702n_loved_focus(lov){
+                var record = lov.record;
+                var display_name = lov.binder.name;
+                record.getField(display_name).setLovPara('templet_usage', record.get('clause_usage'));
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="basic_clause_tmplet_usage_ds" lookupCode="CON_TMPLET_USAGE"/>
+            <a:dataSet id="prj702n_quotations_ds" fetchAll="true">
+                <a:datas dataSource="/model/prj702n_quos"/>
+                <a:fields>
+                    <a:field name="quotation_date" datatype="java.util.Date"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="prj702n_content_result_ds" autoQuery="true" bindName="contents" bindTarget="prj702n_quotations_ds" fetchAll="true" model="prj.PRJ702N.prj_project_content" queryDataSet="prj702n_quotations_ds" selectable="true" selectionModel="single">
+                <a:fields>
+                    <a:field name="project_id" defaultValue="${/parameter/@project_id}"/>
+                    <a:field name="clause_usage_name" displayField="code_value_name" options="basic_clause_tmplet_usage_ds" required="true" returnField="clause_usage" valueField="code_value"/>
+                    <a:field name="bp_name" lovGridHeight="350" lovHeight="500" lovLabelWidth="100" lovService="prj.PRJ702N.prj_project_bp_for_lov?project_id=${/parameter/@project_id}" lovWidth="550" required="true" title="HLS.BP_TITLE">
+                        <a:mapping>
+                            <a:map from="prj_bp_id" to="prj_bp_id"/>
+                            <a:map from="bp_name" to="bp_name"/>
+                            <a:map from="bp_category" to="bp_category"/>
+                            <a:map from="bp_category_desc" to="bp_category_desc"/>
+                            <a:map from="bp_class" to="bp_class"/>
+                            <a:map from="bp_class_desc" to="bp_class_desc"/>
+                            <a:map from="bp_id" to="bp_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="templet_name" lovGridHeight="350" lovHeight="500" lovService="basic.con_clause_templet_for_lov" lovWidth="500" title="CON505.CON_CONTENT_TEMPLET_NAME">
+                        <a:mapping>
+                            <a:map from="templet_id" to="templet_id"/>
+                            <a:map from="description" to="templet_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="available_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="prj702n_content_create_event"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="prj702n_content_add" text="HLS.NEW"/>
+                <a:gridButton click="prj702n_content_clear" text="HLS.CLEAR"/>
+                <a:gridButton click="prj702n_content_save" text="HLS.SAVE"/>
+                <a:gridButton click="prj702n_content_print" text="HLS.PRINT_CONFIRM"/>
+            </a:screenTopToolbar>
+            <a:fieldSet title="报价">
+                <a:grid id="prj702n_quos_gd" bindTarget="prj702n_quotations_ds" height="150" marginWidth="50">
+                    <a:columns>
+                        <a:column name="contract_seq" lign="right" prompt="序号" width="50"/>
+                        <a:column name="quotation_type_n" prompt="报价类型" width="60"/>
+                        <a:column name="quotation_date" align="center" prompt="报价日期" renderer="Aurora.formatDate" width="80"/>
+                        <a:column name="business_type_n" prompt="业务类型" width="60"/>
+                        <a:column name="price_list" prompt="价目表" width="180"/>
+                        <a:column name="currency_n" prompt="币种" width="60"/>
+                        <a:column name="finance_amount" align="right" prompt="融资额" renderer="Aurora.formatMoney" width="100"/>
+                        <a:column name="quo_ren" prompt="报价" width="60"/>
+                        <a:column name="lease_times" align="right" prompt="租赁期数" width="60"/>
+                        <a:column name="annual_pay_times_n" prompt="支付频率" width="60"/>
+                        <a:column name="version" prompt="版本" width="50"/>
+                        <a:column name="enabled_flag" align="center" prompt="启用" width="50"/>
+                    </a:columns>
+                </a:grid>
+            </a:fieldSet>
+            <a:fieldSet title="项目合同">
+                <a:grid id="prj702_content_result_gd" bindTarget="prj702n_content_result_ds" marginHeight="320" marginWidth="50">
+                    <a:columns>
+                        <a:column name="clause_usage_name" editorFunction="prj702n_comed_fun" prompt="HLS.CONTRACT_USAGE"/>
+                        <a:column name="bp_name" editorFunction="prj702n_loved_fun" prompt="HLS.BP_NAME"/>
+                        <a:column name="bp_category_desc" prompt="HLS.BP_CATEGORY"/>
+                        <a:column name="bp_class_desc" prompt="HLS.BP_CLASS"/>
+                        <a:column name="templet_name" editor="prj702n_loved" prompt="CON505.CON_CONTENT_TEMPLET_NAME" width="150"/>
+                        <a:column name="content_number" editor="prj702n_texted" prompt="CON505.CON_CONTENT_NUMBER"/>
+                        <a:column name="content_print_flag_name" prompt="CON505.CON_CONTENT_STATUS" width="80"/>
+                        <a:column name="available_flag" editor="prj702n_checked" prompt="CON505.AVAILABLE_FLAG" width="50"/>
+                    </a:columns>
+                    <a:editors>
+                        <a:comboBox id="prj702n_comed"/>
+                        <a:lov id="prj702n_loved">
+                            <a:events>
+                                <a:event name="focus" handler="prj702n_loved_focus"/>
+                            </a:events>
+                        </a:lov>
+                        <a:textField id="prj702n_texted"/>
+                        <a:checkBox id="prj702n_checked"/>
+                    </a:editors>
+                </a:grid>
+            </a:fieldSet>
+        </a:screenBody>
+    </a:view>
+</a:screen>

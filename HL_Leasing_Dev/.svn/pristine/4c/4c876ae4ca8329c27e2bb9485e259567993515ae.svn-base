@@ -1,0 +1,367 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Feng  
+    $Date: 2014-1-3 上午10:24:25  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-execute model="db.prj_cdd_item_pkg.prj_cdd_item_extra_save"/>
+        <a:model-query model="cont.CON555B.con555_get_info" rootPath="con555_get_info"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="get_contranct_link_id" model="cont.CON555A.con_contract" modelaction="update"/>
+        <a:link id="con555_cdd_uploadFile_id" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="con_contract_location_self" url="${/request/@context_path}/modules/cont/CON555B/con_contract_storage_apply.screen"/>
+        <a:link id="con555_cdd_download_id" url="${/request/@context_path}/atm_download.svc"/>
+        <a:link id="con555_cdd_query_link" url="${/request/@context_path}/autocrud/cont.CON555.con_content_query_detail/query"/>
+        <a:link id="con_contract_file_link_id" model="db.con_contract_pkg.update_contract_file_date" modelaction="execute"/>
+        <link href="${/request/@context_path}/css/lightbox.css" rel="stylesheet" type="text/css"/>
+        <a:link id="con555B_con_contract_location_id" model="cont.CON570.contract_archive" modelaction="update"/>
+        <a:link id="detail_ds_link_id" model="cont.CON570.con555_get_info" modelaction="update"/>
+        <a:link id="con_submit_approval_link" model="cont.CON555A.contract_workflow_start" modelaction="update"/>
+        <script src="${/request/@context_path}/javascripts/lightbox.js"/>
+		<a:link id="get_atch_download_link" url="${/request/@context_path}/modules/batch_download/lease_atm_batch_dl.svc"/>
+        <script><![CDATA[
+            Ext.ux.Lightbox.register('a[ref=img]', true);
+            
+            window['con555_cdd_editorFunction'] = function(record, name) {
+                if (record.get('sys_flag') == 'N') {
+                    return 'con555_cdd_tf_id';
+                }
+                return '';
+            };
+            
+            function con555_cdd_selectFunc(record) {
+                if (record.get('sys_flag') == 'Y') {
+                    return false;
+                }
+                return true;
+            }
+            window['con555_cdd_attachment_render'] = function(value, record, name) {
+                //debugger;
+                var check_id = record.get('check_id');
+                var file_name = record.get('file_name');
+                var record_id = record.id;
+                if (!record.isNew && check_id) {
+                    return '<a href="javascript:window[\'con555_cdd_attachtment_upload\'](\'' + record.get('check_id') + '\',\'' + file_name + '\',\'' + record_id + '\')">${l:HLS.ATTACHMENT}</a>';
+                }
+            };
+            
+            window['con555_link_render'] = function(value, record, name) {
+                //debugger;
+                if (value != null) {
+                    var link = '${/request/@context_path}/atm_download.svc?attachment_id=';
+                    var str = value.split(';;');
+                    var url = '';
+                    for (var i = 0;i < str.length;i++) {
+                        var temp = str[i].split('--');
+                        if (!Aurora.isEmpty(temp[0])) {
+                            var file_suffix = temp[0].substr(temp[0].lastIndexOf('.') + 1).toUpperCase();
+                            if (file_suffix == 'BMP' || file_suffix == 'JPG' || file_suffix == 'JPEG' || file_suffix == 'PNG' || file_suffix == 'GIF') {
+                                url = url + '<a ref="img" href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                            } else {
+                                url = url + '<a href=' + link + temp[1] + '>' + temp[0] + '</a>' + ',';
+                            }
+                        }
+                    }
+                    return url;
+                }
+            };
+            
+            window['con555_cdd_attachtment_upload'] = function(check_id, file_name, record_id) {
+                //debugger;
+                var url = $('con555_cdd_uploadFile_id').getUrl() + '?table_name=PRJ_CDD_ITEM_CHECK&header_id=' + check_id;
+                var record = $('con555_detail_result_ds').getCurrentRecord();
+                var oldvalue = file_name ? file_name : null;
+                var contract_id = ${/parameter/@contract_id};
+                paras = {
+                    'contract_id': contract_id
+                };
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'con555_cdd_uploadFile_screen_id',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {
+                    //debugger;
+                    Aurora.request({
+                        url: $('con555_cdd_query_link').getUrl(),
+                        para: paras,
+                        success: function(data) {
+                            $('con555_detail_result_ds').query();
+            
+                            var newvalue = $('con555_detail_result_ds').findById(record_id).get('file_name');
+                            //con555_attach_update(oldvalue,newvalue);
+                        },
+                        sync: true
+                    });
+            
+                });
+            
+            };
+            window['con555_cdd_required_render'] = function(value, record, name) {
+                var project_required_flag = record.get('project_required_flag');
+                if (project_required_flag == 'Y') {
+                    return '<pan style="color:red">' + value + '</pan>';
+                } else {
+                    return value;
+                }
+            };
+            // window['con555_attach_add'] = function(ds) {
+            // var record = $('con555_detail_result_ds').getAt(0);
+            // var current_record = ds.getCurrentRecord();
+            // current_record.data['document_table'] = 'PRJ_CDD_ITEM_CHECK';
+            // current_record.data['cdd_list_id'] = record.get('cdd_list_id');
+            // current_record.data['document_id'] = record.get('document_id');
+            // current_record.data['note'] = record.get('note');
+            // document_category = record.get('document_category');
+            // if (document_category == 'CONTRACT') {
+            // current_record.data['contract_required_flag'] = 'N';
+            // current_record.data['contract_display_flag'] = 'Y';
+            // } else if (document_category == 'PROJECT') {
+            // current_record.data['project_required_flag'] = 'N';
+            // current_record.data['project_display_flag'] = 'Y';
+            // }
+            // };
+            // window['con555_attach_load'] = function(ds) {
+            // var records = ds.getAll();
+            // if (records.length) {
+            // for (var i = 0;i < records.length;i++) {
+            // var record = records[i];
+            // if (Ext.isEmpty(record.get('check_id'))) {
+            // record.dirty = true;
+            // }
+            // }
+            // }
+            // };
+            
+            // function con555_attach_update(ds, record, value, oldvalue, newvalue) {
+            // alert('con555_attach_update');
+            // }
+            
+            // function con555_attach_query(ds) {
+            // alert('con555_attach_refresh');
+            // }
+            
+            function con555_con_contract_back() {
+                //console.log($('con555_contract_query_ds').data[0].getMeta().getField('contract_status_desc'));
+                $('con_contract_storage_apply_window').close();
+            }
+            
+            function con555_con_contract_reset() {
+                $('con555_detail_ds').reset();
+            }
+            
+            function con555_con_contract_save1() {
+                debugger;
+                con555_detail_result_save();
+                var contract_id = $('con555_detail_ds').getCurrentRecord().get('contract_id');
+                var url = $('con555B_con_contract_location_id').getUrl();
+                var detail_mask;
+                detail_mask = Ext.getBody();
+                Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                Aurora.request({
+                    url: url,
+                    para: {
+                        contract_id:contract_id,
+                        archive_status:'30'
+                        },
+                    success: function() {
+                        $('con555_detail_ds').query();
+                        Aurora.Masker.unmask(detail_mask);
+                        Aurora.SideBar.show({
+                            msg: '操作成功',
+                            duration: 2000
+                        });
+                    },
+                    failure: function() {
+            			Aurora.Masker.unmask(detail_mask);
+                       },
+                    error: function() {
+            			Aurora.Masker.unmask(detail_mask);
+                       },
+                    scope: this
+                });
+            
+            }
+            
+
+            
+            function con555_detail_result_save() {
+                $('con555_detail_result_ds').submit();
+                var contract_id = $('con555_detail_ds').getCurrentRecord().get('contract_id');
+                var region = $('con555_detail_ds').getCurrentRecord().get('region');
+                var hd_user_col_v02 = $('con555_detail_ds').getCurrentRecord().get('hd_user_col_v02');
+                var archive_note = $('con555_detail_ds').getCurrentRecord().get('archive_note');
+                var url = $('detail_ds_link_id').getUrl();
+                Aurora.request({
+                    url: url,
+                    para: {
+                        contract_id:contract_id,
+                        region:region,
+                        hd_user_col_v02:hd_user_col_v02,
+                        archive_note:archive_note
+                        },
+                    success: function() {
+                        $('con555_detail_ds').query();
+                        Aurora.SideBar.show({
+                            msg: '操作成功',
+                            duration: 2000
+                        });
+                    },
+                    failure: function() {
+                       },
+                    error: function() {
+                       },
+                    scope: this
+                });
+            }
+            
+            function con555_con_contract_save2() {
+                debugger;
+                con555_detail_result_save();
+                var contract_id = $('con555_detail_ds').getCurrentRecord().get('contract_id');
+                var url = $('con555B_con_contract_location_id').getUrl();
+                var detail_mask;
+                detail_mask = Ext.getBody();
+                Aurora.Masker.mask(detail_mask, '${l:HLS.EXECUTING}');
+                Aurora.request({
+                    url: url,
+                    para: {
+                        contract_id:contract_id,
+                        archive_status:'20'
+                        },
+                    success: function() {
+                        $('con555_detail_ds').query();
+                        Aurora.Masker.unmask(detail_mask);
+                        Aurora.SideBar.show({
+                            msg: '操作成功',
+                            duration: 2000
+                        });
+                    },
+                    failure: function() {
+            			Aurora.Masker.unmask(detail_mask);
+                       },
+                    error: function() {
+            			Aurora.Masker.unmask(detail_mask);
+                       },
+                    scope: this
+                });
+            }
+			
+			function con555_con_cdd_download() {
+                var contract_id = $('con555_detail_result_ds').getCurrentRecord().get('document_id');
+                var url_l = $('get_atch_download_link').getUrl() + '?table_pk_value=' + contract_id + '&table_name=CON_CONTRACT' + '&doc_code=' + contract_id + '&all_flag=Y';
+                window.open(href = url_l, target = "_self");
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="doc_type_ds" lookupCode="DOC_TYPE"/>
+            <a:dataSet id="doc_require_ds" lookupCode="DOC_REQUIRE"/>
+            <a:dataSet id="region_ds" lookupCode="HLS_SYS_REGION"/>
+            <a:dataSet id="con555_detail_ds" autoCreate="true" autoQuery="true" model="cont.CON570.con555_get_info" queryUrl="${/request/@context_path}/autocrud/cont.CON570.con555_get_info/query?contract_id=${/parameter/@contract_id}">
+                <a:fields>
+                    <a:field name="contract_id"/>
+                    <a:field name="contract_number" readOnly="true"/>
+                    <a:field name="project_number" readOnly="true"/>
+                    <a:field name="bp_name" readOnly="true"/>
+                    <a:field name="business_type_desc" readOnly="true"/>
+                    <a:field name="division_desc" readOnly="true"/>
+                    <a:field name="bp_class_desc" readOnly="true"/>
+                    <a:field name="invoice_agent_desc" readOnly="true"/>
+                    <a:field name="contract_id" readOnly="true"/>
+                    <a:field name="project_id" readOnly="true"/>
+                    <a:field name="express_number" readOnly="true"/>
+                    <a:field name="express_province_n" readOnly="true"/>
+                    <a:field name="express_city_n" readOnly="true"/>
+                    <a:field name="express_date" readOnly="true"/>
+                    <a:field name="archive_status" readOnly="true"/>
+                    <a:field name="reg_status" readOnly="true"/>
+                    <a:field name="archive_status_n" readOnly="true"/>
+                    <a:field name="reg_status_n" readOnly="true"/>
+                    <a:field name="doc_type1" readOnly="true"/>
+                    <a:field name="doc_type2" readOnly="true"/>
+                    <a:field name="inception_of_lease" readOnly="true"/>
+                    <a:field name="express_person" readOnly="true"/>
+                    <a:field name="express_tel" readOnly="true"/>
+                    <a:field name="express_note" readOnly="true"/>
+                    <a:field name="express_address" readOnly="true"/>
+                    <a:field name="region" defaultValue="${/model/con555_get_info/record/@region}" displayField="code_value_name" options="region_ds" returnField="region_n" valueField="code_value"/>
+                    <a:field name="region_n"/>
+                    <a:field name="hd_user_col_v02"/>
+					<a:field  name="archive_note"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con555_detail_result_ds" autoPageSize="true" autoQuery="true" fetchAll="true" model="cont.CON555A.con_content_query_detail" pageSize="13" queryDataSet="con555_detail_ds" queryUrl="${/request/@context_path}/autocrud/cont.CON555A.con_content_query_detail/query?contract_id=${/parameter/@contract_id}" selectFunction="con555_cdd_selectFunc" selectable="true">
+                <a:fields>
+                    <a:field name="cdd_item"/>
+                    <a:field name="paper_required" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="not_applicable" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="paper_content_flag" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="collection_data_flag" checkedValue="Y" defaultValue="N" readOnly="true" uncheckedValue="N"/>
+                    <a:field name="attachment_required" checkedValue="Y" defaultValue="N" uncheckedValue="N"/>
+                    <a:field name="sys_flag" defaultValue="N"/>
+                    <a:field name="document_id" defaultValue="${/parameter/@contract_id}"/>
+                    <a:field name="cdd_list_id" defaultValue="${/parameter/@cdd_list_id}"/>
+                    <a:field name="document_table" defaultValue="CON_CONTRACT"/>
+                    <a:field name="note"/>
+                    <a:field name="notes"/>
+                    <a:field name="doc_require" displayField="code_value_name" options="doc_require_ds" returnField="doc_require_n" valueField="code_value"/>
+                    <a:field name="doc_require_n"/>
+                    <a:field name="doc_type"/>
+                    <a:field name="doc_type_n" displayField="code_value_name" options="doc_type_ds" returnField="doc_type" valueField="code_value"/>
+                    <a:field name="amount"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="con555_con_contract_back" text="HLS.BACK"/>
+                <a:gridButton click="con555_detail_result_save" text="保存"/>
+                <a:gridButton id="save1" click="con555_con_contract_save1" text="确认归档"/>
+                <a:gridButton click="con555_con_contract_save2" text="文档缺失标记"/>
+				<a:gridButton click="con555_con_cdd_download" text="打包下载"/>
+            </a:screenTopToolbar>
+            <a:form column="4" labelWidth="120" marginWidth="30" title="基础信息">
+                <a:textField name="contract_number" bindTarget="con555_detail_ds" prompt="合同编号"/>
+                <a:textField name="bp_name" bindTarget="con555_detail_ds" prompt="承租人名称"/>
+                <a:textField name="project_number" bindTarget="con555_detail_ds" prompt="申请编号"/>
+                <a:textField name="business_type_desc" bindTarget="con555_detail_ds" prompt="业务类型"/>
+                <a:textField name="division_desc" bindTarget="con555_detail_ds" prompt="产品线"/>
+                <a:textField name="bp_class_desc" bindTarget="con555_detail_ds" prompt="客户类别"/>
+                <a:textField name="invoice_agent_desc" bindTarget="con555_detail_ds" prompt="经销商"/>
+                <a:textField name="inception_of_lease" bindTarget="con555_detail_ds" prompt="债权债务确认日"/>
+                <a:textField name="archive_status_n" bindTarget="con555_detail_ds" prompt="合同归档"/>
+                <!--  <a:comboBox name="region" bindTarget="con555_detail_ds" prompt="区域"/>
+                <a:textField name="hd_user_col_v02" bindTarget="con555_detail_ds" prompt="序号"/> -->
+                 <a:textArea  name="archive_note" bindTarget="con555_detail_ds" prompt="备注" width="250" height="50"/>
+            </a:form>
+            <a:grid bindTarget="con555_detail_result_ds" height="350" marginWidth="30" navBar="true">
+                <a:toolBar>
+                    <a:button type="add"/>
+                    <a:button type="save"/>
+                    <a:button type="delete"/>
+                </a:toolBar>
+                <a:columns>
+                    <a:column name="description" editorFunction="con555_cdd_editorFunction" prompt="HLS.DOCUMENT_NAME" renderer="con555_cdd_required_render" width="250"/>
+                    <!--<a:column name="attachment_required" editor="con555_cdd_ck_id" prompt="HLS.DIGITAL_FILE" width="40"/>
+                    <a:column name="paper_required" editor="con555_cdd_ck_id" prompt="已提交" width="40"/>-->
+                    <a:column name="attachment" align="center" prompt="附件" renderer="con555_cdd_attachment_render" width="70"/>
+                    <a:column name="file_name" align="center" prompt="附件名" renderer="con555_link_render" width="500"/>
+                    <a:column name="paper_content_flag" align="center" editor="con555_cdd_ck_id" prompt="是否归档" width="60"/>
+                    <a:column name="note" editor="con555_cdd_tf_id" prompt="HLS.COMMENT" width="430"/>
+                    <!--<a:column name="creation_date" prompt="附件上传时期" renderer="Aurora.formatDate" width="150"/>-->
+                </a:columns>
+                <a:editors>
+                    <a:checkBox id="con555_cdd_ck_id"/>
+                    <a:comboBox id="doc_type_n_cb_id"/>
+                    <a:textField id="con555_cdd_tf_id"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

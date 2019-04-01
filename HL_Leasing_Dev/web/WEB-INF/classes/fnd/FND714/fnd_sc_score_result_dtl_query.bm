@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                select fsd.result_detail_id, 
+                	decode(${@template_type},'LGD',fsd.result_detail_id,'PD',fsd.score_template_line_id) tree_id_feild,
+                    fsd.result_id,
+                    fsd.score_template_line_id,
+                    decode(${@template_type},'LGD',fsd.parent_result_detail_id,'PD',fst.parent_line_id) tree_parent_field,
+                    fsd.target_value,
+                    case when fst.target_value_type='CHAR' then
+                    (select t.description from fnd_score_target_values t where t.score_target_id=fst.score_target_id and  t.fixed_target_value=fsd.target_value)  
+                    else  cfl_fnd_sc_score_pkg.project_score_number(fsd.target_value)
+                    end target_value_desc,
+                    fsd.target_score,
+                    fsd.target_score_original,
+                    fsd.note,
+                    fst.score_target_code,
+	                 fst.score_target_name||
+	                		  (select '（'|| decode(fsd.object_type,
+			              'RRG',
+			              (select prj.bp_name  
+						from prj_project_bp prj 
+						where prj.prj_bp_id=fsd.object_id
+						 and prj.bp_category='GUARANTOR'),
+                          'RRB',
+                          (select prj.bp_name  
+                          from prj_project_bp prj where prj.prj_bp_id=fsd.object_id 
+                          and prj.bp_category='TENANT'),
+                          'RRL',
+                          (select prj.full_name
+							from prj_project_lease_item prj 
+							where prj.project_lease_item_id=fsd.object_id),
+                           'RRC',
+                          (select prj.mortgage_name
+							from prj_project_mortgage prj 
+							where prj.prj_mortgage_id=fsd.object_id),
+                          '') ||'）' from dual where ${@template_type}='LGD' and fst.multiple_flag='Y' and fsd.parent_result_detail_id is null)
+                         score_target_name,
+                    fst.score_value,
+                    fst.data_value_from,
+                    fst.display_flag,
+                    fst.summary_flag,
+                    'Y' expand_flag,
+                    fst.target_value_type
+                FROM
+                    fnd_sc_score_result_dtl fsd,
+                    fnd_score_template_all_v fst
+                #WHERE_CLAUSE#
+                order by fst.score_target_code asc
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="target_value_type"/>
+        <bm:field name="result_detail_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="RESULT_DETAIL_ID" required="true"/>
+        <bm:field name="result_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="RESULT_ID" required="true"/>
+        <bm:field name="score_template_line_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="SCORE_TEMPLATE_LINE_ID" required="true"/>
+        <bm:field name="target_value" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="TARGET_VALUE"/>
+        <bm:field name="target_value_desc" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="TARGET_VALUE_DESC"/>
+        <bm:field name="target_score" databaseType="NUMBER" datatype="java.lang.Double" physicalName="TARGET_SCORE"/>
+        <bm:field name="target_score_original" databaseType="NUMBER" datatype="java.lang.Double" physicalName="TARGET_SCORE_ORIGINAL"/>
+        <bm:field name="note" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="NOTE"/>
+        <bm:field name="tree_parent_field" databaseType="NUMBER" datatype="java.lang.Long" physicalName="PARENT_LINE_ID"/>
+        <bm:field name="tree_id_feild" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="score_target_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="SCORE_TARGET_CODE"/>
+        <bm:field name="score_target_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="SCORE_TARGET_NAME"/>
+        <bm:field name="score_value" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="SCORE_VALUE"/>
+        <bm:field name="data_value_from" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DATA_VALUE_FROM"/>
+        <bm:field name="display_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="DISPLAY_FLAG"/>
+        <bm:field name="summary_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="SUMMARY_FLAG"/>
+        <bm:field name="expand_flag" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="EXPAND_FLAG"/>
+    </bm:fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="fsd.score_template_line_id = fst.score_template_line_id and fsd.result_id=${@result_id}"/>
+    </bm:data-filters>
+</bm:model>

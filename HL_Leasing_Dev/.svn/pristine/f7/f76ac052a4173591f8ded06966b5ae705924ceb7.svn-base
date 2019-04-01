@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: xuls  
+    $Date: 2014-10-30 上午9:09:53  
+    $Revision: 1.0  
+    $Purpose: 
+-->  
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="con310_trial_penalty_link" model="cont.CON310.penalty_report" modelaction="execute"/>
+        <script><![CDATA[
+    		function con310_penalty_trial() {
+    		    if ($('con310_penalty_head_ds').validate()) {
+    		
+    		        var head_record = $('con310_penalty_head_ds').getAt(0);
+    		        var contract_id = head_record.get('contract_id');
+    		        var calc_date = head_record.get('calc_date');
+    		        Aurora.Masker.mask(Ext.getBody());
+    		        Aurora.request({
+    		            url: $('con310_trial_penalty_link').getUrl(),
+    		            para: {
+    		                contract_id: contract_id,
+    		                calc_date: calc_date
+    		            },
+    		            success: function(res) {
+    		                Aurora.Masker.unmask(Ext.getBody());
+    		                var report_hd_id = res.result.report_hd_id;
+    		                $('con310_penalty_detail_ds').setQueryParameter('report_hd_id', report_hd_id);
+    		                $('con310_penalty_detail_ds').query();
+    		            },
+    		            failure: function() {
+    		                Aurora.Masker.unmask(Ext.getBody());
+    		            },
+    		            error: function() {
+    		                Aurora.Masker.unmask(Ext.getBody());
+    		            },
+    		            scope: this
+    		        });
+    		    }
+    		}
+    		
+    		function con310_penalty_amt_total(datas, name) {
+    		    var sum = 0;
+    		    for (var i = 0;i < datas.length;i++) {
+    		        var r = datas[i];
+    		        var d = r.get(name);
+    		        var n = parseFloat(d);
+    		        if (!isNaN(n)) {
+    		            sum += n;
+    		        }
+    		    }
+    		    return '<font color="red">' + Aurora.formatNumber(sum,2) + '</font>';
+    		}
+		]]></script>
+        <a:dataSets>
+            <a:dataSet id="con310_penalty_head_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="contract_number" autoComplete="true" autoCompleteField="contract_number" lovGridHeight="300" lovHeight="450" lovService="cont.CON500.con_contract_number_lov" lovWidth="500" required="true" title="HLS.CONTRACT_NUMBER">
+                        <a:mapping>
+                            <a:map from="contract_number" to="contract_number"/>
+                            <a:map from="contract_id" to="contract_id"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="calc_date" required="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="con310_penalty_detail_ds" autoPageSize="true" model="cont.CON310.con_penalty_report_detail">
+                <a:fields>
+                    <a:field name="due_date" datatype="java.util.Date"/>
+                    <a:field name="write_off_date" datatype="java.util.Date"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="con310_penalty_trial" text="计算"/>
+            </a:screenTopToolbar>
+            <a:form column="2" title="罚息试算">
+                <a:lov name="contract_number" bindTarget="con310_penalty_head_ds" prompt="HLS.CONTRACT_NUMBER"/>
+                <a:datePicker name="calc_date" bindTarget="con310_penalty_head_ds" prompt="计算日期"/>
+            </a:form>
+            <a:grid id="con310_penalty_detail_grid_id" bindTarget="con310_penalty_detail_ds" marginHeight="150" marginWidth="50" navBar="true">
+                <a:columns>
+                    <a:column name="times" prompt="HLS.PERIOD_NUMBER" width="50"/>
+                    <a:column name="cf_item" prompt="HLS.CF_ITEM_DESC"/>
+                    <a:column name="line_type" prompt="HLS050.HLS_FIN_CALC_CONFIG_FORMULA.MATRIX_J_TYPE"/>
+                    <a:column name="due_amount" align="right" prompt="CON305.ACC_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="due_date" align="center" prompt="CSH710.DUE_DATE" renderer="Aurora.formatDate" width="90"/>
+                    <a:column name="write_off_amount" align="right" prompt="HLS.WRITEOFF_AMOUNT" renderer="Aurora.formatMoney"/>
+                    <a:column name="write_off_date" align="center" prompt="HLS.WRITE_OFF_DATE" renderer="Aurora.formatDate"/>
+                    <a:column name="penalty_amt" align="right" footerRenderer="con310_penalty_amt_total" prompt="CSH513.WRITE_OFF_PENALTY" renderer="Aurora.formatMoney"/>
+                    <a:column name="penalty_days" align="right" prompt="CON305.OVERDUR_DAYS"/>
+                </a:columns>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

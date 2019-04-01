@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: LR  
+    $Date: 2013-7-24 下午03:33:11  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.layout_code=${/parameter/@layout_code}" model="hls.HLS030.hls_doc_layout" rootPath="hls030_tree_layout_rootpath"/>
+    </a:init-procedure>
+    <a:view package="aurora.ui.std" template="default">
+        <script><![CDATA[
+            function hls030_tree_grid_render(record, name) {
+                if (record.isNew) {
+                    return 'hls030_tree_function_grid_tf';
+                }
+                return '';
+            }
+            
+            function hls030_tree_function_tree_add() {
+                var dataset = $('hls030_tree_function_tree_ds');
+                var record = dataset.getCurrentRecord(),
+                    tree_code = record.get('tree_code');
+                if (record.isNew) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:SAVE_FIRST}');
+                    return;
+                }
+                if (tree_code) {
+                    var record1 = new Aurora.Record({
+                        parent_tree_code: tree_code,
+                        layout_code: '${/parameter/@layout_code}',
+                        enabled_flag: 'Y'
+                    });
+                    dataset.add(record1);
+                }
+            }
+            
+            function hls030_tree_function_tree_addtop() {
+                var dataset = $('hls030_tree_function_tree_ds');
+                var record1 = new Aurora.Record({
+                    parent_tree_code: '',
+                    layout_code: '${/parameter/@layout_code}',
+                    enabled_flag: 'Y',
+                    expand_flag: 'Y'
+                });
+                dataset.add(record1);
+            }
+            
+            function hls030_tree_function_tree_save() {
+                $('hls030_tree_function_tree_ds').submit();
+            }
+            
+            function hls030_tree_function_tree_deleteNote() {
+                Aurora.showConfirm('${l:HLS.PROMPT}', '${l:HLS030.CONFIRM_DELETE}', function okFun() {
+                    var ds = $('hls030_tree_function_tree_ds');
+                    var records = ds.getSelected();
+                    ds.remove(records);
+                });
+            }
+            
+            function hls030_tree_function_tree_clearNote() {
+                var delete_datas = [];
+                var ds = $('hls030_tree_function_tree_ds');
+                var records = ds.getSelected();
+                for (var n = records.length - 1;n >= 0;n--) {
+                    records[n].isNew = true;
+                }
+                ds.remove(records);
+            }
+            
+            function hls030_tree_function_tree_ds_Onselect(ds, record, isAll) {
+                if (isAll) {
+                    return;
+                }
+                var parent_tree_code = record.get('tree_code');
+                var records = ds.getAll();
+                var selectedRecords1 = ds.getSelected();
+                for (var i = 0;i < records.length;i++) {
+                    if (!Aurora.isEmpty(record.get('tree_code')) && records[i].get('parent_tree_code') == record.get('tree_code')) {
+                        if (selectedRecords1.indexOf(records[i]) == -1) {
+                            ds.select(records[i]);
+                        }
+                    }
+                }
+            }
+            
+            function hls030_tree_function_tree_ds_Onunselect(ds, record, isAll) {
+                if (isAll) {
+                    return;
+                }
+                var parent_tree_code = record.get('tree_code');
+                var records = ds.getAll();
+                var selectedRecords1 = ds.getSelected();
+                for (var i = 0;i < records.length;i++) {
+                    if (!Aurora.isEmpty(record.get('tree_code')) && records[i].get('tree_code') == record.get('parent_tree_code')) {
+                        if (selectedRecords1.indexOf(records[i]) != -1) {
+                            ds.unSelect(records[i]);
+                        }
+                    }
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="hls030_tree_function_tree_query_ds">
+                <a:fields>
+                    <a:field name="layout_code" defaultValue="${/model/hls030_tree_layout_rootpath/record/@layout_code}" readOnly="true"/>
+                    <a:field name="description" defaultValue="${/model/hls030_tree_layout_rootpath/record/@description}" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="hls030_tree_function_tree_ds" autoCount="false" fetchAll="true" loadData="true" model="hls.HLS030.hls_doc_layout_tree" queryDataSet="hls030_tree_function_tree_query_ds" selectable="true">
+                <a:fields>
+                    <a:field name="tree_code" required="true"/>
+                    <a:field name="layout_code" defaultValue="${/model/hls030_tree_layout_rootpath/record/@layout_code}"/>
+                    <a:field name="tree_desc" required="true"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="expand_flag" checkedValue="Y" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="select" handler="hls030_tree_function_tree_ds_Onselect"/>
+                    <a:event name="unselect" handler="hls030_tree_function_tree_ds_Onunselect"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="hls030_tree_function_tree_addtop" text="HLS030.TREE_ADDTOP"/>
+                <a:gridButton click="hls030_tree_function_tree_add" text="HLS030.TREE_ADDSON"/>
+                <a:gridButton click="hls030_tree_function_tree_save" text="HLS.SAVE"/>
+                <a:gridButton click="hls030_tree_function_tree_deleteNote" text="HLS.REMOVE"/>
+                <a:gridButton click="hls030_tree_function_tree_clearNote" text="HLS.CLEAR"/>
+            </a:screenTopToolbar>
+            <a:form row="1">
+                <a:textField name="layout_code" bindTarget="hls030_tree_function_tree_query_ds" prompt="HLS030.LAYOUT_CODE"/>
+                <a:textField name="description" bindTarget="hls030_tree_function_tree_query_ds" prompt="HLS.DESCRIPTION"/>
+            </a:form>
+            <a:treeGrid id="hls030_tree_functionTreeGrid" bindTarget="hls030_tree_function_tree_ds" expandField="expand_flag" idField="tree_code" marginHeight="180" marginWidth="50" parentField="parent_tree_code" sequenceField="tree_seq" showCheckBox="false" width="800">
+                <a:columns>
+                    <a:column name="tree_code" editorFunction="hls030_tree_grid_render" prompt="HLS030.TREE_CODE" width="250"/>
+                    <a:column name="tree_desc" editor="hls030_tree_function_grid_tf" prompt="HLS030.TREE_DESC" width="120"/>
+                    <a:column name="enabled_flag" editor="hls030_tree_function_grid_cb" prompt="HLS030.ENABLED_FLAG" width="80"/>
+                    <a:column name="tree_seq" align="right" editor="hls030_tree_function_grid_nf" prompt="HLS030.TREE_SEQ" width="100"/>
+                    <a:column name="expand_flag" editor="hls030_tree_function_grid_cb" prompt="HLS030.EXPAND_FLAG" width="80"/>
+                </a:columns>
+                <a:editors>
+                    <a:numberField id="hls030_tree_function_grid_nf" allowdecimals="false"/>
+                    <a:textField id="hls030_tree_function_grid_tf"/>
+                    <a:checkBox id="hls030_tree_function_grid_cb"/>
+                </a:editors>
+            </a:treeGrid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	&author:DJ
+	$date:2013/05/08
+	$purpose:银行定义
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true">
+    <a:init-procedure><![CDATA[
+    ]]></a:init-procedure>
+    <a:view>
+        <a:link id="sys_service_welcome_link" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="pageLink_rate_detail" url="${/request/@context_path}/modules/fnd/FND251/fnd_base_rate.screen"/>
+        <a:link id="pageLink_rateSet_copy" url="${/request/@context_path}/modules/fnd/FND251/fnd_base_rate_set_copy.screen"/>
+        <script><![CDATA[
+        	function rateSetScreen_forward() {
+	            history.go(1);
+	        }
+	        
+	        function rateSetScreen_back() {
+	            history.go(-1);
+	        }
+	        
+	        function rateSetScreen_quit() {
+	            location.href = $('sys_service_welcome_link').getUrl();
+	        }
+        	
+	        function rateSetDs_grid_query() {
+	            $('rateSetDs').query();
+	        }
+	        
+	        function rateSetDs_grid_add() {
+	            $('rateSetDs_grid').showEditorByRecord($('rateSetDs').create());
+	        }
+	        
+	        function rateSetDs_grid_clear() {
+	            $('rateSetDs_grid').clear();
+	        }
+	        
+	        function rateSetDs_grid_save() {
+	            var result_ds = $('rateSetDs');
+	            if (result_ds.validate()) {
+	                result_ds.submit();
+	            }
+	        }
+	        
+			function editorFunction_rateSetDs_grid(record,name){
+				if(record.isNew){
+					if(name=='base_rate_set'){
+						return 'rateSetDs_grid_editor_tf_upper';
+					}
+					else if(name=='currency')
+					{
+					    return 'rateSetDs_grid_editor_comb';
+					}
+					else if(name=='valid_from')
+					{
+					    return 'rateSetDs_grid_editor_dp';
+					}
+					return '';
+				}
+				return '';
+			}
+			
+			function winOpen_rate_detail(base_rate_set,currency)
+			{
+			    new Aurora.Window({
+	                id: 'fnd_base_rate',
+	                url: $('pageLink_rate_detail').getUrl(),
+	                params:{
+	                	base_rate_set:base_rate_set,
+	                	currency:currency
+	                },
+	                title: '${l:FND251.LINK.RATE_DETAIL}',
+	                width:800,
+	                height:400
+	            });
+			}
+			
+			function render_rateSetDs_grid(value,record,name){
+				if(!record.isNew){
+				    var base_rate_set=record.get('base_rate_set');
+				    if(name=='rate_detail')
+				    {
+				        var currency=record.get('currency');
+				        if(Ext.isEmpty(currency))
+				        {
+				            currency='';
+				        }
+						return '<a href="javascript:winOpen_rate_detail(\'' + base_rate_set + '\',\'' + currency + '\')">${l:FND251.LINK.RATE_DETAIL}</a>';
+				    }
+				}
+			}
+			
+			function onSubmitSuccess_rateSetDs(ds,res)
+			{
+			    ds.query(ds.currentPage);
+			}
+			
+			function rateSet_copy()
+			{
+			    var records=$('rateSetDs').getSelected();
+			    if(records.length>1)
+			    {
+			        Aurora.showMessage('${l:HLS.PROMPT}', '只能选择一条记录');
+			        return;
+			    }
+			    else if(records.length==0)
+			    {
+			        return;
+			    }
+			    new Aurora.Window({
+	                id: 'fnd_base_rate_set_copy',
+	                url: $('pageLink_rateSet_copy').getUrl(),
+	                params:{
+	                	base_rate_set:records[0].get('base_rate_set')
+	                },
+	                title: '复制',
+	                width:730,
+	                height:150
+	            });
+			}
+			
+			
+		]]></script>
+        <a:dataSets>
+            <a:dataSet id="rateSetScreen_currencyDs" loadData="true" model="gld.gld_currency_vl"/>
+            <a:dataSet id="rateSetScreen_rateTypeDs" loadData="true" model="fnd.FND250.fnd_base_rate_type"/>
+            <a:dataSet id="rateSetDs" autoQuery="true" model="fnd.FND251.fnd_base_rate_set" selectable="true">
+                <a:fields>
+                    <a:field name="valid_from" required="true"/>
+                    <a:field name="base_rate_set" required="true"/>
+                    <a:field name="base_rate_type" displayField="base_rate_type" options="rateSetScreen_rateTypeDs" required="true" returnField="base_rate_type" valueField="base_rate_type"/>
+                    <a:field name="description" required="true"/>
+                    <a:field name="currency" displayField="currency_code" options="rateSetScreen_currencyDs" returnField="currency" valueField="currency_code"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="submitsuccess" handler="onSubmitSuccess_rateSetDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="rateSetScreen_forward" text="HLS.FORWARD"/>
+                <a:gridButton click="rateSetScreen_back" text="HLS.BACK"/>
+                <a:gridButton click="rateSetScreen_quit" text="HLS.EXIT"/>
+                <a:gridButton click="rateSetDs_grid_query" text="HLS.QUERY"/>
+                <a:gridButton click="rateSetDs_grid_clear" text="HLS.CLEAR"/>
+                <a:gridButton click="rateSetDs_grid_save" text="HLS.SAVE"/>
+                <a:gridButton click="rateSet_copy" text="复制"/>
+            </a:screenTopToolbar>
+            <a:grid id="rateSetDs_grid" bindTarget="rateSetDs" marginHeight="100" marginWidth="30">
+                <a:columns>
+                    <a:column name="base_rate_set" editorFunction="editorFunction_rateSetDs_grid" width="150"/>
+                    <a:column name="description" editor="rateSetDs_grid_editor_tf" width="250"/>
+                    <a:column name="base_rate_type" width="150"/>
+                    <a:column name="currency" editorFunction="editorFunction_rateSetDs_grid"/>
+                    <a:column name="valid_from" editorFunction="editorFunction_rateSetDs_grid" renderer="Aurora.formatDate" width="120"/>
+                    <a:column name="valid_to" renderer="Aurora.formatDate" width="120"/>
+                    <a:column name="enabled_flag" align="center" editor="rateSetDs_grid_editor_check" width="100"/>
+                    <a:column name="rate_detail" align="center" prompt="FND251.LINK.RATE_DETAIL" renderer="render_rateSetDs_grid"/>
+                </a:columns>
+                <a:editors>
+                    <a:textField id="rateSetDs_grid_editor_tf_upper" maxLength="30" typeCase="upper"/>
+                    <a:textField id="rateSetDs_grid_editor_tf"/>
+                    <a:comboBox id="rateSetDs_grid_editor_comb"/>
+                    <a:checkBox id="rateSetDs_grid_editor_check"/>
+                    <a:datePicker id="rateSetDs_grid_editor_dp"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

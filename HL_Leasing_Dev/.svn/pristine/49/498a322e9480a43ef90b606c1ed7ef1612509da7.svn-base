@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-5-17 上午09:47:52  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <!-- <a:link id="rsc_fin_statement_indicator_formula_check" model="rsc.RSC302.fin_indicator_formula_check" modelaction="batch_update"/> -->
+        <a:link id="rsc_fin_statement_indicator_formula_check" url="${/request/@context_path}/modules/rsc/RSC302/rsc_fin_statement_indicator_formula_check.svc"/>
+        <a:link id="rsc_fin_statement_indicator_formula_copy_link_id" url="${/request/@context_path}/modules/rsc/RSC302/rsc_fin_statement_indicator_formula_copy.screen"/>
+        <script><![CDATA[
+            function rsc_indicator_formula_back() {
+            	$('rsc_fin_statement_indicator_formula_winid').close();
+            }
+            
+            function rsc_indicator_formula_add() {
+                $('rsc_fin_indicator_formula_grid_ds').showEditorByRecord($('rsc_fin_indicator_formula_result_ds').create());
+            }
+            
+            function rsc_indicator_formula_remove() {
+                $('rsc_fin_indicator_formula_grid_ds').remove();
+            }
+            
+            function rsc_indicator_formula_save() {
+                var result_ds = $('rsc_fin_indicator_formula_result_ds');
+                var records = result_ds.getAll();
+                var datas = [];
+                var param = {};
+                    param['fin_statement_templet_id'] = '${/parameter/@fin_statement_templet_id}';
+                for(var j=0;j<records.length;j++){
+                    var data=records[j].data;
+                    data['_status']='execute';
+                    datas.push(data);
+                }
+                param['details'] = datas;
+                if (result_ds.validate()) {
+                    Aurora.request({
+                    url: $('rsc_fin_statement_indicator_formula_check').getUrl(),
+                    para: param,
+                    success: function () {
+                    	result_ds.submit();
+                    },
+                    scope: this
+                });
+                    
+                }
+            }
+            function rsc_indicator_formula_query(){
+                $('rsc_fin_indicator_formula_result_ds').query();
+            }
+            function rsc_indicator_formula_copy(){
+                new Aurora.Window({
+                    url: $('rsc_fin_statement_indicator_formula_copy_link_id').getUrl(),
+                    params:{
+                      fin_statement_templet_id:'${/parameter/@fin_statement_templet_id}'  
+                    },
+                    title: '${l:RSC302.FIN_INDICATOR_FORMULA_COPY}',
+                    id: 'rsc_fin_statement_indicator_formula_copy_winid',
+                    fullScreen:true
+                    /* width: 800,
+                    height: 500 */
+                });
+            }
+            
+            function on_indicator_formula_result_update(ds, record, name, value, oldvalue){
+                if (name == 'first_indicator_formula') {
+                if (record.isNew){
+                record.set('indicator_formula',value);}
+            }
+            }
+            
+            function do_indicator_formula_result_load(ds) {
+                var lineRecords = ds.getAll();
+                //var attribute_records = $('line_attribute_ds').getAll();
+                if (!lineRecords) {
+                    return;
+                }
+                    for (var i = 0;i < lineRecords.length;i++) {
+                        var indicator_formula_desc = lineRecords[i].get('indicator_formula_desc');
+                        var first_indicator_formula_desc = lineRecords[i].get('first_indicator_formula_desc');
+                        lineRecords[i].getField('first_indicator_formula').setPropertity('tooltip', first_indicator_formula_desc);
+                        lineRecords[i].getField('indicator_formula').setPropertity('tooltip', indicator_formula_desc);
+                    }
+                
+            }
+            function do_indicator_formula_result_submitsuccess(){
+                $('rsc_fin_indicator_formula_result_ds').query();
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="indicator_type_ds" lookupCode="INDICATOR_TYPE"/>
+            <a:dataSet id="rsc_fin_indicator_formula_query_ds" autoQuery="true" model="rsc.RSC302.rsc_fin_statement_tmplt_hds" queryUrl="${/request/@context_path}/autocrud/rsc.RSC302.rsc_fin_statement_tmplt_hds/query?fin_statement_templet_id=${/parameter/@fin_statement_templet_id}">
+                <a:fields>
+                    <a:field name="fin_statement_templet_code" readOnly="true"/>
+                    <a:field name="fin_statement_templet_name" readOnly="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="rsc_fin_indicator_formula_result_ds" fetchAll="true" loadData="true" model="rsc.RSC302.rsc_fin_indicator_formula" pageSize="100" queryUrl="${/request/@context_path}/autocrud/rsc.RSC302.rsc_fin_indicator_formula/query?fin_statement_templet_id=${/parameter/@fin_statement_templet_id}" selectable="true">
+                <a:fields>
+                    <a:field name="fin_statement_templet_id" defaultValue="${/parameter/@fin_statement_templet_id}"/>
+                    <a:field name="line_number" required="true"/>
+                    <a:field name="indicator_name" required="true"/>
+                    <a:field name="indicator_formula" required="true"/>
+                    <a:field name="reference_results"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="percent_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="five_class_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="indicator_type_dis" displayField="code_value_name" options="indicator_type_ds" returnField="indicator_type" valueField="code_value"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="on_indicator_formula_result_update"/>
+                    <a:event name="load" handler="do_indicator_formula_result_load"/>
+                    <a:event name="submitsuccess" handler="do_indicator_formula_result_submitsuccess"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="rsc_indicator_formula_back" text="HLS.BACK"/>
+                <a:gridButton click="rsc_indicator_formula_add" text="HLS.NEW"/>
+                <a:gridButton click="rsc_indicator_formula_remove" text="HLS.REMOVE"/>
+                <a:gridButton click="rsc_indicator_formula_save" text="HLS.SAVE"/>
+                <a:gridButton click="rsc_indicator_formula_query" text="HLS.QUERY"/>
+                <a:gridButton click="rsc_indicator_formula_copy" text="RSC302.FIN_INDICATOR_FORMULA_COPY"/>
+            </a:screenTopToolbar>
+            <a:form column="2" labelWidth="120" title="RSC302.FIN_STATEMENT_TMPLT_INFORMATION" width="900">
+                <a:textField name="fin_statement_templet_code" bindTarget="rsc_fin_indicator_formula_query_ds" prompt="FIN_STATEMENT_TMPLT_CODE"/>
+                <a:textField name="fin_statement_templet_name" bindTarget="rsc_fin_indicator_formula_query_ds" prompt="FIN_STATEMENT_TMPLT_NAME"/>
+            </a:form>
+            <a:grid id="rsc_fin_indicator_formula_grid_ds" bindTarget="rsc_fin_indicator_formula_result_ds" marginHeight="200" marginWidth="30" navBar="true">
+                <a:columns>
+                    <a:column name="line_number" editor="indicator_formula_grid_numberfield_id" width="50"/>
+                    <a:column name="indicator_code" editor="indicator_formula_grid_textfield_id"/>
+                    <a:column name="indicator_name" editor="indicator_formula_grid_textfield_id"/>
+                    <a:column name="indicator_type_dis" editor="indicator_formula_grid_combobox_id" prompt="RSC_FIN_INDICATOR_FORMULA.INDICATOR_TYPE"/>
+                    <a:column name="first_indicator_formula" editor="indicator_formula_grid_textfield_id" prompt="RSC_FIN_INDICATOR_FORMULA.FIRST_YEAR_INDICATOR_FORMULA" width="280"/>
+                    <a:column name="indicator_formula" editor="indicator_formula_grid_textfield_id" width="280"/>
+                    <a:column name="reference_results" editor="indicator_formula_grid_textfield_id"/>
+                    <a:column name="enabled_flag" editor="indicator_formula_grid_checkbox_id" width="70"/>
+                    <a:column name="percent_flag" editor="indicator_formula_grid_checkbox_id" prompt="RSC_FIN_STATEMENT_TMPLT_LNS.IS_PERCENT" width="70"/>
+                    <a:column name="five_class_flag" editor="indicator_formula_grid_checkbox_id" prompt="RSC_FIN_STATEMENT_TMPLT_LNS.IS_SHOW" width="70"/>
+                </a:columns>
+                <a:editors>
+                    <a:checkBox id="indicator_formula_grid_checkbox_id"/>
+                    <a:textField id="indicator_formula_grid_textfield_id" transformCharacter="false"/>
+                    <a:numberField id="indicator_formula_grid_numberfield_id" allowDecimals="false" allowNegative="false"/>
+                    <a:comboBox id="indicator_formula_grid_combobox_id"/>
+                </a:editors>
+            </a:grid>
+        </a:screenBody>
+    </a:view>
+</a:screen>

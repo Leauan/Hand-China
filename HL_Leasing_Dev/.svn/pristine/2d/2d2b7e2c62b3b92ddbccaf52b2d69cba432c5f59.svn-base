@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qwm  
+    $Date: 2013-8-30 上午11:30:49  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        h.bp_bank_account_num AS bp_num,
+                        h.bp_bank_account_name,
+                        h.payment_req_number,
+                        h.payment_req_id,
+                        h.req_date,
+                        h.business_type,
+                        h.document_type,
+                        h.document_category,
+                        (SELECT
+                            SUM(NVL(rl.amount, 0) - NVL(
+                            (SELECT
+                                SUM(amount)
+                            FROM
+                                csh_payment_req_ln_ddct ld
+                            WHERE
+                                ld.payment_req_ln_id = rl.payment_req_ln_id
+                            ), 0) - NVL(
+                            (SELECT
+                                SUM(lp.write_off_amt)
+                            FROM
+                                csh_payment_req_ln_prepay lp
+                            WHERE
+                                lp.payment_req_ln_id = rl.payment_req_ln_id
+                            ), 0))
+                        FROM
+                            csh_payment_req_ln rl
+                        WHERE
+                            rl.payment_req_id = h.payment_req_id
+                        ) sum_act_amount,
+                        (SELECT
+                            hbmba.bank_full_name
+                        FROM
+                            hls_bp_master_bank_account hbmba
+                        WHERE
+                            hbmba.bank_account_id = h.bp_bank_account_id
+                        ) bank_full_name,
+                        (SELECT
+                            e.name
+                        FROM
+                            sys_user u,
+                            exp_employees e
+                        WHERE
+                            h.owner_user_id = u.user_id AND
+                            u.employee_id   = e.employee_id
+                        ) user_name,
+                        h.bp_id,
+                        (SELECT b.bp_name FROM hls_bp_master b WHERE h.bp_id = b.bp_id
+                        ) bp_name,
+                        (SELECT
+                            b.bp_code
+                        FROM
+                            hls_bp_master b
+                        WHERE
+                            h.bp_id = b.bp_id
+                        ) bp_code,
+                        h.amount,
+                        yonda_individual_pkg.string_combination(p_sql =>'select t1.contract_number from con_contract t1,csh_payment_req_ln t2 where t1.contract_id = t2.ref_doc_id and t2.payment_req_id=' ,p_compare_column_val => h.payment_req_id,p_division_symbol => ',') contract_number,
+                        yonda_individual_pkg.string_combination(p_sql =>'select pp.project_number from con_contract t1,prj_project pp ,csh_payment_req_ln t2 where t1.project_id = pp.project_id  and  t1.contract_id = t2.ref_doc_id and t2.payment_req_id=' ,p_compare_column_val => h.payment_req_id,p_division_symbol => ',') project_number,
+                        h.print_flag,
+                        DECODE(
+                        (SELECT
+                            COUNT(1) FROM csh_payment_req_ln WHERE payment_req_id = h.payment_req_id AND
+                            payment_status                                       <> 'FULL'
+                        ),0,'Y','N')payment_flag,
+                        h.currency_code,
+                        t2.result_state,
+                        TO_CHAR(t2.creation_date,'yyyy-mm-dd hh24:mi:ss') TIME,
+                        DECODE(t2.result_state, '1', '成功', '2', '失败', '3','程序异常','未知错误') result_state_n,
+                        t2.result_id
+                    FROM
+                        csh_payment_req_hd h,
+                        gh_nc_inter_return t2
+                    WHERE
+                        h.payment_req_id  = t2.document_id AND
+                        t2.document_table = 'CSH_PAYMENY'
+                    ) h #WHERE_CLAUSE#
+                ORDER BY
+                    TIME DESC,
+                    payment_req_number DESC
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="project_number" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="sum_act_amount" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="bp_num" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="bank_full_name" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="bp_bank_account_name" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="contract_number" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="payment_flag" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="payment_req_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="PAYMENT_REQ_ID" prompt="CSH_PAYMENT_REQ_HD.PAYMENT_REQ_ID"/>
+        <bm:field name="payment_req_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PAYMENT_REQ_NUMBER" required="true"/>
+        <bm:field name="req_date" databaseType="DATE" datatype="java.util.Date" physicalName="REQ_DATE"/>
+        <bm:field name="bp_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="bp_name"/>
+        <bm:field name="amount" databaseType="NUMBER" datatype="java.lang.Long" physicalName="amount"/>
+        <bm:field name="currency_code" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="currency_code"/>
+        <bm:field name="time"/>
+        <bm:field name="result_state_n"/>
+        <bm:field name="result_id"/>
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field field="payment_req_number" queryOperator="like"/>
+        <bm:query-field field="contract_number" queryOperator="like"/>
+        <bm:query-field field="bp_name" queryOperator="like"/>
+        <bm:query-field field="bp_num" queryOperator="like"/>
+        <bm:query-field field="bp_bank_account_name" queryOperator="like"/>
+        <bm:query-field field="bank_full_name" queryOperator="like"/>
+    </bm:query-fields>
+</bm:model>

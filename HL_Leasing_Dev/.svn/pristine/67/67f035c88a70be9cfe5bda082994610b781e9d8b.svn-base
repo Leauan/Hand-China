@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: mumu  
+    $Date: 2014-7-27 上午03:23:25  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[SELECT * from
+                    ( select 'PRJ_CDD_ITEM_CHECK' document_table,
+                    t.project_id document_id,
+                    t.document_category,
+                    pci.cdd_item_id,
+                    pci.cdd_list_id,
+                    pci.cdd_item,
+                    pci.description,
+                    pci.file_attribute,
+                    pci.file_require,
+                    (select t1.code_value_name from sys_code_values_v t1 
+                      where t1.code='HLS_FILE_REQUIRE' and t1.code_value = pci.file_require) as file_require_n,
+                    (select t1.code_value_name from sys_code_values_v t1 
+                      where t1.code='HLS_FILE_ATTRIBUTE' and t1.code_value = pci.file_attribute) as file_attribute_n,
+                    pci.enabled_flag,
+                    pci.note,
+                    NVL(pcc.send_flag,'N') send_flag,
+                    NVL(pci.sys_flag, 'N') sys_flag,
+                    NVL(pci.supplement_flag, 'N') supplement_flag,
+                    pcc.paper_required,
+                    pcc.attachment_required,
+                    pcc.not_applicable,
+                    pcc.check_id,
+                    pci.order_seq,
+                    pci.sign_required_flag,
+                    pci.project_required_flag,
+                    decode(pcc.send_flag,'Y',(select to_char(pr.creation_date,'yyyy-mm-dd') from prj_cdd_item_doc_ref pr where pr.check_id = pcc.check_id and rownum=1) ,NULL) save_date,
+                    decode(pcc.send_flag,'Y',(select s.description from sys_user s,prj_cdd_item_doc_ref pr where user_id= pr.last_updated_by and pr.check_id=pcc.check_id and rownum=1),NULL) save_name,
+                    hls_sys_upload_pkg.get_atm_file_href(p_table_pk_value => pcc.check_id,p_source_type => 'PRJ_CDD_ITEM_CHECK',p_user_id => ${/session/@user_id}) AS file_name
+                    --(SELECT
+                    --    MAX(fm.creation_date)
+                    --FROM
+                    --    fnd_atm_attachment_multi fm
+                    --WHERE
+                    --    fm.table_name     = 'PRJ_CDD_ITEM_CHECK' AND
+                    --    fm.table_pk_value = pcc.check_id
+                    --) creation_date
+                FROM
+                    prj_cdd_item pci,
+                    prj_cdd_item_check pcc,
+                    --prj_cdd_item_doc_ref pr,
+                    prj_project t
+                WHERE
+                    pci.cdd_item_id  = pcc.cdd_item_id(+) AND
+                    t.cdd_list_id    = pci.cdd_list_id AND
+                    pci.cdd_list_id  = t.cdd_list_id AND
+                    --pr.check_id    = pcc.check_id AND
+                    pci.project_tab_group = '1' AND 
+                    pci.project_display_flag = 'Y' AND
+                    pci.parent_cdd_item_id is null and
+                    pci.enabled_flag = 'Y' AND
+                    t.project_id     = ${/parameter/@project_id}) t1 
+                   order by order_seq]]></bm:query-sql>
+            <bm:parameters>
+                <bm:parameter inputPath="/session/@user_id"/>
+                <bm:parameter inputPath="/parameter/@project_id"/>
+            </bm:parameters>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	&author:DJ
+	$date:2013/05/08
+	$purpose:发票创建
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <a:init-procedure>
+        <a:model-query model="basic.sys_session_info" rootPath="default_value_record"/>
+        <a:model-query model="acr.ACR510.acr_invoice_group_billing_method" rootPath="group_billing_method_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="svcLink_create_invoice" url="${/request/@context_path}/modules/acr/ACR510/acr_invoice_create.svc"/>
+        <a:screen-include screen="modules/hls/hls_common_javascript.screen"/>
+        <script><![CDATA[
+        	function createScreen_close()
+        	{
+        	    var win = $('acr_invoice_create_invoice');
+        	    win.close();
+        	}
+        	
+        	function createScreen_create()
+        	{
+        	    var win = $('acr_invoice_create_invoice');
+        	    
+        	    f_hls.winMask(win);
+        	    
+        	    var ds=$('headDs');
+        	    if(!ds.validate(true))
+        	    {
+        	        f_hls.winNoMask(win);
+        	        return;
+        	    }
+			    var datas = ds.getJsonData();
+			    
+			    f_hls.winNoMask(win);
+			    
+			    Aurora.showConfirm('${l:HLS.PROMPT}', '是否确认开票？',function() 
+            	{
+            	    f_hls.winMask(win);
+            	    Aurora.request({
+		                url: $('svcLink_create_invoice').getUrl(),
+		                para: datas,
+		                success: function(res) {
+		                    f_hls.winNoMask(win);
+		                    createScreen_close();
+		                    contractDs_grid_query();
+		                },
+		                failure: function() {
+		                    f_hls.winNoMask(win);
+		                },
+		                error: function() {
+		                    f_hls.winNoMask(win);
+		                },
+		                scope: this
+		            });
+            	},function (){
+            		f_hls.winNoMask(win);
+            	});
+			    
+        	}
+        	
+        	function unSelect_selectedDs(ds,record){
+			    record.dirty = false;
+			}
+			
+			function onSelect_selectedDs(ds,record){
+			    record.dirty = true;
+			}
+			
+			function onLoad_selectedDs(ds)
+			{
+	        	ds.selectAll.defer(5,ds);
+	        	var records=ds.getAll();
+	        	for (var i=0;i<records.length;i++) {
+	        	    if (records[i].get('invoice_kind') && records[i].get('invoice_kind')=='RECEIPT' && records[i].get('cf_item') && records[i].get('cf_item')=='51') {
+	        	        records[i].set('product_name','保证金');
+	        	    }
+	        	}
+			}
+		]]></script>
+        <style><![CDATA[
+			.item-radio-option {
+				margin-right: 50px;
+			}
+		]]></style>
+        <a:dataSets>
+            <a:dataSet id="invoiceKindDs" lookupCode="ACR510_INVOICE_KIND"/>
+            <a:dataSet id="headDs" autoCreate="true">
+                <a:fields>
+                    <a:field name="company_id" defaultValue="${/parameter/@company_id}"/>
+                    <a:field name="group_billing_method" defaultValue="GROUP_BY_CONTRACT"/>
+                    <a:field name="accounting_date" defaultValue="${/model/default_value_record/record/@today}" required="true"/>
+                    <a:field name="invoice_date" defaultValue="${/model/default_value_record/record/@today}" required="true"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="selectedDs" autoQuery="true" bindName="line_info" bindTarget="headDs" fetchAll="true" model="acr.ACR510.acr_invoice_create" selectable="true">
+                <a:fields>
+                    <a:field name="billing_amount" required="true"/>
+                    <a:field name="product_name" required="true"/>
+                    <a:field name="invoice_kind"/>
+                    <a:field name="invoice_kind_desc" displayField="code_value_name" options="invoiceKindDs" required="true" returnField="invoice_kind" valueField="code_value"/>
+                    <a:field name="billing_object"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="load" handler="onLoad_selectedDs"/>
+                    <a:event name="select" handler="onSelect_selectedDs"/>
+                    <a:event name="unselect" handler="unSelect_selectedDs"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="createScreen_close" text="HLS.CLOSE"/>
+                <a:gridButton click="createScreen_create" text="HLS.CREATE"/>
+            </a:screenTopToolbar>
+            <a:form column="3" labelWidth="120">
+                <a:datePicker name="invoice_date" bindTarget="headDs" prompt="开票申请日期"/>
+                <a:datePicker name="accounting_date" bindTarget="headDs" prompt="HLS.ACCOUNT_DATE"/>
+            </a:form>
+            <a:tabPanel marginHeight="220" marginWidth="30">
+                <a:tabs>
+                    <a:tab prompt="ACR510.TAB.BILLING_INFO" width="100">
+                        <a:grid id="selectedDs_grid" bindTarget="selectedDs" marginHeight="270" marginWidth="60">
+                            <a:columns>
+                                <a:column name="contract_number" width="150"/>
+                                <a:column name="times" align="right" width="40"/>
+                                <a:column name="cf_item_desc"/>
+                                <a:column name="product_name" editor="selectedDs_grid_editor_tf" width="150"/>
+                                <a:column name="invoice_kind_desc" editor="selectedDs_grid_editor_comb"/>
+                                <a:column name="currency_desc" align="center"/>
+                                <a:column name="due_amount" align="right" renderer="Aurora.formatMoney"/>
+                                <a:column name="received_amount" align="right" renderer="Aurora.formatMoney"/>
+                                <a:column name="cf_billing_amount" align="right" renderer="Aurora.formatMoney"/>
+                                <a:column name="billing_amount" align="right" editor="selectedDs_grid_editor_nf" renderer="Aurora.formatMoney"/>
+                            </a:columns>
+                            <a:editors>
+                                <a:comboBox id="selectedDs_grid_editor_comb"/>
+                                <a:textField id="selectedDs_grid_editor_tf"/>
+                                <a:numberField id="selectedDs_grid_editor_nf"/>
+                            </a:editors>
+                        </a:grid>
+                    </a:tab>
+                    <a:tab prompt="ACR510.TAB.ASSIST_INFO" width="100">
+                        <a:grid id="selectedDs_grid_2" bindTarget="selectedDs" marginHeight="270" marginWidth="60">
+                            <a:columns>
+                                <a:column name="contract_number" width="150"/>
+                                <a:column name="times" align="right" width="40"/>
+                                <a:column name="cf_item_desc"/>
+                                <a:column name="contract_name" width="200"/>
+                                <a:column name="project_number" width="150"/>
+                                <a:column name="project_name" width="200"/>
+                                <a:column name="last_received_date" renderer="Aurora.formatDate" width="80"/>
+                                <a:column name="exchange_rate" align="right"/>
+                                <a:column name="exchange_rate_type_desc"/>
+                            </a:columns>
+                        </a:grid>
+                    </a:tab>
+                </a:tabs>
+            </a:tabPanel>
+            <a:fieldSet title="ACR.GROUP_BILLING_METHOD">
+                <a:radio name="group_billing_method" bindTarget="headDs" labelField="code_value_name" options="/model/group_billing_method_list" prompt="" radioSeparator="" valueField="code_value" width="600"/>
+            </a:fieldSet>
+        </a:screenBody>
+    </a:view>
+</a:screen>

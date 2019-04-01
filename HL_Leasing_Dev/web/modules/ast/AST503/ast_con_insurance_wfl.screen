@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2016-5-2 下午01:54:29  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure/>
+    <a:view>
+        <a:link id="hls_doc_file_batch_create_link_id" url="${/request/@context_path}/modules/hls/HLS811/hls_doc_file_batch_create.svc"/>
+        <a:link id="hls_doc_file_print_confirm" url="${/request/@context_path}/modules/hls/HLS811/hls_doc_file_print_con_confirm.screen"/>
+        <a:link id="insurance_attachment_uploadFile_id" url="${/request/@context_path}/modules/ast/AST503/downloadFile.screen"/>
+        <a:link id="insurance_attachment_uploadFileIns_id" url="${/request/@context_path}/modules/ast/AST503/downloadFileIns.screen"/>
+        <script><![CDATA[
+            function changeTwoDecimal_f(floatvar) {
+                var f_x = parseFloat(floatvar);
+                if (isNaN(f_x)) {
+                    return false;
+                }
+                var f_x = Math.round(f_x * 100) / 100;
+                var s_x = f_x.toString();
+                var pos_decimal = s_x.indexOf('.');
+                if (pos_decimal < 0) {
+                    pos_decimal = s_x.length;
+                    s_x += '.';
+                }
+                while (s_x.length <= pos_decimal + 2) {
+                    s_x += '0';
+                }
+                return s_x;
+            }
+            
+            
+            if ('${/parameter/@save_source_type}' == 'BXLP') {
+                zjwfl5110_ApproveChecker_add('zjwfl5110_submit', function(type, callback) {
+                    if (type == 'agree') {
+                        debugger;
+                        var ast_car_insurance_records_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'ast_car_insurance_records');
+                        var record = $(ast_car_insurance_records_id).getCurrentRecord();
+                        var overdue_flag = record.get('overdue_flag');
+                        var reg_status = record.get('reg_status');
+                        var loan_balance = record.get('loan_balance');
+                        var settle_claim_amount = record.get('settle_claim_amount');
+                        var lag = 'Y';
+                        // if (overdue_flag == 'Y' || reg_status != '30' || loan_balance > mul(settle_claim_amount, 0.7)) {
+                        // confirm_message = '信息有误是否通过';
+                        // } else {
+                        // confirm_message = null;
+                        // }
+                        confirm_message = null;
+                        debugger;
+                        if (overdue_flag == 'Y') {
+                            confirm_message = '保险理赔逾期';
+                        }
+                        if (reg_status != '30') {
+            
+                            if (confirm_message) {
+                                confirm_message = "<font color='red'>" + confirm_message + ',登记证未归档'+ "</font>";
+                            } else {
+                                confirm_message = "<font color='red'>"+'登记证未归档'+ "</font>";
+                            }
+            
+                        }
+                        if (settle_claim_amount > mul(loan_balance, 0.7)) {
+                            if (confirm_message) {
+                                confirm_message = confirm_message + ',理赔金额占贷款余额比例：' + changeTwoDecimal_f(div(settle_claim_amount, loan_balance)) * 100 + '%';
+                            } else {
+                                confirm_message = '理赔金额占贷款余额比例：' + changeTwoDecimal_f(div(settle_claim_amount, loan_balance)) * 100 + '%';
+                            }
+                        }
+                        return true;
+                    }else{
+                        return true;
+                    }
+                });
+            } else if ('${/parameter/@save_source_type}' == 'BXXB') {
+            
+                zjwfl5110_ApproveChecker_add('zjwfl5110_submit', function(type) {
+                    var root_ds = $('${/parameter/@layout_code}_virtual_ds');
+                    if (type == 'agree') {
+                        if (root_ds.validate()) {
+                            //提交先保存
+                            window['${/parameter/@layout_code}_SAVE_LAYOUT_DYNAMIC_CLICK']();
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    }else{
+                        return true;
+                    }
+                });
+            
+            }
+            
+            function lock_current_window() {
+                Aurora.Masker.mask(Ext.getBody(), '正在下载...');
+            }
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                lock_current_window();
+                debugger;
+                var ast_car_insurance_records_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'ast_car_insurance_records');
+                var result_ds = $(ast_car_insurance_records_id);
+                var record = result_ds.getCurrentRecord();
+                var document_id = record.get('ast_car_insurance_records_id');
+                var url_l = $('hls_doc_file_batch_create_link_id').getUrl() + '?document_id=' + document_id + '&document_table=AST_CAR_INSURANCE_RECORDS&file_path=${/parameter/@file_path}&batch_flag=Y&source_type=COMMON';
+                window.open(href = url_l, target = "_self");
+            };
+            
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                var ast_car_insurance_records_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'ast_car_insurance_records');
+                var result_ds = $(ast_car_insurance_records_id);
+                var record = result_ds.getCurrentRecord();
+                var document_id = record.get('ast_car_insurance_records_id');
+                new Aurora.Window({
+                    id: '${/parameter/@layout_code}_con_contract_content_confirm_win_id',
+                    params: {
+                        document_id: document_id,
+                        document_table: 'AST_CAR_INSURANCE_RECORDS',
+                        file_path:'${/parameter/@file_path}',
+                        batch_flag:'Y',
+                        source_type:'COMMON'
+                    },
+                    url: $('hls_doc_file_print_confirm').getUrl(),
+                    title: '合同文本生成',
+                    width: 1300,
+                    height: 550
+                });
+            
+            };
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record, bp_seq) {
+                debugger;
+                if (name == 'link_ins') {
+                    // link_function = 'open_upload_window';
+                    // return '<a style="color:red" href="javascript:window[\'' + link_function + '\'](\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                    //return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.ds.id + '\',\'' + record.id + '\',\'' + name + '\',\'' + config_record.get('query_only') + '\');">' + config_record.get('prompt') + '</a>';
+                    if (record.get('atm_num') > 0) {
+                        return '<a style="color:red" href=javascript:open_upload_window(' + record.get('ast_con_car_insurance_id') + ')>' + config_record.get('prompt') + '</a>';
+                    }
+                    return '<a href=javascript:open_upload_window(' + record.get('ast_con_car_insurance_id') + ')>' + config_record.get('prompt') + '</a>';
+                } else if (name == 'link') {
+                    if (record.get('atm_num') > 0) {
+                        return '<a style="color:red" href=javascript:detail_upload_window(' + record.get('ast_car_insurance_records_id') + ')>' + config_record.get('prompt') + '</a>';
+                    }
+                    return '<a href=javascript:detail_upload_window(' + record.get('ast_car_insurance_records_id') + ')>' + config_record.get('prompt') + '</a>';
+                }
+            
+            };
+            
+            function open_upload_window(ast_con_car_insurance_id) {
+                var url = $('insurance_attachment_uploadFile_id').getUrl() + '?table_name=AST_CON_INSURANCE&header_id=' + ast_con_car_insurance_id;
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'insurance_uploadFile_id',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {});
+            }
+            
+            function detail_upload_window(record_id) {
+                var url = $('insurance_attachment_uploadFileIns_id').getUrl() + '?table_name=AST_CAR_INSURANCE_RECORDS&header_id=' + record_id;
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '${l:HLS.SUPPORTING_DOCUMENT}',
+                    id: 'insurance_records_uploadFile_id',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {});
+            }
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>

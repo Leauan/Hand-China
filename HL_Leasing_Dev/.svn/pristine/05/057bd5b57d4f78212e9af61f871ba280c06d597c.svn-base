@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:service xmlns:s="aurora.plugin.script" xmlns:a="http://www.aurora-framework.org/application" trace="true">
+    <!-- <a:screen xmlns:c="aurora.application.action" xmlns:s="aurora.plugin.script" xmlns:w="aurora.plugin.export.word" xmlns:a="http://www.aurora-framework.org/application" xmlns:p="uncertain.proc" customizationEnabled="true" trace="true"> -->
+    <a:init-procedure>
+        <s:server-script><![CDATA[
+            importPackage(Packages.com.test); //相当于java中的import com.esa2000.*;
+            importPackage(Packages.org.springframework.context);
+            importPackage(Packages.org.springframework.context.support);
+            importPackage(java.io);
+            
+            function getdate() {
+                var now = new Date()
+                y = now.getFullYear()
+                m = now.getMonth() + 1
+                d = now.getDate()
+                h = now.getHours()
+                mi = now.getMinutes()
+                ss = now.getSeconds()
+                m = m < 10 ? "0" + m : m
+                d = d < 10 ? "0" + d : d
+                h = h < 10 ? "0" + h : h
+                mi = mi < 10 ? "0" + mi : mi
+                ss = ss < 10 ? "0" + ss : ss
+                return y + "" + m + "" + d + "" + h + "" + mi + "" + ss
+            }
+            
+            var locations = ["classpath:client.xml", "classpath:context/client-demo-servlet.xml"];
+            
+            var ctx = new FileSystemXmlApplicationContext(locations);
+            var checkRealTime = ctx.getBean("testRealTimeQuery");
+            var testRealTime = ctx.getBean("testRealTime");
+            var debit_number = "";
+            var v_flag = "N";
+            //插入接口数据
+            //$bm('csh.CSH600.hls_create_ebank_data').execute();
+            var bm = $bm('csh.CSH600.hls_ebank_interface_v');
+            var records = bm.queryAsMap({
+                trs_status: 'NEW',
+                interface_id: $ctx.parameter.interface_id
+            }).getChildren();
+            
+            for (var i = 0;i < records.length;i++) {
+                
+                
+                if (records[i].debit_number != null) {
+                    //zhshi:10023576511
+                    var check_result = checkRealTime.testPkiQuery("1", "20023576511", "2002357651101", records[i].debit_number);
+                    //解析接口数据
+                    var res = $bm('csh.CSH600.hls_check_ebank_data').execute({
+                        response_xml: check_result,
+                        function_name: 'NC_EMBK_CHECK_PARSE',
+                        request_id: '111',
+                        interface_id: records[i].interface_id
+                    });
+                    v_flag = $ctx.parameter.flag;
+                    debit_number = records[i].debit_number;
+                }else{
+                    
+                    debit_number = getdate() + "" + records[i].interface_id;
+                    
+                }
+                
+                println('--------------------------');
+                var res = $bm('csh.CSH600.hls_check_ebank_data').insert({
+                    interface_id: records[i].interface_id,
+                    debit_number : debit_number
+                });
+                println($ctx.parameter.flag);
+            
+                //未传送执行传送
+                if (v_flag == 'N') {
+                    /*   var result = testRealTime.testSignSinglePKI(String InputCharset,
+                     String ContractId,
+                     String MemberCode,
+                     String MerchantAcctId,
+                     String Mechantcontractno,
+                     String seqId,
+                     String BankAcctName,
+                     String BankAcctId,
+                     String Amount,
+                     String Usage,
+                     String CurType,
+                     String Remark) */
+                    var result = testRealTime.testSignSinglePKI("1", "K14-2000-3113", //
+                    "10023576511", "1002357651101", records[i].protocol_number, //协议号
+                    debit_number, //
+                    records[i].cltnam, records[i].accnbr, records[i].trsamt, records[i].memo, records[i].currency, records[i].memo);
+                    //records[i].memo, //用途代码--
+                    // var result = testRealTime.testSignSinglePKI("1", "steven04","10023576511", "1002357651101", "BCOMQDSuc1", "2011080101565", "缴紫", "360502198904050392", "20", "代扣", "CNY", "");
+                    //解析接口数据
+                    $bm('csh.CSH600.hls_writeoff_ebank_data').update({
+                        response_xml: result,
+                        function_name: 'NC_EMBK_PARSE',
+                        request_id: '111',
+                        interface_id: records[i].interface_id
+                    });
+                }
+            }
+            //核销操作
+            $bm('csh.CSH600.hls_writeoff_ebank_data').execute();
+        ]]></s:server-script>
+    </a:init-procedure>
+    <!--     <a:service-output output="/parameter"/> -->
+</a:service>

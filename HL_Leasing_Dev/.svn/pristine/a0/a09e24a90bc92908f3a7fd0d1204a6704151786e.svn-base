@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: qm  
+    $Date: 2014-4-18 下午3:54:53  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:e="aurora.service.exception" xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" alias="t1" baseTable="CON_CONTRACT_ITEM_V">
+    <bm:fields>
+        <bm:field name="bp_id"/>
+        <bm:field name="bp_name"/>
+        <!--   <bm:field name="project_id"/>
+        <bm:field name="document_type"/>
+        <bm:field name="document_category"/> -->
+        <bm:field name="contract_id"/>
+        <bm:field name="contract_lease_item_id"/>
+        <bm:field name="item_detail_id"/>
+        <bm:field name="brand_id"/>
+        <bm:field name="brand_dis"/>
+        <bm:field name="model_id"/>
+        <bm:field name="model_dis"/>
+        <bm:field name="series_id"/>
+        <bm:field name="series_dis"/>
+        <bm:field name="pattern"/>
+        <!--   <bm:field name="model_id"/>
+        <bm:field name="model_dis"/> -->
+        <!-- <bm:field name="contract_name"/> -->
+        <bm:field name="contract_number"/>
+        <bm:field name="color_of_apprearance"/>
+        <!-- <bm:field name="color_of_decoration"/> -->
+        <bm:field name="item_frame_number"/>
+        <bm:field name="item_engine_number"/>
+        <!--         <bm:field name="purchase_tax"/> -->
+        <!--         <bm:field name="purchase_fee"/> -->
+        <!--         <bm:field name="badge_price"/>
+        <bm:field name="badge_license_fee"/> -->
+        <!--        <bm:field name="insurance_price"/> -->
+        <!--  <bm:field name="badge_fee"/>
+        <bm:field name="gps_fee"/> -->
+        <bm:field name="key_flag"/>
+        <bm:field name="registration_flag"/>
+        <bm:field name="purchase_flag"/>
+        <bm:field name="insurance_flag"/>
+    </bm:fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="lease_channel=&apos;00&apos;"/>
+    </bm:data-filters>
+    <bm:query-fields>
+        <bm:query-field field="contract_id" queryOperator="="/>
+        <bm:query-field field="bp_name" queryExpression="bp_name like &apos;%&apos;|| ${@bp_name} || &apos;%&apos;"/>
+        <!-- <bm:query-field field="series_id" queryOperator="="/> -->
+        <!-- <bm:query-field field="model_id" queryOperator="="/> -->
+        <bm:query-field field="brand_id" queryOperator="="/>
+        <bm:query-field field="model_id" queryOperator="="/>
+        <bm:query-field field="series_id" queryOperator="="/>
+        <bm:query-field name="contract_number" queryExpression="contract_number like &apos;%&apos;|| ${@contract_number} || &apos;%&apos;"/>
+        <bm:query-field name="item_frame_number" queryExpression="item_frame_number like &apos;%&apos;||${@item_frame_number}||&apos;%&apos;"/>
+    </bm:query-fields>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+					SELECT
+                    *
+                FROM
+                    (SELECT
+                        t3.contract_lease_item_id,
+                        t1.item_detail_id,
+                        t2.contract_number,
+                        t2.company_id,
+                        t2.contract_id,
+                        t2.bp_id_tenant bp_id,
+                        t2.bp_id_tenant_n bp_name,
+                        t3.brand_id,
+                        (SELECT v.description FROM hls_car_brands_vl v WHERE v.brand_id=t3.brand_id
+                        ) brand_dis,
+                        t3.model_id,
+                        (SELECT v.description FROM hls_car_model_vl v WHERE v.model_id=t3.model_id
+                        ) model_dis,
+                        t3.series_id,
+                        (SELECT v.description FROM hls_car_series_vl v WHERE v.series_id=t3.series_id
+                        ) series_dis,
+                        t3.color_of_apprearance,
+                        t3.pattern,
+                        t1.item_frame_number,
+                        t1.item_engine_number,
+                        t1.key_flag,
+                        t1.registration_flag,
+                        t1.purchase_flag,
+                        t1.insurance_flag,
+                        t2.lease_channel
+                    FROM
+                        con_contract_item_detail t1,
+                        con_contract_lv t2,
+                        con_contract_lease_item t3
+                    WHERE
+                        t1.contract_lease_item_id = t3.contract_lease_item_id AND
+                        t3.contract_id            = t2.contract_id AND
+                        t2.data_class             = 'NORMAL'
+                    ) #WHERE_CLAUSE#
+                ORDER BY
+                    contract_number DESC
+			]]></bm:query-sql>
+        </bm:operation>
+        <!-- <bm:operation name="insert" >
+        	<bm:update-sql >
+        	</bm:update-sql>
+        </bm:operation> <bm:field name="key_flag" />
+        <bm:field name="registration_flag" />
+        <bm:field name="purchase_flag" />
+        <bm:field name="insurance_flag" />-->
+        <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+            	declare
+            		v_length number;
+            		e_frame_err exception;
+            	begin
+            		v_length:=length(${@item_frame_number});
+            		if v_length != 17 then
+            			raise e_frame_err;
+            		end if;
+	        		UPDATE
+					    CON_CONTRACT_ITEM_DETAIL t1
+					SET
+					    t1.ITEM_FRAME_NUMBER =${@item_frame_number},
+					    t1.ITEM_ENGINE_NUMBER=${@item_engine_number},
+					    t1.key_flag		     =${@key_flag},
+					    t1.registration_flag =${@registration_flag},
+					    t1.purchase_flag     =${@purchase_flag},
+					    t1.insurance_flag    =${@insurance_flag},
+					    t1.LAST_UPDATED_BY   =${/session/@user_id},
+					    t1.LAST_UPDATE_DATE  =sysdate
+					WHERE
+					    t1.ITEM_DETAIL_ID = ${@item_detail_id};
+					exception
+						when e_frame_err then 
+							sys_raise_app_error_pkg.raise_user_define_error('CON_CONTRACT_ITEM_DETAIL_PKG.FRAME_NUMBER_ERROR',
+                                                      ${/session/@user_id},
+                                                      '',
+                                                      '');
+      						raise_application_error(sys_raise_app_error_pkg.c_error_number,sys_raise_app_error_pkg.g_err_line_id);
+				end;
+        	]]></bm:update-sql>
+        </bm:operation>
+    </bm:operations>
+    <e:exception-descriptor-config>
+        <e:exception-descriptor exception="java.sql.SQLException" handleClass="aurora.database.SQLExceptionDescriptor">
+            <e:error-message code="1" message="车架号或发动机号不能重复"/>
+        </e:exception-descriptor>
+    </e:exception-descriptor-config>
+</bm:model>

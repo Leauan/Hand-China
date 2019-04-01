@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-9-30 上午10:35:25  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    h.contract_id,
+                    h.contract_number,
+                    h.contract_name,
+                    (SELECT
+                        NVL(SUM(l.interest), 0)
+                    FROM
+                        con_contract_cashflow l
+                    WHERE
+                        l.contract_id  = h.contract_id AND
+                        l.cf_direction = 'INFLOW' AND
+                        l.due_date    <=to_date(${@analyze_date},'yyyy-mm-dd')
+                    ) sum_due_amount,
+                    (SELECT
+                        NVL(SUM(d.write_off_interest), 0)
+                    FROM
+                        csh_write_off d,
+                        con_contract_cashflow c
+                    WHERE
+                        d.cashflow_id  = c.cashflow_id AND
+                        c.contract_id  = h.contract_id AND
+                        d.reversed_flag='N' AND
+                        c.cf_direction = 'INFLOW' AND
+                        (
+                            d.write_off_date < to_date(${@analyze_date},'yyyy-mm-dd') OR
+                            (
+                                d.write_off_date     = to_date(${@analyze_date},'yyyy-mm-dd') AND
+                                ${@analyze_date_flag}='N'
+                            )
+                        )
+                    ) sum_received_amount,
+                    (
+                    (SELECT
+                        NVL(SUM(l.interest), 0)
+                    FROM
+                        con_contract_cashflow l
+                    WHERE
+                        l.contract_id  = h.contract_id AND
+                        l.cf_direction = 'INFLOW' AND
+                        l.due_date    <=to_date(${@analyze_date},'yyyy-mm-dd')
+                    )-
+                    (SELECT
+                        NVL(SUM(d.write_off_interest), 0)
+                    FROM
+                        csh_write_off d,
+                        con_contract_cashflow c
+                    WHERE
+                        d.cashflow_id  = c.cashflow_id AND
+                        c.contract_id  = h.contract_id AND
+                        c.cf_direction = 'INFLOW' AND
+                        d.reversed_flag='N' AND
+                        (
+                            d.write_off_date < to_date(${@analyze_date},'yyyy-mm-dd') OR
+                            (
+                                d.write_off_date     = to_date(${@analyze_date},'yyyy-mm-dd') AND
+                                ${@analyze_date_flag}='N'
+                            )
+                        )
+                    )) sum_overdue_amount,
+                    (SELECT
+                        NVL(SUM(l.interest), 0)
+                    FROM
+                        con_contract_cashflow l
+                    WHERE
+                        l.contract_id  = h.contract_id AND
+                        l.cf_direction = 'INFLOW' AND
+                        (
+                            l.due_date > to_date(${@analyze_date},'yyyy-mm-dd') OR
+                            (
+                                l.due_date           = to_date(${@analyze_date},'yyyy-mm-dd') AND
+                                ${@analyze_date_flag}='Y'
+                            )
+                        )
+                    ) sum_forecast_amount,
+                    h.company_id,
+                    h.lease_channel,
+                    h.lease_organization,
+                    NVL(t1.aging_bucket_1,0) aging_bucket_1,
+                    NVL(t1.aging_bucket_2,0) aging_bucket_2,
+                    NVL(t1.aging_bucket_3,0) aging_bucket_3,
+                    NVL(t1.aging_bucket_4,0) aging_bucket_4,
+                    NVL(t1.aging_bucket_5,0) aging_bucket_5,
+                    NVL(t1.aging_bucket_6,0) aging_bucket_6,
+                    NVL(t1.aging_bucket_7,0) aging_bucket_7,
+                    NVL(t1.aging_bucket_8,0) aging_bucket_8,
+                    NVL(t1.aging_bucket_9,0) aging_bucket_9,
+                    NVL(t1.aging_bucket_10,0) aging_bucket_10,
+                    NVL(t1.aging_bucket_11,0) aging_bucket_11,
+                    NVL(t1.aging_bucket_12,0) aging_bucket_12,
+                    NVL(t1.aging_bucket_13,0) aging_bucket_13,
+                    NVL(t1.aging_bucket_14,0) aging_bucket_14,
+                    NVL(t1.aging_bucket_15,0) aging_bucket_15,
+                    NVL(t1.aging_bucket_16,0) aging_bucket_16,
+                    NVL(t1.aging_bucket_17,0) aging_bucket_17,
+                    NVL(t1.aging_bucket_18,0) aging_bucket_18,
+                    NVL(t1.aging_bucket_19,0) aging_bucket_19,
+                    NVL(t1.aging_bucket_20,0) aging_bucket_20,
+                    NVL(t1.aging_bucket_21,0) aging_bucket_21,
+                    NVL(t1.aging_bucket_22,0) aging_bucket_22,
+                    NVL(t1.aging_bucket_23,0) aging_bucket_23,
+                    NVL(t1.aging_bucket_24,0) aging_bucket_24,
+                    NVL(t1.aging_bucket_25,0) aging_bucket_25,
+                    NVL(t1.aging_bucket_26,0) aging_bucket_26,
+                    NVL(t1.aging_bucket_27,0) aging_bucket_27,
+                    NVL(t1.aging_bucket_28,0) aging_bucket_28,
+                    NVL(t1.aging_bucket_29,0) aging_bucket_29,
+                    NVL(t1.aging_bucket_30,0) aging_bucket_30,
+                    NVL(t1.aging_bucket_31,0) aging_bucket_31,
+                    NVL(t1.aging_bucket_32,0) aging_bucket_32,
+                    NVL(t1.aging_bucket_33,0) aging_bucket_33,
+                    NVL(t1.aging_bucket_34,0) aging_bucket_34,
+                    NVL(t1.aging_bucket_35,0) aging_bucket_35,
+                    NVL(t1.aging_bucket_36,0) aging_bucket_36,
+                    h.currency 
+                FROM
+                    con_contract h,
+                    fnd_aging_result_hd_tmp t1 #WHERE_CLAUSE#
+                ORDER BY
+                    h.contract_number
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="contract_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="CONTRACT_ID"/>
+        <bm:field name="company_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="COMPANY_ID"/>
+        <bm:field name="contract_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONTRACT_NUMBER"/>
+        <bm:field name="contract_name" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CONTRACT_NAME"/>
+        <bm:field name="lease_channel" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="LEASE_CHANNEL"/>
+        <bm:field name="lease_organization" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="LEASE_ORGANIZATION"/>
+        <bm:field name="sum_due_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="SUM_DUE_AMOUNT"/>
+        <bm:field name="sum_received_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="SUM_RECEIVED_AMOUNT"/>
+        <bm:field name="sum_overdue_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="SUM_OVERDUE_AMOUNT"/>
+        <bm:field name="sum_forecast_amount" databaseType="NUMBER" datatype="java.lang.Double" physicalName="SUM_FORECAST_AMOUNT"/>
+        <bm:field name="aging_bucket_1" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_1"/>
+        <bm:field name="aging_bucket_2" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_2"/>
+        <bm:field name="aging_bucket_3" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_3"/>
+        <bm:field name="aging_bucket_4" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_4"/>
+        <bm:field name="aging_bucket_5" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_5"/>
+        <bm:field name="aging_bucket_6" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_6"/>
+        <bm:field name="aging_bucket_7" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_7"/>
+        <bm:field name="aging_bucket_8" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_8"/>
+        <bm:field name="aging_bucket_9" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_9"/>
+        <bm:field name="aging_bucket_10" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_10"/>
+        <bm:field name="aging_bucket_11" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_11"/>
+        <bm:field name="aging_bucket_12" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_12"/>
+        <bm:field name="aging_bucket_13" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_13"/>
+        <bm:field name="aging_bucket_14" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_14"/>
+        <bm:field name="aging_bucket_15" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_15"/>
+        <bm:field name="aging_bucket_16" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_16"/>
+        <bm:field name="aging_bucket_17" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_17"/>
+        <bm:field name="aging_bucket_18" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_18"/>
+        <bm:field name="aging_bucket_19" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_19"/>
+        <bm:field name="aging_bucket_20" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_20"/>
+        <bm:field name="aging_bucket_21" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_21"/>
+        <bm:field name="aging_bucket_22" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_22"/>
+        <bm:field name="aging_bucket_23" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_23"/>
+        <bm:field name="aging_bucket_24" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_24"/>
+        <bm:field name="aging_bucket_25" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_25"/>
+        <bm:field name="aging_bucket_26" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_26"/>
+        <bm:field name="aging_bucket_27" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_27"/>
+        <bm:field name="aging_bucket_28" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_28"/>
+        <bm:field name="aging_bucket_29" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_29"/>
+        <bm:field name="aging_bucket_30" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_30"/>
+        <bm:field name="aging_bucket_31" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_31"/>
+        <bm:field name="aging_bucket_32" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_32"/>
+        <bm:field name="aging_bucket_33" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_33"/>
+        <bm:field name="aging_bucket_34" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_34"/>
+        <bm:field name="aging_bucket_35" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_35"/>
+        <bm:field name="aging_bucket_36" databaseType="NUMBER" datatype="java.lang.Double" physicalName="AGING_BUCKET_36"/>
+        <bm:field name="currency" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="CURRENCY"/>
+    </bm:fields>
+    <bm:query-fields>
+        <bm:query-field name="contract_number_from" queryExpression="h.contract_number &gt;= ${@contract_number_from}"/>
+        <bm:query-field name="contract_number_to" queryExpression="h.contract_number &lt;= ${@contract_number_to}"/>
+        <bm:query-field field="company_id" queryOperator="="/>
+        <bm:query-field field="lease_channel" queryOperator="="/>
+        <bm:query-field field="lease_organization" queryOperator="="/>
+        <bm:query-field name="currency_code" queryExpression="h.currency = ${@currency_code}"/>
+    </bm:query-fields>
+    <bm:data-filters>
+        <bm:data-filter enforceOperations="query" expression="h.contract_id = t1.contract_id and t1.session_id=${/session/@session_id} and h.data_class=&apos;NORMAL&apos;"/>
+    </bm:data-filters>
+</bm:model>

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm" xmlns:f="aurora.database.features" needAccessControl="true">
+    <bm:fields>
+        <bm:field name="invoice_hd_id" databaseType="NUMBER" datatype="java.lang.Long"/>
+        <bm:field name="invoice_bp_name" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="payment_method_id" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="payment_method_des" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="product_name" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="contract_number" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="receipt_number" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="price" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="rmb_price" databaseType="VARCHAR2" datatype="java.lang.String"/>
+        <bm:field name="rk" databaseType="VARCHAR2" datatype="java.lang.String"/>
+    </bm:fields>
+    <bm:features>
+        <f:standard-who/>
+    </bm:features>
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+                SELECT
+                    *
+                FROM
+                    (SELECT
+                        rownum rk,
+                        h.invoice_bp_name,                                                                                                                   --付款单位
+                        h.contract_number,                                                                                                                   --合同编号
+                        h.invoice_hd_id,                                                                                                                     --发票头id
+                        TO_CHAR((to_number(TO_CHAR(SYSDATE, 'yyyymm') * 1000) + rownum + to_number(sys_parameter_pkg.value('PRINT_TIMES')))) receipt_number, --收据编号
+                        (SELECT
+                            ct.payment_method_id
+                        FROM
+                            csh_transaction ct,
+                            csh_write_off cw
+                        WHERE
+                            ct.transaction_id          = cw.csh_transaction_id AND
+                            cw.cashflow_id             = l.cashflow_id AND
+                            NVL(cw.reversed_flag, 'N') = 'N' AND
+                            rownum                     = 1
+                        ) payment_method_id,
+                        (NVL(
+                        (SELECT
+                            m.description
+                        FROM
+                            csh_payment_method m,
+                            csh_transaction ct,
+                            csh_write_off cw
+                        WHERE
+                            ct.transaction_id          = cw.csh_transaction_id AND
+                            cw.cashflow_id             = l.cashflow_id AND
+                            NVL(cw.reversed_flag, 'N') = 'N' AND
+                            rownum                     = 1 AND
+                            m.payment_method_id        = ct.payment_method_id
+                        ), '转账')) payment_method_des,
+                        DECODE(l.cf_item, 51, '保证金', '租赁费') product_name, --款项性质，存在invoice_ln表
+                        TO_CHAR(l.price, '999,999,999,999.99') price,     --收款金额
+                        change_number_to_rmb(l.price) rmb_price           --收款金额大写
+                    FROM
+                        acr_invoice_hd_v h,
+                        acr_invoice_ln l
+                    WHERE
+                        l.invoice_hd_id  = h.invoice_hd_id AND
+                        h.invoice_status = 'CONFIRM' AND
+                        h.invoice_hd_id IN (${:@invoice_hd_id}) AND
+                        (
+                            NOT EXISTS
+                            (SELECT
+                                1
+                            FROM
+                                acr_invoice_hd ah
+                            WHERE
+                                ah.invoice_hd_id  IN (${:@invoice_hd_id}) AND
+                                ah.receipt_number IS NOT NULL
+                            ) OR
+                            ${/parameter/@again_flag}='Y'
+                        )
+                    ) t1 #WHERE_CLAUSE#
+            ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

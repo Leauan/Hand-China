@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hp  
+    $Date: 2013-12-13 下午01:20:24  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+				select dense_rank() over(partition by t1.calc_session_id order by t1.times) row_num,
+				       t1.calc_line_id,
+				       t1.calc_session_id,
+				       t1.times,
+				       rtrim(to_char(t1.net_lease_mgt_fee,'FM99,999,999,990.99'),'.') net_lease_mgt_fee,
+				       hd.lease_mgt_fee_rule,
+				       t1.lease_mgt_fee,
+				       rtrim(to_char(t1.finance_amount,'FM99,999,999,990.99'),'.') finance_amount,
+				       t1.outstanding_principal,
+				       (select v.code_value_name
+				          from sys_code_values_v v
+				         where v.code = 'HLS500_MGT_FEE_RULE'
+				           and v.code_value = hd.lease_mgt_fee_rule) lease_mgt_fee_rule_desc,
+				       to_char(decode(hd.lease_mgt_fee_rule,
+				                      'NET_FINANCE_AMOUNT',
+				                      t1.net_lease_mgt_fee / hd.finance_amount,
+				                      'OUTSTANDING_PRINCIPAL',
+				                      t1.net_lease_mgt_fee / t1.outstanding_rental_tax_incld,
+				                      0) * 100,
+				               'FM990.0099') || '%' lease_mgt_fee_rule_ratio
+				  from hls_fin_calculator_ln t1, hls_fin_calculator_hd hd
+				 where t1.calc_session_id = hd.calc_session_id
+				   and t1.calc_session_id =
+				       (select hd.calc_session_id
+				          from hls_fin_calculator_hd hd, prj_quotation q
+				         where hd.calc_session_id = q.calc_session_id
+				           and q.quotation_id = ${@quotation_id})
+				   and nvl(t1.net_lease_mgt_fee, 0) != 0
+
+ 		]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

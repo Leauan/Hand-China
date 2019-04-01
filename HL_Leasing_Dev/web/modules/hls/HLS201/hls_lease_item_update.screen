@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-4-2 上午10:30:59  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="(t1.enabled_flag=&apos;Y&apos;)" fetchAll="true" model="basic.hls_lease_item_type_v_for_lov" rootPath="lease_item_type"/>
+        <a:model-query fetchAll="true" model="basic.fnd_uom_codes_vl_for_lov" rootPath="uom_codes"/>
+        <a:model-query fetchAll="true" model="gld.gld_currency_vl" rootPath="currency"/>
+        <a:model-query fetchAll="true" model="basic.hls_division_for_lov" rootPath="lease_division"/>
+        <a:model-query defaultWhereClause="(t1.enabled_flag=&apos;Y&apos;)" fetchAll="true" model="basic.hls_abc_class_v_for_lov" rootPath="abc_class"/>
+        <a:model-query defaultWhereClause="(t1.enabled_flag=&apos;Y&apos; and t1.authority_usage=&apos;LEASE_ITEM&apos;)" fetchAll="true" model="aut.AUT005.aut_authority_group" rootPath="lease_item_group"/>
+        <a:model-query model="basic.hls_fnd_companies_vl" rootPath="default_value"/>
+        <a:model-query defaultWhereClause="(t1.enabled_flag=&apos;Y&apos; and t1.lease_object_type = &apos;LEASE_PRODUCT&apos;)" fetchAll="true" model="fnd.FND401.fnd_authorization_group" rootPath="fnd_authorization_group"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="hls_lease_item_query_id" url="${/request/@context_path}/modules/hls/HLS201/hls_lease_item_query.screen"/>
+        <a:link id="hls_lease_item_list_import_handle_link_id" url="${/request/@context_path}/modules/hls/HLS201/hls_lease_item_list_import_handle.screen"/>
+        <a:link id="hls201_hls_lease_item_detail_update_link_id" url="${/request/@context_path}/modules/hls/HLS201/hls_lease_item_detail.screen"/>
+        <script><![CDATA[
+            function do_hls201_update_save() {
+                $('hls201_update_save_id').disable();
+                Aurora.Masker.mask(Ext.getBody(), '${l:BEING_IMPLEMENTED}');
+                if (!$('lease_item_add_sys_ds').validate()) {
+                    $('hls201_update_save_id').enable();
+                    Aurora.Masker.unmask(Ext.getBody());
+                    return;
+                }
+                var sys_record = $('lease_item_add_sys_ds').getAt('0');
+                var company_record = $('lease_item_add_company_ds').getAt('0');
+                sys_record.set('_status', 'update');
+                sys_record.set('division', company_record.get('division'));
+                sys_record.set('abc_class', company_record.get('abc_class'));
+                
+                sys_record.set('authority_usage', company_record.get('authority_usage'));
+                sys_record.set('lease_item_group', company_record.get('lease_item_group'));
+                sys_record.set('company_enabled_flag', company_record.get('company_enabled_flag'));
+                sys_record.set('record_id',company_record.get('record_id'));
+                var saveData = [];
+                saveData.push(sys_record.data);
+                Aurora.request({
+                    url: '${/request/@context_path}/autocrud/hls.HLS201.hls_lease_item_save/batch_update',
+                    para: saveData,
+                    success: function() {
+                        Aurora.SideBar.show({
+	                    		msg:'${l:HLS.SUBMIT_SUCCESS}',
+	                    		duration:2000
+							});
+                        $('lease_item_add_sys_ds').query();
+                        $('lease_item_add_company_ds').query();
+                        $('hls201_update_save_id').enable();
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    error: function() {
+                        $('hls201_update_save_id').enable();
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    failure: function() {
+                        $('hls201_update_save_id').enable();
+                        Aurora.Masker.unmask(Ext.getBody());
+                    },
+                    scope: this
+                });
+            }
+            
+            function do_hls201_update_back() {
+                window.location = $('hls_lease_item_query_id').getUrl();
+            }
+            function do_hls201_update_import(){
+                $('hls201_update_import_list_id').disable();
+                var win=new Aurora.Window({
+                    id: 'upload_handle_winId',
+                    params:{
+                       session_id:'${/session/@session_id}',
+                       lease_item_id:'${/parameter/@lease_item_id}'
+                    },
+                    url: $('hls_lease_item_list_import_handle_link_id').getUrl(),
+                    title: '${l:HLS201.HLS_LEASE_ITEM_LIST}',
+                    width: 420,
+                    height: 275
+                });
+                win.on('close', function() {
+                    $('hls201_update_import_list_id').enable();
+                });
+            }
+            function do_hls201_update_item_list(){
+                var record=$('lease_item_add_sys_ds').getAt(0);
+                new Aurora.Window({
+                    url: $('hls201_hls_lease_item_detail_update_link_id').getUrl(),
+                    params:{
+                      winId:'hls_lease_item_detail_update_winId',
+                      lease_item_id:'${/parameter/@lease_item_id}',
+                      li_list_type:record.get('li_list_type')
+                    },
+                    title: '${l:HLS201.HLS_LEASE_ITEM_LIST}',
+                    id: 'hls_lease_item_detail_update_winId',
+                    width: 900,
+                    height: 480
+                });
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="lease_item_type_ds">
+                <a:datas dataSource="/model/lease_item_type"/>
+            </a:dataSet>
+            <a:dataSet id="uom_name_ds">
+                <a:datas dataSource="/model/uom_codes"/>
+            </a:dataSet>
+            <a:dataSet id="currency_ds">
+                <a:datas dataSource="/model/currency"/>
+            </a:dataSet>
+            <a:dataSet id="lease_division_ds">
+                <a:datas dataSource="/model/lease_division"/>
+            </a:dataSet>
+            <a:dataSet id="abc_class_ds">
+                <a:datas dataSource="/model/abc_class"/>
+            </a:dataSet>
+            <a:dataSet id="lease_item_group_ds">
+                <a:datas dataSource="/model/lease_item_group"/>
+            </a:dataSet>
+            <a:dataSet id="fnd_authorization_group_ds">
+                <a:datas dataSource="/model/fnd_authorization_group"/>
+            </a:dataSet>
+            <a:dataSet id="lease_item_add_sys_ds" autoQuery="true" model="hls.HLS201.hls_lease_item" queryUrl="${/request/@context_path}/autocrud/hls.HLS201.hls_lease_item/query?lease_item_id=${/parameter/@lease_item_id}">
+                <a:fields>
+                    <a:field name="lease_item_type_desc" displayField="description" options="lease_item_type_ds" required="true" returnField="lease_item_type" valueField="lease_item_type"/>
+                    <a:field name="lease_item_type"/>
+                    <a:field name="lease_item_code" readOnly="true"/>
+                    <a:field name="short_name"/>
+                    <a:field name="full_name"/>
+                    <a:field name="serial_number"/>
+                    <a:field name="pattern"/>
+                    <a:field name="vender_name"/>
+                    <a:field name="manufacturer_name"/>
+                    <a:field name="specification"/>
+                    <a:field name="manufacturing_date"/>
+                    <a:field name="uom_name" displayField="description_text" options="uom_name_ds" returnField="uom" valueField="uom_code"/>
+                    <a:field name="uom"/>
+                    <a:field name="currency_name" displayField="currency_name" options="currency_ds" returnField="currency" valueField="currency_code"/>
+                    <a:field name="price"/>
+                    <a:field name="quantity"/>
+                    <a:field name="original_asset_value"/>
+                    <a:field name="net_asset_value"/>
+                    <a:field name="accumulated_depreciation"/>
+                    <a:field name="detention"/>
+                    <a:field name="installation_site"/>
+                    <a:field name="fixed_assets_site"/>
+                    <a:field name="description"/>
+                    <a:field name="enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                </a:fields>
+            </a:dataSet>
+            <a:dataSet id="lease_item_add_company_ds" autoQuery="true" model="hls.HLS201.hls_lease_item_company" queryUrl="${/request/@context_path}/autocrud/hls.HLS201.hls_lease_item_company/query?lease_item_id=${/parameter/@lease_item_id}">
+                <a:fields>
+                    <a:field name="company_code" defaultValue="${/model/default_value/record/@company_code}" readOnly="true"/>
+                    <a:field name="company_name" defaultValue="${/model/default_value/record/@company_short_name}" readOnly="true"/>
+                    <a:field name="company_enabled_flag" checkedValue="Y" defaultValue="Y" uncheckedValue="N"/>
+                    <a:field name="division_display" displayField="description" options="lease_division_ds" returnField="division" valueField="division"/>
+                    <a:field name="division"/>
+                    <a:field name="abc_class_display" displayField="description" options="abc_class_ds" returnField="abc_class" valueField="abc_class"/>
+                    <a:field name="abc_class"/>
+                    <a:field name="lease_item_group_display" displayField="description" options="lease_item_group_ds" returnField="lease_item_group" valueField="authority_group"/>
+                    <a:field name="lease_item_group"/>
+                    <a:field name="authority_usage"/>
+                    <a:field name="authorization_group_display" displayField="description" options="fnd_authorization_group_ds" returnField="authority_usage" valueField="authorization_group"/>
+                </a:fields>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:form title="HLS_LEASE_ITEM.BASIC_INFORMATION" width="900">
+                <a:box column="3" labelWidth="100">
+                    <a:comboBox name="lease_item_type_desc" bindTarget="lease_item_add_sys_ds" prompt="HLS.LEASE_ITEM_TYPE"/>
+                    <a:textField name="lease_item_code" bindTarget="lease_item_add_sys_ds" prompt="HLS.LEASE_ITEM_CODE"/>
+                    <a:textField name="short_name" bindTarget="lease_item_add_sys_ds" prompt="HLS_LEASE_ITEM.SHORT_NAME"/>
+                </a:box>
+                <a:box column="3" labelWidth="100">
+                    <a:textField name="full_name" bindTarget="lease_item_add_sys_ds" prompt="HLS_LEASE_ITEM.FULL_NAME"/>
+                    <a:textField name="serial_number" bindTarget="lease_item_add_sys_ds" prompt="HLS_LEASE_ITEM.SERIAL_NUMBER"/>
+                    <a:textField name="search_term" bindTarget="lease_item_add_sys_ds" prompt="HLS_LEASE_ITEM.SEARCH_TERM" typeCase="upper"/>
+                </a:box>
+                <a:box column="3" labelWidth="100">
+                    <a:textField name="specification" bindTarget="lease_item_add_sys_ds" prompt="HLS.SPECIFICATION"/>
+                    <a:textField name="pattern" bindTarget="lease_item_add_sys_ds" prompt="HLS.PATTERN"/>
+                    <a:comboBox name="currency_name" bindTarget="lease_item_add_sys_ds" prompt="HLS.CURRENCY"/>
+                </a:box>
+                <a:box column="3" labelWidth="100">
+                    <a:numberField name="price" allowDecimals="true" allowFormat="true" allowNegative="false" bindTarget="lease_item_add_sys_ds" decimalPrecision="2" prompt="HLS.AMOUNT"/>
+                    <a:numberField name="quantity" allowDecimals="true" allowFormat="true" allowNegative="false" bindTarget="lease_item_add_sys_ds" decimalPrecision="2" prompt="HLS.PRIMARY_QUANTITY"/>
+                    <a:comboBox name="uom_name" bindTarget="lease_item_add_sys_ds" prompt="HLS.UOM"/>
+                </a:box>
+                <a:box column="3" labelWidth="100">
+                    <a:numberField name="original_asset_value" allowDecimals="true" allowFormat="true" allowNegative="false" bindTarget="lease_item_add_sys_ds" decimalPrecision="2" prompt="HLS_LEASE_ITEM.ORIGINAL_ASSET_VALUE"/>
+                    <a:numberField name="accumulated_depreciation" allowDecimals="true" allowFormat="true" allowNegative="false" bindTarget="lease_item_add_sys_ds" decimalPrecision="2" prompt="HLS_LEASE_ITEM.ACCUMULATED_DEPRECIATION"/>
+                    <a:numberField name="net_asset_value" allowDecimals="true" allowFormat="true" allowNegative="false" bindTarget="lease_item_add_sys_ds" decimalPrecision="2" prompt="HLS_LEASE_ITEM.NET_ASSET_VALUE"/>
+                </a:box>
+                <a:box column="3" labelWidth="100">
+                    <a:numberField name="detention" allowDecimals="true" allowFormat="true" allowNegative="false" bindTarget="lease_item_add_sys_ds" decimalPrecision="2" prompt="HLS_LEASE_ITEM.DETENTION"/>
+                    <a:numberField name="manufacturing_date" allowDecimals="false" allowNegative="false" bindTarget="lease_item_add_sys_ds" prompt="HLS_LEASE_ITEM.MANUFACTURING_DATE"/>
+                    <a:textField name="manufacturer_name" bindTarget="lease_item_add_sys_ds" prompt="HLS_LEASE_ITEM.MANUFACTURER_NAME"/>
+                </a:box>
+                <a:box column="3" labelWidth="100">
+                    <a:textField name="fixed_assets_site" bindTarget="lease_item_add_sys_ds" prompt="HLS_LEASE_ITEM.FIXED_ASSETS_SITE"/>
+                    <a:textField name="installation_site" bindTarget="lease_item_add_sys_ds" prompt="HLS_LEASE_ITEM.INSTALLATION_SITE"/>
+                    <a:textField name="vender_name" bindTarget="lease_item_add_sys_ds" prompt="HLS.VENDER"/>
+                    <!-- <a:checkBox name="enabled_flag" bindTarget="lease_item_add_sys_ds" prompt="HLS.ENABLED_FLAG"/> -->
+                </a:box>
+                <a:box column="3" labelWidth="100">
+                    <a:textField name="description" bindTarget="lease_item_add_sys_ds" prompt="HLS_LEASE_ITEM.DESCRIPTION" width="610"/>
+                </a:box>
+            </a:form>
+            <a:form title="HLS_LEASE_ITEM.COMPANY_INFORMATION" width="900">
+                <a:box column="3" labelWidth="100">
+                    <a:textField name="company_code" bindTarget="lease_item_add_company_ds" prompt="HLS.COMPANY_CODE"/>
+                    <a:textField name="company_name" bindTarget="lease_item_add_company_ds" prompt="HLS.COMPANY_NAME"/>
+                    <a:comboBox name="division_display" bindTarget="lease_item_add_company_ds" prompt="HLS.DIVISION"/>
+                </a:box>
+                <a:box column="3" labelWidth="100">
+                    <a:comboBox name="abc_class_display" bindTarget="lease_item_add_company_ds" prompt="HLS.ABC_CLASS"/>
+                    <a:comboBox name="lease_item_group_display" bindTarget="lease_item_add_company_ds" prompt="HLS.LEASE_ITEM_GROUP"/>
+                    <a:comboBox name="authorization_group_display" bindTarget="lease_item_add_company_ds" prompt="AUT_AUTHORITY_GROUP.AUTHORITY_GROUP"/>
+                </a:box>
+                <a:box>
+                    <a:checkBox name="company_enabled_flag" bindTarget="lease_item_add_company_ds" prompt="HLS.ENABLED_FLAG"/>
+                </a:box>
+            </a:form>
+            <a:hBox>
+                <a:screenTopToolbar>
+                    <a:gridButton id="hls201_update_save_id" click="do_hls201_update_save" text="HLS.SAVE"/>
+                    <a:gridButton click="do_hls201_update_back" text="HLS.BACK"/>
+                    <a:gridButton id="hls201_update_import_list_id" click="do_hls201_update_import" text="HLS.IMPORT"/>
+                    <a:gridButton id="hls201_update_item_list_id" click="do_hls201_update_item_list" text="HLS201.HLS_LEASE_ITEM_LIST"/>
+                </a:screenTopToolbar>
+            </a:hBox>
+        </a:screenBody>
+    </a:view>
+</a:screen>

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: gaoyang  
+    $Date: 2013-5-22 下午01:53:57  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<ns1:model xmlns:s="aurora.plugin.script" xmlns:ns1="http://www.aurora-framework.org/schema/bm" alias="t1" baseTable="con_contract_lv" extendMode="reference">
+    <ns1:fields>
+        <ns1:field name="bp_id_tenant"/>
+        <ns1:field name="contract_id"/>
+        <ns1:field name="project_id"/>
+        <ns1:field name="business_type"/>
+        <ns1:field name="contract_number" forDisplay="true" forQuery="true" prompt="HLS.CONTRACT_NUMBER"/>
+        <ns1:field name="contract_name" forDisplay="true" forQuery="true" prompt="HLS.CONTRACT_NAME"/>
+        <ns1:field name="project_number" forDisplay="true" forQuery="true" prompt="HLS.PROJECT_NUMBER"/>
+        <ns1:field name="project_name" forDisplay="true" forQuery="true" prompt="HLS.PROJECT_NAME"/>
+        <ns1:field name="currency"/>
+        <ns1:field name="currency_n"/>
+    </ns1:fields>
+    <ns1:features>
+        <s:bm-script><![CDATA[
+        	var cx = Packages.aurora.javascript.Context.getCurrentContext();
+        	Packages.aurora.plugin.script.engine.ScriptImportor.defineExternScript(cx, this, $ctx.getData(), "aut_authority_bm_validate.js");
+    	]]></s:bm-script>
+    </ns1:features>
+    <ns1:query-fields>
+        <ns1:query-field field="contract_number" queryOperator="like"/>
+        <ns1:query-field field="project_number" queryOperator="like"/>
+        <ns1:query-field name="bp_id_tenant" queryExpression="(t1.bp_id_tenant =  (decode(nvl(${@bp_limit_flag},&apos;N&apos;),&apos;N&apos;,${@bp_id_tenant},&apos;Y&apos;,t1.bp_id_tenant)))"/>
+        <ns1:query-field name="document_type" queryExpression="t1.document_type = ${@document_type}"/>
+        <ns1:query-field name="project_name" queryExpression="t1.project_name like &apos;%&apos; || ${@project_name} || &apos;%&apos; "/>
+        <ns1:query-field name="contract_name" queryExpression="t1.contract_name like &apos;%&apos; || ${@contract_name} || &apos;%&apos; "/>
+        <ns1:query-field name="not_master_contract_flag" queryExpression="${@not_master_contract_flag}=&apos;Y&apos; and t1.business_type!=&apos;MASTER_CONTRACT&apos;"/>
+        <ns1:query-field name="inception_flag" queryExpression="(${@inception_flag}=&apos;N&apos; and t1.contract_status !=&apos;INCEPT&apos;)"/>
+        <ns1:query-field name="sign_flag" queryExpression="(${@sign_flag}=&apos;Y&apos; and t1.contract_status =&apos;NEW&apos;)"/>
+        <ns1:query-field name="con_writeoff_flag" queryExpression="(${@con_writeoff_flag}=&apos;Y&apos; and t1.contract_status not in(&apos;NEW&apos;,&apos;PENDING&apos;))"/>
+        <ns1:query-field name="change_req_flag" queryExpression="(${@change_req_flag}=&apos;Y&apos; and t1.contract_status in(&apos;NEW&apos;,&apos;SIGN&apos;,&apos;PAID&apos;,&apos;INCEPT&apos;))"/>
+        <!-- <ns1:query-field name="transaction_id" queryExpression="exists(select 1 from csh_transaction t,con_contract_bp b where t.transaction_id=${@transaction_id} and t.bp_id=b.bp_id and b.contract_id=t1.contract_id)"/> -->
+        <ns1:query-field name="review_flag" queryExpression="(${@review_flag}=&apos;Y&apos; and t1.contract_status =&apos;SIGN&apos;)"/>
+        <ns1:query-field name="con_wf_flag" queryExpression="(${@con_wf_flag}=&apos;Y&apos; and t1.contract_status in (&apos;ET&apos;,&apos;INCEPT&apos;,&apos;REDEMPTING&apos;,&apos;REDEMPTED&apos;) or t1.lease_channel =&apos;01&apos;)"/>
+    </ns1:query-fields>
+    <ns1:data-filters>
+        <ns1:data-filter name="contract_number" enforceOperations="query" expression="data_class = &apos;NORMAL&apos; and nvl(${@lease_channel},&apos;00&apos;)=nvl(lease_channel,&apos;00&apos;) and ((t1.contract_status in        (&apos;SIGN&apos;, &apos;INCEPT&apos;, &apos;ETING&apos;, &apos;ADING&apos;, &apos;ET&apos;, &apos;REDEMPTING&apos;, &apos;REDEMPTED&apos;)        and  (exists (select 1                   from con_contract_cashflow ccc                  WHERE ccc.cf_item = 303                    AND ccc.cf_type = 300                    AND t1.CONTRACT_ID = ccc.CONTRACT_ID                    AND ccc.write_off_flag = &apos;FULL&apos;) or exists         (select 1            from con_contract_cashflow ccc           WHERE ccc.cf_item = 5             AND ccc.cf_type = 0             AND t1.CONTRACT_ID = ccc.CONTRACT_ID             AND ccc.write_off_flag = &apos;FULL&apos;) )) or (nvl(${@lease_channel},&apos;01&apos;)=&apos;01&apos;))"/>
+    </ns1:data-filters>
+</ns1:model>

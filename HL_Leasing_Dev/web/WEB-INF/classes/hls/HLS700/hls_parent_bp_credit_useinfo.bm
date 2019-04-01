@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bm:model xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+               SELECT
+                    t1.*
+                FROM
+                    (SELECT
+                        p.project_id,
+                        p.lease_start_date,
+                        p.project_number,
+                        p.business_type,
+                         (select h4.description
+				          from hls_business_type_v h4
+				         where h4.enabled_flag = 'Y'
+				           and p.business_type = h4.business_type) business_type_n,
+                        t.bp_id_tenant,
+                        (select a.bp_name value_name
+				          from HLS_BP_MASTER_LV a
+				         where a.bp_category = 'AGENT'
+				           and a.bp_id = t.bp_id_tenant) as bp_name,
+                        t.finance_amount,
+                        p.project_status,
+                        (select v.code_value_name
+				          from sys_code_values_v v
+				         where v.code = 'PRJ501DF_PRJ_STATUS'
+				           and v.code_value = p.project_status) as project_status_n,                       
+                        hls_bp_master_credit_pkg.calc_used_amount_project(p_project_id => p.project_id,
+                                                               p_user_id         =>  ${/session/@user_id}) as rm_amount,
+                       (t.finance_amount -  hls_bp_master_credit_pkg.calc_used_amount_project(p_project_id => p.project_id,
+                                                               p_user_id         =>  ${/session/@user_id}))as rp_amount
+                    FROM
+                        prj_project p,
+                        prj_project_df_info_lv t
+                    WHERE
+                       p.project_id=t.project_id
+                       and t.bp_id_tenant in (select bp_id
+                                              from hls_bp_master
+                                              where parent_id =${@bp_id} )
+                    ) t1 #WHERE_CLAUSE#
+                    order by decode(t1.project_status,'APPROVING',1,'APPROVED',2,'SETTLED',3,4),t1.bp_name,t1.project_number desc
+            ]]></bm:query-sql>
+        </bm:operation>
+        <!--  <bm:operation name="update">
+            <bm:update-sql><![CDATA[
+               begin
+               	hls_bp_master_credit_pkg.hls_credit_ln_save(p_bp_credit_line_id =>${@bp_credit_line_id},
+						                               p_bp_credit_hd_id   => ${@bp_credit_hd_id},
+						                               p_bp_id             => ${@bp_id},
+						                               p_credit_number     => ${@credit_number},
+						                               p_total_amount      =>${@credit_total_amount},
+						                               p_open_amount       =>${@open_amount},
+						                               p_credit_date_from  =>to_date(${@credit_date_from},'yyyy-mm-dd'),
+						                               p_credit_date_to    =>to_date(${@credit_date_to},'yyyy-mm-dd'),
+						                               p_enable_flag       =>${@enable_flag},
+						                               p_user_id            =>${/session/@user_id});
+               end;
+            ]]></bm:update-sql>
+        </bm:operation> -->
+    </bm:operations>
+    <bm:fields>
+        <bm:field name="project_id" databaseType="NUMBER" datatype="java.lang.Long" physicalName="PROJECT_ID"/>
+        <bm:field name="bp_name"/>
+        <bm:field name="project_number" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="PROJECT_NUMBER"/>
+        <bm:field name="business_type" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="BUSINESS_TYPE"/>
+        <bm:field name="business_type_n"/>
+        <bm:field name="finance_amount" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="FINANCE_AMOUNT"/>
+        <bm:field name="project_status" databaseType="VARCHAR2" datatype="java.lang.String" physicalName="BUSINESS_TYPE"/>
+        <bm:field name="project_status_n"/>
+        <bm:field name="lease_start_date" databaseType="DATE" datatype="java.util.Date" physicalName="LEASE_START_DATE"/>
+        <bm:field name="rm_amount"/>
+        <bm:field name="rp_amount"/>
+    </bm:fields>
+</bm:model>

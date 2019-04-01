@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: hand  
+    $Date: 2016-5-17 下午3:56:18  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<bm:model xmlns:f="aurora.database.features" xmlns:bm="http://www.aurora-framework.org/schema/bm">
+    <bm:operations>
+        <bm:operation name="query">
+            <bm:query-sql><![CDATA[
+        SELECT
+        rownum rk,
+    t1.CON_CONTRACT_LOCATION_LN,
+    t1.LOCATION_ID,
+    t1.STORAGE,
+    t1.CHEST_NUMBER,
+    t1.CHEST_FLOORS,
+    t1.DOCU_NUMBER,
+    t1.DOCU_AMOUNT,
+    t1.NOTE,
+    (select v.code_value_name value_name
+           from sys_code_values_v v
+       where v.code = 'DOC_TYPE' and v.code_value=t1.DOC_TYPE) DOC_TYPE,
+    t1.STORAGE_DATE,
+    t1.CONTRACT_ID,
+    t1.doc_number,
+    (select s.user_name from  sys_user s where s.user_id=t1.created_by) created_by_n,
+    (select ccsv.lease_term from con_contract ccsv where t1.contract_id=ccsv.CONTRACT_ID) lease_term,
+     (SELECT ppl.invoice_agent_id_n
+  FROM con_contract_lv          ccl,
+       prj_project_lv            ppl
+ WHERE t1.contract_id = ccl.contract_id
+ and  ppl.project_id=ccl.project_id)  invoice_agent_id_n, 
+       ((SELECT p.description
+          FROM fnd_province p
+         WHERE p.province_id = (SELECT h.province_id
+                                  FROM hls_bp_master   h,
+                                       con_contract_bp ccb
+                                 WHERE h.bp_id = ccb.bp_id
+                                   AND ccb.contract_id = t1.contract_id
+                                   AND ccb.bp_category = 'AGENT')) ||
+       (SELECT f.description
+          FROM fnd_city f
+         WHERE f.city_id = (SELECT h.city_sp
+                              FROM hls_bp_master   h,
+                                   con_contract_bp ccb
+                             WHERE h.bp_id = ccb.bp_id
+                               AND ccb.contract_id = t1.contract_id
+                               AND ccb.bp_category = 'AGENT'))) city_sp, 
+       (select contract_number from con_contract_lv ccl where ccl.contract_id=t1.contract_id) contract_number,
+    t1.LOCATION_CON_STATUS,
+    (select t.bp_id_tenant_name from con_contract_lv t where t.contract_id = t1.contract_id) bp_id_tenant_name,
+    (select su.description from sys_user su  where su.user_id =(select cl.created_by from con_contract_location_ln cl where cl.con_contract_location_ln = t1.con_contract_location_ln)) user_name
+FROM
+    CON_CONTRACT_LOCATION_LN t1  where  to_char(t1.con_contract_location_ln) in (${:@con_contract_location_ln})
+    order by  DOCU_NUMBER
+        ]]></bm:query-sql>
+        </bm:operation>
+    </bm:operations>
+</bm:model>

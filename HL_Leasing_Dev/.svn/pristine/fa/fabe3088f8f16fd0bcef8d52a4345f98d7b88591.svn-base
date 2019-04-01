@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	&author:DJ
+	$date:2013/11/12
+	$purpose:短信发送
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="sys.SYS405.get_zj_sys_mailing_list_id" rootPath="mail_list_id_rp"/>
+        <a:model-query fetchAll="true" model="sys.SYS405.exp_employees_mail" rootPath="emp_mail_list"/>
+        <a:model-query fetchAll="true" model="sys.SYS405.hls_bp_contact_mail" rootPath="bp_contact_mail_list"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="bmLink_send_sms" model="sys.SYS405.sys_mail_list" modelaction="execute"/>
+        <a:link id="uploadFile_link" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="upload_filename_link" model="sys.SYS405.get_attach_file_name" modelaction="update"/>
+        <script charset="utf-8" src="${/request/@context_path}/kindeditor/kindeditor-min.js"><![CDATA[ ]]></script>
+        <script charset="utf-8" src="${/request/@context_path}/kindeditor/lang/zh_CN.js"><![CDATA[ ]]></script>
+        <script><![CDATA[
+            var mailEditorList = [];
+            
+            function mailEdit_create(list) {
+                var k = KindEditor;
+                var config = {
+                    width: '654px',
+                    height: '350px',
+                    resizeType: 0,
+                    allowPreviewEmoticons: false,
+                    allowImageUpload: false,
+                    items: ['undo', 'redo', '|', 'cut', 'copy', 'paste', 'plainpaste', '|', 'preview', 'print', '|', 'insertorderedlist', 'insertunorderedlist', '|', 'table', 'link', 'unlink', 'pagebreak', 'hr', '|', '/', 'fontname', 'fontsize', 'forecolor', 'hilitecolor', 'bold', 'italic', 'underline', '|', 'lineheight', 'justifyleft', 'justifycenter', 'justifyright', 'indent', 'outdent', '|', 'selectall', 'removeformat', '|']
+                };
+            
+                for (var i = 0;i < list.length;i++) {
+                    list[i]['value'] = k.create('textarea[id="' + list[i]['name'] + '"]', config);
+                }
+            }
+            
+            function lock_window() {
+                Aurora.Masker.mask(Ext.getBody(), '正在提交');
+            }
+            
+            function unlock_window() {
+                Aurora.Masker.unmask(Ext.getBody());
+            }
+            
+            function mailEditorWriteBack(record) {
+                var list = mailEditorList;
+            
+                for (var i = 0;i < list.length;i++) {
+                    var value = list[i]['value'].html();
+                    var name = list[i]['name'];
+                    record.set(name, value);
+                }
+            }
+            
+            function mailEditorClear() {
+                var list = mailEditorList;
+            
+                for (var i = 0;i < list.length;i++) {
+                    list[i]['value'].html('');
+                }
+            }
+            
+            function clearMail() {
+                //$('mailCreateDs').reset();
+                //mailEditorClear();
+                location.href="${/request/@context_path}/modules/sys/SYS405/sys_mail_send.screen";
+            }
+            
+            function submitMail() {
+                lock_window();
+                var ds = $('mailCreateDs');
+            
+                var record = ds.getAt(0);
+            
+                mailEditorWriteBack(record);
+            
+                if (Ext.isEmpty(record.get('body'))) {
+                    Aurora.showMessage('${l:PROMPT}', '邮件正文不能为空！');
+                    unlock_window();
+                    return;
+                }
+            
+                if (!ds.validate()) {
+                    unlock_window();
+                    return;
+                }
+            
+                unlock_window();
+                Aurora.showConfirm('${l:HLS.PROMPT}', '是否确认提交邮件？', function() {
+                    lock_window();
+                    Aurora.request({
+                        url: $('bmLink_send_sms').getUrl(),
+                        para: {
+                            'mail_to': record.get('mail_to'),
+                            'mail_cc': record.get('mail_cc'),
+                            'subject': record.get('subject'),
+                            'body': record.get('body'),
+                            'mail_list_id':record.get('mail_list_id')
+                        },
+                        success: function(res) {
+                            unlock_window();
+                            Aurora.SideBar.show({
+                                msg: '提交成功',
+                                duration: 2000
+                            });
+                            clearMail();
+                        },
+                        failure: function() {
+                            unlock_window();
+                        },
+                        error: function() {
+                            unlock_window();
+                        },
+                        scope: this
+                    });
+                }, function() {});
+            
+            }
+            
+            function getmailStr(ds) {
+                var str = '';
+                var records = ds.getSelected();
+                for (var i = 0,
+                    j = records.length;i < j;i++) {
+                    var mail = records[i].get('mail');
+                    if (!Ext.isEmpty(mail)) {
+                        str = str + mail + ';';
+                    }
+                }
+                return str;
+            }
+            
+            function get_mail_string(ds) {
+                var str = '';
+                var email = {};
+                var records = ds.getAll();
+                for (var i = 0;i < records.length;i++) {
+                    if (records[i].get('checked') == 'Y') {
+                        if (records[i].get('email')) {
+                            email[records[i].get('email')] = records[i].get('email');
+                        }
+                    }
+                }
+                for (emails in email) {
+                    if ((emails)) {
+                        str += emails + ';';
+                    }
+                }
+                return str;
+            }
+            
+            function generate_mail_to() {
+                var str = get_mail_string($('empMailDs')) + getmailStr($('bpContactMailDs'));
+                $('mailCreateDs').getAt(0).set('mail_to', str);
+            }
+            
+            function generate_mail_cc() {
+                var str = get_mail_string($('empMailDs')) + getmailStr($('bpContactMailDs'));
+                $('mailCreateDs').getAt(0).set('mail_cc', str);
+            }
+            
+            function mailCreateDs_add(ds, record) {
+                record.set('mail_list_id', '${/model/mail_list_id_rp/record/@mail_list_id}');
+            }
+            
+            function attachMail() {
+                url = $('uploadFile_link').getUrl() + '?table_name=ZJ_SYS_MAILING_LIST&useSubFolder=Y&header_id=' + '${/model/mail_list_id_rp/record/@mail_list_id}';
+                var win = new Aurora.Window({
+                    url: url,
+                    title: '附件上传',
+                    id: 'uploadFile_win',
+                    width: 850,
+                    height: 400
+                });
+                win.on('close', function() {
+                    var record = $('mailCreateDs').getCurrentRecord();
+                    var mail_list_id = record.get('mail_list_id');
+                    Aurora.request({
+                        url: $('upload_filename_link').getUrl(),
+                        para: {
+                            mail_list_id: mail_list_id
+                        },
+                        success: function(args) {
+                            var file_name = args.result.file_name;
+                            record.set('attachment_file', file_name);
+                        }
+                    });
+                });
+            
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="mailCreateDs" autoCreate="true">
+                <a:fields>
+                    <a:field name="subject" required="true"/>
+                    <a:field name="mail_to" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="add" handler="mailCreateDs_add"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="empMailDs">
+                <a:datas dataSource="/model/emp_mail_list"/>
+            </a:dataSet>
+            <a:dataSet id="bpContactMailDs" selectable="true">
+                <a:datas dataSource="/model/bp_contact_mail_list"/>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:screenTitle/>
+                <a:gridButton click="clearMail" text="清空"/>
+                <a:gridButton click="attachMail" text="附件"/>
+                <a:gridButton click="submitMail" text="提交"/>
+            </a:screenTopToolbar>
+            <a:hBox>
+                <a:vBox>
+                    <a:form title=" ">
+                        <a:textArea name="mail_to" bindTarget="mailCreateDs" height="80" prompt="收件人" width="650"/>
+                        <a:textArea name="mail_cc" bindTarget="mailCreateDs" height="40" prompt="抄送" width="650"/>
+                        <a:textField name="subject" bindTarget="mailCreateDs" height="40" prompt="主题" width="654"/>
+                        <a:textField name="attachment_file" bindTarget="mailCreateDs" prompt="附件" readOnly="true" width="654"/>
+                        <a:textArea name="body" id="body" bindTarget="mailCreateDs" height="270" prompt="正文" width="650"/>
+                    </a:form>
+                </a:vBox>
+                <a:vBox>
+                    <a:button click="generate_mail_to" height="40" style="margin-top:50px;" text="&lt;---"/>
+                    <a:button click="generate_mail_cc" height="40" style="margin-top:25px;" text="&lt;---"/>
+                </a:vBox>
+                <a:vBox>
+                    <a:tabPanel marginHeight="120" width="420">
+                        <a:tabs>
+                            <a:tab prompt="员工" width="100">
+                                <!--  <a:grid bindTarget="empMailDs" marginHeight="170" width="360">
+                                    <a:columns>
+                                        <a:column name="person" autoAdjust="false" prompt="姓名" showTitle="true" width="100"/>
+                                        <a:column name="mail" autoAdjust="false" prompt="邮箱" showTitle="true" width="200"/>
+                                    </a:columns>
+                                </a:grid> -->
+                                <a:treeGrid bindTarget="empMailDs" idField="unit_id" marginHeight="170" parentField="parent_unit_id" sequenceField="seq" showCheckBox="true" width="410">
+                                    <a:columns>
+                                        <a:column name="unit_name" width="150"/>
+                                        <a:column name="name" prompt="姓名" width="60"/>
+                                        <a:column name="email" prompt="邮箱" width="170"/>
+                                    </a:columns>
+                                </a:treeGrid>
+                            </a:tab>
+                            <a:tab prompt="客户" width="100">
+                                <a:grid bindTarget="bpContactMailDs" marginHeight="170" width="400">
+                                    <a:columns>
+                                        <a:column name="person" autoAdjust="false" prompt="姓名" showTitle="true" width="100"/>
+                                        <a:column name="mail" autoAdjust="false" prompt="邮箱" showTitle="true" width="230"/>
+                                    </a:columns>
+                                </a:grid>
+                            </a:tab>
+                        </a:tabs>
+                    </a:tabPanel>
+                </a:vBox>
+            </a:hBox>
+            <script><![CDATA[
+	            Aurora.onReady(function(K) {
+	            
+	                var list = mailEditorList;
+	            
+	                list[0] = {
+	                    name: 'body'
+	                };
+	            
+	                mailEdit_create(list);
+	            
+	            });
+            ]]></script>
+        </a:screenBody>
+    </a:view>
+</a:screen>

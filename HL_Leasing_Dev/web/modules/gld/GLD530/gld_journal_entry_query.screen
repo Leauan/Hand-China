@@ -1,0 +1,738 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: zhangxing5129  
+    $Date: 2013-9-2 上午10:16:26  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application">
+    <a:init-procedure>
+        <a:model-query defaultWhereClause="t1.enabled_flag=&apos;Y&apos;" model="gld.gld_exchangerate_types_vl" rootPath="exchangerate_type"/>
+        <a:model-query fetchAll="true" model="gld.GLD530.gld_company_currency_code" rootPath="company_currency_code"/>
+        <a:model-query defaultWhereClause="rownum=1" fetchAll="true" model="fnd.FND2110.fnd_responsibility_centers_lov" rootPath="fnd_responsibility_centers"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="sys_service_welcome_link" url="${/request/@context_path}/welcome.screen"/>
+        <a:link id="get_exchange_rate_link" url="${/request/@context_path}/autocrud/gld.GLD530.gld_get_exchange_rate/update"/>
+        <a:link id="gld_period_num_query_link" url="${/request/@context_path}/autocrud/gld.GLD530.gld_period_num_query/query"/>
+        <a:link id="gld_get_journal_num_link" url="${/request/@context_path}/autocrud/gld.GLD530.gld_get_journal_num/query"/>
+        <a:link id="gld_journal_status_link" url="${/request/@context_path}/autocrud/gld.GLD530.journal_submit/update"/>
+        <a:link id="gld_get_ref_link_id" model="gld.GLD530.gld_get_reference" modelaction="query"/>
+        <script><![CDATA[
+           	 var company_currency_code = '${/model/company_currency_code/record/@functional_currency_code}';
+           	 
+           	 function quit() {
+           	     //location.href = $('sys_service_welcome_link').getUrl();
+           	     //parent.shMenu('show');
+           	     $('gld310_journal_num_query_window').close();
+           	 }
+           	 
+           	 function save() {
+				 //alert('aa');
+				 var length = $('gld_journal_details_ds').getAll().length;
+				 // if(length>0)
+           	     // {
+           	         // var record;
+           	         // var ref;
+           	         // for(var i=0;i<length;i++)
+	           	     // {
+	           	         // record = $('gld_journal_details_ds').getAt(i);
+	           	         // ref = record.getMeta().getField('reference1');
+	           	         // if(ref.isRequired())
+	           	         // {
+	           	            // Aurora.showMessage('${l:PROMPT}', '');
+					    	// return;
+	           	         // }
+	           	     // }
+           	     // }
+           	     if ($('gld_journal_headers_ds').validate() && $('gld_journal_details_ds').validate()) {
+           	         
+           	      var document_type=$('gld_journal_headers_ds').getCurrentRecord().get('category_code');	
+					var code_auto_flag=$('gld_journal_headers_ds').getCurrentRecord().get('code_auto_flag');
+					var total_amount_dr = 0;
+					var total_amount_cr = 0;
+					var total_amount_fuc_dr = 0;
+					var total_amount_fuc_cr = 0;
+					var amount_dr;
+					var amount_cr;
+					var amount_fuc_dr;
+					var amount_fuc_cr;
+					var length = $('gld_journal_details_ds').getAll().length;
+	           	    for(var i=0;i<length;i++)
+	           	    {
+	           	         amount_dr = $('gld_journal_details_ds').getAt(i).get('amount_dr');
+	           	         amount_cr = $('gld_journal_details_ds').getAt(i).get('amount_cr');
+	           	         amount_fuc_dr = $('gld_journal_details_ds').getAt(i).get('amount_fuc_dr');
+	           	         amount_fuc_cr = $('gld_journal_details_ds').getAt(i).get('amount_fuc_cr');
+	           	         amount_dr = amount_dr?amount_dr:0;
+	           	         amount_cr = amount_cr?amount_cr:0;
+	           	         amount_fuc_dr = amount_fuc_dr?amount_fuc_dr:0;
+	           	         amount_fuc_cr = amount_fuc_cr?amount_fuc_cr:0;
+	           	         total_amount_dr =plus(total_amount_dr,amount_dr);
+	           	         total_amount_cr =plus(total_amount_cr,amount_cr);
+	           	         total_amount_fuc_dr =plus(amount_fuc_dr,amount_fuc_dr);
+	           	         total_amount_fuc_cr =plus(amount_fuc_cr,amount_fuc_cr);
+	           	     }
+	           	    // alert(total_amount_dr);
+	           	    // alert(total_amount_cr);
+	           	     if(total_amount_dr!=total_amount_cr)
+	           	     {
+	           	        Aurora.showMessage('${l:PROMPT}', '科目借贷不平衡,请重新输入');
+					    return;
+	           	     }
+	           	     $('gld_journal_headers_ds').getCurrentRecord().set('total_amount_dr',total_amount_dr);
+	           	     $('gld_journal_headers_ds').getCurrentRecord().set('total_amount_cr',total_amount_cr);
+	           	     $('gld_journal_headers_ds').getCurrentRecord().set('total_amount_fuc_dr',total_amount_fuc_dr);
+	           	     $('gld_journal_headers_ds').getCurrentRecord().set('total_amount_fuc_cr',total_amount_fuc_cr);										
+					 $('gld_journal_headers_ds').submit();
+									 Aurora.SideBar.show({
+			                            	msg: '保存成功',
+			                            	duration: 2000
+	                        			});
+					 //$('gld530_get_period_name_by_date_ds').query();
+						
+           	     }
+           	 }
+           	 
+           	 function submit()
+           	 {
+           	     if($('gld_journal_headers_ds').getCurrentRecord().dirty)
+           	     {
+           	         Aurora.showMessage('${l:PROMPT}', '${l:HLS.EXECUTE_AFTER_SAVE}');
+           	         return;
+           	     }
+           	     if ($('gld_journal_headers_ds').validate() && $('gld_journal_details_ds').validate())
+           	     {           	                    	     
+	           	     journal_header_id = $('gld_journal_headers_ds').getCurrentRecord().get('journal_header_id');
+	           	 	 Aurora.request({
+		           	             url:$('gld_journal_status_link').getUrl(),
+		           	             para:{'journal_header_id':journal_header_id},
+		           	             success:function (data)
+		           	             {
+		           	                 $('gld_journal_headers_ds').getCurrentRecord().set('status_desc','已提交');
+		           	                 $('gld_journal_headers_ds').getCurrentRecord().set('status','F');
+		           	                 Aurora.SideBar.show({
+			                            	msg: '提交成功',
+			                            	duration: 2000
+	                        			});
+	                        		$('gld_journal_headers_result_ds').query();
+	                        		$('gld310_journal_num_query_window').close();
+		           	             }
+		           	         });			 	   
+           	 	}
+           	 }
+           	 function add_new() {
+           	     $('gld_journal_details_grid1').showEditorByRecord($('gld_journal_details_ds').create());
+           	 }
+           	 
+           	 function gld_journal_headers_ds_update(ds, record, name, value, oldvalue) 
+           	 {           	 
+           	     if (name == 'currency_code' || name == 'exchange_rate_type') {
+           	         if (name == 'currency_code') {
+           	             if (value == company_currency_code) {
+           	                 record.getField('exchange_rate').setReadOnly(true);
+           	                 record.set('exchange_rate', '');
+           	                 record.getField('exchange_rate_type_desc').setReadOnly(true);
+           	                 record.set('exchange_rate_type_desc', '');
+           	                 record.set('exchange_rate_type', '');
+           	             } else {
+           	                 record.getField('exchange_rate').setReadOnly(false);
+           	                 record.getField('exchange_rate_type_desc').setReadOnly(false);
+           	             }
+           	         }          	 
+           	         if (name == 'exchange_rate_type') {
+           	             if (value == "MANUAL") {
+           	                 record.getField('exchange_rate').setReadOnly(false);
+           	             } else {
+           	                 record.getField('exchange_rate').setReadOnly(true);
+           	                 record.set('exchange_rate', '');
+           	             }
+           	         }          	            	        
+           	         if (record.get('exchange_rate_type') != '' && !Ext.isEmpty(record.get('exchange_rate_type'))) {
+           	             var to_currency = record.get('currency_code');
+           	             var from_currency = company_currency_code;
+           	             var exchange_rate_type = record.get('exchange_rate_type');
+           	             var exchange_period_name = record.get('period_name');
+           	             paras = {
+           	                 'from_currency': from_currency,
+           	                 'to_currency': to_currency,
+           	                 'exchange_rate_type': exchange_rate_type,
+           	                 'exchange_period_name': exchange_period_name
+           	             };
+           	             Aurora.request({
+           	                 url: $('get_exchange_rate_link').getUrl(),
+           	                 para: paras,
+           	                 success: function(data) {
+           	                     if (data.result.exchange_rate) {
+           	                         $('gld_journal_headers_ds').getCurrentRecord().set('exchange_rate', data.result.exchange_rate);
+           	                     }
+           	                 }
+           	             });
+           	         }
+           	     }      	 
+           	     // 获取会计期的值
+           	    else if (name == 'journal_date') {
+           	         var journal_date = value;
+           	         $('gld530_get_period_name_by_date_ds').setQueryParameter('journal_date', journal_date);
+           	         $('gld530_get_period_name_by_date_ds').query();
+           	     }
+           	     else if(name == 'description')
+	           	 {
+	           	     var length = $('gld_journal_details_ds').getAll().length;
+	           	     for(var i=0;i<length;i++)
+	           	     {
+	           	         $('gld_journal_details_ds').getAt(i).set(name,value);
+	           	     }
+	           	 }
+           	     //获取凭证编号
+           //	     if(name=='category_code')
+           	//     {
+           	//         debugger;
+           	//         if(record.get('code_auto_flag')=='Y')
+           	 //        {
+           	  //           document_type=value;
+	          // 	         record.getField('journal_num').setReadOnly(true);
+	          // 	         var category_code=value;
+	           //	         Aurora.request({
+	           //	             url:$('gld_get_journal_num_link').getUrl(),
+	           //	             para:{'document_type':document_type},
+	           	//             success:function (data)
+	           	 //            {
+	           	 //                debugger;
+	           	  //               if(data.result)
+	           	  //               {
+	           	  //                   debugger;
+	           	 //                   $('gld_journal_headers_ds').getCurrentRecord().set('journal_num',data.result.record.next_num);
+	           	    //             }
+	           	   //          }
+	           	   //      });
+           	      //   }
+           	      //   else
+           	       //  {
+           	        //      record.getField('journal_num').setReadOnly(false);
+//}
+           	         
+           	    // }
+           	    
+           	     //汇率发生改变，修改本币的值
+           	     if(name=='exchange_rate')
+           	     {
+           	         
+           	         var exchange_rate=Ext.isEmpty(value)?1:value;
+           	         var details_ds_records=$('gld_journal_details_ds').getAll();
+           	         var details_ds_length=details_ds_records.length;
+           	         if(details_ds_length>0)
+           	         {
+           	             for(var i=0;i<details_ds_length;i++)
+           	             {
+           	                 amount_fuc_dr=exchange_rate*details_ds_records[i].get('amount_dr');
+           	                 amount_fuc_cr=exchange_rate*details_ds_records[i].get('amount_cr');
+           	            	 details_ds_records[i].set('amount_fuc_dr',amount_fuc_dr);
+           	            	 details_ds_records[i].set('amount_fuc_cr',amount_fuc_cr);
+           	             }
+           	         }
+           	     }
+           	  
+           	     
+           	 }
+           	 
+           	 function gld_period_num_onLoad(ds) {
+           	     $('gld_journal_headers_ds').getCurrentRecord().set('period_name','');
+           	     $('gld_journal_headers_ds').getCurrentRecord().set('period_year','');
+           	     var records = ds.getAll();
+           	     if (records.length < 1) {
+           	         Aurora.showMessage('没有会计期');
+           	     }
+           	     else if(records.length == 1){
+           	         $('gld_journal_headers_ds').getCurrentRecord().set('period_name',records[0].get('period_name'));
+           	         $('gld_journal_headers_ds').getCurrentRecord().set('period_year',records[0].get('period_year'));
+           	     }
+           	     
+           	 }
+           	 
+           	function gld_journal_details_ds_update(ds,record,name,value,oldvalue)
+           	 {
+           	     var exchange_rate=$('gld_journal_headers_ds').getCurrentRecord().get('exchange_rate');
+           	     if(name=='amount_dr')
+           	     {          	         
+           	         //如果借方金额输入有值,则将借方金额插入到贷方并将贷方置为只读
+           	         if(Math.abs(value)>0)
+           	     	 { 
+						 if(!Ext.isEmpty(exchange_rate))
+	           	         {
+		           	         var amount_fuc_dr=exchange_rate*value;
+		           	         record.set('amount_fuc_dr',amount_fuc_dr);
+		           	         
+	           	         }
+	           	         else
+	           	         {
+	           	             record.set('amount_fuc_dr',value);
+	           	         }
+           	     	 	 //如果本属性不只读则将贷方属性置为可读          	             	     	 	          	     	 	     
+           	     	 	     record.getField('amount_cr').setReadOnly(true); 
+           	     	 	     //为了光标移动不显示红色
+           	     	 	     //record.set('amount_cr',0);
+           	     	 	     record.set('amount_cr',null);
+							 record.getField('amount_cr').setRequired(false);  	
+           	     	 }
+           	     	 else if(value=='')
+           	     	 {
+           	     	     record.getField('amount_dr').setRequired(true);
+           	     	     record.getField('amount_dr').setReadOnly(false);
+           	     	     record.getField('amount_cr').setRequired(true);
+           	     	     record.getField('amount_cr').setReadOnly(false);
+           	     	     record.set('amount_fuc_dr',null);
+           	     	 }
+           	     }
+           	      if(name=='amount_cr')
+           	     {
+           	         
+           	         if(Math.abs(value)>0)
+           	     	 {           	     	               	     	 	   
+						  if(!Ext.isEmpty(exchange_rate))
+		           	         {
+			           	         var amount_fuc_cr=exchange_rate*value;
+			           	         record.set('amount_fuc_cr',amount_fuc_cr);
+		           	         }
+		           	         else
+		           	         {
+		           	              record.set('amount_fuc_cr',value);
+		           	         }
+           	     	 	 
+           	     	 	     record.getField('amount_dr').setReadOnly(true); 
+           	     	 	     //为了光标移动不显示红色
+           	     	 	     //record.set('amount_dr',0);
+           	     	 	     record.set('amount_dr',null);
+							 record.getField('amount_dr').setRequired(false); 											 
+           	     	 }
+           	     	 else if(value=='')
+           	     	 {
+           	     	     record.getField('amount_dr').setRequired(true);
+           	     	     record.getField('amount_dr').setReadOnly(false);
+           	     	     record.getField('amount_cr').setRequired(true);
+           	     	     record.getField('amount_cr').setReadOnly(false);
+           	     	     record.set('amount_fuc_cr',null);
+           	     	 }
+           	     }
+           	        if(name=='account_id')
+           	     {
+                		Aurora.request({
+		           	             url:$('gld_get_ref_link_id').getUrl(),
+		           	             para:{'account_id':value},
+		           	             success:function (data)
+		           	             {
+									 var reference = record.getMeta().getField('reference1');
+		           	                 if(typeof(data.result.record)=='undefined')
+		           	                 {
+		           	                     record.set('reference1','');
+		           	                     reference.setRequired(false);
+		           	                     reference.setReadOnly(true);
+		           	                     return;
+		           	                 }
+		           	                 else
+		           	                 { 
+		           	                     if(data.result.record.type=='SQL_TEST')
+		           	                     {
+											 var sql_validation = data.result.record.sql_query;
+											 reference.setLovService('gld.GLD530.sys_parameter_validate');
+											 reference.setLovPara('sql_validation', sql_validation);
+		           	                     }
+		           	                     else
+		           	                     {
+		           	                         var category_id = data.result.record.refference_1;
+		           	                         reference.setLovService('gld.GLD530.gld_ref_code_values');
+											 reference.setLovPara('ref_code_category_id', category_id);
+											 
+		           	                     }
+		           	                     reference.setRequired(true);
+		           	                     reference.setReadOnly(false); 
+										 //record.set('refference1',0);
+										
+		           	                 }
+		           	                 
+		           	             }
+		           	         });
+           	     }
+           	 }
+           	 function ok()
+           	 {
+           	     
+           	 }
+           	 function gld530_onLoadPeriodName(ds)
+           	 {
+                record = ds.getAt(0);
+                var header_record = $('gld_journal_headers_ds').getAt(0);
+                //只有一条记录
+                if (ds.getAll().length == 1) {
+                     
+                    header_record.getField('period_name').setReadOnly(true);
+                    header_record.set('period_name', record.get('period_name'));
+                    header_record.set('period_num',record.get('period_num'));                                       
+                }
+                //多条记录 
+                else if(ds.getAll().length > 1) 
+                {
+                    header_record.getField('period_name').setReadOnly(false);
+                    header_record.set('period_name','');
+                    header_record.set('period_num',''); 
+                }                
+                else 
+                {
+                    header_record.set('period_name', '');
+                    header_record.set('period_num','');
+                    Aurora.showWarningMessage('警告','当前会计期间未打开',ok,200,100);                     
+                }
+                header_record.set('period_year',record.get('period_year'));
+           	 }
+           	 
+           	 function gld530_reverse_date_onUpdate()
+           	 {
+           	     //alert('a');
+	           	 if (name == 'reverse_date') {
+	                    if (value != '' && value != null) {
+	                        $('gld530_get_period_name_by_date_ds').setQueryParameter('journal_date', value);
+	                        $('gld530_get_period_name_by_date_ds').query();
+	                    }
+	           	 }
+             }
+             
+          
+             function line_description_render(value,record,name)
+             {
+                 description = $('gld_journal_headers_ds').getCurrentRecord().get('description');
+                 
+                 if(Math.abs(record.get('amount_dr'))>0 || Math.abs(record.get('amount_cr'))>0)
+                 {
+                     if(Math.abs(record.get('amount_dr'))>0)
+                 	{       
+                 	         //不为读
+                 	    	 if(!record.getField('amount_dr').isReadOnly())  	 
+                 	    	 {   	     	 	               	     	 	          	     	 	     
+	          	     	 	     record.getField('amount_cr').setReadOnly(true); 
+	           	     	 	     //为了光标移动不显示红色
+	           	     	 	     record.set('amount_cr',null);
+								 record.getField('amount_cr').setRequired(false); 
+                 			 }
+                 	}
+                 	else
+                 	{
+           	     	 	 if(!record.getField('amount_cr').isReadOnly())  	  
+           	     	 	 {
+           	     	 	     record.getField('amount_dr').setReadOnly(true); 
+           	     	 	     //为了光标移动不显示红色
+           	     	 	     record.set('amount_dr',null);
+							 record.getField('amount_dr').setRequired(false); 
+           	     	 	 } 
+                 	}
+                 }
+                 // if(typeof(value)=='undefined')
+                 // {
+                     // record.set(name,description);
+				     // return description;
+             	 // }
+             	 if(typeof(value)=='undefined'|| 1)
+             	 {
+             	     record.set(name,description);
+             	     return description;
+             	 }
+             }
+             var count=0;
+             function gld_journal_details_ds_load(ds)
+             {
+                 var length = ds.getAll().length;
+                  if(length>0)
+           	     {
+           	         var record;
+           	         var ref;
+           	         for(var i=0;i<length;i++)
+	           	     {
+	           	         record = $('gld_journal_details_ds').getAt(i);
+	           	         
+	           	         if(typeof(record.get('reference1'))!='undefined')
+	           	         {
+	           	             account_id = record.get('account_id');
+	           	             Aurora.request({
+		           	             url:$('gld_get_ref_link_id').getUrl(),
+		           	             para:{'account_id':account_id},
+		           	             
+		           	             success:function (data)
+		           	             {
+									 var reference = record.getMeta().getField('reference1');
+		           	                 if(typeof(data.result.record)=='undefined')
+		           	                 {
+		           	                     reference.setRequired(false);
+		           	                     reference.setReadOnly(true);
+		           	                 }
+		           	                 
+		           	                 else
+		           	                 { 
+		           	                     if(data.result.record.type=='SQL_TEST')
+		           	                     {
+											 var sql_validation = data.result.record.sql_query;
+											 reference.setLovService('gld.GLD530.sys_parameter_validate');
+											 reference.setLovPara('sql_validation', sql_validation);
+		           	                     }
+		           	                     else
+		           	                     {
+		           	                         var category_id = data.result.record.refference_1;
+		           	                         reference.setLovService('gld.GLD530.gld_ref_code_values');
+											 reference.setLovPara('ref_code_category_id', category_id);
+											 
+		           	                     }
+		           	                     reference.setRequired(true);
+		           	                     reference.setReadOnly(false); 
+										 //record.set('refference1',0);
+										
+		           	                 }		           	                 
+		           	             },
+		           	             sync:true
+		           	         });
+	           	         }
+	           	     }
+           	     }
+             }
+             
+             function summaryRenderer(datas, name) {
+                var dr_sum = 0;
+              	var cr_sum = 0;
+              	var func_dr_sum = 0;
+              	var func_cr_sum = 0;
+                for (var i = 0;i < datas.length;i++) {
+                    record = datas[i];
+                    if (name == "amount_dr" ) {
+                        var t_1 = record.get("amount_dr" );
+                        var  t_2 = parseFloat(t_1);
+                        if (!isNaN(t_2)) {
+                            dr_sum = plus(dr_sum,t_2);
+                        }
+                    }
+                    if (name == "amount_cr" ) {
+                        var d_1 = record.get("amount_cr" );
+                        var  d_2 = parseFloat(d_1);
+                        if (!isNaN(d_2)) {
+                            cr_sum = plus(cr_sum,d_2);
+                        }
+                    }
+                    if (name == "amount_fuc_dr" ) {
+                        var a_1 = record.get("amount_fuc_dr" );
+                        var  a_2 = parseFloat(a_1);
+                        if (!isNaN(a_2)) {
+                            func_dr_sum = plus(func_dr_sum,a_2);
+                        }
+                    }
+                    if (name == "amount_fuc_cr" ) {
+                        var b_1 = record.get("amount_fuc_cr" );
+                        var  b_2 = parseFloat(b_1);
+                        if (!isNaN(b_2)) {
+                            func_cr_sum = plus(func_cr_sum,b_2);
+                        }
+                    }
+                }
+                if (name == "account_description") {
+                    return '<div align="right">合计:</div>';
+                }
+                if (name == "amount_dr" ) {           
+                    return '<font color="red">' + Aurora.formatNumber(dr_sum, 2) + '</font>';
+                }
+                if (name == "amount_cr" ) {           
+                    return '<font color="red">' + Aurora.formatNumber(cr_sum, 2) + '</font>';
+                } 
+                if (name == "amount_fuc_dr" ) {           
+                    return '<font color="red">' + Aurora.formatNumber(func_dr_sum, 2) + '</font>';
+                }
+                if (name == "amount_fuc_cr" ) {           
+                    return '<font color="red">' + Aurora.formatNumber(func_cr_sum, 2) + '</font>';
+                }
+            }
+       	 ]]></script>
+        <a:dataSets>
+            <!-- 	汇率类型 -->
+            <a:dataSet id="exchangerate_type_vl_ds">
+                <a:datas dataSource="/model/exchangerate_type"/>
+            </a:dataSet>
+            <a:dataSet id="gld530_status_ds" lookupCode="GLD_JE_STATUS"/>
+            <a:dataSet id="gld530_get_period_name_by_date_ds" model="gld.GLD530.gld_period_num_query">
+                <a:events>
+                    <a:event name="load" handler="gld530_onLoadPeriodName"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="gld530_reverse_date_ds" autoCreate="true">
+                <a:fields>
+                    <a:field name="reverse_date" defaultValue="${/model/gld533_get_sysdate/record/@currentdate}" required="true"/>
+                    <a:field name="reverse_period" displayField="period_name" options="gld530_get_period_name_by_date_ds" readOnly="true" required="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="gld530_reverse_date_onUpdate"/>
+                </a:events>
+            </a:dataSet>
+            <!-- 会计期查询 -->
+            <a:dataSet id="gld_period_num_ds" loadData="true" queryUrl="${/request/@context_path}/autocrud/gld.GLD530.gld_period_num_query/query">
+                <a:events>
+                    <a:event name="load" handler="gld_period_num_onLoad"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="gld_journal_headers_ds" autoCreate="true" autoQuery="true" model="gld.GLD530.gld_journal_headers" queryUrl="${/request/@context_path}/autocrud/gld.GLD530.gld_journal_headers/query?journal_header_id=${/parameter/@journal_header_id}" submitUrl="gld_journal_entry_save.svc">
+                <a:fields>
+                    <a:field name="total_amount_dr"/>
+                    <a:field name="total_amount_cr"/>
+                    <a:field name="total_amount_fuc_dr"/>
+                    <a:field name="total_amount_fuc_cr"/>
+                    <a:field name="exchange_rate"/>
+                    <a:field name="exchange_rate_type"/>
+                    <a:field name="status" defaultValue="U"/>
+                    <a:field name="status_desc" defaultValue="正常" displayField="code_value_name" options="gld530_status_ds" returnField="status" valueField="code_value"/>
+                    <a:field name="exchange_rate_type_desc" displayField="type_name" options="exchangerate_type_vl_ds" returnField="exchange_rate_type" valueField="type_code"/>
+                    <a:field name="currency_code" defaultValue="${/model/company_currency_code/record/@functional_currency_code}" lovGridHeight="350" lovHeight="500" lovService="basic.gld_currency_v_lov" lovWidth="500" required="true">
+                        <a:mapping>
+                            <a:map from="currency_code" to="currency_code"/>
+                            <a:map from="currency_name" to="currency_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="period_num"/>
+                    <a:field name="period_year" required="true"/>
+                    <a:field name="attachment_num" defaultValue="1"/>
+                    <a:field name="journal_num" readOnly="true"/>
+                    <a:field name="source_code" defaultValue="GLD"/>
+                    <a:field name="category_code"/>
+                    <a:field name="category_code_desc" lovGridHeight="350" lovHeight="500" lovService="gld.GLD530.gld_je_authority_query" lovWidth="450" required="true">
+                        <a:mapping>
+                            <a:map from="code_auto_flag" to="code_auto_flag"/>
+                            <a:map from="document_type" to="category_code"/>
+                            <a:map from="document_type_desc" to="category_code_desc"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="journal_date" required="true"/>
+                    <a:field name="period_name" displayField="period_name" options="gld530_get_period_name_by_date_ds" readOnly="true" required="true" returnField="period_name" valueField="period_name"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="gld_journal_headers_ds_update"/>
+                </a:events>
+            </a:dataSet>
+            <a:dataSet id="gld_journal_details_ds" autoQuery="true" bindName="result_ds" bindTarget="gld_journal_headers_ds" fetchAll="true" model="gld.GLD530.gld_journal_details" queryUrl="${/request/@context_path}/autocrud/gld.gld_journal_details/query?journal_header_id=${/parameter/@journal_header_id}" selectable="true">
+                <a:fields>
+                    <a:field name="line_description"/>
+                    <a:field name="responsibility_center_id" defaultValue="${/model/fnd_responsibility_centers/record/@responsibility_center_id}"/>
+                    <a:field name="responsibility_center_name" defaultValue="${/model/fnd_responsibility_centers/record/@responsibility_center_name}" lovGridHeight="350" lovHeight="550" lovService="fnd.FND2110.fnd_responsibility_centers_lov" lovWidth="500" required="true">
+                        <a:mapping>
+                            <a:map from="responsibility_center_id" to="responsibility_center_id"/>
+                            <a:map from="responsibility_center_name" to="responsibility_center_name"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="account_code" lovGridHeight="350" lovHeight="500" lovService="gld.gld_company_accounts_vl_lov" lovWidth="550" required="true">
+                        <a:mapping>
+                            <a:map from="account_id" to="account_id"/>
+                            <a:map from="description" to="account_description"/>
+                            <a:map from="account_code" to="account_code"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="amount_dr" required="true"/>
+                    <a:field name="amount_cr" required="true"/>
+                    <a:field name="amount_fuc_dr" readOnly="true"/>
+                    <a:field name="amount_fuc_cr" readOnly="true"/>
+                    <a:field name="reference1" lovGridHeight="250" lovHeight="400" lovWidth="500" readOnly="true" requiredMessage="未选择参考信息">
+                        <a:mapping>
+                            <a:map from="value_name" to="reference1"/>
+                        </a:mapping>
+                    </a:field>
+                    <a:field name="reference2" readOnly="true"/>
+                    <a:field name="reference3" readOnly="true"/>
+                    <a:field name="reference4" readOnly="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="gld_journal_details_ds_update"/>
+                    <a:event name="load" handler="gld_journal_details_ds_load"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenTopToolbar>
+            <a:screenTitle/>
+            <a:gridButton click="quit" text="关闭"/>
+            <a:gridButton click="add_new" text="HLS.NEW"/>
+            <a:gridButton click="save" text="HLS.SAVE"/>
+            <a:gridButton click="submit" text="提交"/>
+        </a:screenTopToolbar>
+        <a:form>
+            <a:hBox>
+                <a:datePicker name="journal_date" bindTarget="gld_journal_headers_ds" prompt="日期"/>
+                <a:comboBox name="period_name" bindTarget="gld_journal_headers_ds" prompt="会计期"/>
+                <a:textField name="period_year" bindTarget="gld_journal_headers_ds" prompt="年度" readOnly="true"/>
+                <a:textField name="status_desc" bindTarget="gld_journal_headers_ds" prompt="状态" readOnly="true"/>
+            </a:hBox>
+            <a:hBox>
+                <a:numberField name="attachment_num" allowDecimals="false" bindTarget="gld_journal_headers_ds" prompt="附件数"/>
+                <a:lov name="category_code_desc" bindTarget="gld_journal_headers_ds" prompt="凭证类型"/>
+                <a:textField name="journal_num" bindTarget="gld_journal_headers_ds" prompt="凭证编号"/>
+                <a:textField name="source_code" bindTarget="gld_journal_headers_ds" prompt="来源" readOnly="true"/>
+            </a:hBox>
+            <a:hBox>
+                <a:lov name="currency_code" bindTarget="gld_journal_headers_ds" prompt="币种"/>
+                <a:comboBox name="exchange_rate_type_desc" bindTarget="gld_journal_headers_ds" prompt="汇率类型" readOnly="true"/>
+                <a:textField name="exchange_rate" bindTarget="gld_journal_headers_ds" prompt="汇率" readOnly="true"/>
+            </a:hBox>
+            <a:hBox>
+                <a:textField name="description" bindTarget="gld_journal_headers_ds" prompt="摘要" width="616"/>
+            </a:hBox>
+        </a:form>
+        <a:tabPanel marginHeight="215" marginWidth="30">
+            <a:tabs>
+                <a:tab prompt="基本信息">
+                    <a:grid id="gld_journal_details_grid1" bindTarget="gld_journal_details_ds" marginHeight="260" marginWidth="40" navBar="true">
+                        <a:toolBar>
+                            <a:button type="add"/>
+                            <a:button type="delete"/>
+                        </a:toolBar>
+                        <a:columns>
+                            <a:column lock="true" prompt=" ">
+                                <a:column name="line_description" editor="gld_journal_details_tf" prompt="摘要" width="200"/>
+                                <a:column name="responsibility_center_name" editor="gld_journal_details_lov" prompt="责任中心" width="150"/>
+                                <a:column name="account_code" editor="gld_journal_details_lov" prompt="科目"/>
+                                <a:column name="account_description" align="left" footerRenderer="summaryRenderer" prompt="描述" width="230"/>
+                            </a:column>
+                            <a:column prompt="原币">
+                                <a:column name="amount_dr" align="right" editor="gld_journal_details_nf" footerRenderer="summaryRenderer" prompt="借方金额" renderer="Aurora.formatMoney"/>
+                                <a:column name="amount_cr" align="right" editor="gld_journal_details_nf" footerRenderer="summaryRenderer" prompt="贷方金额" renderer="Aurora.formatMoney"/>
+                            </a:column>
+                            <a:column prompt="本位币">
+                                <a:column name="amount_fuc_dr" align="right" editor="gld_journal_details_nf" footerRenderer="summaryRenderer" prompt="借方金额" renderer="Aurora.formatMoney"/>
+                                <a:column name="amount_fuc_cr" align="right" editor="gld_journal_details_nf" footerRenderer="summaryRenderer" prompt="贷方金额" renderer="Aurora.formatMoney"/>
+                            </a:column>
+                        </a:columns>
+                        <a:editors>
+                            <a:lov id="gld_journal_details_lov"/>
+                            <a:textField id="gld_journal_details_tf"/>
+                            <a:numberField id="gld_journal_details_nf"/>
+                        </a:editors>
+                    </a:grid>
+                </a:tab>
+                <a:tab prompt="附加信息">
+                    <a:grid id="gld_journal_details_grid2" bindTarget="gld_journal_details_ds" marginHeight="260" marginWidth="40" navBar="true">
+                        <a:toolBar>
+                            <a:button type="add"/>
+                            <a:button type="delete"/>
+                        </a:toolBar>
+                        <a:columns>
+                            <a:column lock="true" prompt=" ">
+                                <a:column name="line_description" editor="gld_journal_details_grid2_tf" prompt="摘要" renderer="line_description_render" width="200"/>
+                                <a:column name="responsibility_center_name" prompt="责任中心" width="150"/>
+                                <a:column name="account_code" editor="gld_journal_details_grid2_lov" prompt="科目"/>
+                                <a:column name="account_description" align="left" prompt="描述" width="230"/>
+                            </a:column>
+                            <a:column prompt=" ">
+                                <a:column name="reference1" editor="gld_journal_details_grid2_lov" prompt="参考1"/>
+                                <a:column name="reference2" editor="gld_journal_details_grid2_tf" prompt="参考2"/>
+                                <a:column name="reference3" editor="gld_journal_details_grid2_tf" prompt="参考3"/>
+                                <a:column name="reference4" editor="gld_journal_details_grid2_tf" prompt="参考4"/>
+                            </a:column>
+                        </a:columns>
+                        <a:editors>
+                            <a:textField id="gld_journal_details_grid2_tf"/>
+                            <a:lov id="gld_journal_details_grid2_lov"/>
+                        </a:editors>
+                    </a:grid>
+                </a:tab>
+            </a:tabs>
+        </a:tabPanel>
+        <script><![CDATA[
+              ]]></script>
+    </a:view>
+</a:screen>

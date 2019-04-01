@@ -1,0 +1,838 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Yenick 
+    $Date: 2018-12-24 上午09:27:36  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" xmlns:s="aurora.plugin.script" customizationEnabled="true" dynamiccreateenabled="true" trace="true">
+    <a:init-procedure>
+        <s:server-script import="birt_print_path.js"><![CDATA[
+        	$ctx.parameter.birt_print_path = birt_print_path['birt_print_path'];
+    	]]></s:server-script>
+        <a:model-query autoCount="false" defaultWhereClause=" document_category=&apos;PAYMENT_REQ&apos; and  document_type=&apos;STD_PREPAYMENT_REQ&apos;" fetchAll="true" model="hls.HLS003.hls_document_type" rootPath="default_prepayment_document_type"/>
+        <a:model-query autoCount="false" defaultWhereClause=" document_category=&apos;PAYMENT_REQ&apos; and  document_type=&apos;STD_PAYMENT_REQ&apos;" fetchAll="true" model="hls.HLS003.hls_document_type" rootPath="default_payment_document_type"/>
+        <a:model-query autoCount="false" fetchAll="true" model="basic.current_bp_category" rootPath="current_bp_category"/>
+        <!-- add by zhangdan 86140 -->
+        <a:model-query defaultWhereClause="t.payment_req_id = ${/parameter/@payment_req_id}" fetchAll="true" model="csh.CSH501.payment_req_ln_count" rootPath="get_req_ln_count"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="csh_req_ddct_link" url="${/request/@context_path}/modules/csh/CSH504/csh_payment_req_ln_ddct.screen"/>
+        <a:link id="csh_payment_prepayment_dk" url="${/request/@context_path}/modules/csh/CSH501/csh_payment_prepayment_dk.screen"/>
+        <a:link id="csh_payment_req_prepayment_dk_detail_link_id" url="${/request/@context_path}/modules/csh/CSH501/csh_payment_req_prepayment_dk_detail.screen"/>
+        <a:link id="csh_payment_req_ln_del_link" model="csh.CSH761.csh_payment_req_ln_del" modelaction="batch_update"/>
+        <a:link id="csh501d_get_layout_code_link_id" model="cont.CON500.con_contract_get_layout_code" modelaction="update"/>
+        <a:link id="csh_payment_req_pay_win_link" url="${/request/@context_path}/modules/csh/CSH502/csh_payment_req_pay.screen"/>
+        <a:link id="csh501_csh_payment_auto_ddct" model="csh.CSH501.auto_allocation_ddct" modelaction="execute"/>
+        <a:link id="csh_payment_auto_dt_link" url="${/request/@context_path}/modules/csh/CSH501/csh_payment_req_auto_dk.svc"/>
+        <a:link id="csh501_csh_payment_req_hd_del_link" model="csh.CSH504.csh_payment_req_hd_del" modelaction="update"/>
+        <a:link id="con_rd_wfl_link" url="${/request/@context_path}/modules/cont/CON505/con_contract_modify.screen"/>
+        <a:link id="csh_payment_req_ln_reject_link" model="csh.CSH504.csh_payment_req_ln_reject" modelaction="batch_update"/>
+        <a:link id="csh_payment_req_ln_atm_reject_link" model="csh.CSH504.csh_payment_req_ln_atm_reject" modelaction="batch_update"/>
+        <a:link id="csh_payment_post_nc_link" model="csh.CSH501.csh_payment_post_nc" modelaction="update"/>
+        <a:link id="csh_payment_pay_nc_link" model="csh.CSH501.csh_payment_post_nc" modelaction="execute"/>
+        <a:link id="csh_payment_bank_link" model="csh.CSH502.csh_pay_send" modelaction="update"/>
+        <a:link id="csh_payment_center_link" model="csh.CSH501.csh_payment_req_center" modelaction="update"/>
+        <a:link id="csh_payment_ddct_link" model="csh.CSH501.csh_payment_req_center" modelaction="execute"/>
+        <a:link id="attachment_uploadFile_link" url="${/request/@context_path}/uploadFile.screen"/>
+        <a:link id="attachment_downFile_link" url="${/request/@context_path}/downloadFile.screen"/>
+        <a:link id="prj_rd_wfl_link_winid" url="${/request/@context_path}/modules/prj/PRJ500N/prj_project_create_special.screen"/>
+        <script><![CDATA[
+            // var update_flag = 'N';
+            if ('${/parameter/@payment_req_id}') {
+                window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+            }
+            
+            window['${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+                var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                var lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                var hd_ds, ln_ds, lineRecords, currency_code, currency_name;
+                if (hdds_id) {
+                    hd_ds = $(hdds_id);
+                    hdrecord = hd_ds.getCurrentRecord();
+                }
+                if (lnds_id && $A.CmpManager.get(lnds_id)) {
+                    ln_ds = $(lnds_id);
+                    lineRecords = ln_ds.getAll();
+                }
+                if (hdds_id && ds.id == hdds_id) {
+                    if (name == 'req_date') {
+                        for (var i = 0;i < lineRecords.length;i++) {
+                            lineRecords[i].set('apply_pay_date', value);
+                        }
+                    } else if (name == 'bp_id' || name == 'bp_id_n' || name == 'bp_bank_account_id' || name == 'bp_bank_account_id_n' || name == 'bp_bank_account_num' || name == 'bp_bank_account_name' || name == 'bp_name' || name == 'bp_category' || name == 'bp_category_desc') {
+                        for (var j = 0;j < lineRecords.length;j++) {
+                            var lineRecord = lineRecords[j];
+                            if (name == 'bp_id' && first_load_flag == 'N') {
+                                lineRecord.set('bp_bank_account_id', null);
+                                lineRecord.set('bp_bank_account_id_n', null);
+                                lineRecord.set('bp_bank_account_num', null);
+                                lineRecord.set('bp_bank_account_name', null);
+                            }
+                            lineRecord.set(name, record.get(name));
+                        }
+                        first_load_flag = 'N';
+                    }
+                    if (name == 'compensatory_flag') {
+                        var compensatory_flag = record.get('compensatory_flag');
+                        if (compensatory_flag == 'Y') {
+                            hdrecord.getField('las_compensatory_amount').setReadOnly(false);
+                        } else {
+                            hdrecord.getField('las_compensatory_amount').setReadOnly(true);
+                            hdrecord.set('las_compensatory_amount', null);
+                        }
+                    }
+                } else if (lnds_id && lnds_id == ds.id) {
+                    if (name == 'amount') {
+                        var amount = 0;
+                        for (var m = 0;m < lineRecords.length;m++) {
+                            var lineRecord = lineRecords[m];
+                            currency_code = lineRecord.get('currency_code');
+                            currency_name = lineRecord.get('currency_name');
+                            if (hdrecord.get('currency_code') != currency_code) {
+                                hdrecord.set('amount', null);
+                                hdrecord.set('currency_code', null);
+                                return;
+                            } else {
+                                current_amount = lineRecord.get('amount') || 0;
+                                amount = plus(amount, current_amount);
+                            }
+                        }
+                        hdrecord.set('amount', amount);
+                        hdrecord.set('currency_code', currency_code);
+                        hdrecord.set('currency_name', currency_name);
+                        record.set('act_amount', minus(record.get('amount'), record.get('sum_ddct_amount') || 0));
+                    } else if (name == 'act_amount') {
+                        hdrecord.set('sum_act_amount', plus(minus(hdrecord.get('sum_act_amount') || 0, old_value || 0), value || 0));
+                    }
+                    if (lineRecords.length == 1) {
+                        if (name == 'bp_id' || name == 'bp_id_n' || name == 'bp_name' || name == 'bp_bank_account_id' || name == 'bp_bank_account_id_n' || name == 'bp_category' || name == 'bp_category_desc') {
+                            hdrecord.set(name, record.get(name));
+                        }
+                    }
+                }
+            };
+            
+            window['${/parameter/@layout_code}_on_layout_dynamic_grid_load'] = function(ds, record, config_records, bp_seq) {
+                var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                var hd_ds, lineRecords, currency_code;
+                if (hdds_id) {
+                    hd_ds = $(hdds_id);
+                    hdrecord = hd_ds.getCurrentRecord();
+                }
+                if (record) {
+                    if ('${/parameter/@function_code}' == 'CSH502D') {
+                        record.getField('pay_amount').setReadOnly(false);
+                    }
+                }
+                //add by zhangdan 86140
+                var lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                ln_ds = $(lnds_id);
+                ln_ds.selectAll();
+            
+                window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+            };
+            
+            var first_load_flag = 'N';
+            
+            window['${/parameter/@layout_code}_on_layout_dynamic_grid_add'] = function(ds, record, config_records, bp_seq) {
+                var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                if (!'${/parameter/@payment_req_id}' && hdds_id) {
+                    var hd_ds = $(hdds_id);
+                    var hd_record = hd_ds.getCurrentRecord();
+                    var amount = hd_record.get('amount') || 0;
+                    var down_amount = hd_record.get('down_amount') || 0;
+                    var unreceived_down_amount = hd_record.get('unreceived_down_amount') || 0;
+                    var sum_act_amount = hd_record.get('sum_act_amount') || 0;
+                    hd_record.set('currency_code', record.get('currency_code'));
+                    hd_record.set('currency_name', record.get('currency_name'));
+                    hd_record.set('amount', plus(amount, record.get('amount')));
+                    hd_record.set('down_amount', plus(down_amount, record.get('down_amount')));
+                    hd_record.set('unreceived_down_amount', plus(unreceived_down_amount, record.get('unreceived_down_amount')));
+                    hd_record.set('sum_act_amount', plus(sum_act_amount, record.get('act_amount')));
+                    if (Ext.isEmpty(hd_record.get('irr')) && record.get('irr')) {
+                        hd_record.set('irr', record.get('irr'));
+                    }
+                    if (Ext.isEmpty(record.get('act_amount'))) {
+                        record.set('act_amount', minus(record.get('amount'), record.get('sum_ddct_amount') || 0));
+                    }
+                    if (ds.getAll().length == 1) {
+                        first_load_flag = 'Y';
+                        hdrecord.set('bp_id', record.get('bp_id'));
+                        hdrecord.set('bp_id_n', record.get('bp_id_n'));
+                        hdrecord.set('bp_name', record.get('bp_name'));
+                        hdrecord.set('bp_bank_account_id', record.get('bp_bank_account_id'));
+                        hdrecord.set('bp_bank_account_id_n', record.get('bp_bank_account_id_n'));
+                        hdrecord.set('bp_bank_account_name', record.get('bp_bank_account_id_n'));
+                        hdrecord.set('bp_bank_account_num', record.get('bp_bank_account_num'));
+                        hdrecord.set('bp_category', record.get('bp_category'));
+                        hdrecord.set('bp_category_desc', record.get('bp_category_desc'));
+                        hdrecord.set('bank_full_name', record.get('bank_full_name'));
+                        hdrecord.set('price', record.get('price'));
+                    }
+                }
+            };
+            
+            function on_csh_payment_req_temp_ln_ds_load(ds) {
+                var lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                var records = ds.getAll();
+                // if (!'${/parameter/@payment_req_id}' && lnds_id && '${/parameter/@business_type}' == 'PAYMENT') {
+                for (var i = 0;i < records.length;i++) {
+                    var record = records[i];
+                    if (!record.get('apply_pay_date')) {
+                        record.set('apply_pay_date', Aurora.formatDate(new Date()));
+                    }
+                    $(lnds_id).create(Ext.apply({}, record.data));
+                }
+                //  }
+            }
+            
+            function csh_payment_req_submit_finally() {
+                var win = Aurora.showConfirm('${l:HLS.PROMPT}', '${l:HLS.ARE_YOU_SURE_TO_SUBMIT}', function okFun() {
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                    var ds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                    var hd_record = $(ds_id).getCurrentRecord();
+                    var payment_req_id = hd_record.get('payment_req_id');
+                    Aurora.request({
+                        url: '${/request/@context_path}/autocrud/csh.CSH760.csh_payment_df_submit/execute',
+                        para: {
+                            payment_req_id: payment_req_id,
+                            _status: 'execute'
+                        },
+                        success: function(res) {
+                            Aurora.SideBar.enable = true;
+                            Aurora.SideBar.show({
+                                msg: '${l:HLS.SUBMIT_SUCCESS}',
+                                duration: 2000
+                            });
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                            $('${/parameter/@winid}').close();
+                        },
+                        failure: function() {
+                            Aurora.SideBar.enable = true;
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        error: function() {
+                            Aurora.SideBar.enable = true;
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        scope: this
+                    });
+                }, function cancelFun() {
+                    Aurora.SideBar.enable = true;
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                });
+                win.on('close', function() {
+                    Aurora.SideBar.enable = true;
+                });
+            }
+            
+            
+            
+            
+            //打印
+            
+            function csh501_print() {
+                var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                var lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                var records_l = $(lnds_id).getAll();
+            
+                var hd_record = $(hdds_id).getCurrentRecord();
+                if (records_l.length > 0) {
+                    // var birt_print_path = '${/parameter/@birt_print_path}';
+                    var birt_print_path = '${/request/@context_path}/reports';
+                    // var url_1 = 'http://199.10.10.65:8180/reportapp/frameset?__report=reports/req/new/' + 'con_payment_req.rptdesign' + '&&__format=PDF';
+                    var url_1 = birt_print_path + '?__report=reports/req/new/' + 'con_payment_req.rptdesign' + '&&__format=PDF';
+                    var url_1_param = '&&batch_id=' + ${/session/@session_id} + '&&payment_req_id=' + hd_record.get('payment_req_id');
+                    window.open(url_1 + url_1_param);
+                }
+            }
+            
+            
+            window['${/parameter/@layout_code}_submit_approval_layout_dynamic_click'] = function() {
+                //   if (update_flag != 'N') {
+                // Aurora.showMessage('${l:PROMPT}', '请先保存数据');
+                //  return;
+                //   }
+                Aurora.SideBar.enable = false;
+                window['${/parameter/@layout_code}_SAVE_LAYOUT_DYNAMIC_CLICK'](csh_payment_req_submit_finally);
+            
+            };
+            
+            
+            
+            
+            window['${/parameter/@layout_code}_print_layout_dynamic_click'] = function() {
+                var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                var lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                var hd_ds = $(hdds_id),
+                    ln_ds = $(lnds_id);
+                var hd_record = hd_ds.getCurrentRecord(),
+                    ln_records = ln_ds.getAll();
+                if (ln_records.length > 0 && !ln_records[0].get('payment_req_ln_id')) {
+                    Aurora.showMessage('${HLS.PROMPT}', '请先保存！');
+                } else {
+            
+                    Aurora.request({
+                        url: '${/request/@context_path}/autocrud/csh.CSH504.csh_payment_print/execute',
+                        para: {
+                            payment_req_id: hd_record.get('payment_req_id'),
+                            _status: 'execute'
+                        },
+                        success: function(res) {
+                            csh501_print();
+            
+                        },
+                        sync: true,
+                        failure: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        error: function() {
+                            Aurora.Masker.unmask(Ext.getBody());
+                        },
+                        scope: this
+                    }, Aurora.Masker.unmask(Ext.getBody()));
+            
+            
+                }
+            };
+            
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                var lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                var ln_ds = $(lnds_id);
+                ln_ds.showEditorByRecord(ln_ds.create());
+            };
+            
+            window['${/parameter/@layout_code}_user_button2_layout_dynamic_click'] = function() {
+                var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                var lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                var hd_ds = $(hdds_id),
+                    ln_ds = $(lnds_id);
+                var Array = ln_ds.getSelected();
+                if (Array.length < 1) {
+                    Aurora.showMessage('${l:PROMPT}', '${l:CHOOSE_ONE_RECORD}');
+                } else {
+                    // if (Array.length == ln_ds.getAll().length) {
+                    // //   window['${/parameter/@layout_code}_user_button7_layout_dynamic_click']();
+                    // } else {
+                    Aurora.showConfirm('${l:HLS.PROMPT}', '${l:HLS.DELETE_CONFIRM}', function okFun() {
+                        window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                        var hdrecord = hd_ds.getCurrentRecord();
+                        for (var i = 0,
+                            length = Array.length;i < length;i++) {
+                            if (Array[i].isNew) {
+                                ln_ds.removeLocal(Array[i]);
+                                hdrecord.set('amount', minus(hdrecord.get('amount') || 0, Array[i].act_amount || 0));
+                            }
+                        }
+                        if (Array.length > 0) {
+                            var param = ln_ds.getJsonData(true);
+                            Aurora.request({
+                                url: $('csh_payment_req_ln_del_link').getUrl(),
+                                para: param,
+                                success: function() {
+                                    if (hd_ds.getCurrentRecord().get('payment_req_id')) {
+                                        for (var i = 0;i < param.length;i++) {
+                                            hdrecord.set('amount', minus(hdrecord.get('amount') || 0, param[i].act_amount || 0));
+                                        }
+                                        ln_ds.query(ln_ds.currentPage);
+                                    }
+                                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                                },
+                                error: function() {
+                                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                                },
+                                failure: function() {
+                                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                                },
+                                scope: this
+                            });
+                        } else {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        }
+                    });
+                }
+            };
+            
+            window['${/parameter/@layout_code}_user_button3_layout_dynamic_click'] = function() {
+                window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                var ln_ds = $(lnds_id);
+                var records = ln_ds.getSelected();
+                if (records.length == 0) {
+                    Aurora.showMessage('${l:PROMPT}', '请先选择要抵扣预付款的行明细！');
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    return;
+                }
+            
+                if (!records[0].get('payment_req_ln_id')) {
+                    Aurora.showMessage('${l:PROMPT}', '请先保存数据！');
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    return;
+                }
+                var param = {};
+                if ('${/parameter/@function_usage}' == 'QUERY') {
+                    param['function_code'] = 'CSH501_PRE_DK_READONLY';
+                    param['function_usage'] = 'QUERY';
+                } else {
+                    param['function_code'] = 'CSH501_PRE_DK';
+                    param['function_usage'] = 'UPDATE';
+                }
+                param['payment_req_id'] = records[0].get('payment_req_id');
+                param['winid'] = 'csh501_csh_payment_req_link_winid';
+                param['url_title'] = '预付款抵扣';
+                param['screen_width'] = '800';
+                param['screen_height'] = '500';
+                hls_doc_get_layout_code('csh501d_get_layout_code_link_id', param, 'csh_payment_prepayment_dk', lnds_id, '${/parameter/@layout_code}');
+            };
+            
+            //支付按钮
+            window['${/parameter/@layout_code}_user_button4_layout_dynamic_click'] = function() {
+               debugger;
+                window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd'),
+                    lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                var hd_ds = $(hdds_id),
+                    ln_ds = $(lnds_id);
+                var hd_record = hd_ds.getCurrentRecord(),
+                    line_records = ln_ds.getSelected();
+                var payment_req_id = hd_record.get('payment_req_id');
+                if (line_records.length == 0) {
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    Aurora.showMessage('${l:PROMPT}', '请先选择要支付的行明细！');
+                    return;
+                }
+            
+                //add by zhangdan 86140
+                var ln_count = '${/model/get_req_ln_count/record/@count}';
+                if (line_records.length != ln_count) {
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    Aurora.showMessage('${l:PROMPT}', '必须全选支付！');
+                    return;
+                }
+            
+                var current_bp_id;
+                var bp_bank_account_code;
+                var bp_bank_account_num;
+                var bp_bank_account_code_n;
+                var bp_bank_account_id;
+                var bank_full_name;
+                for (var i = 0;i < line_records.length;i++) {
+                    var line_record = line_records[i];
+                    if (!current_bp_id && line_record.get('bp_id')) {
+                        current_bp_id = line_record.get('bp_id');
+                    }
+                    /* if (current_bp_id && line_record.get('bp_id') && current_bp_id != line_record.get('bp_id')) {
+                     Aurora.showMessage('${l:PROMPT}', '付款对象必须相同！');
+                     window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                     return;
+                     } */
+            
+                    if (Ext.isEmpty(line_record.get('pay_amount'))) {
+                        //if (Ext.isEmpty(line_record.get('amount'))) {
+                        Aurora.showMessage('${l:PROMPT}', '本次支付金额为空！');
+                        window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        return;
+                    }
+            
+                    if (line_record.get('payment_status') == 'FULL') {
+                        Aurora.showMessage('${l:PROMPT}', '存在已全部付款的付款行，请核查付款明细！');
+                        window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        return;
+                    }
+                }
+                bp_bank_account_code = line_record.get('bp_bank_account_code');
+                bp_bank_account_num = line_record.get('bp_bank_account_num');
+                bp_bank_account_name = line_record.get('bp_bank_account_name');
+                bp_bank_account_code_n = line_record.get('bp_bank_account_code_n');
+                bp_bank_account_id = line_record.get('bp_bank_account_id');
+                bank_full_name = line_record.get('bank_full_name');
+                bank_branch_name = line_record.get('bank_branch_name');
+                var win = new Aurora.Window({
+                    id: 'csh_payment_req_pay_win1',
+                    url: $('csh_payment_req_pay_win_link').getUrl(),
+                    params: {
+                        payment_req_id: payment_req_id,
+                        winid: 'csh_payment_req_pay_win1',
+                        winid1: 'csh_payment_update_window',
+                        winid2: 'csh_payment_req_pay_win1',
+                        hdds_id: hdds_id,
+                        lnds_id: lnds_id,
+                        df_flag: 'Y',
+                        bp_bank_account_code: bp_bank_account_code,
+                        bp_bank_account_num: bp_bank_account_num,
+                        bp_bank_account_name: bp_bank_account_name,
+                        bp_bank_account_code_n: bp_bank_account_code_n,
+                        bp_bank_account_id: bp_bank_account_id,
+                        bank_full_name: bank_full_name,
+                        bank_branch_name: bank_branch_name
+                    },
+                    title: '${l:CSH502.CSH_PAYMENT_REQ_PAY}',
+                    fullScreen: true
+                });
+                win.on('close', function() {
+                    var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                    $(hdds_id).query();
+                });
+                // $('${/parameter/@winid}').close();
+                // alert('${/parameter/@csh_query_ds}');
+                // $('${/parameter/@csh_query_ds}').query();
+            
+            };
+            
+            window['${/parameter/@layout_code}_on_layout_dynamic_form_add_and_load'] = function(ds, record, config_records, bp_seq) {
+                var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                if (hdds_id == ds.id && record.isNew) {
+                    if ('${/parameter/@business_type}' == 'PAYMENT') {
+                        record.set('business_type', '${/model/default_payment_document_type/record/@business_type}');
+                        record.set('document_type', '${/model/default_payment_document_type/record/@document_type}');
+                        record.set('document_type_n', '${/model/default_payment_document_type/record/@description}');
+            
+                        record.set('con_business_type', '${/parameter/@con_business_type}');
+                        record.set('con_business_type_n', '${/parameter/@con_business_type_n}');
+                        record.set('taxpayer_type', '${/parameter/@taxpayer_type}');
+                        record.set('taxpayer_type_n', '${/parameter/@taxpayer_type_n}');
+            
+                    } else if ('${/parameter/@business_type}' == 'PREPAYMENT') {
+                        record.set('business_type', '${/model/default_prepayment_document_type/record/@business_type}');
+                        record.set('document_type', '${/model/default_prepayment_document_type/record/@document_type}');
+                        record.set('document_type_n', '${/model/default_prepayment_document_type/record/@description}');
+                    }
+                }
+                if (hdds_id == ds.id) {
+                    if ('${/parameter/@function_usage}' == 'READONLY') {
+            
+                       } else {
+                        var compensatory_flag = record.get('compensatory_flag');
+                        if (compensatory_flag == 'Y') {
+                            record.getField('las_compensatory_amount').setReadOnly(false);
+                        } else {
+                            record.getField('las_compensatory_amount').setReadOnly(true);
+                        }
+                    }
+                }
+            };
+            
+            function csh504_ddct_link(record_id, name) {
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][record_id + '---' + name];
+                if (record.dirty) {
+                    Aurora.showMessage('${l:PROMPT}', '请先保存数据！');
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    return;
+                }
+                var payment_req_ln_id = record.get('payment_req_ln_id'),
+                    apply_amount = record.get('amount'),
+                    contract_number = record.get('contract_number'),
+                    ref_doc_id = record.get('ref_doc_id');
+                var win = new Aurora.Window({
+                    id: 'csh_req_ddct_link_winid',
+                    url: $('csh_req_ddct_link').getUrl(),
+                    params: {
+                        apply_amount: apply_amount,
+                        payment_req_id: '${/parameter/@payment_req_id}',
+                        payment_req_ln_id: payment_req_ln_id,
+                        contract_number: contract_number,
+                        contract_id: ref_doc_id,
+                        winid: 'csh_req_ddct_link_winid',
+                        function_usage: '${/parameter/@function_usage}'
+                    },
+                    title: '坐扣',
+                    width: 1000,
+                    height: 500
+                });
+                win.on('close', function() {
+                    var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                    // var lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                    var hd_record = $(hdds_id).getCurrentRecord();
+                    var payment_req_id = hd_record.get('payment_req_id');
+                    if (payment_req_id) {
+                        $(hdds_id).setQueryParameter('payment_req_id', payment_req_id);
+                    } else {
+                        Aurora.showMessage('${l:PROMPT}', '请先保存数据');
+                        return;
+                    }
+                    $(hdds_id).query();
+                    // $(lnds_id).query($(lnds_id).currentPage);
+                });
+            }
+            
+            //保存submitsuccess调用
+            window['${/parameter/@layout_code}_on_layout_dynamic_submitsuccess'] = function(ds, record, res, bp_seq) {
+                //    update_flag = 'N';
+                var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                var hd_record = $(hdds_id).getCurrentRecord();
+                var payment_req_id = hd_record.get('payment_req_id');
+                if (payment_req_id) {
+                    $(hdds_id).setQueryParameter('payment_req_id', payment_req_id);
+                    if ('${/parameter/@button_flag}' == 'N') {
+                        Aurora.request({
+                            url: $('csh_payment_ddct_link').getUrl(),
+                            para: {
+                                payment_req_id: payment_req_id
+                            },
+                            success: function() {},
+                            error: function() {},
+                            failure: function() {},
+                            scope: this
+                        });
+                    }
+            
+                    $(hdds_id).query();
+                } else {
+                    Aurora.showMessage('${l:PROMPT}', '请先保存数据');
+                }
+                if ('${/parameter/@button_flag}' == 'N') {
+            
+                   }
+            
+                window['${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+            };
+            
+            function csh504_prepayment_dk_link(record_id, name) {
+                var record = window['${/parameter/@layout_code}_hls_link_render_record'][record_id + '---' + name];
+                var payment_req_ln_id = record.get('payment_req_ln_id');
+                var win = new Aurora.Window({
+                    id: 'csh_payment_req_prepayment_dk_detail_link_winid',
+                    url: $('csh_payment_req_prepayment_dk_detail_link_id').getUrl(),
+                    params: {
+                        bp_id: record.get('bp_id'),
+                        payment_req_ln_id: payment_req_ln_id,
+                        payment_req_id: record.get('payment_req_id'),
+                        winid: 'csh_payment_req_prepayment_dk_detail_link_winid',
+                        function_usage: '${/parameter/@function_usage}'
+                    },
+                    title: '预付款抵扣明细',
+                    width: 650,
+                    height: 500
+                });
+                win.on('close', function() {
+                    var lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                    $(lnds_id).query($(lnds_id).currentPage);
+                });
+            }
+            
+            function open_con_contract_readonly_win(record_id, ds_id) {
+            debugger;
+                var record = $(ds_id).findById(record_id);
+                var param = record.data;
+                param.function_code = 'CON501_DFF';
+                param.function_usage = 'QUERY';
+                param.url_title = '合同查询';
+                param.winid = 'con_rd_wfl_link_winid';
+                //param.layout_debugger_flag = 'Y';
+            
+                hls_doc_get_layout_code('csh501d_get_layout_code_link_id', param, 'con_rd_wfl_link', null, '${/parameter/@layout_code}');
+            }
+            function open_prj_project_readonly_win(record_id, ds_id) {
+                debugger;
+                var record = $(ds_id).findById(record_id);
+                var param = record.data;
+                param.function_code = 'PRJ501_DFF';
+                param.function_usage = 'QUERY';
+                param.url_title = '${l:HLS.PROJECT_MAITAIN}';
+                param.winid = 'prj_rd_wfl_link_winid';
+                //param.layout_debugger_flag = 'Y';
+            
+                hls_doc_get_layout_code('csh501d_get_layout_code_link_id', param, 'prj_rd_wfl_link_winid', null, 'PROJECT_QUERY_DFF');
+            }
+            window['${/parameter/@layout_code}_dynamic_link_renderer'] = function(value, record, name, config_record, bp_seq) {
+            
+                var link_function = '';
+                window['${/parameter/@layout_code}_hls_link_render_record'][record.id + '---' + name] = record;
+                if (name == 'ddct_link') {
+            
+                    link_function = 'csh504_ddct_link';
+                    if (record.get('payment_req_ln_id') && !('${/parameter/@button_flag}' == 'Y')) {
+                        return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+                    } else {
+                        return '';
+                    }
+                } else if (name == 'act_amount') {
+                    var act_amount = record.get('act_amount');
+                    return Aurora.formatMoney(act_amount);
+                } else if (name == 'prepayment_dk') {
+                    link_function = 'csh504_prepayment_dk_link';
+                    if (record.get('payment_req_ln_id')) {
+                        return '<a href="javascript:window[\'' + link_function + '\'](\'' + record.id + '\',\'' + name + '\');">' + config_record.get('prompt') + '</a>';
+                    } else {
+                        return '';
+                    }
+                } else if (name == 'contract_number' && value) {
+                    return '<a href="javascript:open_con_contract_readonly_win(\'' + record.id + '\',\'' + record.ds.id + '\')">' + value + '</a>';
+                }else if (name == 'project_number' && value) {
+                    return '<a href="javascript:open_prj_project_readonly_win(\'' + record.id + '\',\'' + record.ds.id + '\')">' + value + '</a>';
+                }
+            };
+            
+            window['${/parameter/@layout_code}_on_layout_dynamic_grid_query'] = function(ds, qpara, bp_seq) {
+                var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                var hd_record = $(hdds_id).getCurrentRecord();
+                qpara['payment_req_id'] = hd_record.get('payment_req_id');
+                if (hd_record.get('bp_id_vender_n')) {
+                    qpara['bp_id_vender_n'] = hd_record.get('bp_id_vender_n');
+                }
+            
+            };
+            
+            function on_csh_payment_req_temp_ln_ds_query(ds, qpara) {
+                qpara['payment_bp_id'] = '${/parameter/@payment_bp_id}';
+            }
+            Aurora.onReady(function() {
+                var bp_category = '${/model/current_bp_category/record/@bp_category}';
+                // if (bp_category == 'AGENT') {
+                // Ext.get("CSH501D_QUERY_PAYMENT_REQ_HD_CSH_PAYMENT_REQ_HD_IRR").setStyle({
+                // display: "none"
+                // });
+                // }
+                btnInterval = setInterval(function() {
+                    for (var id in $A.CmpManager.cache) {
+                        if ($A.CmpManager.cache[id] instanceof $A.Grid) {
+                            if (id.match(/csh_payment_req_ln_layout_grid_id$/)) {
+                                var grid = $(id);
+                                if ('${/parameter/@function_usage}' != 'QUERY') {
+                                    grid.hideColumn('pay_amount');
+                                }
+                            }
+                        }
+                        clearInterval(btnInterval);
+                        btnInterval = null;
+                    }
+                }, 10);
+            });
+            
+            function sumFunction(datas, name) {
+                var sum = 0;
+                for (var i = 0;i < datas.length;i++) {
+                    var r = datas[i];
+                    var d = r.get(name);
+                    var n = parseFloat(d);
+                    if (!isNaN(n)) {
+                        sum = plus(sum, n);
+                    }
+                }
+                var total = (typeof(sum) == 'undefined' ? '' : parseFloat(sum));
+                return '<font>' + Aurora.formatMoney(total) + '</font>';
+            }
+            
+            window['${/parameter/@layout_code}_on_layout_dynamic_grid_select'] = function(ds, record, bp_seq) {
+            
+                if (record.get('payment_status') != 'FULL' && Ext.isEmpty(record.get('pay_amount'))) {
+                    record.set('pay_amount', record.get('act_amount'));
+                }
+            };
+            
+            window['${/parameter/@layout_code}_on_layout_dynamic_grid_unselect'] = function(ds, record, bp_seq) {
+                record.set('pay_amount', '');
+            };
+            window['${/parameter/@layout_code}_user_button5_layout_dynamic_click'] = function() {
+                Aurora.showConfirm('${l:HLS.PROMPT}', '是否确定提起银行付款', function() {
+                    var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                    var hd_record = $(hdds_id).getCurrentRecord();
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                    Aurora.request({
+                        url: $('csh_payment_bank_link').getUrl(),
+                        para: {
+                            payment_req_id: hd_record.get('payment_req_id')
+                        },
+                        success: function() {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                            $('${/parameter/@winid}').close();
+                        },
+                        error: function() {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        failure: function() {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        scope: this
+                    });
+                });
+            
+            };
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                // if (update_flag != 'N') {
+                //   Aurora.showMessage('${l:PROMPT}', '请先保存数据');
+                //   return;
+                //  }
+            
+                var lnds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_ln');
+                var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                var record = $(lnds_id).getAt(0);
+                var record_hd = $(hdds_id).getAt(0);
+                if (record_hd.dirty) {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '${l:HLS.EXECUTE_AFTER_SAVE}');
+                    return false;
+                }
+                Aurora.showConfirm('${l:HLS.PROMPT}', '是否确认', function() {
+                    var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                    var hd_record = $(hdds_id).getCurrentRecord();
+                    //	aler(hd_record.get('payment_req_id'));
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                    Aurora.request({
+                        url: $('csh_payment_center_link').getUrl(),
+                        para: {
+                            payment_req_id: hd_record.get('payment_req_id')
+                        },
+                        success: function() {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                            $('${/parameter/@winid}').close();
+                        },
+                        error: function() {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        failure: function() {
+                            window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        },
+                        scope: this
+                    });
+                });
+            };
+            Aurora.onReady(function() {
+                if ('${/parameter/@button_flag}' == 'Y') {
+                    $('${/parameter/@layout_code}_user_button2').hide();
+                }
+            });
+            //更新时调用
+            //window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+            // update_flag = 'Y';
+            // if (update_flag!='N'){
+            // Aurora.showMessage('${l:PROMPT}', '请先保存数据');
+            // return;
+            // }
+            
+            // };
+            //附件上传
+            window['${/parameter/@layout_code}_upload_layout_dynamic_click'] = function() {
+                debugger;
+                var hdds_id = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'csh_payment_req_hd');
+                var hd_record = $(hdds_id).getCurrentRecord();
+                if (hd_record.get('payment_req_id')) {
+                    if ('${/parameter/@function_usage}' == 'UPDATE') {
+                        var url = $('attachment_uploadFile_link').getUrl() + '?table_name=DF_PAYMENT&header_id=' + hd_record.get('payment_req_id');
+                    } else {
+                        var url = $('attachment_downFile_link').getUrl() + '?table_name=DF_PAYMENT&header_id=' + hd_record.get('payment_req_id');
+                    }
+                    var win = new Aurora.Window({
+                        url: url,
+                        title: '附件上传',
+                        id: 'df_payment_uploadFile_id',
+                        width: 850,
+                        height: 400
+                    });
+                    win.on('close', function() {});
+                } else {
+                    Aurora.showMessage('${l:HLS.PROMPT}', '请先保存!');
+                }
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+        <a:dataSets>
+            <a:dataSet id="csh_payment_req_temp_ln_ds" autoQuery="true" fetchAll="true" model="csh.CSH760.csh_payment_req_ln_query">
+                <a:events>
+                    <a:event name="load" handler="on_csh_payment_req_temp_ln_ds_load"/>
+                    <a:event name="query" handler="on_csh_payment_req_temp_ln_ds_query"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+    </a:view>
+</a:screen>

@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: Hand.wts  
+    $Date: 2019-1-30 15:07:02  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:c="aurora.application.action" xmlns:p="uncertain.proc" xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" trace="true">
+    <a:init-procedure>
+        <a:model-query fetchAll="true" model="rpt.RPT5210.get_current_date" rootPath="default_date_path"/>
+    </a:init-procedure>
+    <a:view>
+        <a:link id="con_everyday_amount_report_link" url="${/request/@context_path}/modules/rpt/RPT5210/con_everyday_amount_report.screen"/>
+        <a:link id="rpt5210_ins_link_id" model="rpt.RPT5210.rpt5210_report_query_ins" modelaction="update"/>
+        <script><![CDATA[
+            function query() {
+                var record = $('cash_received_query_ds').getAt(0);
+                var start_date = record.get('start_date');
+                var days = record.get('days');
+                if (!days) {
+                    Aurora.Masker.unmask(Ext.getBody());
+                    Aurora.showMessage('提示', '请选择日期！');
+                    return '';
+                }
+                if (days > 500) {
+                    Aurora.showMessage('提示', '查询天数不能大于500！');
+                    return '';
+                }
+                if (start_date && days) {
+                    Aurora.showConfirm('${l:HLS.PROMPT}', '查询天数越多，查询时间越长，请耐心等待。', function() {
+                        Aurora.Masker.mask(Ext.getBody(), '${l:BEING_IMPLEMENTED}');
+                        Aurora.request({
+                            url: $('rpt5210_ins_link_id').getUrl(),
+                            para: {
+                                start_date: start_date,
+                                days: days
+                            },
+                            success: function(res) {
+                                var win = new Aurora.Window({
+                                    id: 'con_everyday_amount_report_window',
+                                    url: $('con_everyday_amount_report_link').getUrl(),
+                                    params: {
+                                        start_date: start_date,
+                                        days: days,
+                                        winId: 'con_everyday_amount_report_window'
+                                    },
+                                    title: '月平均资产明细表',
+                                    fullScreen: true
+                                });
+                                Aurora.Masker.unmask(Ext.getBody());
+                            },
+                            error: function() {
+                                Aurora.Masker.unmask(Ext.getBody());
+                            },
+                            failure: function() {
+                                Aurora.Masker.unmask(Ext.getBody());
+                            },
+                            scope: this
+                        });
+                    }, null);
+            
+            
+                } else {
+                    Aurora.showMessage('提示', '请输入查询条件！');
+                    return '';
+                }
+                // win.on('close', function() {
+                // $('acp310_invoice_result_ds').query();
+                // });
+            }
+            
+            function reset() {
+                $('cash_received_query_ds').reset();
+            }
+            
+            // function UpdateDays(ds, record, name, value, oldvalue) {
+            // if (name == 'start_date') {
+            // if (value) {
+            // var date = new Date(value);
+            // var month = date.getMonth() + 1;
+            // var year =date.getFullYear();
+            // if (month == 4 || month == 6 || month == 9 || month == 11) {
+            // record.set('days', 30);
+            // } else if(month ==2&&((year%4==0&&year%100!=0)||year%400==0)){
+            // record.set('days', 29);
+            // } else if(month ==2){
+            // record.set('days', 28);
+            // }else{
+            // record.set('days', 31);
+            // }
+            
+            // }
+            // }
+            
+            // }
+            
+            
+            function UpdateDays(ds, record, name, value, oldvalue) {
+                
+                if (name == 'start_date') {
+                    if (value && record.get('end_date')) {
+                        var dateSpan, tempDate, iDays;
+                        sDate1 = Date.parse(value);
+                        sDate2 = Date.parse(record.get('end_date'));
+                        dateSpan = sDate2 - sDate1;
+                        dateSpan = Math.abs(dateSpan);
+                        iDays = Math.floor(dateSpan / (24 * 3600 * 1000));
+                        record.set('days', iDays+1);
+                    }
+                } else if (name == 'end_date') {
+                    if (value && record.get('start_date')) {
+                        sDate1 = Date.parse(record.get('start_date'));
+                        sDate2 = Date.parse(value);
+                        dateSpan = sDate2 - sDate1;
+                        dateSpan = Math.abs(dateSpan);
+                        iDays = Math.floor(dateSpan / (24 * 3600 * 1000));
+                        record.set('days', iDays+1);
+                    }
+                }
+            }
+        ]]></script>
+        <a:dataSets>
+            <a:dataSet id="month_ds" lookupCode="MONTH"/>
+            <a:dataSet id="cash_received_query_ds">
+                <a:fields>
+                    <a:field name="start_date" required="true"/>
+                    <a:field name="end_date" required="true"/>
+                    <a:field name="days" readOnly="true"/>
+                </a:fields>
+                <a:events>
+                    <a:event name="update" handler="UpdateDays"/>
+                </a:events>
+            </a:dataSet>
+        </a:dataSets>
+        <a:screenBody>
+            <a:screenTopToolbar>
+                <a:gridButton click="query" text="查询"/>
+                <a:gridButton click="reset" text="重置"/>
+            </a:screenTopToolbar>
+            <a:form column="2" title="查询条件">
+                <a:datePicker name="start_date" bindTarget="cash_received_query_ds" prompt="开始日期"/>
+                <a:datePicker name="end_date" bindTarget="cash_received_query_ds" prompt="结束日期"/>
+                <a:numberField name="days" allowDecimals="false" allowNegative="false" bindTarget="cash_received_query_ds" prompt="查询天数"/>
+            </a:form>
+        </a:screenBody>
+    </a:view>
+</a:screen>
