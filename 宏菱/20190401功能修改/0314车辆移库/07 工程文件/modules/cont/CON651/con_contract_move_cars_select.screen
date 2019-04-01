@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    $Author: wuts  
+    $Date: 2019年1月9日 上午9:06:29  
+    $Revision: 1.0  
+    $Purpose: 
+-->
+<a:screen xmlns:a="http://www.aurora-framework.org/application" customizationEnabled="true" dynamiccreateenabled="true">
+    <a:view>
+        <a:link id="con_df_move_cars_detail_link_id" url="${/request/@context_path}/modules/cont/CON651/con_contract_move_cars_detail.screen"/>
+        <a:link id="update_agent_id_and_other_link" model="cont.CON651.update_agent_id_and_other" modelaction="batch_update"/>
+        <script><![CDATA[
+            //确认
+            window['${/parameter/@layout_code}_user_button1_layout_dynamic_click'] = function() {
+                window['${/parameter/@bp_seq}${/parameter/@layout_code}_lock_layout_dynamic_window']();
+                $('${/parameter/@layout_code}_user_button1').disable();
+                var ds_id = get_dsid_by_basetable(window['${/parameter/@pre_layout_code}_layoutDataSetList'], 'con_move_cars_ln');
+                var ds_id2 = get_dsid_by_basetable(window['${/parameter/@layout_code}_layoutDataSetList'], 'con_move_cars_ln');
+                var record2 = $(ds_id2).getAt(0);
+                var records = $(ds_id).getSelected();
+                //!record2.get('agent_inventory_id') ||!record2.get('after_id') ||
+                if (!record2.get('after_id') || !record2.get('move_date') || !record2.get('phone') || !record2.get('contact_person')) {
+                    Aurora.showInfoMessage('', '请录入必填信息', null, 250, 100);
+                    $('${/parameter/@layout_code}_user_button1').enable();
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    return;
+                }
+                if( record2.get('inventory_address_level') == 'EXHIBITION' && !record2.get('remove_date')){
+                    Aurora.showInfoMessage('', '请录入必填信息 : 预计送回日', null, 250, 100);
+                    $('${/parameter/@layout_code}_user_button1').enable();
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    return;
+                }
+                // 手机号校验
+                var phone = record2.get('phone');
+                var reg=/^(\d{2,13})$/;
+                if(reg.test(phone) == true){
+                    var matchString = phone.match(reg);
+                    if(phone != matchString[0]){
+                        Aurora.showInfoMessage('${l:PROMPT}', '${l:MOBILE_CHECK}', null, 250, 100);
+                        $('${/parameter/@layout_code}_user_button1').enable();
+                        window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        return;
+                    }
+                }else{
+                    Aurora.showInfoMessage('${l:PROMPT}', '${l:MOBILE_CHECK}', null, 250, 100);
+                    $('${/parameter/@layout_code}_user_button1').enable();
+                    window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    return;
+                }
+                var param = [];
+                for (var i = 0;i < records.length;i++) {
+                    var record = records[i];
+                    // var status = record.get('mortgage_status');
+                    param.push({
+                        line_id: record.get('line_id'),
+                        after_id: record2.get('after_id'),
+                        move_date: record2.get('move_date'),
+                        remove_date: record2.get('remove_date'),
+                        contact_person: record2.get('contact_person'),
+                        phone: record2.get('phone'),
+                        '_status': 'insert'
+                    });
+                }
+                Aurora.request({
+                    url: $('update_agent_id_and_other_link').getUrl(),
+                    para: param,
+                    success: function() {
+                        Aurora.SideBar.show({
+                            msg: '确认成功',
+                            duration: 2000
+                        });
+                        $('${/parameter/@layout_code}_user_button1').enable();
+                        window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                        $('${/parameter/@winId}').close();
+                        //location.href = $('con_df_move_cars_detail_link_id').getUrl() + '?function_code=${/parameter/@pre_function_code}';
+                    },
+                    failure: function() {
+                        $('${/parameter/@layout_code}_user_button1').enable();
+                        window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    error: function() {
+                        $('${/parameter/@layout_code}_user_button1').enable();
+                        window['${/parameter/@bp_seq}${/parameter/@layout_code}_unlock_layout_dynamic_window']();
+                    },
+                    scope: this
+                });
+            };
+            // 更新事件
+            window['${/parameter/@bp_seq}${/parameter/@layout_code}_on_layout_dynamic_update'] = function(ds, record, name, value, old_value, bp_seq) {
+                if(name == 'inventory_address_level' && value){
+                    if(value == 'EXHIBITION'){
+                        record.getField('remove_date').setRequired(true);
+                        record.set('inventory_address_level', value);
+                    }else{
+                        record.getField('remove_date').setRequired(false);
+                        record.set('inventory_address_level', value);
+                    }
+                }
+
+            };
+        ]]></script>
+        <a:screen-include screen="modules/cont/CON500/con_contract_get_layout_code.screen"/>
+    </a:view>
+</a:screen>
