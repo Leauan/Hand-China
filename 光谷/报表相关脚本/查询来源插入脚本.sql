@@ -1,0 +1,82 @@
+insert into HLS_DOC_CATEGORY_DB_OBJECT
+  (DOCUMENT_CATEGORY,
+   OBJECT_NAME,
+   OBJECT_TYPE,
+   CREATED_BY,
+   CREATION_DATE,
+   LAST_UPDATED_BY,
+   LAST_UPDATE_DATE)
+values
+  ('CONTRACT',
+   'con_lease_general_report_lv',
+   'VIEW',
+   -1,
+   sysdate,
+   -1,
+   sysdate);
+insert into HLS_DOC_CATEGORY_DB_OBJECT
+  (DOCUMENT_CATEGORY,
+   OBJECT_NAME,
+   OBJECT_TYPE,
+   CREATED_BY,
+   CREATION_DATE,
+   LAST_UPDATED_BY,
+   LAST_UPDATE_DATE)
+values
+  ('CONTRACT',
+   'con_lease_plane_report_lv',
+   'VIEW',
+   -1,
+   sysdate,
+   -1,
+   sysdate);
+insert into HLS_DOC_CATEGORY_DB_OBJECT
+  (DOCUMENT_CATEGORY,
+   OBJECT_NAME,
+   OBJECT_TYPE,
+   CREATED_BY,
+   CREATION_DATE,
+   LAST_UPDATED_BY,
+   LAST_UPDATE_DATE)
+values
+  ('CONTRACT',
+   'con_lease_boat_report_lv',
+   'VIEW',
+   -1,
+   sysdate,
+   -1,
+   sysdate);
+insert into HLS_DOC_CATEGORY_DB_OBJECT
+  (DOCUMENT_CATEGORY,
+   OBJECT_NAME,
+   OBJECT_TYPE,
+   CREATED_BY,
+   CREATION_DATE,
+   LAST_UPDATED_BY,
+   LAST_UPDATE_DATE)
+values
+  ('CONTRACT',
+   'con_lease_service_report_lv',
+   'VIEW',
+   -1,
+   sysdate,
+   -1,
+   sysdate);
+   
+--已投放项目   
+insert into HLS_DOC_CATEGORY_DB_OBJECT
+  (DOCUMENT_CATEGORY,
+   OBJECT_NAME,
+   OBJECT_TYPE,
+   CREATED_BY,
+   CREATION_DATE,
+   LAST_UPDATED_BY,
+   LAST_UPDATE_DATE)
+values
+  ('CONTRACT',
+   'CON_DELIVERED_PROJECT_LV',
+   'VIEW',
+   -1,
+   sysdate,
+   -1,
+   sysdate);

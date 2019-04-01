@@ -1,0 +1,10 @@
+------------------------------模板命名
+--PURCHASE_CONTRACT     光谷租赁购买合同
+--SALES_CONTRACT     光谷租赁买卖合同
+--GUARANTEE_CONTRACT       光谷租赁保证合同
+--PLEDGE_CONTRACT     光谷租赁抵押合同
+--PRENDA_CONTRACT    光谷租赁质押合同
+--LEASE_CONTRACT        光谷融资租赁合同共同承租
+--CAR_LEASEBACK_CONTRACT      融资租赁合同售后回租(汽车租赁）
+--LEASEBACK_CONTRACT        融资租赁合同售后回租(通用版）
+--STRAIGHT_RENT_CHATTEL_CONTRACT  融资租赁合同直租动产版
